@@ -18,8 +18,18 @@ pictures a second (-1 to +1; near 0 = no link, or temperature barely varied).
 | 20261029-092216-doe | unknown | 74.0 / 77.4 | 0 | 100 / 0 / 0 % | 25.0 / - / - | 0.11 | -0.02 |
 | 20261029-211053-doe | unknown | 80.8 / 83.3 | 40 | 88 / 12 / 0 % | 24.5 / 23.5 / - | 0.27 | -0.32 |
 | 20261030-100153-doe | unknown | 81.3 / 84.2 | 167 | 81 / 19 / 0 % | 25.0 / 24.5 / - | 0.25 | -0.33 |
+| 20261102-145816-doe | unknown | 70.1 / 77.9 | 0 | 100 / 0 / 0 % | 25.0 / - / - | 0.04 | 0.01 |
 
 ## Readings (newest first)
+- **20261102-145816-doe (low-battery DOE loop in keep-going mode, 14:58-15:56, 58 min, afternoon, three robots,
+  cooling not in the logs):** the coolest DOE loop in this tracker by median: 73 C on average while robots drove (top 77.9 C),
+  then down to 61-62 C after 15:35, when every robot was silent and the loop only held them (median 70.1 C, 0 minutes
+  at 80 C, no soft limit or throttling). The camera handled 25.0 pictures a second throughout (rho 0.01: no link).
+  The drop is the loop's own work stopping (its CPU from 68 % to 5 % of a core), not a change of cooling. The loop was
+  stopped by Ctrl+C at 15:56 (build-reports/e02-nov02-low-battery-doe.md), not from heat.
+  ![Pi temperature and camera speed, DOE loop 2 Nov 14:58](heat/20261102-145816-doe.png)
+  The Pi's temperature and the pictures the camera handled each second, over the session; data: the session's cpu.csv
+  and perf.csv.
 - **20261030-100153-doe (DOE loop in keep-going mode, 10:01-14:01, the full 4 h, daytime, cooling not in the logs):**
   the hottest and longest DOE loop so far: 80 C within 3 minutes, then 77-84 C for four hours (median 81.3 C, 167
   minutes at 80 C or more), under the soft temperature limit 19 % of the time, never throttling. Under the soft limit
