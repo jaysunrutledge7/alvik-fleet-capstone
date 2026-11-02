@@ -1,0 +1,16 @@
+{
+ "title": "School conference table (66 x 156 in), second Pi, two borrowed Alviks",
+ "_note": "Robot names and tag ids are Claude's picks (2 Nov 2026): change them here before reflashing if Nick wants others. No WiFi password goes in this file or anywhere in the repo.",
+ "robots": [
+  {"name": "JayA", "ip": null, "colour": "#2952CC"},
+  {"name": "JayB", "ip": null, "colour": "#C2410C"}
+ ],
+ "pi": {"address": "", "hostname": ""},
+ "cameras": {"overhead": {"label": "Camera 1 (over the corner 1 half)"},
+             "side": {"label": "Camera 2 (over the corner 2 half)"}},
+ "capture": {"width": 1280, "height": 960, "fps": 15},
+ "tracking": "tags",
+ "tags": {"family": "tag25h9", "tag_cm": 8.0, "roof_cm": 9.5, "height_cm": null,
+          "ids": {"JayA": 0, "JayB": 1}, "spares": [2, 3, 4, 5]},
+ "table": {"length_cm": 396.2, "width_cm": 167.6, "how": "Nick: 66 x 156 in"}
+}

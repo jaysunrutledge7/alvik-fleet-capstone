@@ -429,7 +429,8 @@ def run_plan_check(coord, link, args, names, say=print, straighten=False, tag="f
     import e02_camera as CAM
     t0 = time.time()
     cal, scal = args.facing_calib, args.facing_side_calib or ""
-    while not (cal and os.path.exists(cal)) and time.time() - t0 < 25:    # the simulator writes its models at start
+    # the simulator writes its models at start; the tag setup's fit (dry runs, 2026-11-02) about 20 s after it
+    while not (cal and os.path.exists(cal)) and time.time() - t0 < 90:
         time.sleep(0.2)
     if not (cal and os.path.exists(cal)):
         raise SystemExit("Facing check: no overhead camera calibration (%s). Nothing moved. (--no-facing-check "
@@ -437,7 +438,7 @@ def run_plan_check(coord, link, args, names, say=print, straighten=False, tag="f
     cams = {"overhead": CAM.load_camera(cal)}
     streams = {"overhead": args.facing_stream}
     if scal and args.facing_side_stream:
-        while not os.path.exists(scal) and time.time() - t0 < 25:
+        while not os.path.exists(scal) and time.time() - t0 < 90:
             time.sleep(0.2)
         if os.path.exists(scal):
             cams["side"] = CAM.load_camera(scal)
@@ -475,11 +476,21 @@ def run_plan_check(coord, link, args, names, say=print, straighten=False, tag="f
                 time.sleep(0.02)
             return None
 
-        say("Facing check: which way each robot faces, from its lights (nothing moves; about %.0f s) ..."
-            % (2.0 + 3.0 * len(names)))
         tols = {n: float(args.facing_tol_deg) for n in names}
-        res = check(names, send, acked, grab, cams, assumed=assumed, firmware=fw, rect=rect, tol=tols,
-                    say=(lambda w: None) if straighten else say, targets=targets)
+        tag_cfg = getattr(args, "facing_tags", "") or ""
+        if tag_cfg:
+            # the AprilTag robots (2026-11-02): read from their roof tags, nothing sent to the robots
+            with open(tag_cfg) as fh:
+                tags = json.load(fh)
+            say("Facing check: which way each robot faces, from its roof tag (nothing moves; about %.0f s) ..."
+                % TAG_LOOK_S)
+            res = tag_check(names, grab, cams, tags, assumed=assumed, rect=rect, tol=tols, targets=targets,
+                            say=(lambda w: None) if straighten else say)
+        else:
+            say("Facing check: which way each robot faces, from its lights (nothing moves; about %.0f s) ..."
+                % (2.0 + 3.0 * len(names)))
+            res = check(names, send, acked, grab, cams, assumed=assumed, firmware=fw, rect=rect, tol=tols,
+                        say=(lambda w: None) if straighten else say, targets=targets)
         if straighten:
             res["headings"] = {}
             ok = True
@@ -522,7 +533,7 @@ def run_plan_check(coord, link, args, names, say=print, straighten=False, tag="f
             say("  " + w)
             res["ok"] = False
         old = [n for n in names if not new_firmware(fw.get(n))]
-        if old:
+        if old and not tag_cfg:
             say("  (%s: firmware %s; 2026-10-29a lights one side at a time, so front and back are told apart every "
                 "time: flash it)" % (", ".join(old), ", ".join(sorted(set(str(fw.get(n)) for n in old)))))
         try:
@@ -545,6 +556,67 @@ def run_plan_check(coord, link, args, names, say=print, straighten=False, tag="f
         return res
     finally:
         grab.close()
+
+
+# ------------------------------------------------------------------------------------------------ by roof tags
+TAG_LOOK_S = 1.2        # the AprilTag robots (conference-table build, 2026-11-02): pictures read per check (about 15
+                        # per camera). No DOE: still robots
+TAG_AGREE_DEG = 10.0    # the two cameras' tag headings further apart than this: not sure. Chosen: 10x the tag heading's
+                        # p95 error in the sizing tests (1.3 deg). No DOE: a sanity line
+
+
+def tag_check(names, grab, cams, tags, assumed=None, rect=None, tol=TOL_DEG, targets=None, say=print):
+    """Which way each robot faces and where it is, from its roof tag (nothing sent to the robots, nothing moves; the
+    lights are under the roof). The same result as check(): {ok, robots: {n: {meas, verdict}}, seconds}. meas carries
+    "centre" (the robot's middle: the tag is over it) instead of the lights' "mid"."""
+    import math as _m
+    import tagcore as TC
+    import tag_geom as TG
+    t_start = time.time()
+    ids = {n: int(tags["ids"][n]) for n in names if n in (tags.get("ids") or {})}
+    det = TC.TagDetector(tags.get("family", TC.TAG_FAMILY), ids=list(ids.values()))
+    t0 = time.time()
+    time.sleep(TAG_LOOK_S)
+    per = {n: {} for n in names}
+    for c, cam in cams.items():
+        for g in grab.between(c, t0, time.time()):
+            for d in det.detect_full(g, cam=c):
+                n = next((k for k, v in ids.items() if v == d.id), None)
+                if n is None:
+                    continue
+                p = TG.pose_from_detection(cam, d, float(tags["height_cm"]), float(tags["tag_cm"]))
+                if p is not None and abs(p.size_ratio - 1.0) <= 0.2:
+                    per[n].setdefault(c, []).append(p)
+    res, ok = {}, True
+    for n in names:
+        meas = {"heading": None, "sure": False, "how": "its tag was not read (covered, or out of every picture)"}
+        by = per[n]
+        hs, xs, ys, words = [], [], [], []
+        for c, ps in by.items():
+            h = [p.heading for p in ps]
+            ref = h[0]
+            hc = wrap180(ref + float(np.median([wrap180(v - ref) for v in h])))
+            hs.append((c, hc, len(ps)))
+            xs.append(float(np.median([p.x for p in ps])))
+            ys.append(float(np.median([p.y for p in ps])))
+            words.append("%s %d reads" % (c, len(ps)))
+        if hs:
+            ref = hs[0][1]
+            hm = wrap180(ref + float(np.mean([wrap180(h - ref) for _, h, _ in hs])))
+            spread = max(abs(wrap180(h - hm)) for _, h, _ in hs)
+            meas = {"heading": round(hm, 2), "sure": spread <= TAG_AGREE_DEG,
+                    "how": "its roof tag (%s)" % ", ".join(words) + ("" if spread <= TAG_AGREE_DEG else
+                                                                 ", cameras %.0f deg apart" % (2 * spread)),
+                    "centre": [round(float(np.mean(xs)), 2), round(float(np.mean(ys)), 2)],
+                    "mid": [round(float(np.mean(xs)) + 1.0 * _m.cos(_m.radians(hm)), 2),
+                            round(float(np.mean(ys)) + 1.0 * _m.sin(_m.radians(hm)), 2)]}
+        v = verdict(n, meas, (assumed or {}).get(n), tol=(tol.get(n, TOL_DEG) if isinstance(tol, dict) else tol),
+                    target=(targets or {}).get(n))
+        res[n] = dict(meas=meas, verdict=v)
+        if not v["ok"]:
+            ok = False
+            say("  " + v["words"])
+    return dict(ok=ok, robots=res, seconds=round(time.time() - t_start, 1), by="tags")
 
 
 # ------------------------------------------------------------------------------------------------ self-test

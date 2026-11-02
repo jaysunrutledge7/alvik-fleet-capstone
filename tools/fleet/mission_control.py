@@ -238,6 +238,27 @@ class Session:
         self.run = None
         self.last_runs = {}          # kind -> folder
         self.corner = SJ.CornerSetup(self)   # the corners-only setup (2026-10-29): Setup screen, tools/fleet/setup_job.py
+        # the site (2026-11-02): home's lights, or a site with AprilTags on the roofs (tag_job.py: Cameras & table,
+        # Production, the sync card)
+        self.site, self.tag = None, None
+        try:
+            import sites as SI
+            self.site = SI.load(getattr(self, "site_name", None))
+        except (SystemExit, ValueError, OSError) as e:
+            print("site not read (%s): home's ways" % e, flush=True)
+        if self.site and self.site.get("tracking") == "tags":
+            import tag_job as TJ
+            self.tag = TJ.TagJob(self, self.site)
+            if not map_path and not os.path.exists(os.path.join(self.dir, "map.json.tagsite")):
+                # a new tag site's folder: the site's table with its homes (Measure remakes it from the cameras)
+                import production as PR
+                tb = self.site.get("table") or {}
+                m, _ = PR.site_map((float(tb.get("length_cm") or 396.24), float(tb.get("width_cm") or 167.64)),
+                                   [r["name"] for r in self.site["robots"]])
+                if not [r["name"] for r in self.map.get("robots", [])] == [r["name"] for r in self.site["robots"]]:
+                    self.map = m
+                    self.save_map()
+                open(os.path.join(self.dir, "map.json.tagsite"), "w").close()
 
     # -- files -------------------------------------------------------------
     def save_map(self):
@@ -282,6 +303,17 @@ class Session:
                "last_runs": self.last_runs, "gap_notices": list(getattr(self, "gap_notices", [])),
                "conn_default": self.conn_default(), "corner_setup": self.corner.state(),
                "setup_way": self.corner.way}
+        if self.site:
+            st = self.site
+            out["site"] = {"name": st["name"], "title": st["title"], "tracking": st["tracking"],
+                           "robots": [r["name"] for r in st["robots"]],
+                           "colours": {r["name"]: r["colour"] for r in st["robots"]},
+                           "cameras": {k: v.get("label", k) for k, v in st["cameras"].items()},
+                           "capture": st["capture"], "tags": st.get("tags"), "table": st.get("table")}
+        if self.tag:
+            out["tag"] = {k: v for k, v in self.tag.d.items()}
+            out["tag"]["room"] = bool(self.tag.room is not None and self.tag.room.poll() is None)
+            out["sync"] = self.tag.sync_state()
         return out
 
     def conn_default(self):
@@ -479,6 +511,12 @@ class Session:
         folder = os.path.join(self.dir, "runs", "%s-%s-%s" % (now_tag(), kind, conn))
         cmd = [sys.executable, os.path.join(HERE, "mission_run.py"), "--session", folder,
                "--timeout-s", str(rs["timeout_s"]), "--border-cm", str(rs["border_cm"])]
+        if self.tag:
+            # the AprilTag site (2026-11-02): the practice room closes first (its simulator would answer as the robots),
+            # the run reads the roof tags, writes the sync marks with the session id, and refits the cameras after
+            self.tag.stop_room()
+            cmd += ["--tracking", "tags", "--site", self.site["name"], "--session-id",
+                    self.tag.sync_state()["session_id"], "--refit"]
         if kind == "warmup":
             if not self.warm_map:
                 self.warmup_plan()
@@ -521,6 +559,15 @@ class Session:
         self.last_runs[kind] = os.path.join(folder, "run")
         return self.run.status()
 
+    def production(self, d):
+        """The Production screen's orders -> a program -> planned like any program (the 8 cm net, the preview)."""
+        if not self.tag:
+            raise ValueError("production runs are for a site with tags on the robots")
+        prog = self.tag.production_program(d)
+        out = self.make_mission({"mode": "program", "program": prog})
+        out["program"] = prog
+        return out
+
     def others_driving(self):
         """What else drives the robots on this Pi (an E02 session, the DOE loop, Monday's mission from a terminal, the
         ladder), in words, or "" (the start page's process scan, tools/pi/launcher.py; simulator runs do not count).
@@ -548,7 +595,13 @@ class Session:
         import numpy as np
         run = self.run
         mode = getattr(run, "mode", "sim") if run else "sim"
-        if mode == "sim-cameras":
+        if self.tag is not None:
+            # the AprilTag site (2026-11-02): the run's own fitted cameras (simulator) or the site's (robots)
+            port = (8765 if cam == "overhead" else 8766) if mode == "sim-cameras" else (8000 if cam == "overhead" else 8001)
+            base = os.path.join(os.path.dirname(run.session), "tagcal") if (run is not None and mode == "sim-cameras") \
+                else self.tag.cal_dir
+            cal = os.path.join(base, cam + ".json")
+        elif mode == "sim-cameras":
             port = 8765 if cam == "overhead" else 8766
             cal = os.path.join(run.session, "sim", "table_camera.json" if cam == "overhead" else "side_camera.json")
         else:
@@ -573,6 +626,9 @@ class Session:
             model = None
         if model is not None and run is not None:
             col = {"Left": (204, 82, 41), "Center": (12, 65, 194), "Right": (200, 62, 122)}      # BGR of the page's colours
+            for r_ in (self.site or {}).get("robots", []):
+                h_ = r_["colour"].lstrip("#")
+                col.setdefault(r_["name"], (int(h_[4:6], 16), int(h_[2:4], 16), int(h_[0:2], 16)))
             plan_p = os.path.join(os.path.dirname(run.session), "plan.json") if getattr(run, "session", None) else None
             if plan_p and os.path.exists(plan_p):
                 with open(plan_p) as f:
@@ -588,7 +644,9 @@ class Session:
                 p = r.get("cam") or r.get("own")
                 if not p:
                     continue
-                u, v = model.project((p[0], p[1], 4.0 if cam == "overhead" else 1.85))
+                zr = float(((self.site or {}).get("tags") or {}).get("height_cm") or 6.0) if self.tag else \
+                    (4.0 if cam == "overhead" else 1.85)
+                u, v = model.project((p[0], p[1], zr))
                 if np.isfinite(u) and np.isfinite(v):
                     rr = int(max(8, 6.5 * model.px_per_cm(p[0], p[1], 4.0)))
                     cv2.circle(img, (int(u), int(v)), rr, col.get(n, (0, 200, 255)), 2, cv2.LINE_AA)
@@ -984,6 +1042,20 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(200, S.setup_state())
             if path == "/api/setup/corner":
                 return self._send(200, clean(S.corner.state()))
+            if path == "/api/tags/picture":
+                from urllib.parse import parse_qs
+                cam = (parse_qs(urlparse(self.path).query).get("cam") or ["overhead"])[0]
+                b = S.tag.picture_jpeg(cam) if S.tag else None
+                return self._send(200, b, "image/jpeg") if b else self._send(404, {"error": "no picture"})
+            if path == "/api/tags/chart":
+                from urllib.parse import parse_qs
+                f = (parse_qs(urlparse(self.path).query).get("f") or [""])[0]
+                if S.tag and f and os.path.abspath(f).startswith(os.path.abspath(S.dir)) and os.path.exists(f):
+                    with open(f, "rb") as fh:
+                        return self._send(200, fh.read(), "image/png")
+                return self._send(404, {"error": "no chart"})
+            if path == "/api/sync":
+                return self._send(200, clean(S.tag.sync_state()) if S.tag else {})
             if path == "/api/setup/picture":
                 from urllib.parse import parse_qs
                 cam = (parse_qs(urlparse(self.path).query).get("cam") or ["overhead"])[0]
@@ -1039,6 +1111,57 @@ class Handler(BaseHTTPRequestHandler):
                     return self._send(200, S.setup_start(d))
                 if path == "/api/setup/board_away":
                     return self._send(200, S.setup_board_away())
+                if path.startswith("/api/tags/") or path.startswith("/api/sync") or path == "/api/production":
+                    if not S.tag:
+                        raise ValueError("this site does not use tags (sites.py: tracking)")
+                    T = S.tag
+                    conn = d.get("conn") or "sim-cameras"
+                    if path == "/api/tags/pictures":
+                        return self._send(200, clean(T.take_pictures(conn)))
+                    if path == "/api/tags/click":
+                        return self._send(200, clean(T.set_clicks(d)))
+                    if path == "/api/tags/typed":
+                        return self._send(200, clean(T.set_typed(d)))
+                    if path == "/api/tags/checkout":
+                        return self._send(200, clean(T.checkout(conn)))
+                    if path == "/api/tags/measure":
+                        r = T.measure(conn)
+                        return self._send(200, clean(dict(r, state=S.state())))
+                    if path == "/api/tags/refit":
+                        folder = d.get("folder") or os.path.dirname(S.last_runs.get("mission") or "") or ""
+                        return self._send(200, clean(T.refit(folder, use=bool(d.get("use")))))
+                    if path == "/api/tags/room_stop":
+                        T.stop_room()
+                        return self._send(200, {"room": False})
+                    if path == "/api/production":
+                        return self._send(200, clean(S.production(d)))
+                    if path == "/api/sync/mark":
+                        return self._send(200, clean(T.mark(d.get("what") or "mark")))
+                    if path == "/api/sync/new_id":
+                        return self._send(200, clean(T.new_session_id()))
+                    if path == "/api/sync/export":
+                        import sync_tools as ST
+                        folder = d.get("folder") or os.path.dirname(S.last_runs.get("mission") or "")
+                        p_, counts = ST.export_timeline(folder)
+                        return self._send(200, {"file": p_, "rows": counts})
+                    if path == "/api/sync/compare":
+                        import merge_external as ME
+                        folder = d.get("folder") or os.path.dirname(S.last_runs.get("mission") or "")
+                        cdir = os.path.join(folder, "compare")
+                        os.makedirs(cdir, exist_ok=True)
+                        th = os.path.join(cdir, "external.csv")
+                        with open(th, "w") as fh:
+                            fh.write(d.get("csv") or "")
+                        rf = None
+                        if (d.get("refs") or "").strip():
+                            rf = os.path.join(cdir, "refs.csv")
+                            with open(rf, "w") as fh:
+                                fh.write(d["refs"])
+                        cfg = ME.default_config()
+                        cfg.update(d.get("config") or {})
+                        r = ME.run(folder, th, cfg, refs_csv=rf, out=cdir)
+                        r["chart"] = os.path.join(cdir, "compare.png")
+                        return self._send(200, clean(r))
                 if path == "/api/run/pause":
                     return self._send(200, S.pause(bool(d.get("on", True))))
                 if path == "/api/run/stop":
@@ -1060,7 +1183,8 @@ def serve(session, port=PORT, listen="127.0.0.1", allow_hosts=()):
 
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
-    ap.add_argument("--dir", required=True, help="folder for map.json, missions, plans and runs")
+    ap.add_argument("--dir", default="", help="folder for map.json, missions, plans and runs (default: the site's)")
+    ap.add_argument("--site", default="", help="the site profile (default: the one in use; tools/fleet/sites.py)")
     ap.add_argument("--map", help="start from this map (copied into --dir)")
     ap.add_argument("--port", type=int, default=PORT)
     ap.add_argument("--listen", default="127.0.0.1", help="address to serve on (the Pi: 0.0.0.0, reached over Tailscale)")
@@ -1069,6 +1193,11 @@ def main(argv=None):
     ap.add_argument("--dry", action="store_true", help="open on the simulator even where real cameras answer "
                                                        "(FLEET_DRY=1 does the same)")
     a = ap.parse_args(argv)
+    if a.site:
+        os.environ["MIRLT_SITE"] = a.site
+    if not a.dir:
+        import sites as SI
+        a.dir = SI.load()["mc_dir"]
     s = Session(a.dir, a.map, a.port)
     s.force_dry = a.dry
     print("Connect screen opens on: %s" % s.conn_default()["why"], flush=True)

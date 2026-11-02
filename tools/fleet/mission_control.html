@@ -73,7 +73,10 @@ svg.table{width:100%;height:auto;display:block;background:#fff;border-radius:8px
 <main id="main"></main>
 <script>
 "use strict";
-const STEPS = ["Connect", "Setup", "Workspace", "Warm-up", "Mission", "Run", "Review"];
+const STEPS = ["Connect", "Setup", "Workspace", "Warm-up", "Mission", "Run", "Review", "Cameras & table", "Production"];
+// a site with AprilTags on the robots (2026-11-02, tools/fleet/sites.py): its own steps; home keeps the first seven
+function isTags() { return !!(S && S.site && S.site.tracking === "tags"); }
+function stepOrder() { return isTags() ? [0, 7, 8, 5, 6] : [0, 1, 2, 3, 4, 5, 6]; }
 const COL = {Left: "#2952CC", Center: "#C2410C", Right: "#7A3EC8"};
 const SIDES = ["x_min", "x_max", "y_min", "y_max"];
 const SIDE_WORDS = {x_min: "Left side", x_max: "Right side", y_min: "Bottom side (audience)", y_max: "Top side"};
@@ -91,7 +94,8 @@ async function api(path, body) {
   if (!r.ok) throw new Error(j.error || r.statusText);
   return j;
 }
-async function load() { S = await api("/api/state"); if (!connPicked && S.conn_default) conn = S.conn_default.mode; render(); }
+async function load() { S = await api("/api/state"); if (S.site && S.site.colours) Object.assign(COL, S.site.colours);
+  if (!connPicked && S.conn_default) conn = S.conn_default.mode; if (isTags() && conn === "sim" && !connPicked) conn = "sim-cameras"; render(); }
 
 // ---------------------------------------------------------------- the table picture
 function tableSVG(opt) {
@@ -199,7 +203,8 @@ function flash(t, bad) { const e = $("err"); if (e) { e.textContent = t; e.style
 // ---------------------------------------------------------------- screens
 function render() {
   $("wsname").textContent = (S.map.notes && S.map.notes.length < 40) ? S.map.notes : "School table";
-  $("steps").innerHTML = STEPS.map((s, i) => `<button class="${i === screen ? "on" : done.has(i) ? "done" : ""}" data-i="${i}">${i + 1} ${s}${done.has(i) && i !== screen ? " ✓" : ""}</button>`).join("");
+  $("steps").innerHTML = stepOrder().map((i, k) => `<button class="${i === screen ? "on" : done.has(i) ? "done" : ""}" data-i="${i}">${k + 1} ${STEPS[i]}${done.has(i) && i !== screen ? " ✓" : ""}</button>`).join("");
+  if (isTags()) $("wsname").textContent = S.site.title;
   $("steps").querySelectorAll("button").forEach(b => b.onclick = () => { screen = +b.dataset.i; render(); });
   const run = S.run;
   const st = $("status");
@@ -210,7 +215,7 @@ function render() {
   cm.style.background = conn === "robots" ? "var(--red)" : "";
   cm.style.color = conn === "robots" ? "#fff" : "";
   cm.style.fontWeight = "600";
-  [connect, setup, workspace, warmup, mission, runScreen, review][screen]();
+  [connect, setup, workspace, warmup, mission, runScreen, review, camerasTable, production][screen]();
 }
 function page(left, right) {
   const gn = (S && S.gap_notices) || [];   // the 8 cm lock: a robot gap under the net was raised (2026-10-29)
@@ -235,7 +240,7 @@ function connect() {
       ${more("More", settingsTable("run", ["edge_guard", "border_cm", "timeout_s"]))}</div>
       <button class="p" id="go">Continue to workspace</button>`);
   $("main").querySelectorAll("[data-c]").forEach(b => b.onclick = () => { conn = b.dataset.c; connPicked = true; render(); });
-  $("go").onclick = () => { done.add(0); screen = 1; render(); };
+  $("go").onclick = () => { done.add(0); screen = isTags() ? 7 : 1; render(); };
 }
 
 // ---------------------------------------------------------------- one-button setup (flash check, chessboard, warm-up)
@@ -539,14 +544,14 @@ function runScreen() {
     <div class="card">${tableSVG({paths: pv ? pv.paths : {}, pathOp: .25, robots: run ? run.robots : {}, obstacles: (pv ? pv.obstacles : []).concat((run && run.live && run.live.obstacles) || [])})}
       <p class="small muted" style="margin:8px 0 0">Where the camera sees each robot now (${conn === "robots" ? "overhead camera" : "simulated camera"}), over the planned routes. Grey: obstacles on the planner's map; dashed orange with "?": something only a robot's distance sensor saw (unconfirmed: it leaves the map after 15 s unless the camera or a second stop there confirms it).</p></div>
     ${run && run.mode && run.mode !== "sim" ? `<div class="card"><h3>The cameras now</h3><div class="row" style="align-items:flex-start">
-      <figure style="margin:0;flex:1 1 300px"><img id="camo" alt="The overhead camera's picture with each robot ringed" src="/api/frame?cam=overhead&t=${Date.now()}" style="width:100%;border-radius:8px"><figcaption class="small muted">Overhead camera (${run.mode === "robots" ? "the Pi's" : "simulated"}): each robot ringed in its colour where the camera bridge has it, planned routes as thin lines.</figcaption></figure>
-      <figure style="margin:0;flex:1 1 300px"><img id="cams" alt="The side camera's picture with each robot ringed" src="/api/frame?cam=side&t=${Date.now()}" style="width:100%;border-radius:8px" onerror="this.parentElement.style.display='none'"><figcaption class="small muted">Side camera, the same rings.</figcaption></figure></div></div>
+      <figure style="margin:0;flex:1 1 300px"><img id="camo" alt="The overhead camera's picture with each robot ringed" src="/api/frame?cam=overhead&t=${Date.now()}" style="width:100%;border-radius:8px"><figcaption class="small muted">${isTags() ? esc(S.site.cameras.overhead) : "Overhead camera"} (${run.mode === "robots" ? "the Pi's" : "simulated"}): each robot ringed in its colour where the camera bridge has it, planned routes as thin lines.</figcaption></figure>
+      <figure style="margin:0;flex:1 1 300px"><img id="cams" alt="The side camera's picture with each robot ringed" src="/api/frame?cam=side&t=${Date.now()}" style="width:100%;border-radius:8px" onerror="this.parentElement.style.display='none'"><figcaption class="small muted">${isTags() ? esc(S.site.cameras.side) : "Side camera"}, the same rings.</figcaption></figure></div></div>
       <div class="card eng"><h3>How the robots mapped the table</h3><div id="mapv">Loading...</div><p class="small muted">Each robot's path as the camera bridge saw it this run, in its colour (mapview.py).</p></div>` : ""}`,
-    `${run && run.running ? "" : lightingCard()}${(pv ? Object.keys(pv.frames) : S.map.robots.map(r => r.name)).map(n => { const lv = run && run.live && run.live.robots ? run.live.robots[n] : null;
+    `${run && run.running || isTags() ? "" : lightingCard()}${(pv ? Object.keys(pv.frames) : S.map.robots.map(r => r.name)).map(n => { const lv = run && run.live && run.live.robots ? run.live.robots[n] : null;
       return `<div class="card"><div class="between"><b><span class="dot" style="background:${COL[n]}"></span>${esc(n)}</b><span class="small muted">${run && run.robots[n] ? `(${run.robots[n][0].toFixed(0)}, ${run.robots[n][1].toFixed(0)})` : ""}</span></div>
       <span class="small muted">${esc(lv && lv.out ? (lv.held ? "HELD (rejoins when heard again): " : "OUT: ") + lv.out : (lv && lv.doing) || (run && run.doing && run.doing[n]) || (run && run.running ? "driving" : "waiting"))}</span>
       ${lv ? `<div class="row small" style="margin-top:6px;gap:14px"><span>Battery <b>${lv.battery ?? "-"} %</b></span><span>Edge <b>${lv.edge_cm ?? "-"} cm</b></span><span>Steps <b>${lv.done}/${lv.steps}</b></span>${lv.stop_cm != null ? `<span title="Its distance sensor stops it for anything in its path nearer than this (floor check at start-up)">Stops at <b>${lv.stop_cm} cm</b></span>` : ""}</div><div class="small muted">${esc(lv.last || "")}</div>` : ""}</div>`; }).join("")}
-     ${mirrorCard(run)}
+     ${mirrorCard(run)}${isTags() ? syncCard(run) : ""}
      <details class="card" ${document.body.classList.contains("details") ? "open" : ""}><summary style="cursor:pointer;font-weight:500">Event log</summary><div class="log" id="log">${run ? esc((run.messages || []).map(m => `[${m[0]}] ${m[1]}`).join("\n")) : ""}</div></details>
      <div class="card">${more("More", settingsTable("run"))}</div>
      <button class="p" id="go" ${run && !run.running ? "" : "disabled"}>Review</button>`);
@@ -555,6 +560,7 @@ function runScreen() {
   $("pause").onclick = async () => { try { await api("/api/run/pause", {on: !(run && run.paused)}); await load(); } catch (e) { flash(e.message, true); } };
   $("stop").onclick = async () => { try { await api("/api/run/stop", {}); await load(); } catch (e) { flash(e.message, true); } };
   $("go").onclick = () => { done.add(5); screen = 6; render(); };
+  if (isTags()) wireSync();
   const lg = $("log"); if (lg) lg.scrollTop = lg.scrollHeight;
   if ($("mapv")) api("/api/mapping").then(r => { $("mapv").innerHTML = r.svg; }).catch(() => {});
 }
@@ -563,7 +569,7 @@ function startPoll() { clearInterval(pollT); pollT = setInterval(async () => { c
 async function review() {
   page(`<div><h1>Review</h1><p class="sub">The last run: what happened against the plan.</p></div><div id="rv" class="card">Loading...</div>`,
     `<div class="card"><h2>Next</h2><p class="small muted">Change the mission or the workspace and run again; every run is kept in its own folder.</p><button class="b" id="again">Back to mission</button></div>`);
-  $("again").onclick = () => { screen = 4; render(); };
+  $("again").onclick = () => { screen = isTags() ? 8 : 4; render(); };
   let r;
   try { r = await api("/api/review"); } catch (e) { $("rv").innerHTML = `<p class="muted">${esc(e.message)}</p>`; return; }
   const s = r.run_plan_summary || {}, sim = r.sim_report || (s.simulator || {});
@@ -576,6 +582,146 @@ async function review() {
     <p class="small muted">Each robot's path as the camera saw it (${esc(r.folder)}); grey: the brick that was dropped.</p>
     <div class="eng"><h3>Re-plans</h3><ul class="small">${re.map(x => `<li>${x.t_run} s, ${esc(x.source)}: ${x.cpu_s} s to compute${x.kept === false ? ", not kept" : ""}</li>`).join("") || "<li>none</li>"}</ul>
     <h3>Simulator events</h3><ul class="small">${(sim.events || []).map(e => `<li>${esc(JSON.stringify(e).slice(0, 160))}</li>`).join("") || "<li>none</li>"}</ul></div>`;
+}
+
+
+// ================================================================ AprilTag site screens (2026-11-02)
+// Cameras & table: the check-out, the clicks (corners 1-4, stickers by number) in each camera's picture, typed checks,
+// Measure (tools/fleet/tag_job.py). Production: each robot's points in order, then home. The sync card: the session id
+// both teams write down, the Pi's clock, Start / End marks, the pose timeline and the comparison with an external CSV.
+let tagPick = {kind: "corner", label: "1"}, tagStamp = 0, prodRobot = null, prodOrders = null;
+const VCOL = {PASS: "var(--green)", WARN: "var(--warn)", FAIL: "var(--red)"};
+function tagState() { return S.tag || {clicks: {}, typed: {}}; }
+function checkoutCard() {
+  const c = tagState().checkout;
+  const rows = c ? c.cameras.map(cam => `<h3 style="margin-top:8px">${esc(cam.label)} <span style="color:${VCOL[cam.verdict]}">${esc(cam.verdict)}</span></h3>
+    <table class="kv">${cam.items.map(i => `<tr><td style="width:150px">${esc(i.what)}</td><td><b style="color:${VCOL[i.verdict]}">${esc(i.verdict)}</b> ${esc(i.words)}${i.todo ? `<div class="small" style="color:var(--warn)">${esc(i.todo)}</div>` : ""}</td></tr>`).join("")}</table>`).join("")
+    + (c.together ? `<p class="small" style="margin:8px 0 0"><b style="color:${VCOL[c.together.verdict]}">${esc(c.together.verdict)}</b> Both cameras: ${esc(c.together.words)}${c.together.todo ? " " + esc(c.together.todo) : ""}</p>` : "")
+    : `<p class="small muted">Not checked yet. Put the robots on the table first (their tags are what is measured).</p>`;
+  return `<div class="card ${c && c.verdict !== "PASS" ? "warnc" : ""}"><div class="between"><h2>Camera check-out</h2><button class="b" id="cogo">Check the cameras</button></div>
+    <p class="small muted">Each camera: picture size and rate, sharpness (a tag's edge width), exposure (washed out? the tag's black against white), how much of the table it sees, and whether a tag is big enough to read at the farthest point it covers (from the sizing tests: 2.9 px a cell).</p>${rows}</div>`;
+}
+function tagPicCard(cam) {
+  const T = tagState(), cl = (T.clicks || {})[cam] || {corners: {}, stickers: {}}, have = (T.pictures || {})[cam];
+  const lab = (S.site.cameras || {})[cam] || cam;
+  const list = Object.entries(cl.corners || {}).map(([k]) => `<button class="b small" data-rm="${cam}|corner|${k}" title="Remove">corner ${esc(k)} ×</button>`).join("")
+    + Object.entries(cl.stickers || {}).map(([k]) => `<button class="b small" data-rm="${cam}|sticker|${k}" title="Remove">sticker ${esc(k)} ×</button>`).join("");
+  return `<div class="card"><div class="between"><h3>${esc(lab)}</h3><span class="small muted">${have ? have.size.join(" x ") : "no picture yet"}</span></div>
+    ${have ? `<img class="tagpic" data-cam="${cam}" alt="${esc(lab)}: click the table's corners and the stickers" src="/api/tags/picture?cam=${cam}&t=${tagStamp}" style="width:100%;border-radius:8px;cursor:crosshair">
+    <p class="small muted" style="margin:6px 0">Red: corners clicked; blue: stickers; green: robots' tags read.</p>` : `<p class="small muted">Press Take pictures.</p>`}
+    <div class="row">${list || `<span class="small muted">Nothing clicked yet in this picture.</span>`}</div></div>`;
+}
+function camerasTable() {
+  const T = tagState(), r = T.result, tb = (T.typed || {}).table || {};
+  const st = Object.entries((T.typed || {}).stickers || {}).map(([k, v]) => `${k}: ${v[0]}, ${v[1]}`).join("\n");
+  const ds = ((T.typed || {}).distances || []).map(d => `${d[0]}-${d[1]}: ${d[2]}`).join("\n");
+  const tags = S.site.tags || {};
+  page(`<div><h1>Cameras &amp; table</h1><p class="sub">${esc(S.site.title)}. Check the cameras, click the table's corners and the stickers in each picture, then Measure. The robots stand at their homes near the middle (both cameras see them there).</p></div>
+    ${checkoutCard()}
+    <div class="card"><div class="between"><h2>Click in the pictures</h2><button class="b" id="tpics">Take pictures</button></div>
+      <p class="small muted">Corners: 1 is 0,0; 1 to 2 along the table's length (x); 3 opposite 1; 4 along its width from 1 (y), so 1-2-3-4 go round counter-clockwise seen from above. Each camera: click the corners it sees (two is enough). Stickers: type the sticker's number, then click its middle in every picture it is in.</p>
+      <div class="row" style="margin-top:6px"><label class="lbl">Next click is <select id="tkind"><option value="corner" ${tagPick.kind === "corner" ? "selected" : ""}>corner</option><option value="sticker" ${tagPick.kind === "sticker" ? "selected" : ""}>sticker</option></select></label>
+      <label class="lbl">number <input id="tlabel" class="n" value="${esc(tagPick.label)}"></label><span class="small muted">(the number goes up by one after each sticker)</span></div></div>
+    <div class="row" style="align-items:flex-start">${["overhead", "side"].map(c => `<div style="flex:1 1 360px">${tagPicCard(c)}</div>`).join("")}</div>`,
+    `<div class="card"><h2>Measure</h2><p class="small muted">Reads the robots' tags (${esc(tags.family || "")}, ${tags.tag_cm || "?"} cm, roof ${tags.height_cm != null ? tags.height_cm + " cm up" : "<b style='color:var(--red)'>height not measured yet</b>"}), fits both cameras, the table's size and every sticker's spot, and makes the workspace: the table, the stickers as production points, the homes.</p>
+      <button class="p" id="tmeasure">Measure</button>
+      ${r ? `<div style="margin-top:10px"><div class="kpis"><div class="kpi"><b>${r.size_cm[0].toFixed(1)} x ${r.size_cm[1].toFixed(1)}</b><span>table (cm)</span></div><div class="kpi"><b>${Object.keys(r.stickers || {}).length}</b><span>production points</span></div><div class="kpi"><b>${r.reads}</b><span>tag reads</span></div></div>
+        <ul class="small">${(r.words || []).map(w => `<li style="${/WARNING|DISAGREE|NOT/.test(w) ? "color:var(--warn)" : ""}">${esc(w)}</li>`).join("")}</ul>
+        ${r.sim_truth ? `<p class="small muted">Simulator truth: floor error median ${esc(Object.entries(r.sim_truth).filter(([k, v]) => typeof v === "object").map(([k, v]) => k + " " + v.median_cm + " cm (worst " + v.worst_cm + ")").join(", "))}; stickers worst ${esc(r.sim_truth.stickers_worst_cm)} cm.</p>` : ""}</div>` : ""}</div>
+    <div class="card"><h2>Measurements (checks, optional)</h2><p class="small muted">Typed values are compared with the cameras' own measure, never silently averaged. The site's table size is filled in.</p>
+      <div class="row"><label class="lbl">Table length <input id="tl" class="n" value="${esc(tb.length_cm ?? "")}"> cm</label><label class="lbl">width <input id="tw" class="n" value="${esc(tb.width_cm ?? "")}"> cm</label></div>
+      <label class="lbl">Sticker coordinates (one a line: <code>3: 120.5, 40.2</code>, cm in the table's frame)</label><textarea id="tst">${esc(st)}</textarea>
+      <label class="lbl">Distances between stickers (one a line: <code>1-2: 85.0</code>, cm)</label><textarea id="tds">${esc(ds)}</textarea>
+      <button class="b" id="ttyped">Save measurements</button></div>
+    <div class="card"><h2>Refit after a run</h2><p class="small muted">Nick's idea: the robots' tags seen all over the table during a run pin each camera's height and tilt far better than two robots standing still. Refit, look at the numbers, then use it.</p>
+      <div class="row"><button class="b" id="trefit">Refit from the last run</button><button class="b" id="tuse" ${T.refit ? "" : "disabled"}>Use the refit</button></div>
+      ${T.refit ? `<ul class="small">${T.refit.words.map(w => `<li>${esc(w)}</li>`).join("")}</ul>` : ""}</div>
+    ${syncCard(null)}
+    <button class="p" id="tnext">Continue to production</button>`);
+  $("tkind").onchange = () => { tagPick.kind = $("tkind").value; tagPick.label = tagPick.kind === "corner" ? "1" : "1"; render(); };
+  $("tlabel").onchange = () => { tagPick.label = $("tlabel").value.trim(); };
+  $("cogo").onclick = async () => { $("cogo").disabled = true; $("cogo").textContent = "Checking (about 3 s)..."; try { S.tag.checkout = await api("/api/tags/checkout", {conn}); render(); } catch (e) { flash(e.message, true); render(); } };
+  $("tpics").onclick = async () => { $("tpics").disabled = true; $("tpics").textContent = "Taking pictures..."; try { S.tag.pictures = await api("/api/tags/pictures", {conn}); tagStamp = Date.now(); render(); } catch (e) { flash(e.message, true); render(); } };
+  document.querySelectorAll("img.tagpic").forEach(img => img.onclick = async ev => {
+    const rc = img.getBoundingClientRect(), u = (ev.clientX - rc.left) * img.naturalWidth / rc.width, v = (ev.clientY - rc.top) * img.naturalHeight / rc.height;
+    tagPick.label = ($("tlabel").value || "").trim();
+    try { S.tag.clicks = await api("/api/tags/click", {cam: img.dataset.cam, kind: tagPick.kind, label: tagPick.label, u, v});
+      if (tagPick.kind === "sticker" && /^\d+$/.test(tagPick.label)) tagPick.label = String(+tagPick.label + 1);
+      else if (tagPick.kind === "corner" && /^[1-3]$/.test(tagPick.label)) tagPick.label = String(+tagPick.label + 1);
+      tagStamp = Date.now(); render(); } catch (e) { flash(e.message, true); } });
+  document.querySelectorAll("[data-rm]").forEach(b => b.onclick = async () => { const [cam, kind, label] = b.dataset.rm.split("|");
+    try { S.tag.clicks = await api("/api/tags/click", {cam, kind, label, remove: true}); tagStamp = Date.now(); render(); } catch (e) { flash(e.message, true); } });
+  $("ttyped").onclick = async () => {
+    const stk = {}, dist = [];
+    for (const ln of $("tst").value.split("\n")) { const m = ln.match(/^\s*(\w+)\s*:\s*([-\d.]+)\s*,\s*([-\d.]+)/); if (m) stk[m[1]] = [+m[2], +m[3]]; }
+    for (const ln of $("tds").value.split("\n")) { const m = ln.match(/^\s*(\w+)\s*-\s*(\w+)\s*:\s*([\d.]+)/); if (m) dist.push([m[1], m[2], +m[3]]); }
+    try { S.tag.typed = await api("/api/tags/typed", {table: {length_cm: $("tl").value, width_cm: $("tw").value}, stickers: stk, distances: dist}); flash("Saved"); render(); } catch (e) { flash(e.message, true); } };
+  $("tmeasure").onclick = async () => { $("tmeasure").disabled = true; $("tmeasure").textContent = "Measuring (about 10-30 s)..."; try { const r = await api("/api/tags/measure", {conn}); S = r.state; Object.assign(COL, S.site.colours || {}); done.add(7); render(); } catch (e) { flash(e.message, true); render(); } };
+  $("trefit").onclick = async () => { try { S.tag.refit = await api("/api/tags/refit", {}); render(); } catch (e) { flash(e.message, true); } };
+  $("tuse").onclick = async () => { try { S.tag.refit = await api("/api/tags/refit", {use: true}); flash("The refit's camera models are in use from the next run"); render(); } catch (e) { flash(e.message, true); } };
+  $("tnext").onclick = () => { done.add(7); screen = 8; render(); };
+  wireSync();
+}
+function production() {
+  const robots = S.site.robots, spots = S.map.spots || {};
+  if (!prodOrders) { prodOrders = {}; const labs = Object.keys(spots).sort((a, b) => (+a || 0) - (+b || 0) || a.localeCompare(b));
+    robots.forEach((n, k) => prodOrders[n] = labs.filter((_, i) => i % robots.length === k).slice(0, 3)); }
+  if (!prodRobot) prodRobot = robots[0];
+  const pv = S.preview;
+  const homes = Object.fromEntries(S.map.robots.map(r => [r.name, r.start]));
+  const paths = {};
+  robots.forEach(n => { paths[n] = [homes[n] || [0, 0]].concat((prodOrders[n] || []).filter(l => spots[l]).map(l => spots[l])).concat([homes[n] || [0, 0]]); });
+  page(`<div><h1>Production run</h1><p class="sub">Each robot: its start-up (calibrated on this power-on? if not, it calibrates; a calibration from earlier today on the same power-on is kept), its points in the order below, ${"a stop of a few seconds at each"}, then home. Click a point on the table to add it to the chosen robot's list.</p></div>
+    <div class="card">${tableSVG({id: "ptab", paths: pv ? pv.paths : paths, pathOp: .55, pathW: 2, robots: homes})}
+      <p class="small muted" style="margin:8px 0 0">The table from above (corner 1 bottom left). Numbered circles: the production points from Measure; dots: each robot at its home; lines: ${pv ? "the planned routes" : "each robot's points in order (straight lines; Plan makes the real routes)"}.</p></div>`,
+    `<div class="card"><h2>Orders</h2>${robots.map(n => `<div style="padding:8px 0;border-bottom:1px solid #F0F1F3"><label class="row"><input type="radio" name="prob" value="${esc(n)}" ${n === prodRobot ? "checked" : ""}><b><span class="dot" style="background:${COL[n] || "#5B6474"}"></span>${esc(n)}</b><span class="small muted">clicks add here</span></label>
+      <input id="po_${esc(n)}" value="${esc((prodOrders[n] || []).join(", "))}" style="width:100%;margin-top:6px" aria-label="${esc(n)}'s points in order"></div>`).join("")}
+      <div class="row" style="margin-top:8px"><label class="lbl">Stop at each point <input id="pdwell" class="n" value="3"> s</label><label class="lbl"><input type="checkbox" id="phome" checked> then home</label></div>
+      <label class="lbl"><input type="checkbox" id="pspin"> a sync spin at the start (each robot turns once on the spot: a moment the external recorder sees too)</label>
+      <div class="row" style="margin-top:8px"><button class="p" id="pplan">Plan</button></div>
+      ${pv ? `<p class="small" style="margin:8px 0 0">Planned: everyone done in <b>${fmt(pv.makespan_s)}</b>, in ${pv.planning_time_s != null ? pv.planning_time_s.toFixed(1) : "?"} s of planning; the plan keeps the robots 8 cm apart or more (the net).${(pv.warnings || []).length ? " " + esc(pv.warnings.join("; ")) : ""}</p>` : ""}</div>
+    ${syncCard(null)}
+    <button class="p" id="pnext" ${pv ? "" : "disabled"}>Continue to run</button>`);
+  document.querySelectorAll("[name=prob]").forEach(r => r.onchange = () => { prodRobot = r.value; });
+  robots.forEach(n => { $("po_" + n).onchange = () => { prodOrders[n] = $("po_" + n).value.split(/[ ,;]+/).filter(Boolean); render(); }; });
+  $("ptab").onclick = ev => { const p = svgToFloor($("ptab"), ev); let best = null, bd = 1e9;
+    for (const [k, v] of Object.entries(spots)) { const d = Math.hypot(v[0] - p[0], v[1] - p[1]); if (d < bd) { bd = d; best = k; } }
+    if (best && bd < 15) { prodOrders[prodRobot] = (prodOrders[prodRobot] || []).concat([best]); S.preview = null; render(); } };
+  $("pplan").onclick = async () => { $("pplan").disabled = true; $("pplan").textContent = "Planning...";
+    robots.forEach(n => { prodOrders[n] = $("po_" + n).value.split(/[ ,;]+/).filter(Boolean); });
+    try { await api("/api/production", {orders: prodOrders, dwell_s: +$("pdwell").value, home: $("phome").checked, sync_spin: $("pspin").checked}); await load(); flash("Planned"); } catch (e) { flash(e.message, true); render(); } };
+  $("pnext").onclick = () => { done.add(8); screen = 5; render(); };
+  wireSync();
+}
+function syncCard(run) {
+  const Y = S.sync || {}, c = Y.clock || {};
+  const ok = c.ntp_synced === true;
+  return `<div class="card"><div class="between"><h2>Recording in step</h2><button class="b small" id="snew" title="A new session id (a new recording)">New id</button></div>
+    <p class="small muted" style="margin:4px 0">Both teams write this session id on their recordings:</p>
+    <div style="font:700 22px ui-monospace,Menlo,Consolas,monospace;letter-spacing:.5px;padding:6px 10px;background:var(--ground);border-radius:8px;user-select:all">${esc(Y.session_id || "-")}</div>
+    <p class="small" style="margin:8px 0;color:${ok ? "var(--green)" : "var(--warn)"}">${esc(c.words || "")}</p>
+    <div class="row"><button class="b" data-mark="start">Start mark</button><button class="b" data-mark="end">End mark</button><button class="b" data-mark="mark">Mark now</button></div>
+    <p class="small muted" style="margin:6px 0 0">Press Start mark as the other team presses theirs (or says "now" and writes down their laptop's time). The run marks its own start and end too.</p>
+    ${(Y.marks || []).length ? `<ul class="small" style="margin:6px 0 0">${Y.marks.slice(-4).map(m => `<li>${esc(m.what)}: ${esc(m.t_iso)}</li>`).join("")}</ul>` : ""}
+    ${more("After the run: export and compare", `<div class="row"><button class="b" id="sexp">Export our pose timeline</button><span class="small muted" id="sexpw"></span></div>
+      <p class="small muted">Compare: paste the external recorder's CSV and its reference points (label,x,y in its own frame), say its columns, then Compare.</p>
+      <textarea id="scsv" placeholder="the external CSV"></textarea><textarea id="srefs" placeholder="label,x,y (the stickers in their frame)"></textarea>
+      <div class="row"><label class="lbl">time <input id="sct" class="n" value="t"></label><label class="lbl">format <select id="scf"><option>unix</option><option>unix_ms</option><option>unix_us</option><option>iso</option></select></label>
+      <label class="lbl">robot <input id="scr" class="n" value="robot"></label><label class="lbl">x <input id="scx" class="n" value="x"></label><label class="lbl">y <input id="scy" class="n" value="y"></label>
+      <label class="lbl">units <select id="scu"><option>cm</option><option>m</option><option>in</option><option>ft</option></select></label><label class="lbl">mark column <input id="sce" class="n" value=""></label></div>
+      <label class="lbl">their robot names = ours (e.g. <code>7=JayA, 9=JayB</code>; empty when the same) <input id="scm" style="width:100%"></label>
+      <button class="b" id="scmp">Compare</button><div id="scmpw"></div>`)}</div>`;
+}
+function wireSync() {
+  document.querySelectorAll("[data-mark]").forEach(b => b.onclick = async () => { try { const m = await api("/api/sync/mark", {what: b.dataset.mark}); flash(`${m.what} mark: ${m.t_iso}`); await load(); } catch (e) { flash(e.message, true); } });
+  if ($("snew")) $("snew").onclick = async () => { try { S.sync = await api("/api/sync/new_id", {}); render(); } catch (e) { flash(e.message, true); } };
+  if ($("sexp")) $("sexp").onclick = async () => { try { const r = await api("/api/sync/export", {}); $("sexpw").textContent = r.file; } catch (e) { flash(e.message, true); } };
+  if ($("scmp")) $("scmp").onclick = async () => {
+    const cfg = {time: {column: $("sct").value, format: $("scf").value}, robot: {column: $("scr").value, map: {}}, x: {column: $("scx").value}, y: {column: $("scy").value}, units: $("scu").value};
+    for (const pr of $("scm").value.split(",")) { const [a, b2] = pr.split("=").map(x => (x || "").trim()); if (a && b2) cfg.robot.map[a] = b2; }
+    if ($("sce").value.trim()) cfg.event = {column: $("sce").value.trim(), sync_values: ["sync", "start", "end", "mark"]};
+    try { const r = await api("/api/sync/compare", {csv: $("scsv").value, refs: $("srefs").value, config: cfg});
+      $("scmpw").innerHTML = `<ul class="small">${r.words.map(w => `<li>${esc(w)}</li>`).join("")}</ul><img alt="Distance apart over time, and both tracks on the table" style="width:100%" src="/api/tags/chart?f=${encodeURIComponent(r.chart)}&t=${Date.now()}">`; } catch (e) { flash(e.message, true); } };
 }
 
 $("details").onchange = e => { document.body.classList.toggle("details", e.target.checked); render(); };

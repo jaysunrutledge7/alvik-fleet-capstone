@@ -1,0 +1,15 @@
+{
+ "title": "Home lab (basement plywood, Left / Center / Right)",
+ "robots": [
+  {"name": "Left", "ip": "192.168.1.250", "colour": "#2952CC"},
+  {"name": "Center", "ip": "192.168.1.252", "colour": "#C2410C"},
+  {"name": "Right", "ip": "192.168.1.253", "colour": "#7A3EC8"}
+ ],
+ "pi": {"address": "100.122.222.75", "hostname": "st1maxfini"},
+ "conf_dir": "~/.config/mirlt",
+ "mc_dir": "logs/mission-control",
+ "cameras": {"overhead": {"label": "overhead camera"}, "side": {"label": "side camera"}},
+ "capture": {"width": 640, "height": 480, "fps": 25},
+ "tracking": "lights",
+ "table": null
+}

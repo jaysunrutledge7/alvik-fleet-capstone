@@ -58,6 +58,11 @@
 #     ./run-fleet-pi.sh mc                 Mission Control on the Pi (also the Mission Control tab at :8091, which runs
 #                                          this in tmux "mc"); its own address http://100.122.222.75:8095 still works
 #     ./run-fleet-pi.sh mc-stop            close Mission Control opened from the tab (a run of its own stops first)
+# Sites (2026-11-02, tools/fleet/sites.py): home is the default and unchanged; a school site has its own robots, cameras,
+# calibration folder and Mission Control folder:
+#     ./run-fleet-pi.sh site               which site is in use, and the list
+#     ./run-fleet-pi.sh site school-conference    use that site from now on (every command and Mission Control)
+#     ./run-fleet-pi.sh camcheck           the camera check-out (size, rate, sharpness, exposure, coverage, tag size)
 # Free space (2026-10-28: the 21:34 DOE loop filled the card at 22:03). Frames go to the USB drive; every long run
 # checks the card and the drive before it starts and between loops, and ends cleanly before the card fills:
 #     ./run-fleet-pi.sh space              free space on the card and the USB drive, and the biggest folders
@@ -70,6 +75,12 @@ set -u
 cd "$(dirname "$0")"
 REPO="$(pwd)"
 IPS="--robot 192.168.1.250 --robot 192.168.1.252 --robot 192.168.1.253"
+# the site in use (2026-11-02, tools/fleet/sites.py): home (the default) gives exactly the line above; a school site
+# its own robots (none listed: found on the WiFi by their hello), its own calibration folder (MIRLT_CONF_DIR), picture
+# size and Mission Control folder. Change it with: ./run-fleet-pi.sh site <name>
+if SITE_ENV="$(python3 tools/fleet/sites.py env 2>/dev/null)"; then eval "$SITE_ENV"; IPS="$MIRLT_ROBOT_ARGS"; fi
+CAPTURE="${MIRLT_CAPTURE:---width 640 --height 480}"; CAPFPS="${MIRLT_CAPTURE_FPS:-25}"
+PIADDR="${MIRLT_PI_ADDR:-100.122.222.75}"; [ -z "$PIADDR" ] && PIADDR="$(hostname -I 2>/dev/null | awk '{print $1}')"
 # the overhead calibration and exposure saved by the camera setup page (./run-fleet-pi.sh setup, 2026-10-27);
 # roam1 and the camera's automatic exposure when nothing was saved (setup_conf.py says which on the screen)
 CALIB="$(python3 tools/pi/setup_conf.py calib)"
@@ -141,7 +152,7 @@ start_recorder() {
   # --shm: each camera's grey picture in shared memory for the camera bridge's workers (cam_bridge.py --farm)
   local REC_NEW="tmux new-session -d -s fleet -n rec"
   tmux has-session -t fleet 2>/dev/null && REC_NEW="tmux new-window -t fleet -n rec"
-  $REC_NEW "cd '$REPO' && python3 tools/pi/camrec.py $CAMS --fps 25 --label P0 --no-lock $EXPO_ARG --side-exposure auto --shm $REC_CORES ${REC_EXTRA:-} --out '$OUT'; read -r -p 'Recorder stopped. Press Enter.'"
+  $REC_NEW "cd '$REPO' && python3 tools/pi/camrec.py $CAMS $CAPTURE --fps $CAPFPS --label P0 --no-lock $EXPO_ARG --side-exposure auto --shm $REC_CORES ${REC_EXTRA:-} --out '$OUT'; read -r -p 'Recorder stopped. Press Enter.'"
   echo "Recorder starting (8 s) ..."; sleep 8
   local ws=""; [ -n "$SD" ] && [ "$SD" != "$OD" ] && ws="--side"
   python3 tools/pi/rec_alive.py $ws --timeout 6 || echo "WARNING: the recorder started, but pictures are still missing. Look at its window: tmux attach -t fleet (leave: Ctrl+B, then D)."
@@ -291,8 +302,13 @@ case "$WHAT" in
     # the addresses the page may make changes from (its Host check): Tailscale, the Pi's name on the WiFi, its WiFi number
     HOSTS="--allow-host 100.122.222.75 --allow-host $(hostname).local"
     for ip in $(hostname -I 2>/dev/null); do case "$ip" in *.*.*.*) HOSTS="$HOSTS --allow-host $ip" ;; esac; done
-    echo "Mission Control: http://100.122.222.75:8091 (Mission Control tab), or http://100.122.222.75:8095 (Ctrl+C here stops it)"
-    python3 tools/fleet/mission_control.py --dir logs/mission-control --listen 0.0.0.0 $HOSTS ;;
+    echo "Mission Control: http://$PIADDR:8091 (Mission Control tab), or http://$PIADDR:8095 (Ctrl+C here stops it)"
+    [ -n "${MIRLT_PI_ADDR:-}" ] && HOSTS="$HOSTS --allow-host $MIRLT_PI_ADDR"
+    python3 tools/fleet/mission_control.py --dir "${MIRLT_MC_DIR:-logs/mission-control}" --listen 0.0.0.0 $HOSTS ;;
+  site)            # (2026-11-02) which site: ./run-fleet-pi.sh site (shows it), ./run-fleet-pi.sh site school-conference
+    if [ -n "${1:-}" ]; then python3 tools/fleet/sites.py use "$1"; else python3 tools/fleet/sites.py; python3 tools/fleet/sites.py list; fi ;;
+  camcheck)        # (2026-11-02) the camera check-out in the terminal (the recorder must be running: ./run-fleet-pi.sh rec)
+    python3 tools/fleet/camera_checkout.py ;;
   mc-stop)
     if tmux has-session -t mc 2>/dev/null; then tmux send-keys -t mc C-c; echo "Mission Control is closing."
     else echo "Mission Control was not opened from the tab (tmux mc): if it runs in a terminal, Ctrl+C there."; fi ;;

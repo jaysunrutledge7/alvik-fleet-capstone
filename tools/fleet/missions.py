@@ -847,7 +847,8 @@ def _monday(m, s=None, seed=1, k_user=1.0):
 # A block applies to its robots in turn; build() turns the list into planner tasks per robot (visit items), keeping
 # track of where each robot ends, so the next block starts from there.
 
-BLOCKS = ("mow-region", "go-to-spot", "meet", "circle", "chicken", "spread-out", "dance", "wait")
+BLOCKS = ("mow-region", "go-to-spot", "meet", "circle", "chicken", "spread-out", "dance", "wait", "go-home",
+          "sync-spin")
 
 CIRCLE_R_CM = 15.0       # chosen: the circle's radius: two robots 180 deg apart on it are 30 cm centre to centre (bodies
                          # ~20 cm), and pieces two apart (60 deg) stay clear, so both drive it together without waits.
@@ -1189,7 +1190,18 @@ def build(m, program, s=None):
             advance(n, [g])
         elif kind == "wait":
             for n in who:
-                advance(n, [{"wait_s": float(bl.get("seconds", 1.0)), "label": "wait"}])
+                advance(n, [{"wait_s": float(bl.get("seconds", 1.0)), "label": bl.get("label") or "wait"}])
+        elif kind == "sync-spin":
+            # (2026-11-02) one full turn on the spot where the robot stands, as two half turns: a moment both our
+            # recording and an external recorder see (the step log has its start and end times, sync_tools.spin_events)
+            n = who[0]
+            x, y, h = _pose_after(n)
+            advance(n, [_g(x, y, (h + 180.0) % 360.0, label="sync spin"), _g(x, y, h % 360.0, label="sync spin")])
+        elif kind == "go-home":
+            # (conference-table build, 2026-11-02) back to the robot's start pose: its home, facing its start heading
+            n = who[0]
+            x, y, h = starts[n][0], starts[n][1], starts[n][2]
+            advance(n, [_g(x, y, h, label=bl.get("label") or "home")])
         elif kind == "meet":
             if len(who) != 2:
                 raise ValueError("block %d: meet is for 2 robots" % (k + 1))

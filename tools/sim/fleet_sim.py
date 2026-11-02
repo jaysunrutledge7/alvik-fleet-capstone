@@ -304,6 +304,12 @@ class FleetSim:
             f = mt["floor"]
             short = {"x_min": "x0", "x_max": "x1", "y_min": "y0", "y_max": "y1"}
             self.cfg.session.board_cm = [f["x_min"], f["y_min"], f["x_max"], f["y_max"]]
+            # the distance sensor's far walls (config.py arena_x / arena_y: a room round the home board) moved out round
+            # a table bigger than that room (the 396 cm conference table, 2026-11-02: a robot at x = 213 saw a wall
+            # at 220 cm and stopped at every turn)
+            ax, ay = self.cfg.tof.arena_x, self.cfg.tof.arena_y
+            self.cfg.tof.arena_x = [min(ax[0], f["x_min"] - 80.0), max(ax[1], f["x_max"] + 80.0)]
+            self.cfg.tof.arena_y = [min(ay[0], f["y_min"] - 80.0), max(ay[1], f["y_max"] + 80.0)]
             self.cfg.session.open_edges = []
             self.cfg.session.open_spans = {}
             for sd in FM.SIDES:
@@ -825,7 +831,14 @@ class FleetSim:
                     threading.Thread(target=self.monitor_loop, daemon=True)]
         if getattr(self.args, "brick_camera", False):
             threads.append(threading.Thread(target=self.picture_loop, daemon=True))
-        if getattr(self.args, "serve_live", 0):
+        if getattr(self.args, "tag_cams", None):
+            # the AprilTag robots' cameras (conference-table build, 2026-11-02): tools/sim/tag_cam.py draws each picture
+            import tag_cam as TCAM
+            with open(self.args.tag_cams) as fh:
+                tcfg = json.load(fh)
+            threads.append(threading.Thread(target=TCAM.serve_live, args=(self, tcfg, os.path.join(self.args.out)),
+                                            daemon=True))
+        elif getattr(self.args, "serve_live", 0):
             threads.append(threading.Thread(target=self.live_loop, daemon=True))
         for t in threads:
             t.start()
@@ -946,6 +959,8 @@ def main(argv=None):
                          "(29 Oct daytime: the sun's strip at x = 30-45 cm); ':both': nor does the side camera")
     ap.add_argument("--live-side-bias", type=lambda v: tuple(float(q) for q in v.split(",")), metavar="DX,DY",
                     help="--live-side: the side camera reads every robot this far off, cm (29 Oct: about 3 cm alone)")
+    ap.add_argument("--tag-cams", help="the AprilTag robots' cameras instead of --serve-live's: a JSON config "
+                                       "(tools/sim/tag_cam.py default_config: cameras, stickers, tags, gaps, low_res)")
     ap.add_argument("--max-s", type=float, default=600.0)
     ap.add_argument("--starts", help="JSON {name: [x, y, heading deg]}: where the robots really start (default: the "
                                      "map's start spots)")

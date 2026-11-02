@@ -1,0 +1,461 @@
+#!/usr/bin/env python3
+"""Tag bridge (conference-table build, 2026-11-02): the cameras' pictures -> each robot's pose from its roof tag ->
+camera fixes for run_plan.py (--fixes udp), the same messages the lights bridge (cam_bridge.py) sends.
+
+What is different from the lights bridge, and why it is simpler:
+  identity   the tag's id says which robot it is (no prediction needed to tell robots apart, no lights mix-ups);
+  heading    every fix carries the tag's heading (the robots' lights sit under the roof and cannot be seen);
+  anywhere   a robot is found wherever it is put down (no floor memory, no seeds needed);
+  height     each corner's ray meets the roof's plane (tag height), not the table (tag_geom.py).
+
+Per camera, a thread keeps only the newest picture (a slow moment never builds a queue), and a worker looks for each
+robot's tag in a window round where it was (or where its own pose, run_plan's echo on --pose-port, says it is), the
+whole picture only for a tag that is lost (tagcore.WindowTracker). The two cameras' reads of one robot within
+PAIR_S of each other are fused (inverse-variance); a fix goes out at most FIX_HZ times a second per robot.
+
+A read is refused (not sent) when its size on the roof's plane is off by more than SIZE_REFUSE (a wrong model there,
+or something that is not our tag), or it jumps more than JUMP_CM from the robot's last pose within a second and the
+next read does not confirm it.
+
+    python3 tools/fleet/tag_bridge.py --site school-conference --cal-dir ~/.config/mirlt/sites/school-conference/tagcal
+    python3 tools/fleet/tag_bridge.py --tags tags.json --cam overhead=127.0.0.1:8765,cal1.json --cam side=...
+
+Writes to --out: track.csv (as cam_bridge's, for line_check.py), tag_poses.csv (every read: camera, robot, pose,
+sigma, size check, picture position), tag_obs.csv (every read's corners: the site fit's input), events.jsonl,
+bridge_summary.json.
+"""
+import argparse
+import csv
+import datetime as dt
+import json
+import math
+import os
+import socket
+import sys
+import threading
+import time
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+TOOLS = os.path.dirname(HERE)
+REPO = os.path.dirname(TOOLS)
+for p in (HERE, os.path.join(TOOLS, "live"), os.path.join(TOOLS, "recognition"), os.path.join(TOOLS, "experiment")):
+    if p not in sys.path:
+        sys.path.insert(0, p)
+
+import numpy as np       # noqa: E402
+
+import tagcore as TC     # noqa: E402
+import tag_geom as TG    # noqa: E402
+
+CAPTURE_S = 0.04         # as cam_bridge.CAPTURE_S: the recorder stamps a picture one picture late
+FIX_HZ = 10.0            # fixes per robot per second at most (the robots blend 5-10 a second, DESIGN.md). No DOE
+PAIR_S = 0.07            # two cameras' reads this close in time are one moment (fused). Chosen: one picture at 15 a
+                         # second. No DOE: a definition
+SIZE_REFUSE = 0.20       # a read 20 % off the printed size on the roof's plane is not trusted. Chosen: 3x the 6 % warn
+JUMP_CM = 25.0           # a read this far from the robot's last pose (within JUMP_S) needs a second read to agree.
+JUMP_S = 1.0             # Chosen: a robot at 15 cm/s goes 15 cm in a second. No DOE: a guard against a misread id
+POSE_PORT = 5011
+STATUS_EVERY_S = 2.0
+SIGMA_FLOOR_CM = 0.3     # a fix's sigma is never said to be better than this (the tag's placement over the axle,
+                         # measured by Nick). No DOE: a floor
+SIGMA_DEG_FLOOR = 1.0    # the same for the heading (a hand-placed sticker on the roof)
+
+
+def load_tags(path=None, site=None):
+    """{family, tag_cm, roof_cm, height_cm, ids {robot: id}} from a JSON file or a site profile."""
+    if path:
+        with open(path) as f:
+            d = json.load(f)
+    else:
+        import sites as S
+        s = S.load(site)
+        d = dict(s.get("tags") or {})
+    if d.get("height_cm") is None:
+        d["height_cm"] = 6.0
+        d["height_note"] = ("the roof's height was not measured yet: 6.0 cm used (PLACEHOLDER). Measure from the table "
+                            "to the tag's printed face and put it in the site profile (tags.height_cm)")
+    return d
+
+
+class CamFeed(threading.Thread):
+    """Newest picture of one camera stream (bytes kept, decoded only when the worker takes it)."""
+
+    def __init__(self, name, url):
+        super().__init__(daemon=True)
+        import sources as S
+        self.name = name
+        self.src = S.StreamSource(url, log=lambda s: print("%s camera: %s" % (name, s), flush=True))
+        self.cond = threading.Condition()
+        self.latest = None        # (frame no, t_pi, jpeg bytes, t_arrived)
+        self.n = 0
+        self.skipped = 0
+        self.stop = False
+
+    def run(self):
+        k = 0
+        while not self.stop:
+            try:
+                self.src._connect()
+                for h, body, arrived in self.src.parts():
+                    if self.stop:
+                        return
+                    pf = int(h.get("x-frame", k))
+                    k += 1
+                    with self.cond:
+                        if self.latest is not None:
+                            self.skipped += 1
+                        self.latest = (pf, float(h.get("x-time", arrived)), body, arrived)
+                        self.n += 1
+                        self.cond.notify_all()
+            except (OSError, ConnectionError, KeyError, ValueError) as e:
+                if self.stop:
+                    return
+                print("%s camera stream: %s; trying again in 1 s" % (self.name, e), flush=True)
+                time.sleep(1.0)
+            finally:
+                try:
+                    if self.src.sock is not None:
+                        self.src.sock.close()
+                except OSError:
+                    pass
+                self.src.sock = None
+
+    def take(self, timeout=0.5):
+        with self.cond:
+            if self.latest is None:
+                self.cond.wait(timeout)
+            item, self.latest = self.latest, None
+            if item is not None:
+                self.skipped = max(0, self.skipped)
+            return item
+
+    def close(self):
+        self.stop = True
+        try:
+            if self.src.sock is not None:
+                self.src.sock.close()
+        except OSError:
+            pass
+
+
+class Bridge:
+    def __init__(self, tags, cams, send, out, observe=False, robots=None, say=None):
+        """tags: load_tags(); cams: {name: CameraModel}; send(msg)."""
+        self.tags = tags
+        self.ids = {int(i): n for n, i in tags["ids"].items() if robots is None or n in robots}
+        self.robot_of = self.ids
+        self.cams = cams
+        self.send = send
+        self.out = out
+        self.observe = observe
+        self.say_ = say or (lambda s: print(time.strftime("%H:%M:%S ") + s, flush=True))
+        self.det = {c: TC.TagDetector(tags.get("family", TC.TAG_FAMILY), ids=list(self.ids)) for c in cams}
+        self.trk = {c: TC.WindowTracker(self.det[c], list(self.ids)) for c in cams}
+        self.own = {}              # robot -> (x, y, th, t) from run_plan
+        self.last = {}             # robot -> (x, y, th, t) last accepted
+        self.pending = {}          # robot -> {cam: TagPose}
+        self.pending_t = {}
+        self.sent_t = {}
+        self.unconfirmed = {}      # robot -> TagPose (a jump waiting for a second read)
+        self.lock = threading.Lock()
+        self.counts = {n: dict(reads=0, fixes=0, refused_size=0, refused_jump=0, both=0, **{c: 0 for c in cams})
+                       for n in self.ids.values()}
+        self.frames = {c: 0 for c in cams}
+        self.ms = {c: [] for c in cams}
+        self.spread = []
+        self.status_t = 0.0
+        os.makedirs(out, exist_ok=True)
+        self.track_f = open(os.path.join(out, "track.csv"), "w", newline="")
+        self.track_w = csv.writer(self.track_f)
+        self.track_w.writerow(["t", "robot", "x", "y", "status", "sent_th", "why", "src"])
+        self.pose_f = open(os.path.join(out, "tag_poses.csv"), "w", newline="")
+        self.pose_w = csv.writer(self.pose_f)
+        self.pose_w.writerow(["t", "cam", "robot", "id", "x", "y", "heading", "sigma_cm", "sigma_deg", "size_ratio",
+                              "px_per_cm", "u", "v", "used"])
+        self.fix_f = open(os.path.join(out, "fixes.csv"), "w", newline="")
+        self.fix_w = csv.writer(self.fix_f)
+        self.fix_w.writerow(["t", "robot", "x", "y", "heading", "sigma_cm", "sigma_deg", "cams", "cams_apart_cm"])
+        self.obs_f = open(os.path.join(out, "tag_obs.csv"), "w", newline="")
+        self.obs_w = csv.writer(self.obs_f)
+        self.obs_w.writerow(["t", "cam", "id", "u0", "v0", "u1", "v1", "u2", "v2", "u3", "v3"])
+        self.ev_f = open(os.path.join(out, "events.jsonl"), "a")
+        self.event("start", tags=tags, cams=list(cams), robots=self.ids)
+
+    def event(self, kind, **kw):
+        kw.update(kind=kind, t=round(time.time(), 3))
+        self.ev_f.write(json.dumps(kw, default=str) + "\n")
+        self.ev_f.flush()
+
+    def say(self, s):
+        self.say_(s)
+
+    def on_pose(self, msg):
+        n = msg.get("robot")
+        if n in self.counts:
+            try:
+                self.own[n] = (float(msg["x"]), float(msg["y"]), float(msg["th"]), float(msg["t"]))
+            except (KeyError, TypeError, ValueError):
+                pass
+
+    def predict(self, cam_name, t):
+        cam = self.cams[cam_name]
+        H = float(self.tags["height_cm"])
+
+        def f(tag_id):
+            n = self.robot_of.get(tag_id)
+            o = self.own.get(n)
+            if o is None or abs(t - o[3]) > 2.0:
+                return None
+            u, v = cam.project((o[0], o[1], H))
+            if not (np.isfinite(u) and np.isfinite(v)) or not cam.in_image(u, v):
+                return None
+            r = TG.tag_px_at(cam, o[0], o[1], H, float(self.tags["tag_cm"]))
+            return (u, v, max(8.0, 2.0 * r))
+        return f
+
+    def on_picture(self, cam_name, grey, t):
+        """One camera's picture (t: when it was taken, Pi clock)."""
+        self.frames[cam_name] += 1
+        t0 = time.perf_counter()
+        found = self.trk[cam_name].step(grey, t, cam=cam_name, predict=self.predict(cam_name, t))
+        self.ms[cam_name].append((time.perf_counter() - t0) * 1000.0)
+        H, S = float(self.tags["height_cm"]), float(self.tags["tag_cm"])
+        cam = self.cams[cam_name]
+        out = []
+        for tag_id, d in found.items():
+            n = self.robot_of[tag_id]
+            p = TG.pose_from_detection(cam, d, H, S)
+            c = d.corners.ravel()
+            self.obs_w.writerow(["%.4f" % t, cam_name, tag_id] + ["%.2f" % v for v in c])
+            if p is None:
+                continue
+            p.t = t
+            used = self.accept(n, p)
+            cu, cv = d.center
+            self.pose_w.writerow(["%.4f" % t, cam_name, n, tag_id, "%.2f" % p.x, "%.2f" % p.y, "%.2f" % p.heading,
+                                  "%.3f" % p.sigma_cm, "%.2f" % p.sigma_deg, "%.3f" % p.size_ratio,
+                                  "%.2f" % p.px_per_cm, "%.1f" % cu, "%.1f" % cv, used])
+            out.append((n, p, used))
+        with self.lock:
+            self.flush(t)
+        return out
+
+    def accept(self, n, p):
+        c = self.counts[n]
+        c["reads"] += 1
+        c[p.cam] = c.get(p.cam, 0) + 1
+        if abs(p.size_ratio - 1.0) > SIZE_REFUSE:
+            c["refused_size"] += 1
+            return "refused: size %.2f" % p.size_ratio
+        last = self.last.get(n)
+        if last is not None and abs(p.t - last[3]) < JUMP_S and math.hypot(p.x - last[0], p.y - last[1]) > JUMP_CM:
+            u = self.unconfirmed.get(n)
+            if u is None or math.hypot(p.x - u.x, p.y - u.y) > 5.0:
+                self.unconfirmed[n] = p
+                c["refused_jump"] += 1
+                return "held: jump %.0f cm" % math.hypot(p.x - last[0], p.y - last[1])
+        self.unconfirmed.pop(n, None)
+        with self.lock:
+            t0 = self.pending_t.get(n)
+            if t0 is not None and p.t - t0 > PAIR_S:
+                # a newer moment: the one waiting for the other camera goes out as it is (one camera's read)
+                self.flush(p.t, only=n, force=True)
+            self.pending.setdefault(n, {})[p.cam] = p
+            self.pending_t.setdefault(n, p.t)
+        return "yes"
+
+    def flush(self, t_now, only=None, force=False):
+        """Send each robot's fused fix once every camera that sees it has read this moment, or when a newer moment
+        starts (force), and at most FIX_HZ a second."""
+        for n in list(self.pending):
+            if only is not None and n != only:
+                continue
+            got = self.pending[n]
+            t_first = self.pending_t.get(n, t_now)
+            seeing = [c for c in self.cams if self.trk[c].last.get(self.tags["ids"][n]) is not None]
+            ready = force or len(got) >= max(1, min(len(self.cams), len(seeing))) or (t_now - t_first) > 3 * PAIR_S
+            if not ready:
+                continue
+            if t_now - self.sent_t.get(n, 0.0) < 1.0 / FIX_HZ * 0.9:
+                # over FIX_HZ: this moment is dropped whole (kept, its first camera's read would later go out alone,
+                # out of step with the other camera's: the dry runs fused 2 of 478 fixes)
+                del self.pending[n]
+                self.pending_t.pop(n, None)
+                continue
+            ps = [p for p in got.values() if abs(p.t - max(q.t for q in got.values())) <= PAIR_S]
+            f, spread = TG.fuse(ps)
+            del self.pending[n]
+            self.pending_t.pop(n, None)
+            if f is None:
+                continue
+            if len(ps) > 1:
+                self.counts[n]["both"] += 1
+                self.spread.append(spread)
+            self.last[n] = (f.x, f.y, f.heading, f.t)
+            self.sent_t[n] = t_now
+            sig = max(SIGMA_FLOOR_CM, f.sigma_cm)
+            sth = max(SIGMA_DEG_FLOOR, f.sigma_deg)
+            msg = {"type": "fix", "robot": n, "t": round(f.t, 4), "x": round(f.x, 2), "y": round(f.y, 2),
+                   "th": round(f.heading, 2), "sigma": round(sig, 2), "sigma_th": round(sth, 2),
+                   "src": "tag_bridge:%s" % f.cam}
+            if not self.observe:
+                self.send(msg)
+                self.counts[n]["fixes"] += 1
+            self.track_w.writerow(["%.4f" % f.t, n, "%.2f" % f.x, "%.2f" % f.y, "seen", "%.2f" % f.heading,
+                                   "", f.cam])
+            self.fix_w.writerow(["%.4f" % f.t, n, "%.2f" % f.x, "%.2f" % f.y, "%.2f" % f.heading, "%.3f" % sig,
+                                 "%.2f" % sth, f.cam, "%.2f" % spread])
+
+    def status(self, t):
+        if time.time() - self.status_t < STATUS_EVERY_S:
+            return
+        self.status_t = time.time()
+        parts = []
+        for n, c in self.counts.items():
+            la = self.last.get(n)
+            parts.append("%s %s, %d fixes" % (n, "at (%.0f, %.0f) facing %.0f" % la[:3] if la else "not seen yet",
+                                               c["fixes"]))
+        ms = "; ".join("%s %.0f ms" % (c, np.median(v[-30:])) for c, v in self.ms.items() if v)
+        self.say("%s; %s" % ("; ".join(parts), ms))
+
+    def summary(self):
+        s = {"frames": self.frames, "robots": self.counts,
+             "ms_per_picture": {c: dict(median=round(float(np.median(v)), 2), p95=round(float(np.percentile(v, 95)), 2))
+                                for c, v in self.ms.items() if v},
+             "cams_apart_cm": (dict(median=round(float(np.median(self.spread)), 2),
+                                    p95=round(float(np.percentile(self.spread, 95)), 2), n=len(self.spread))
+                               if self.spread else None),
+             "windows": {c: self.trk[c].windows for c in self.cams}, "full_searches": {c: self.trk[c].fulls
+                                                                                       for c in self.cams},
+             "tags": {k: v for k, v in self.tags.items() if k != "ids"}}
+        with open(os.path.join(self.out, "bridge_summary.json"), "w") as f:
+            json.dump(s, f, indent=1, default=str)
+        return s
+
+    def close(self):
+        for fh in (self.track_f, self.pose_f, self.obs_f, self.fix_f, self.ev_f):
+            try:
+                fh.close()
+            except OSError:
+                pass
+
+
+def load_cams(specs, wait_s=0.0):
+    """--cam NAME=STREAM,CALIB -> ({name: CameraModel}, {name: stream})."""
+    import e02_camera as CAM
+    models, streams = {}, {}
+    for s in specs:
+        name, _, rest = s.partition("=")
+        stream, _, cal = rest.partition(",")
+        t0 = time.time()
+        while not os.path.exists(cal) and time.time() - t0 < wait_s:
+            time.sleep(0.2)
+        if not os.path.exists(cal):
+            print("%s camera: no model at %s: left out" % (name, cal), flush=True)
+            continue
+        models[name] = CAM.load_camera(cal)
+        streams[name] = stream
+    return models, streams
+
+
+def main(argv=None):
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--site", help="the site profile (default: the one in use)")
+    ap.add_argument("--tags", help="a tags JSON instead of the site's ({family, tag_cm, roof_cm, height_cm, ids})")
+    ap.add_argument("--cam", action="append", default=[], metavar="NAME=STREAM,CALIB",
+                    help="a camera: its role, its /live stream and its model (repeatable)")
+    ap.add_argument("--robots", default="", help="only these robots")
+    ap.add_argument("--to", default="127.0.0.1:5010", help="run_plan.py's fix port")
+    ap.add_argument("--pose-port", type=int, default=POSE_PORT)
+    ap.add_argument("--observe", action="store_true", help="send nothing (print what it reads)")
+    ap.add_argument("--out", help="log folder (default logs/<date-time>-tagbridge)")
+    ap.add_argument("--max-s", type=float, default=0)
+    ap.add_argument("--wait-calib-s", type=float, default=20.0)
+    a = ap.parse_args(argv)
+    tags = load_tags(a.tags, a.site)
+    if tags.get("height_note"):
+        print("NOTE: " + tags["height_note"], flush=True)
+    models, streams = load_cams(a.cam, a.wait_calib_s)
+    if not models:
+        raise SystemExit("No camera model: nothing to read tags with (give --cam NAME=STREAM,CALIB)")
+    out = a.out or os.path.join(REPO, "logs", dt.datetime.now().strftime("%Y%m%d-%H%M%S") + "-tagbridge")
+    tx = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    h, _, p = a.to.rpartition(":")
+    dest = (h or "127.0.0.1", int(p))
+
+    def send(msg):
+        try:
+            tx.sendto(json.dumps(msg).encode(), dest)
+        except OSError:
+            pass
+    rx = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    for k in range(15):
+        try:
+            rx.bind(("127.0.0.1", a.pose_port))
+            break
+        except OSError as e:
+            if k == 14:
+                raise SystemExit("Port %d is in use (another bridge still running?): %s" % (a.pose_port, e))
+            time.sleep(1.0)
+    rx.setblocking(False)
+    robots = [r.strip() for r in a.robots.split(",") if r.strip()] or None
+    br = Bridge(tags, models, send, out, observe=a.observe, robots=robots)
+    print("Tag bridge: %s tags (%s cm, %s cm up) on %s; cameras %s; fixes to %s%s. Logs: %s" % (
+        tags.get("family"), tags.get("tag_cm"), tags.get("height_cm"),
+        ", ".join("%s=%d" % kv for kv in tags["ids"].items()), ", ".join(models), a.to,
+        " (OBSERVE ONLY)" if a.observe else "", out), flush=True)
+    import signal
+    signal.signal(signal.SIGTERM, lambda *_: (_ for _ in ()).throw(KeyboardInterrupt()))
+    import cv2
+    feeds = {c: CamFeed(c, streams[c]) for c in models}
+    for f in feeds.values():
+        f.start()
+    stop = threading.Event()
+
+    def worker(c):
+        while not stop.is_set():
+            item = feeds[c].take(0.5)
+            if item is None:
+                continue
+            pf, t_pi, body, arrived = item
+            g = cv2.imdecode(np.frombuffer(body, np.uint8), cv2.IMREAD_GRAYSCALE)
+            if g is None:
+                continue
+            try:
+                br.on_picture(c, g, t_pi - CAPTURE_S)
+            except Exception as e:      # noqa: BLE001  (one bad picture never stops the fixes)
+                br.event("picture_error", cam=c, why=str(e))
+    ws = [threading.Thread(target=worker, args=(c,), daemon=True) for c in models]
+    for w in ws:
+        w.start()
+    t0 = time.time()
+    try:
+        while True:
+            try:
+                data, _ = rx.recvfrom(65536)
+                msg = json.loads(data.decode("utf-8", "replace"))
+                if isinstance(msg, dict) and msg.get("type") == "pose":
+                    br.on_pose(msg)
+            except (BlockingIOError, OSError):
+                time.sleep(0.01)
+            except ValueError:
+                pass
+            br.status(time.time())
+            if a.max_s and time.time() - t0 > a.max_s:
+                break
+    except KeyboardInterrupt:
+        pass
+    finally:
+        stop.set()
+        for f in feeds.values():
+            f.close()
+        for w in ws:
+            w.join(timeout=2)
+        s = br.summary()
+        br.close()
+        print("Tag bridge stopped: %s" % json.dumps(s["robots"]), flush=True)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

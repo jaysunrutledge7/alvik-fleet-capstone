@@ -39,7 +39,8 @@ import time
 HERE = os.path.dirname(os.path.abspath(__file__))
 TOOLS = os.path.dirname(HERE)
 REPO = os.path.dirname(TOOLS)
-for p in (HERE, TOOLS, os.path.join(TOOLS, "experiment"), os.path.join(TOOLS, "pi"), os.path.join(TOOLS, "live")):
+for p in (HERE, TOOLS, os.path.join(TOOLS, "experiment"), os.path.join(TOOLS, "pi"), os.path.join(TOOLS, "live"),
+          os.path.join(TOOLS, "sim"), os.path.join(TOOLS, "recognition")):
     if p not in sys.path:
         sys.path.insert(0, p)
 
@@ -74,11 +75,29 @@ def build(args, out):
     if args.map:
         m = FM.load(args.map)
         m["tasks"] = {}
+    elif getattr(args, "tracking_", "lights") == "tags":
+        # the AprilTag site (2026-11-02): the table with its production points and the homes near the middle
+        import production as PR
+        a_, b_ = (float(v) for v in args.table.lower().split("x"))
+        pts = {}
+        if not args.program:
+            # no program given (a dry run from the command line): the simulator's stickers as the points
+            import tag_cam as TCAM
+            pts = TCAM.default_config(table=(max(a_, b_), min(a_, b_)), seed=args.seed + 4)["stickers"]
+        m, _w = PR.site_map((max(a_, b_), min(a_, b_)), robots, points=pts)
+        for w_ in _w:
+            say(w_)
     else:
         m = table_map(args.table, ["Left", "Center", "Right"])
     if args.program:
         with open(args.program) as f:
             prog = json.load(f)
+    elif getattr(args, "tracking_", "lights") == "tags":
+        # a production run over the map's points (half each, in order), then home (2026-11-02)
+        import production as PR
+        labs = sorted((m.get("spots") or {}), key=lambda k: (len(k), k))
+        orders = {n: labs[k::len(robots)][:args.points_each] for k, n in enumerate(robots)}
+        prog = PR.program(orders, dwell_s=args.dwell_s)
     else:
         prog = MS.monday_program(tuple(robots))
     sets = dict(kv.split("=", 1) for kv in args.setting)
@@ -128,6 +147,15 @@ def build(args, out):
 
 
 def start_bridge(args, out, mp, cal, scal, stream, side_stream):
+    if getattr(args, "tracking_", "lights") == "tags":
+        # the AprilTag robots (2026-11-02): tag_bridge.py, both cameras, the tags' own ids and heights
+        cmd = ["nice", "-n", "5", PY, os.path.join(HERE, "tag_bridge.py"), "--tags", args.tags_json,
+               "--cam", "overhead=%s,%s" % (stream, cal), "--out", os.path.join(out, "bridge"), "--wait-calib-s", "90",
+               "--robots", args.robots]
+        if scal:
+            cmd += ["--cam", "side=%s,%s" % (side_stream, scal)]
+        f = open(os.path.join(out, "bridge.txt"), "w")
+        return subprocess.Popen(cmd, stdout=f, stderr=subprocess.STDOUT, cwd=REPO), f
     cmd = ["nice", "-n", "5", PY, os.path.join(HERE, "cam_bridge.py"), "--map", mp, "--calib", cal, "--stream", stream,
            "--out", os.path.join(out, "bridge"), "--wait-calib-s", "40"]
     if scal:
@@ -170,8 +198,46 @@ def gap_args(args):
         args.min_gap_cm = MS.gap_floor()
 
 
+def resolve_site(args):
+    """--site / the site in use: its tracking (lights or tags), its tags and calibration folder (2026-11-02). Home (the
+    default) changes nothing: lights, as before."""
+    import sites as SI
+    site = SI.load(args.site) if (args.site or args.tracking != "lights") else None
+    if site is None:
+        try:
+            site = SI.load()
+        except SystemExit:
+            site = None
+    tr = args.tracking if args.tracking != "auto" else ((site or {}).get("tracking") or "lights")
+    args.tracking_ = tr
+    args.site_ = site
+    if tr == "tags" and args.robots == "Left,Right" and site and site.get("tracking") == "tags":
+        args.robots = ",".join(r["name"] for r in site["robots"])        # the site's robots, not home's
+    if tr == "tags":
+        tags = dict((site or {}).get("tags") or {})
+        if not tags.get("ids"):
+            tags.update({"family": "tag25h9", "tag_cm": 8.0, "roof_cm": 9.5,
+                         "ids": {n: k for k, n in enumerate(r.strip() for r in args.robots.split(",") if r.strip())}})
+        if tags.get("height_cm") is None:
+            tags["height_cm"] = 6.0
+            say("NOTE: the roof's height is not measured yet: 6.0 cm used (PLACEHOLDER; tags.height_cm in the site)")
+        args.tags_ = tags
+    return site
+
+
+def sync_mark(out, what, args, extra=None):
+    """A sync mark in the session folder (the Pi's time and clock status; Mission Control's buttons add more)."""
+    try:
+        import sync_tools as ST
+        m = ST.mark(out, what, session=getattr(args, "session_id", None), extra=extra)
+        say("SYNC MARK %s: %s (Pi clock: %s)" % (what, m["t_iso"], m["clock"].get("words")))
+    except Exception as e:     # noqa: BLE001  (a mark never stops a run)
+        say("(sync mark %s not written: %s)" % (what, e))
+
+
 def run(args):
     gap_args(args)
+    resolve_site(args)
     tag = "mission" + ("-dry" if args.dry else "")
     out = os.path.abspath(args.session or os.path.join(REPO, "logs", dt.datetime.now().strftime("%Y%m%d-%H%M%S") +
                                                        "-" + tag))
@@ -187,8 +253,14 @@ def run(args):
         say("NOT STARTED: %s. Nothing moved. Free space first: ./run-fleet-pi.sh space, then "
             "./run-fleet-pi.sh clean-uploaded" % st0["why"])
         return 3
+    if args.tracking_ == "tags":
+        args.tags_json = os.path.join(out, "tags.json")
+        with open(args.tags_json, "w") as f:
+            json.dump(args.tags_, f, indent=1)
+    args.session_id = args.session_id or None
     with open(os.path.join(out, "mission_cmd.json"), "w") as f:
-        json.dump({"argv": sys.argv, "args": vars(args)}, f, indent=1)
+        json.dump({"argv": sys.argv, "args": {k: v for k, v in vars(args).items() if k != "site_"}}, f, indent=1,
+                  default=str)
     if args.mission:
         # a mission made elsewhere (Mission Control's warm-up): its map and plan as they are
         mp, pp = os.path.abspath(args.mission), os.path.abspath(args.plan)
@@ -214,16 +286,55 @@ def run(args):
         rp += ["--robot", ip]
     rp += list(args.rp_arg)
     cond = {}
-    if args.dry:
-        cal = os.path.join(sess, "sim", "table_camera.json")
-        scal = os.path.join(sess, "sim", "side_camera.json") if not args.no_side else ""
+    tag_setup_thread = None
+    if args.dry and args.tracking_ == "tags":
+        # the AprilTag robots in the simulator (2026-11-02): two tag cameras (tools/sim/tag_cam.py) over the table, the
+        # setup (corner and sticker clicks from the truth + noise, the tags read, site_fit) run as Nick would run it,
+        # and the bridge and the facing check on the FITTED cameras, not the true ones
+        import tag_cam as TCAM
+        import tag_setup as TSU
+        mmap = FM.load(mp)
+        fl = mmap["floor"]
+        L_, W_ = fl["x_max"] - fl["x_min"], fl["y_max"] - fl["y_min"]
+        w_, h_ = (int(v) for v in args.cam_size.split("x"))
+        tcfg = TCAM.default_config(table=(L_, W_), size=(w_, h_), tags=args.tags_, seed=args.seed + 4)
+        if mmap.get("spots"):
+            tcfg["stickers"] = {k: v[:2] for k, v in mmap["spots"].items()}
+        for g in args.tag_gap:
+            n_, _, rest = g.partition("@")
+            t_, _, d_ = rest.partition(":")
+            tcfg.setdefault("gaps", []).append({"robot": n_, "t": float(t_), "dur": float(d_ or 10)})
+        for lr in args.cam_low_res:
+            c_, _, wh = lr.partition("=")
+            tcfg.setdefault("low_res", {})[c_] = [int(v) for v in wh.split("x")]
+        tcp = os.path.join(out, "tag_cams.json")
+        with open(tcp, "w") as f:
+            json.dump(tcfg, f, indent=1)
+        tagcal = os.path.join(out, "tagcal")
+        cal = os.path.join(tagcal, "overhead.json")
+        scal = os.path.join(tagcal, "side.json") if not args.no_side else ""
         stream, side_stream = "127.0.0.1:8765", "127.0.0.1:8766"
-        rp += ["--dry-run", "--yes", "--seed", str(args.seed), "--sim-arg=--fix-hz=0", "--sim-arg=--serve-live=8765",
-               "--sim-arg=--live-calib-out=%s" % cal]
-        if scal:
-            rp += ["--sim-arg=--live-side=8766", "--sim-arg=--live-side-calib-out=%s" % scal]
-        if args.washout:
-            rp += ["--sim-arg=--live-washout"]
+        rp += ["--dry-run", "--yes", "--seed", str(args.seed), "--sim-arg=--fix-hz=0", "--sim-arg=--tag-cams=%s" % tcp]
+        import threading as _th
+
+        def _setup():
+            try:
+                TSU.sim_setup(os.path.join(sess, "sim"), {"overhead": stream, "side": side_stream}, tcfg, tagcal,
+                              typed=not args.no_typed, say=say)
+            except Exception as e:     # noqa: BLE001
+                say("SETUP FAILED: %s" % e)
+        tag_setup_thread = _th.Thread(target=_setup, daemon=True)
+    if args.dry:
+        if args.tracking_ != "tags":
+            cal = os.path.join(sess, "sim", "table_camera.json")
+            scal = os.path.join(sess, "sim", "side_camera.json") if not args.no_side else ""
+            stream, side_stream = "127.0.0.1:8765", "127.0.0.1:8766"
+            rp += ["--dry-run", "--yes", "--seed", str(args.seed), "--sim-arg=--fix-hz=0",
+                   "--sim-arg=--serve-live=8765", "--sim-arg=--live-calib-out=%s" % cal]
+            if scal:
+                rp += ["--sim-arg=--live-side=8766", "--sim-arg=--live-side-calib-out=%s" % scal]
+            if args.washout:
+                rp += ["--sim-arg=--live-washout"]
         if args.drop_pct:
             cond["drop_pct"] = args.drop_pct
         if args.dead:
@@ -239,6 +350,19 @@ def run(args):
                 json.dump(cond, f)
             rp += ["--sim-arg=--sweep-cond=%s" % cp]
         launcher = [PY, os.path.join(HERE, "sweeps", "rp_shim.py")]     # sim_shim's conditions (drops, a dead robot)
+    elif args.tracking_ == "tags":
+        # the AprilTag site on the Pi: the camera models the tag setup saved (Mission Control's Setup, Measure)
+        tc = os.path.join((args.site_ or {}).get("conf_dir") or os.path.expanduser("~/.config/mirlt"), "tagcal")
+        cal = args.calib or os.path.join(tc, "overhead.json")
+        scal = "" if args.no_side else (args.side_calib or os.path.join(tc, "side.json"))
+        if scal and not os.path.exists(scal):
+            say("no model for camera 2 (%s): camera 1 alone" % scal)
+            scal = ""
+        if not os.path.exists(cal):
+            raise SystemExit("No camera model at %s: run the setup first (Mission Control, Setup, Measure). Nothing "
+                             "moved." % cal)
+        stream, side_stream = args.stream, args.side_stream
+        launcher = [PY]
     else:
         import setup_conf as SCF
         # setup_conf returns (path, words): take the path, print the words (2026-10-29 20:46 on the Pi: the tuple
@@ -263,6 +387,8 @@ def run(args):
     if not args.no_facing_check:
         rp += ["--facing-check", "--facing-calib", cal, "--facing-stream", stream,
                "--facing-tol-deg", str(args.facing_tol_deg)]
+        if args.tracking_ == "tags":
+            rp += ["--facing-tags", args.tags_json]
         if not args.no_straighten:
             # start straightening (Nick, 2026-10-29 15:41): a robot off its start pose is turned or driven to its spot,
             # the camera watching, and checked again, instead of a stop (straighten.py)
@@ -279,7 +405,10 @@ def run(args):
     except Exception as e:     # noqa: BLE001
         say("(cpu log not started: %s)" % e)
     br, brf = start_bridge(args, out, mp, cal, scal, stream, side_stream)
-    say("camera bridge starting (it learns the empty floor round the robots: keep hands out of the picture)")
+    if args.tracking_ == "tags":
+        say("tag bridge starting (each robot found by its roof tag, wherever it is)")
+    else:
+        say("camera bridge starting (it learns the empty floor round the robots: keep hands out of the picture)")
     if not args.no_frames and not st0["frames_ok"]:
         say("FRAMES NOT SAVED: %s" % st0["why_frames"])
     elif not args.no_frames:
@@ -298,7 +427,14 @@ def run(args):
     say("the robots start now. To stop them at any moment: Ctrl+C")
     code = 1
     # (rp_shim.py stands in for run_plan.py on a dry run and takes run_plan's arguments)
-    child = subprocess.Popen(launcher + (rp[1:] if args.dry else rp), cwd=REPO)
+    try:
+        child = subprocess.Popen(launcher + (rp[1:] if args.dry else rp), cwd=REPO)
+    except BaseException:
+        br.send_signal(signal.SIGINT)        # never leave the bridge running on its own (2026-11-02: one did)
+        raise
+    if tag_setup_thread is not None:
+        tag_setup_thread.start()
+    sync_mark(out, "start", args)
     import threading
     disk_said, disk_stop = [], threading.Event()
     threading.Thread(target=space_watch, args=(guard, child, disk_said, disk_stop), daemon=True).start()
@@ -330,7 +466,27 @@ def run(args):
                 cpu.stop()
             except Exception:     # noqa: BLE001
                 pass
+    sync_mark(out, "end", args)
     summ = summarise(out, sess, frames, cond)
+    try:
+        import sync_tools as ST
+        p_, counts = ST.export_timeline(out)
+        summ["pose_timeline"] = {"file": p_, "rows": counts}
+        say("pose timeline: %s (%s)" % (p_, ", ".join("%s %d" % kv for kv in counts.items())))
+        if args.tracking_ == "tags" and args.refit:
+            import site_fit as SF
+            ob = os.path.join(out, "tagcal", "obs.json") if args.dry else os.path.join(
+                (args.site_ or {}).get("conf_dir") or "", "tagcal", "obs.json")
+            to = os.path.join(out, "bridge", "tag_obs.csv")
+            if os.path.exists(ob) and os.path.exists(to):
+                rf = SF.refit(ob, to, os.path.join(out, "tagcal_refit"))
+                summ["refit"] = {"size_cm": rf["size_cm"], "rms_px": rf["rms_px"], "words": rf["words"]}
+                say("refit from this run's tag reads: table %.1f x %.1f cm (models in %s)" % (
+                    rf["size_cm"][0], rf["size_cm"][1], os.path.join(out, "tagcal_refit")))
+        with open(os.path.join(out, "mission_summary.json"), "w") as f:
+            json.dump(summ, f, indent=1, default=str)
+    except Exception as e:     # noqa: BLE001
+        say("(pose timeline / refit not made: %s)" % e)
     if disk_said:
         summ["ended_by"] = "the card nearly full: " + disk_said[0]
         try:
@@ -472,6 +628,20 @@ def main(argv=None):
                    help="simulator only: allow robot gaps under the 8 cm safety net (the safety-net DOE)")
     ap.add_argument("--setting", action="append", default=[], metavar="NAME=VALUE",
                     help="a mission setting (missions.SETTINGS), e.g. separation_cm=6.5 (repeatable)")
+    ap.add_argument("--site", default="", help="the site profile (default: the one in use; home: lights as before)")
+    ap.add_argument("--tracking", choices=["auto", "lights", "tags"], default="auto",
+                    help="how the cameras find the robots: the site's (auto), their lights, or their roof AprilTags")
+    ap.add_argument("--session-id", default="", help="the session id both teams write down (Mission Control's)")
+    ap.add_argument("--refit", action="store_true", help="tags: after the run, fit the cameras again with the run's "
+                                                          "tag reads (saved beside the run, not used until chosen)")
+    g.add_argument("--cam-size", default="1280x960", help="tags: the simulated cameras' picture size")
+    g.add_argument("--tag-gap", action="append", default=[], metavar="NAME@T:DUR",
+                   help="tags: that robot's tag covered (unreadable) from T s after the plan starts for DUR s")
+    g.add_argument("--cam-low-res", action="append", default=[], metavar="CAM=WxH",
+                   help="tags: that camera sends smaller pictures, e.g. side=640x480")
+    g.add_argument("--no-typed", action="store_true", help="tags: the simulated setup types no table size")
+    ap.add_argument("--points-each", type=int, default=3, help="tags, no --program: points per robot")
+    ap.add_argument("--dwell-s", type=float, default=3.0, help="tags, no --program: seconds at each point")
     ap.add_argument("--no-mirror", action="store_true",
                     help="Left and Right are not re-timed to mirror each other (before 2026-10-29 20:06); default: the "
                          "late one speeds up and the leader slows down (5-10 cm/s) or waits (run_plan's mirror sync)")

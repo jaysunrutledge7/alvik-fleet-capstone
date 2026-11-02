@@ -137,7 +137,12 @@ class CameraModel:
         uv = np.column_stack([np.ravel(u), np.ravel(v)]).astype(np.float64)
         if np.any(self.dist):
             crit = (cv2.TERM_CRITERIA_COUNT | cv2.TERM_CRITERIA_EPS, 100, 1e-12)
-            n = cv2.undistortPointsIter(uv.reshape(-1, 1, 2), self.K, self.dist, None, None, crit).reshape(-1, 2)
+            # undistortPointsIter (OpenCV 4.x) is undistortPoints with criteria in OpenCV 5 (2026-11-02)
+            if hasattr(cv2, "undistortPointsIter"):
+                n = cv2.undistortPointsIter(uv.reshape(-1, 1, 2), self.K, self.dist, None, None, crit).reshape(-1, 2)
+            else:
+                n = cv2.undistortPoints(uv.reshape(-1, 1, 2), self.K, self.dist, None, np.eye(3), np.eye(3),
+                                        crit).reshape(-1, 2)
         else:
             n = (uv - self.K[:2, 2]) @ np.linalg.inv(self.K[:2, :2]).T
         d = np.column_stack([n, np.ones(len(n))]) @ self.R      # R.T @ [xn, yn, 1] for each row

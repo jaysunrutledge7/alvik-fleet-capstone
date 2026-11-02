@@ -1,0 +1,31 @@
+{
+ "opencv": "5.0.0",
+ "backend": "default",
+ "tag_cm": 8.0,
+ "roof_cm": 9.5,
+ "tag_height_cm": 6.0,
+ "trials": 40,
+ "date": "2026-11-02 16:16",
+ "needed_px_per_cm_window2": {
+  "tag16h5": {
+   "sharp": 2.0,
+   "typical webcam": 2.0,
+   "soft + tilted 35 deg": 3.5
+  },
+  "tag25h9": {
+   "sharp": 2.0,
+   "typical webcam": 2.5,
+   "soft + tilted 35 deg": 3.5
+  },
+  "tag36h11": {
+   "sharp": 2.0,
+   "typical webcam": 2.5,
+   "soft + tilted 35 deg": 4.0
+  },
+  "aruco4x4": {
+   "sharp": 2.0,
+   "typical webcam": 2.5,
+   "soft + tilted 35 deg": 3.5
+  }
+ }
+}

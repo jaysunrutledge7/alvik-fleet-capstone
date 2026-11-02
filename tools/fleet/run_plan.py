@@ -3608,6 +3608,12 @@ def facing_poses(fres, names):
         h = meas.get("heading") if meas.get("sure") else None
         hh = ((fres or {}).get("headings") or {}).get(n, h)
         x, y = float(mid[0]), float(mid[1])
+        if meas.get("centre"):
+            # read from its roof tag (2026-11-02): the tag is over the robot's middle, no lights' offset
+            x, y = float(meas["centre"][0]), float(meas["centre"][1])
+            out[n] = (round(x, 2), round(y, 2), None if h is None else float(h), "roof tag (facing check)",
+                      None if hh is None else float(hh))
+            continue
         if hh is not None:
             x -= LIGHTS_AHEAD_CM * math.cos(math.radians(hh))
             y -= LIGHTS_AHEAD_CM * math.sin(math.radians(hh))
@@ -3977,6 +3983,8 @@ def main(argv=None):
     ap.add_argument("--facing-side-stream", default="", help="the side camera's pictures ('' = overhead alone)")
     ap.add_argument("--facing-calib", default="", help="the overhead camera's calibration")
     ap.add_argument("--facing-side-calib", default="", help="the side camera's calibration")
+    ap.add_argument("--facing-tags", default="", help="the AprilTag robots (2026-11-02): a tags JSON (family, sizes, "
+                                                      "height, ids); the facing check reads the roof tags, no lights")
     ap.add_argument("--calibrate", action="store_true", help="send calibrate to every robot first")
     ap.add_argument("--recalibrate", choices=("auto", "no"), default="auto",
                     help="auto (default): calibrate a robot that restarted since its calibration today (a new boot ID) "

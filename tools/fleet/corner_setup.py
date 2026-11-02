@@ -97,7 +97,11 @@ def undistort(px, K, dist):
     p = np.asarray(px, np.float64).reshape(-1, 1, 2)
     if dist is not None and np.any(np.asarray(dist, float)):
         crit = (cv2.TERM_CRITERIA_COUNT | cv2.TERM_CRITERIA_EPS, 100, 1e-12)
-        return cv2.undistortPointsIter(p, np.asarray(K, float), np.asarray(dist, float), None, None, crit).reshape(-1, 2)
+        if hasattr(cv2, "undistortPointsIter"):
+            return cv2.undistortPointsIter(p, np.asarray(K, float), np.asarray(dist, float), None, None,
+                                           crit).reshape(-1, 2)
+        return cv2.undistortPoints(p, np.asarray(K, float), np.asarray(dist, float), None, np.eye(3), np.eye(3),
+                                   crit).reshape(-1, 2)          # OpenCV 5 (2026-11-02)
     K = np.asarray(K, float)
     return (p.reshape(-1, 2) - K[:2, 2]) @ np.linalg.inv(K[:2, :2]).T
 

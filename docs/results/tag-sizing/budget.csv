@@ -1,0 +1,17 @@
+resolution,layout,lens_height_cm,worst_tag_px,worst_px_per_cm,sees_its_area,px_per_cell_tag16h5,px_per_cell_tag25h9,px_per_cell_tag36h11,px_per_cell_aruco4x4
+640x480,one camera straight down (lens 303 cm above the table),303.0,12.3,1.54,True,2.05,1.76,1.54,2.05
+640x480,"two cameras straight down, each over half + 20 cm (lenses 174 cm up)",174.0,21.8,2.72,True,3.63,3.11,2.72,3.63
+640x480,"one camera at one end, angled (200 cm up, 60 cm back)",200.0,3.2,0.4,False,0.53,0.46,0.4,0.53
+640x480,"two cameras, one at each end, angled (200 cm up, 60 cm back)",200.0,6.8,0.85,True,1.13,0.97,0.85,1.13
+1280x720,one camera straight down (lens 303 cm above the table),303.0,24.6,3.08,True,4.1,3.52,3.08,4.1
+1280x720,"two cameras straight down, each over half + 20 cm (lenses 230 cm up)",230.0,32.7,4.08,True,5.44,4.66,4.08,5.44
+1280x720,"one camera at one end, angled (200 cm up, 60 cm back)",200.0,6.4,0.8,False,1.07,0.92,0.8,1.07
+1280x720,"two cameras, one at each end, angled (200 cm up, 60 cm back)",200.0,13.5,1.69,False,2.25,1.93,1.69,2.25
+1280x960,one camera straight down (lens 303 cm above the table),303.0,24.6,3.08,True,4.1,3.52,3.08,4.1
+1280x960,"two cameras straight down, each over half + 20 cm (lenses 174 cm up)",174.0,43.5,5.44,True,7.26,6.22,5.44,7.26
+1280x960,"one camera at one end, angled (200 cm up, 60 cm back)",200.0,6.4,0.8,False,1.07,0.92,0.8,1.07
+1280x960,"two cameras, one at each end, angled (200 cm up, 60 cm back)",200.0,13.5,1.69,True,2.25,1.93,1.69,2.25
+1920x1080,one camera straight down (lens 303 cm above the table),303.0,36.9,4.62,True,6.16,5.28,4.62,6.16
+1920x1080,"two cameras straight down, each over half + 20 cm (lenses 230 cm up)",230.0,49.0,6.12,True,8.16,7.0,6.12,8.16
+1920x1080,"one camera at one end, angled (200 cm up, 60 cm back)",200.0,9.6,1.2,False,1.6,1.38,1.2,1.6
+1920x1080,"two cameras, one at each end, angled (200 cm up, 60 cm back)",200.0,20.3,2.54,False,3.38,2.9,2.54,3.38
