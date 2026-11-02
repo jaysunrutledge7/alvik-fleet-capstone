@@ -181,7 +181,8 @@ def test_towards_words():
 
 def test_firmware_lights_one_side_and_says_so():
     src = open(os.path.join(REPO, "firmware", "home_lab", "home_lab.ino")).read()
-    assert '#define FW_VERSION "2026-10-29a"' in src
+    import re
+    assert re.search(r'#define FW_VERSION "(\S+)"', src).group(1) >= "2026-10-29a"   # 29a or later (29b: 2 Nov)
     assert 'sscanf(raw.c_str(), "%*s %d %d %d %ld %3s", &r, &g, &bl, &ms, side);' in src
     assert 'onlyL ? ", left only" : (onlyR ? ", right only" : "")' in src
 

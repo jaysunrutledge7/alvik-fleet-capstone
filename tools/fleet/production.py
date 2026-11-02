@@ -11,7 +11,7 @@
             readings for the external recorder), then home. The planner keeps the two 8 cm apart (the net); a point
             the robots cannot reach safely is moved in from the edge and said, never a stop.
 
-    python3 tools/fleet/production.py --table 396x168 --points 1:40,30 2:300,120 --order JayA=1,2 --order JayB=2,1
+    python3 tools/fleet/production.py --table 396x168 --points 1:40,30 2:300,120 --order Alpha=1,2 --order Bravo=2,1
 """
 import argparse
 import copy

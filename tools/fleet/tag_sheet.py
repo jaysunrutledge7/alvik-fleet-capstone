@@ -4,7 +4,7 @@ roof square round it as a cutting line, its id and which edge is the robot's FRO
 check the printer did not scale the page.
 
     python3 tools/fleet/tag_sheet.py                       # docs/hardware/apriltag-sheet.pdf (US Letter)
-    python3 tools/fleet/tag_sheet.py --ids 0,1,2,3,4,5 --tag-cm 8 --roof-cm 9.5 --out sheet.pdf --names 0=JayA,1=JayB
+    python3 tools/fleet/tag_sheet.py --ids 0,1,2,3,4,5 --tag-cm 8 --roof-cm 9.5 --out sheet.pdf --names 0=Alpha,1=Bravo
 
 Drawn as vector squares (one per black cell), so the printer's resolution is the only limit. Print at 100 % ("Actual
 size", never "Fit to page") on matte paper; measure the ruler and one tag's black square before cutting.
@@ -113,7 +113,7 @@ def main(argv=None):
     ap.add_argument("--family", default=TC.TAG_FAMILY)
     ap.add_argument("--tag-cm", type=float, default=8.0)
     ap.add_argument("--roof-cm", type=float, default=9.5)
-    ap.add_argument("--names", default="0=JayA,1=JayB")
+    ap.add_argument("--names", default="0=Alpha,1=Bravo")
     ap.add_argument("--site", default="school-conference")
     a = ap.parse_args(argv)
     names = {int(k): v for k, v in (p.split("=") for p in a.names.split(",") if "=" in p)}

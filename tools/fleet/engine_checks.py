@@ -26,9 +26,42 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 TOOLS = os.path.dirname(HERE)
 
-BATTERY_FLOOR_PCT = 25     # Nick's ladder floor (a run at 20 % sagged on 2026-10-25), now checked before every run, so a
+BATTERY_FLOOR_DEFAULT = 25 # Nick's ladder floor (a run at 20 % sagged on 2026-10-25), now checked before every run, so a
                            # resumed ladder step or a second Monday run checks it too (the 15:27 L4 started Left at 23 %).
                            # No DOE: a floor below which nothing starts
+BATTERY_FLOOR_LOWEST = 5   # Nick (2 Nov 2026): a low-battery run "doesn't need to stop before 5 %". No DOE: a safety floor
+                           # (the low-battery run itself is the experiment that should set the everyday floor)
+BATTERY_FLOOR_ENV = "MIRLT_MIN_BATTERY"
+
+
+def battery_floor(env=None):
+    """THE battery floor (one source of truth, 2026-11-02): MIRLT_MIN_BATTERY if set (`./run-fleet-pi.sh doe <h>
+    low-battery` sets 5), never under BATTERY_FLOOR_LOWEST; else BATTERY_FLOOR_DEFAULT. Every process on the drive
+    path reads it: the ladder's L0 and the DOE loop's check (ladder.MIN_BATTERY), and run_plan.py's --battery-floor
+    default (start-up refusal, the mid-run note, a restarted robot's re-check), which the warm-up, straightening and
+    calibration inside run_plan use; the DOE loop also passes --battery-floor explicitly to every drive."""
+    env = os.environ if env is None else env
+    raw = env.get(BATTERY_FLOOR_ENV, "")
+    try:
+        return max(BATTERY_FLOOR_LOWEST, int(raw)) if str(raw).strip() else BATTERY_FLOOR_DEFAULT
+    except ValueError:
+        return BATTERY_FLOOR_DEFAULT
+
+
+def battery_floor_words(floor=None, env=None):
+    """'25 % (the default)' or '5 % (low-battery run: MIRLT_MIN_BATTERY=5)': printed at every start and refusal."""
+    env = os.environ if env is None else env
+    floor = battery_floor(env) if floor is None else floor
+    raw = str(env.get(BATTERY_FLOOR_ENV, "")).strip()
+    if floor == BATTERY_FLOOR_DEFAULT and not raw:
+        return "%d %% (the default)" % floor
+    how = "low-battery run" if floor < BATTERY_FLOOR_DEFAULT else "set"
+    clamp = " (asked %s; never under %d)" % (raw, BATTERY_FLOOR_LOWEST) if raw and raw.lstrip("-").isdigit() and \
+        int(raw) < BATTERY_FLOOR_LOWEST else ""
+    return "%d %% (%s: %s=%s%s)" % (floor, how, BATTERY_FLOOR_ENV, raw or floor, clamp)
+
+
+BATTERY_FLOOR_PCT = battery_floor()
 SILENT_S = 4.0             # chosen: no record at all from a robot for this long while its follow run should be going =
                            # it went silent (battery dead, WiFi gone, restarted): it becomes a fixed obstacle and the
                            # others re-plan. FOLLOW records come 10 a second; the simulated 3 s WiFi drop the step

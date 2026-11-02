@@ -34,9 +34,11 @@
 #     ./run-fleet-pi.sh ladder-status      what has passed, where each robot is
 # The DOE loop (unattended, tools/fleet/doe_loop.py): L0 + L1, then turn checks and straight out-and-backs at 5-13 cm/s
 # one robot at a time until every robot is out or 4 h; runs in tmux (session doe), so SSH can be closed:
-#     ./run-fleet-pi.sh doe [hours] [full-video] [keep-going]   start it (full-video: the recorder keeps its whole
-#                                          video too; keep-going: no robot is set aside by a turn check, crawl, line
-#                                          check or one camera's evidence, only for safety: "would have parked" is logged)
+#     ./run-fleet-pi.sh doe [hours] [full-video] [keep-going] [low-battery]   start it (full-video: the recorder keeps
+#                                          its whole video too; keep-going: no robot is set aside by a turn check, crawl,
+#                                          line check or one camera's evidence, only for safety: "would have parked" is
+#                                          logged; low-battery: robots drive down to 5 % instead of 25 %, the loop's check
+#                                          and every drive alike. CHARGE THE ROBOTS STRAIGHT AFTER A LOW-BATTERY RUN)
 #     ./run-fleet-pi.sh doe-status         drives so far, battery, who is out
 #     ./run-fleet-pi.sh doe-stop           stop it (every robot stops), then it uploads as when it finishes
 #     ./run-fleet-pi.sh reupload-frames 20261029-074342-doe   send a DOE loop's frames to its release again (after a
@@ -202,7 +204,7 @@ case "$WHAT" in
     ladder turncheck "${1:-Center}" ;;
   doe)
     HRS=4; FULL=0; KEEP=""; MINB=25
-    for x in "$@"; do case "$x" in full-video) FULL=1 ;; keep-going) KEEP="keep-going" ;; low-battery) MINB=10 ;; [0-9]*) HRS="$x" ;; esac; done
+    for x in "$@"; do case "$x" in full-video) FULL=1 ;; keep-going) KEEP="keep-going" ;; low-battery) MINB=5 ;; [0-9]*) HRS="$x" ;; esac; done
     if tmux has-session -t doe 2>/dev/null; then
       echo "A DOE loop is already running (tmux session doe). Watch it: tmux capture-pane -p -t doe | tail -40"
       echo "Stop it first if you want a new one: ./run-fleet-pi.sh doe-stop"; exit 1
@@ -215,6 +217,7 @@ case "$WHAT" in
     # the loop's whole screen (run_plan's lines too) to a file; doe-finish moves it into the DOE folder (screen.txt)
     tmux pipe-pane -t doe "cat >> '$REPO/logs/doe-screen.txt'" 2>/dev/null || true
     echo "DOE loop started in tmux session 'doe' (time cap $HRS h; robots set aside under $MINB% battery; full video: $([ $FULL = 1 ] && echo yes || echo no); keep-going: $([ -n "$KEEP" ] && echo "yes, no robot is set aside except for safety" || echo no))."
+    [ "$MINB" -lt 25 ] && echo "LOW-BATTERY RUN: the robots drive down to $MINB%. Charge them straight after it."
     echo "You can close this window: it keeps running on the Pi."
     echo "Watch it:        tmux capture-pane -p -t doe | tail -40"
     echo "Or live:         tmux attach -t doe        (leave it again: Ctrl+B, then D)"
@@ -377,5 +380,5 @@ case "$WHAT" in
     python3 tools/pi/upload_session.py --recordings "$OUT" --stop-recorder --no-logs --tag "p0-$DAY-recording" || true
     tmux kill-session -t fleet 2>/dev/null || true ;;
   *)
-    sed -n '2,55p' "$0"; exit 1 ;;
+    sed -n '2,57p' "$0"; exit 1 ;;
 esac

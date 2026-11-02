@@ -499,6 +499,18 @@ with a random sign (Nick's brief), gyro errors 6.5-8.5 % round Nick's 7.5 % with
 | Left's lowest stop limit (front_stop ROBOT_MIN_CM) | 9 cm (Nick) | brick test at 9 / 10 cm on Left (run sheet appendix C) | Board | open |
 | Blind cap (run_plan BLIND_MAX_CM) | 40 cm (Nick) | 25 / 30 / 40 cm at the sun's hour: blind stops, error when seen again | Board | open |
 
+## Low battery and the holding loop (2026-11-02, built; docs/build-reports/e02-nov02-low-battery-fixes.md)
+
+| Number (where) | Value now | Experiment that would set it | Needs | Status |
+|---|---|---|---|---|
+| Low-battery floor (engine_checks BATTERY_FLOOR_LOWEST, `low-battery`) | 5 % (Nick) | not a DOE: the low-battery run itself measures where accuracy or the robot gives out; the everyday floor (25 %) should then be set from it | Board | set by decision |
+| Everyday floor (BATTERY_FLOOR_DEFAULT) | 25 % (one sag, 25 Oct) | p95 and turn error against battery in 5 % bins from 25 % down (the low-battery run's drives.csv, turns.csv) | Board (the low-battery run) | open |
+| Waits while no robot can drive (doe_loop HOLD_BACKOFF_S) | 10, 20, 40, then 60 s | not worth one: a patience; with `wake` every 2 s during the wait, a robot that answers is caught within 2 s whatever the wait | - | ruled out |
+| `wake` + `status` during a wait (WAKE_EVERY_S) | 2 s | not worth one: as wake_loop.py, shorter than a sleeping robot's 20 s check-in | - | ruled out |
+| Alert with nobody answering (SILENT_ALERT_S) | 10 min (Nick) | not worth one: how long Nick is willing to wait before being told | - | set by decision |
+| Summary line while robots stay silent (SILENT_SUMMARY_S) | 5 min | not worth one: a log size | - | ruled out |
+| Motor board "not answering" (params.h stm_stale_ms) | 2000 ms | logs only: the longest gap between changed sensor readings in RAW rows over a day of normal running (the IMU comes every ~10 ms); the limit must clear it several times over | Logs (firmware 2026-10-29b) | open |
+
 ## Already set by data
 
 - **Line edge cue edge_thr 150** (e02.py SAFETY_SETTINGS): plywood reads 52-84 in every E02 session, the two real

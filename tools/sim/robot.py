@@ -1378,9 +1378,10 @@ class Robot(FollowMixin, DockMixin, E02Mixin):
             self.send("D,CLOCK,%s,%d,%04X" % (rest, now, self.boot_id))
             return False
         if verb in ("ping", "status"):
-            self.send("M,status %s (firmware %s): %s, selected %s, battery %d%%, WiFi %d dBm" % (
-                self.name, self.fw_version, "running" if running else "idle", EXP_NAMES[self.selected],
-                int(self.battery), self.wifi_dbm()))
+            # (firmware 2026-10-29b's tail: charging, the motor board's power pin, its newest sensor reading's age)
+            self.send("M,status %s (firmware %s): %s, selected %s, battery %d%%, WiFi %d dBm, charging 0, motor board on, "
+                      "sensors 10 ms old" % (self.name, self.fw_version, "running" if running else "idle",
+                                             EXP_NAMES[self.selected], int(self.battery), self.wifi_dbm()))
             return False
         if verb == "set":
             parts = rest.split()

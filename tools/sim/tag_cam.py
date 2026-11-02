@@ -319,7 +319,7 @@ def default_config(table=(396.24, 167.64), size=(1280, 960), height_cm=200.0, hf
             st[str(len(st) + 1)] = [round(float(x), 1), round(float(y), 1)]
     return {"table": [L, W], "cams": cams, "stickers": st, "fps": 12.0,
             "tags": tags or {"family": TC.TAG_FAMILY, "tag_cm": 8.0, "roof_cm": 9.5, "height_cm": 6.0,
-                             "ids": {"JayA": 0, "JayB": 1}}}
+                             "ids": {"Alpha": 0, "Bravo": 1}}}
 
 
 def serve_live(sim, cfg, out_dir):

@@ -182,7 +182,7 @@ site fit, production, sync, comparison, check-out, bridge, facing by tags, tag s
 2. With a ruler: the 10 cm line must measure 10.0 cm, and the black square of tag 0 must measure 8.0 cm. If not, the
    printer scaled the page: print again with scaling off.
 3. Make the two roofs from `docs/hardware/roof-tag-spec.md` (9.5 cm square, flat, removable). Glue tag **0** on the
-   roof for **JayA** and tag **1** for **JayB**, the FRONT arrow towards the nose, the tag's middle over the middle of
+   roof for **Alpha** and tag **1** for **Bravo**, the FRONT arrow towards the nose, the tag's middle over the middle of
    the wheel axle.
 4. Measure from the table to the tag's printed face with the roof on a robot (to 1 mm). In the **GitHub web page**
    of the repo, open `tools/fleet/sites/school-conference.json`, click the pencil, change `"height_cm": null` to the
@@ -194,11 +194,11 @@ site fit, production, sync, comparison, check-out, bridge, facing by tags, tag s
    it is not in the repo) in Notepad.
 2. Change the line `#define WIFI_SSID2 "..."` so the text between the quotes is the **school router's network name**,
    exactly. Change `#define WIFI_PASSWORD2 "..."` to its password. Save. (Never paste the password anywhere else.)
-3. Plug JayA's Nano ESP32 into the laptop by USB-C. Switch the robot ON.
+3. Plug Alpha's Nano ESP32 into the laptop by USB-C. Switch the robot ON.
 4. Arduino IDE: open `firmware/home_lab/home_lab.ino`. Tools, Board: **Arduino Nano ESP32**. Tools, Port: the one
    that appeared. Press **Upload** (the right arrow). Wait for "Done uploading".
 5. Tools, **Serial Monitor**, 115200. Within 15 s you should see `This robot is AL-xxxx`. Write AL-xxxx down.
-6. Repeat 3-5 for JayB.
+6. Repeat 3-5 for Bravo.
 
 ### C. Set up the new Pi (once; a terminal on the new Pi, or SSH from the laptop)
 
@@ -233,18 +233,18 @@ You should see `Site now: school-conference` and the site's lines.
    You should see `Saved: the overhead camera is the one named ...`. Then the same with `side` and the other port.
 2. Mount each camera straight down over its half of the table, about 175 cm above it, so that both see the
    middle.
-3. Switch both robots on, on the table. Type (with the AL-xxxx you wrote down for JayA):
+3. Switch both robots on, on the table. Type (with the AL-xxxx you wrote down for Alpha):
    ```
-   python3 tools/fleet/robot_cmd.py --to AL-xxxx --wait-s 3 "name JayA"
+   python3 tools/fleet/robot_cmd.py --to AL-xxxx --wait-s 3 "name Alpha"
    ```
-   You should see `AL-xxxx is now called JayA (kept after power-off)`. The same for JayB.
+   You should see `AL-xxxx is now called Alpha (kept after power-off)`. The same for Bravo.
 4. Type `./run-fleet-pi.sh rec` and press Enter (the recorder). Then `./run-fleet-pi.sh mc`.
 
 ### E. Mission Control (the laptop's browser, at the address `mc` printed)
 
 1. **Connect**: choose **Robots**. Continue.
-2. **Cameras & table**: put the two robots on the table near the middle, about 80 cm apart (JayA 40 cm towards
-   corner 1's end, JayB 40 cm towards the other end), where both cameras see them. Press **Check the cameras**. Every line should be PASS; do what any WARN or FAIL line says.
+2. **Cameras & table**: put the two robots on the table near the middle, about 80 cm apart (Alpha 40 cm towards
+   corner 1's end, Bravo 40 cm towards the other end), where both cameras see them. Press **Check the cameras**. Every line should be PASS; do what any WARN or FAIL line says.
 3. Press **Take pictures**. With "Next click is: corner", click in each picture the table corners it sees, in order
    1, 2, 3, 4 going round counter-clockwise seen from above (1 is 0,0). Switch to **sticker**, type the sticker's
    number, click its middle in every picture it is in (the number goes up by itself).
@@ -270,14 +270,14 @@ You should see `Site now: school-conference` and the site's lines.
    Will they press a mark (or note their laptop time) at our Start and End marks?
 3. **Their RFID tag's place.** The spec puts it under the roof over the axle midpoint, so both systems measure the
    same point. Is that acceptable to them? If not, measure its offset.
-4. **A 3 s stop at each point** (Claude's addition, for still RFID reads). Keep it, change it, or 0?
+4. **A 3 s stop at each point** (Claude's addition, for still RFID reads). Keep it, change it, or 0? *Answered (Nick, 2 Nov 17:59): keep it.*
 
 **Other**
-5. Robot names **JayA** / **JayB** and tags 0 / 1 are my picks: keep them?
-6. Homes 30 cm apart at the middle, facing +y: fine?
+5. Robot names and tags 0 / 1. *Answered (Nick, 2 Nov 17:59): the robots are **Alpha** (tag 0) and **Bravo** (tag 1), renamed from JayA / JayB everywhere in the code, the site profile, the tag sheet and these steps (the results above keep the names the runs had).*
+6. Homes 30 cm apart at the middle, facing +y: fine? *Answered (Nick, 2 Nov 17:59): fine.*
 7. The roof height is a placeholder (6.0 cm) until you measure it.
 8. Is the Pi's clock on the internet at school (the router may have no internet)? If not, the marks are what line the
-   recordings up.
+   recordings up. *Answered (Nick, 2 Nov 17:59): the school Pi will have internet (NTP).*
 
 ## Sweep 1: new tests that may now be necessary
 

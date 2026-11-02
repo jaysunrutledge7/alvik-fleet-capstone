@@ -7,7 +7,8 @@ Nick starts it and walks away. It runs until every robot is out (battery, a FAIL
   check   before EVERY loop and EVERY robot move, each robot's `status` (battery), `clock` (boot id: a new one means it
           restarted, e.g. a sleep check-in, 15:27 today) and `get` of gyro_scale / wheel_scale / gyro_drift_dps:
             - restarted: `wake`, the edge guard and the stored corrections again, then calibrate again (L1, alone);
-            - battery under 25 %: parked (left where it is, on every map as an obstacle);
+            - battery under the floor (25 %; `low-battery`: 5 %, engine_checks.battery_floor): parked (left where it
+              is, on every map as an obstacle); every drive's run_plan gets the same --battery-floor;
             - a correction that does not read back (Center's lost wheel_scale, 14:12): sent again; still wrong: parked.
   loop    one robot at a time (round robin; the others parked as obstacles):
             a. every TURN_EVERY-th drive of a robot (and its first): the ladder's camera-measured turn check (4 quarter
@@ -56,6 +57,7 @@ sys.path.insert(0, HERE)
 import ladder as LD   # noqa: E402
 from ladder import say, LadderStop, edge_dist, segs_clear   # noqa: E402
 import diskguard as DG   # noqa: E402
+EC = LD.EC                # engine_checks: the battery floor (one source of truth, 2026-11-02)
 
 import numpy as np    # noqa: E402
 
@@ -358,6 +360,18 @@ class Tail(threading.Thread):
         self.stopping = True
 
 
+_POWER = re.compile(r"charging (\d+), motor board (\w+), sensors (\d+) ms old")
+
+
+def parse_power(text):
+    """Firmware 2026-10-29b's `status` tail: "..., charging 0, motor board on, sensors 12 ms old" -> dict, or None
+    (older firmware)."""
+    m = _POWER.search(text or "")
+    if not m:
+        return None
+    return dict(charging=int(m.group(1)), motor_board=m.group(2), sensor_age_ms=int(m.group(3)))
+
+
 def clip_kind(e):
     """The frame saver's kind for a coordinator event worth a clip, or None."""
     ev, st, info = e.get("event"), e.get("state"), str(e.get("info") or "")
@@ -495,6 +509,17 @@ def _pick_segment(rect, p, length, parked, clear, parked_clear, a_extra):
 # ---------------------------------------------------------------------------------------------- the loop
 RETRY_ALL_WAIT_S = 20.0   # every robot held, or none with room: the loop waits this long, then tries them all again.
                           # Chosen; no DOE (a patience)
+# The holding loop (2 Nov 15:34-15:56: every robot silent, one loop every 9.4 s, 408 "held" lines and a camera clip
+# per line, 3.5 GB of pictures of robots standing still; docs/build-reports/e02-nov02-low-battery-doe.md section 4).
+HOLD_BACKOFF_S = (10.0, 20.0, 40.0, 60.0)   # chosen (Nick's example, 2 Nov): no robot could drive this loop -> wait
+                          # 10, 20, 40, then every 60 s; back to the start as soon as a robot answers or drives. While
+                          # waiting, `wake` + `status` go to each silent robot every WAKE_EVERY_S, so one that answers
+                          # ends the wait at once. No DOE: a patience (docs/doe-backlog.md, "Holding loop")
+WAKE_EVERY_S = 2.0        # chosen: as wake_loop.py: a robot that wakes from `sleep` for its check-in is caught. No DOE
+SILENT_ALERT_S = 600.0    # Nick (2 Nov): nobody answering for 10 min -> an alert on the loop's screen, on doe-status and
+                          # in events.csv. No DOE: a patience
+SILENT_SUMMARY_S = 300.0  # chosen: a held robot's change is logged once; while robots stay silent, one summary line
+                          # every 5 min. No DOE: a log size
 
 
 class DoeLoop(LD.Ladder):
@@ -519,6 +544,11 @@ class DoeLoop(LD.Ladder):
 
     # -- csv files ----------------------------------------------------------------------------------------------
     def row(self, name, d):
+        # (one writer at a time: the link's listener writes messages / motor-board events from its own thread)
+        with self.__dict__.setdefault("_row_lock", threading.RLock()):
+            self._row(name, d)
+
+    def _row(self, name, d):
         f = self.files.get(name)
         if f is None:
             p = os.path.join(self.dir, name + ".csv")
@@ -545,6 +575,13 @@ class DoeLoop(LD.Ladder):
         self.row("events", dict(t=round(time.time(), 2), clock=time.strftime("%H:%M:%S"), kind=kind, robot=robot,
                                 text=text))
         if clip and self.frames is not None:
+            # a clip only for a NEW hold / park / stop: the same event again for the same robot (numbers aside) is a
+            # robot standing still, already filmed (2 Nov: a clip per "held" line, 3.5 GB in 21 min)
+            last = self.__dict__.setdefault("clip_last", {})
+            key = (kind, re.sub(r"[-+]?\d+(\.\d+)?", "#", text))
+            if last.get(robot) == key:
+                return
+            last[robot] = key
             self.frames.event("other", "%s: %s" % (kind, text), robot=robot)
 
     def retry_outs(self, k):
@@ -556,11 +593,17 @@ class DoeLoop(LD.Ladder):
         if not outs:
             return
         rec = self.st["doe"].setdefault("retried", {})
+        said = self.st["doe"].setdefault("retried_why", {})
         for n, why in outs.items():
             rec[n] = rec.get(n, 0) + 1
             self.st["kept_out"].pop(n, None)
             self.st["doe"].setdefault("turn_due", {})[n] = True
-            self.event("retried", n, "was set aside (%s): tried again at loop %d (time %d)" % (why, k, rec[n]))
+            # said once per reason (2 Nov: the same retry every loop); the count stays in state.json
+            norm = re.sub(r"[-+]?\d+(\.\d+)?", "#", why)
+            if said.get(n) != norm:
+                said[n] = norm
+                self.event("retried", n, "was set aside (%s): tried again at loop %d (time %d; said once while the "
+                                         "reason stays the same)" % (why, k, rec[n]), clip=False)
         self.save()
         need_l1 = [n for n in outs if not self.st["passed"].get("L1:%s" % n)]
         # set aside because it has no compass check (it restarted unseen, or a kept calibration is not on the robot:
@@ -601,6 +644,12 @@ class DoeLoop(LD.Ladder):
         except Exception:
             pass
         self.keep_out(n, "DOE loop: " + why)
+        # parked again for the same reason after its retry (numbers aside, e.g. its battery 1 % lower): no new line
+        last = self.__dict__.setdefault("park_last", {})
+        norm = re.sub(r"[-+]?\d+(\.\d+)?", "#", why)
+        if last.get(n) == norm:
+            return
+        last[n] = norm
         self.event("parked", n, why)
 
     # -- the check before every loop and move -------------------------------------------------------------------
@@ -620,6 +669,12 @@ class DoeLoop(LD.Ladder):
             m = re.match(r"\s*(\w+)\s*=\s*([-+0-9.eE]+)", text)
             if m and m.group(1) in PARAMS:
                 g.setdefault("params", {})[m.group(1)] = float(m.group(2))
+            p = parse_power(text)
+            if p:
+                g["power"] = p
+            if "motor board not answering" in text or "motor board answering again" in text:
+                # firmware 2026-10-29b: the Nano's own report that the motor / sensor chip (STM32) went quiet
+                self.event("motor board", name, text.strip(), clip=False)
 
     def bench_for(self, sub):
         bench = self.need_bench(sub)
@@ -634,6 +689,7 @@ class DoeLoop(LD.Ladder):
             g = self.got.setdefault(n, {})
             g.pop("params", None)
             g.pop("boot", None)
+            g.pop("power", None)
             bench.send(n, "status")
             bench.send(n, "clock doe%d" % int(time.time() * 10 % 100000))
             for p in PARAMS:
@@ -672,18 +728,32 @@ class DoeLoop(LD.Ladder):
                     bench.send(n, "stop")
                 except Exception:      # noqa: BLE001  (it is not answering anyway)
                     pass
-                sil = self.st["doe"].setdefault("silent", {})
+                sil = d.setdefault("silent", {})
                 sil[n] = sil.get(n, 0) + 1
-                self.hold(n, "not answering (asleep, off or out of WiFi) at the check before %s" % why,
-                          "held where it is (%d time%s in a row); checked again at its next turn, and it rejoins when it "
-                          "answers" % (sil[n], "" if sil[n] == 1 else "s"), one=False)
+                why_h = "not answering (asleep, off, flat or out of WiFi) at the check before %s" % why
+                if sil[n] == 1:
+                    # the change is logged once (with its clip); while it stays silent: one summary line every 5 min
+                    d.setdefault("silent_since", {})[n] = time.strftime("%H:%M:%S")
+                    d.setdefault("silent_t", {})[n] = round(time.time(), 1)
+                    self.silent_said = time.time()
+                    self.hold(n, why_h, "said once (while it stays silent: one summary line every %.0f min); it "
+                                        "rejoins when it answers" % (SILENT_SUMMARY_S / 60.0), one=False)
+                else:
+                    self.hold(n, why_h, "", one=False, quiet=True)
                 continue
-            if self.st["doe"].get("silent", {}).pop(n, None):
-                self.event("answering again", n, "it rejoins the loop (it was held for not answering)")
+            if d.get("silent", {}).pop(n, None):
+                since = d.get("silent_since", {}).pop(n, "?")
+                d.get("silent_t", {}).pop(n, None)
+                self.event("answering again", n, "it rejoins the loop (it was held for not answering since %s)" % since)
+                self.clear_alert(n)
             boot, up = g.get("boot"), g.get("uptime_s")
+            pw = g.get("power") or {}
+            # (firmware 2026-10-29b adds the charging flag, the motor board's power pin and how old its newest sensor
+            # reading is; the Alvik library 1.1.1 gives the Nano no battery voltage, so there is no voltage column)
             self.row("battery", dict(t=round(time.time(), 1), clock=time.strftime("%H:%M:%S"), robot=n,
                                      battery_pct=fw[1], boot=boot or "", uptime_s="" if up is None else round(up, 1),
-                                     before=why))
+                                     before=why, charging=pw.get("charging", ""), motor_board=pw.get("motor_board", ""),
+                                     sensor_age_ms=pw.get("sensor_age_ms", ""), floor_pct=LD.MIN_BATTERY))
             old_boot, old_up = d["boot"].get(n), d["uptime"].get(n)
             restarted = bool(old_boot and boot and boot != old_boot) or \
                 (old_up is not None and up is not None and up + 5.0 < old_up)
@@ -693,7 +763,8 @@ class DoeLoop(LD.Ladder):
                 d["uptime"][n] = up
             self.save()
             if fw[1] < LD.MIN_BATTERY:
-                self.park(n, "battery %d%% (under %d%%)" % (fw[1], LD.MIN_BATTERY), safety=True)
+                self.park(n, "battery %d%% (under the %s floor)" % (fw[1], EC.battery_floor_words(LD.MIN_BATTERY)),
+                          safety=True)
                 continue
             if restarted:
                 self.event("restarted", n, "boot id %s -> %s (uptime %.0f s): wake, edge guard and corrections again, "
@@ -724,7 +795,115 @@ class DoeLoop(LD.Ladder):
             else:
                 self.st["doe"].setdefault("turn_due", {})[n] = True     # a fresh calibration: turn check it first
                 self.save()
+        self.silent_summary()
         return fine
+
+    # -- silent robots: said once, a summary every 5 min, an alert after 10 min with nobody answering --------------
+    def silent_summary(self, force=False):
+        sil = self.st["doe"].get("silent") or {}
+        if not sil:
+            return
+        if not force and time.time() - getattr(self, "silent_said", 0.0) < SILENT_SUMMARY_S:
+            return
+        self.silent_said = time.time()
+        since = self.st["doe"].get("silent_since") or {}
+        al = self.st["doe"].get("alert")
+        self.event("still not answering", "-", "%s%s" % (", ".join(
+            "%s (since %s, %d checks)" % (n, since.get(n, "?"), c) for n, c in sorted(sil.items())),
+            "; ALERT since %s" % al["clock"] if al else ""), clip=False)
+
+    def all_silent_since(self, names):
+        """The time since which none of names has answered (every one held for not answering), or None."""
+        ts = self.st["doe"].get("silent_t") or {}
+        if not names or any(n not in ts for n in names):
+            return None
+        return max(ts[n] for n in names)
+
+    def raise_alert(self, names, t0):
+        d = self.st["doe"]
+        if d.get("alert"):
+            return
+        since = time.strftime("%H:%M:%S", time.localtime(t0))
+        mins = (time.time() - t0) / 60.0
+        text = ("NO ROBOT HAS ANSWERED FOR %.0f MIN (since %s): %s. Go and look at them: lights on or dark? Both "
+                "lights blinking red = the motor board's own low-battery alert (Alvik firmware: under 20 %%; under "
+                "10 %% it stops the motors). Plug them in. The loop keeps checking and a robot rejoins when it "
+                "answers." % (mins, since, ", ".join(names)))
+        d["alert"] = dict(kind="all silent", since=since, t=round(t0, 1), clock=time.strftime("%H:%M:%S"),
+                          robots=list(names), text=text)
+        self.save()
+        say("")
+        say("!" * 100)
+        say("ALERT: " + text)
+        say("!" * 100)
+        self.event("ALERT", "-", text, clip=False)
+
+    def clear_alert(self, n):
+        d = self.st["doe"]
+        if d.get("alert"):
+            self.event("alert cleared", n, "%s answered again (the alert was raised at %s, nobody answering since %s)"
+                       % (n, d["alert"]["clock"], d["alert"]["since"]), clip=False)
+            d["alert"] = None
+            self.save()
+
+    def idle_wait(self, names):
+        """No robot could drive this loop (2 Nov: every one held for not answering, one loop every 9.4 s): wait
+        HOLD_BACKOFF_S (10, 20, 40, then 60 s), back to 10 s when a robot answers or drives; meanwhile `wake` and
+        `status` to each silent robot every WAKE_EVERY_S (one that answers ends the wait); after SILENT_ALERT_S with
+        nobody answering, the alert. Returns the robots heard while waiting."""
+        d = self.st["doe"]
+        t0 = self.all_silent_since(names)
+
+        def alert_due():
+            if t0 is not None and time.time() - t0 >= SILENT_ALERT_S:
+                self.raise_alert(names, t0)
+        alert_due()
+        i = getattr(self, "backoff_i", 0)
+        wait = HOLD_BACKOFF_S[min(i, len(HOLD_BACKOFF_S) - 1)]
+        self.backoff_i = i + 1
+        d["held_loops"] = d.get("held_loops", 0) + 1
+        self.save()
+        if i < len(HOLD_BACKOFF_S):        # said while the wait grows; then the 5 min summary says it is still going
+            say("  no robot could drive this loop (%s): next check in %.0f s (waits %s s, then every %.0f s, until one "
+                "answers)" % ("nobody answered" if t0 is not None else "none passed its checks", wait,
+                              ", ".join("%.0f" % w for w in HOLD_BACKOFF_S[:-1]), HOLD_BACKOFF_S[-1]))
+        sil = [n for n in names if n in (d.get("silent") or {})]
+        heard = self.wake_wait(sil, wait, alert_due)
+        if heard:
+            self.backoff_i = 0
+            say("  %s answered while the loop waited: checking now" % ", ".join(heard))
+        return heard
+
+    def wake_wait(self, names, s, tick=None):
+        """Waits s seconds; `wake` + `status` to each of names every WAKE_EVERY_S (ends early when one answers);
+        tick() between (the alert comes at 10 min, not at the end of a 60 s wait)."""
+        t_end = time.time() + s
+        bench = self.bench
+        if bench is None or not names:
+            while time.time() < t_end:
+                time.sleep(min(WAKE_EVERY_S, t_end - time.time()))
+                if tick:
+                    tick()
+            return []
+        for n in names:
+            bench.fw.pop(n, None)
+        while True:
+            if tick:
+                tick()
+            for n in names:
+                try:
+                    bench.send(n, "wake")
+                    bench.send(n, "status")
+                except Exception:      # noqa: BLE001  (a send to a robot that is gone)
+                    pass
+            left = t_end - time.time()
+            if left <= 0 or bench.wait(lambda: any(n in bench.fw for n in names), min(WAKE_EVERY_S, left)):
+                break
+        return [n for n in names if n in bench.fw]
+
+    def end_idle(self):
+        """A robot passed its checks: the waits start again from 10 s."""
+        self.backoff_i = 0
 
     def note_calibrated(self, names):
         """run_plan's record of today (engine_checks.DayState): each robot calibrated by L1 here, at its boot id now.
@@ -854,14 +1033,18 @@ class DoeLoop(LD.Ladder):
             self.park(n, why)
         return ok
 
-    def hold(self, n, why, evidence, one=True):
+    def hold(self, n, why, evidence, one=True, quiet=False):
         """Never set aside on one camera's evidence (Nick, 2026-10-28): the robot stays in, skips this loop's drive,
-        and is turn checked again at its next turn. Returns False (no drive now)."""
+        and is turn checked again at its next turn. Returns False (no drive now). quiet: the same hold again (a robot
+        still not answering): no line, no clip (2 Nov: 408 "held" lines and a clip each in 21 min)."""
         self.st["doe"].setdefault("turn_due", {})[n] = True
-        LD.note_hint(self.st["robots"].get(n, {}), "held: " + why)
+        if not quiet:
+            LD.note_hint(self.st["robots"].get(n, {}), "held: " + why)
         self.st["robots"].get(n, {}).pop("h", None)
         self.last_held = n
         self.save()
+        if quiet:
+            return False
         self.event("held", n, "%s; %s: held, not set aside; checked again next time" % (
             why, ("seen by one camera only (%s)" % evidence) if one else evidence))
         return False
@@ -1049,6 +1232,13 @@ class DoeLoop(LD.Ladder):
                 e = self.end_poses(r["sess"], [n])[n]
             except (OSError, KeyError, ValueError):
                 e = None
+        if still:
+            # nothing moved: no p95 (2 Nov: "low p95" 0.38-1.58 cm on doe-status was the camera watching a robot
+            # that never moved)
+            c, mp = {}, dict(n=0)
+        bat = sc.get("battery")
+        floor = LD.MIN_BATTERY
+        batt_refused = still and bat is not None and floor and bat < floor
         if e:
             self.set_pose(n, e["x"], e["y"], e["h"], e["how"])
             # the heading it ends with must come from this drive, never from before it (19:27-19:32, 28 Oct: drive 1
@@ -1089,6 +1279,12 @@ class DoeLoop(LD.Ladder):
                 n, i + 1, res, c.get("p95_cm"), mp.get("over"), mp.get("runs"), mp.get("single"), mp.get("longest"),
                 row["heading_cam_deg"], ss["low_readings"], ss["low_runs"], ss["single"], ss["stops"],
                 ss["stops_avoided_by_2"], ss["stops_avoided_by_3"]))
+        if batt_refused:
+            # run_plan refused it on the battery floor (the loop's check passed it a moment before: the % fell in
+            # between). Not a failed drive: a safety park, tried again next loop like every robot set aside
+            self.park(n, "battery %d%% (under the %s floor): run_plan refused drive %d, nothing moved" % (
+                bat, EC.battery_floor_words(floor), i + 1), safety=True)
+            return "held"
         if res is None and not os.path.exists(os.path.join(r["sess"], "step.csv")):
             # no plan was made (run_plan stopped before anything was sent: nothing moved): not the robot's fault
             self.event("no plan", n, "the planner found no plan for drive %d (nothing moved): skipped; look at %s" % (
@@ -1163,7 +1359,16 @@ class DoeLoop(LD.Ladder):
 
     def run(self, start=None, pause=False):
         say("DOE loop: %s (time cap %.1f h)" % (self.dir, self.a.hours))
+        fw = EC.battery_floor_words(LD.MIN_BATTERY)
+        say("Battery floor: %s. A robot under it is set aside (tried again every loop); every drive's run_plan gets "
+            "--battery-floor %d." % (fw, LD.MIN_BATTERY))
+        if LD.MIN_BATTERY < EC.BATTERY_FLOOR_DEFAULT:
+            say("LOW-BATTERY RUN: charge the robots straight after it. (The motor board's own alert, Alvik firmware: "
+                "both lights blink red under 20 %, the motors stop under 10 %.)")
+        self.st["doe"]["battery_floor"] = LD.MIN_BATTERY
+        self.save()
         self.start_logs()
+        self.event("battery floor", "-", fw, clip=False)
         st = self.guard.state()
         if st["stop"]:
             self.ended = "disk"
@@ -1200,18 +1405,22 @@ class DoeLoop(LD.Ladder):
             if self.space_check(k):
                 break
             sub = self.sub("loop%03d" % k)
-            say("")
-            say("=" * 100)
-            say("DOE loop %d  (%s; %.0f min left of the cap)" % (k, ", ".join(act), (t_end - time.time()) / 60.0))
-            say("=" * 100)
+            if not getattr(self, "backoff_i", 0):    # (while no robot can drive: no banner per loop, 2 Nov)
+                say("")
+                say("=" * 100)
+                say("DOE loop %d  (%s; %.0f min left of the cap)" % (k, ", ".join(act), (t_end - time.time()) / 60.0))
+                say("=" * 100)
             self.need_bench(sub)
             self.sim_hooks(k)
+            checked = list(act)
             act = self.check(sub, act, "loop %d" % k)
             if not act:
                 k += 1
                 self.st["doe"]["loops"] = k
                 self.save()
+                self.idle_wait(checked)
                 continue
+            self.end_idle()
             n = act[k % len(act)]
             i = self.st["doe"]["i"].get(n, 0)
             out = None
@@ -1406,8 +1615,21 @@ def status(folder):
         say("No DOE loop folder yet (logs/<date-time>-doe).")
         return 1
     st = json.load(open(os.path.join(folder, "state.json")))
+    d = st.get("doe", {})
+    al = d.get("alert")
+    if al:
+        say("!" * 100)
+        say("ALERT (%s): %s" % (al.get("clock"), al.get("text")))
+        say("!" * 100)
     say("DOE loop folder: %s" % folder)
-    say("  loops so far: %s; drives per robot: %s" % (st.get("doe", {}).get("loops"), st.get("doe", {}).get("i")))
+    say("  loops so far: %s (%s of them with no robot able to drive); drives per robot: %s" % (
+        d.get("loops"), d.get("held_loops", 0), d.get("i")))
+    if d.get("battery_floor") is not None:
+        say("  battery floor: %s %%" % d["battery_floor"])
+    sil = d.get("silent") or {}
+    if sil:
+        say("  not answering: %s" % ", ".join("%s since %s (%d checks)" % (n, (d.get("silent_since") or {}).get(n, "?"),
+                                                                          c) for n, c in sorted(sil.items())))
     for n, r in st["robots"].items():
         say("  %s at (%s, %s), heading %s%s" % (n, r.get("x"), r.get("y"), r.get("h", "?"),
                                                 "  OUT: " + st["kept_out"][n] if n in st["kept_out"] else ""))

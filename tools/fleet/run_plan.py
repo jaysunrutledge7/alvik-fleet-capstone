@@ -1718,8 +1718,8 @@ class Coordinator:
             self.send(n, "status")
             if b.battery is not None and floor and b.battery < floor and not getattr(b, "low_said", False):
                 b.low_said = True
-                self.say("%s's battery is at %d %%, under the %d %% floor: it finishes this run; charge it before the "
-                         "next" % (n, b.battery, floor))
+                self.say("%s's battery is at %d %%, under the %s floor: it finishes this run; charge it before the "
+                         "next" % (n, b.battery, floor_words(self.args)))
                 self.log("battery_low", robot=n, battery=b.battery)
 
     def request_replan(self, why):
@@ -1732,7 +1732,7 @@ class Coordinator:
         if b.out or b.name not in getattr(self, "names", [b.name]):
             # a held robot's late step report (2026-11-02 dry run, a tag covered: the robot was held after 41 cm blind,
             # then its halted step came back "failed" and the re-plan, which no longer has it, stopped everyone with
-            # "re-plan failed ('JayA')"): it is already a fixed obstacle; its rejoin re-plans for it
+            # "re-plan failed ('Alpha')"): it is already a fixed obstacle; its rejoin re-plans for it
             self.log("step_failed_while_held", robot=b.name, i=i, info=info)
             return
         stp = self.steps(b.name)[i]
@@ -3063,6 +3063,15 @@ def floor_blocked(coord, n):
     return best
 
 
+def floor_words(args):
+    """The battery floor in force and where it comes from (2026-11-02: printed at start-up and in every refusal)."""
+    f = getattr(args, "battery_floor", EC.BATTERY_FLOOR_PCT)
+    if not f:
+        return "off (--battery-floor 0)"
+    w = EC.battery_floor_words(f)
+    return w if f == EC.battery_floor() else "%d %% (--battery-floor %d)" % (f, f)
+
+
 def recheck_robot(coord, link, args, n, source):
     """A robot that restarted mid-run, checked again before it rejoins (Coordinator.recheck): status (battery),
     its settings (read back), calibration if it says it is not calibrated, the facing check (its heading), its follow
@@ -3076,7 +3085,7 @@ def recheck_robot(coord, link, args, n, source):
     if not b.boot:
         wait_for(lambda: b.boot, 3.0, coord)
     if b.battery is not None and args.battery_floor and b.battery < args.battery_floor:
-        return False, "its battery is at %d %%, under the %d %% floor" % (b.battery, args.battery_floor)
+        return False, "its battery is at %d %%, under the %s floor" % (b.battery, floor_words(args))
     prev = dict(getattr(coord, "sent_settings", {}) or {})
     want = send_settings(coord, link, args, [n])
     coord.sent_settings = dict(prev, **want)
@@ -3300,14 +3309,14 @@ def _start_robots(coord, link, args, source, straight, auto):
                               "boot": coord.bots[n].boot} for n in coord.names}
     if low:
         if not auto:
-            raise SystemExit("Battery under the %d %% floor: %s. Charge %s first (nothing was moved)."
+            raise SystemExit("Battery under the %d %% floor: %s. Charge %s first (nothing was moved). [floor: %s]"
                              % (args.battery_floor, ", ".join("%s %d %%" % x for x in low),
-                                "it" if len(low) == 1 else "them"))
+                                "it" if len(low) == 1 else "them", floor_words(args)))
         warn(coord, "battery under the %d %% floor: %s: it runs anyway (charge it after)"
              % (args.battery_floor, ", ".join("%s %d %%" % x for x in low)))
     print("  " + "; ".join("%s: firmware %s, battery %s %%, boot %s" % (n, coord.bots[n].firmware,
                                                                        coord.bots[n].battery, coord.bots[n].boot)
-                           for n in names))
+                           for n in names) + "  [battery floor: %s]" % floor_words(args))
     # ---- restarts: a new boot ID since the robot's last calibration today
     need_cal = list(names) if args.calibrate else []
     for n in names:
@@ -3999,7 +4008,8 @@ def main(argv=None):
                     help="plan again from where the camera has the robots when they are off their start spots "
                          "(Mission Control, Monday's command); without it, a robot off its spot stops the start")
     ap.add_argument("--battery-floor", type=int, default=EC.BATTERY_FLOOR_PCT,
-                    help="refuse to start a robot under this battery %% (default %(default)s; 0 = off)")
+                    help="refuse to start a robot under this battery %% (default %(default)s: engine_checks."
+                         "battery_floor(), 25 unless MIRLT_MIN_BATTERY is set (never under 5); 0 = off)")
     ap.add_argument("--silent-s", type=float, default=EC.SILENT_S,
                     help="a robot not heard for this long mid-run is out: a fixed obstacle, the others re-plan "
                          "(default %(default)s; 0 = off)")

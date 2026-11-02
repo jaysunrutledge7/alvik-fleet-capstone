@@ -297,7 +297,7 @@ def run(ours_folder, theirs_csv, cfg, refs_csv=None, our_points=None, their_mark
         words.append("WARNING: no row compared. Their robot names %s; ours %s: map theirs to ours (robot map, e.g. "
                      "%s=%s), or check the clock offset and the time column" % (
                          ", ".join(theirs_names[:6]) or "none", ", ".join(sorted(ours)) or "none",
-                         theirs_names[0] if theirs_names else "their-id", sorted(ours)[0] if ours else "JayA"))
+                         theirs_names[0] if theirs_names else "their-id", sorted(ours)[0] if ours else "Alpha"))
     summ = {"clock_offset_s": round(off, 4), "clock_offset_from": off_src, "drift_s": drift,
             "marks": [[w, a, b] for w, a, b in pairs] if pairs else [],
             "transform": {"rotation_deg": round(math.degrees(math.atan2(T["R"][1, 0], T["R"][0, 0])), 3),
@@ -427,7 +427,7 @@ def _selftest(folder):
     pts = points_of(folder)
     om = [(m["t_unix"], m["what"]) for m in ST.read_marks(folder)]
     cfg = {"time": {"column": "timestamp", "format": "unix"},
-           "robot": {"column": "tag", "map": {"tag-JayA": "JayA", "tag-JayB": "JayB"}},
+           "robot": {"column": "tag", "map": {"tag-Alpha": "Alpha", "tag-Bravo": "Bravo"}},
            "x": {"column": "pos_x_ft"}, "y": {"column": "pos_y_ft"}, "units": "ft",
            "event": {"column": "note", "sync_values": ["start", "end"]}}
     ok = True

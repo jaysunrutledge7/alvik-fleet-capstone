@@ -259,6 +259,7 @@ Param PARAMS[] = {
   {"bd_hi_y1",         0,   "partly open side y1: its open stretch ends at x = this"},
   {"e02_open_y_cm",  -999,  "the open edge along y is the line y = this, floor cm (-999 = none; the laptop sets it)"},
   {"sleep_awake_s",   20,   "sleep: how long it stays awake at each check-in, s (the laptop may wake it then)"},
+  {"stm_stale_ms",  2000,   "motor board check (power.h): no new sensor reading for this long = 'motor board not answering' (the IMU comes every ~10 ms; 0 = off)"},
   {"e02_fix_k",      0.5,   "camera fix during an e02 run: the pose moves this fraction of the way to the camera's (1 = replace: K; 0.5 = halfway: KC); a fix while idle always replaces"},
   {"e02_fix_still_ms", 300, "camera fix: used only if the wheels have been still this long (the picture shows where it is now)"},
   {"bump_creep_cms",   5,   "bump: creeping speed into a board, cm/s"},

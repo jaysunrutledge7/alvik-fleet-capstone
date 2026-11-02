@@ -42,7 +42,12 @@
 Arduino_Alvik alvik;
 
 // Bump this whenever the firmware changes, so every logged run says which code it ran.
-#define FW_VERSION "2026-10-29a"
+#define FW_VERSION "2026-10-29b"
+// 2026-10-29b (2 Nov low-battery run: all three robots silent within 24 s at 21-24 %): `status` adds the charging
+//              flag, the motor board's power pin and how old its newest sensor reading is ("charging 0, motor board on,
+//              sensors 12 ms old"); the robot says "M,<name>: motor board not answering" once when the motor / sensor
+//              chip (STM32) stops sending for stm_stale_ms, and "answering again" when it is back (power.h). No battery
+//              voltage: the Alvik library 1.1.1 gives the Nano only the charge %
 // 2026-10-29a (the facing check, tools/fleet/facing.py): `led <r> <g> <b> <ms> L|R` lights ONE side's light (the other
 //              dark), so the cameras can tell the left light from the right one and so which way the robot faces
 // 2026-10-28a (one system, Monday): the arc step (follow C: round a circle, wheels + gyro on the own pose, pose.h
@@ -278,9 +283,11 @@ bool handleCommand(const String& raw, bool running) {
   }
   if (verb == "ping" || verb == "status") {
     // the boot ID (2026-10-28a): a new one = the robot restarted (calibration and `set`s lost); run_plan checks it
-    net::logf("M,status %s (firmware %s, boot %04X): %s, selected %s, battery %d%%, WiFi %d dBm", net::name, FW_VERSION,
-              gBootId, running ? "running" : "idle", EXP_NAMES[gSelected],
-              alvik.get_battery_charge(), (int)WiFi.RSSI());
+    // 2026-10-29b: the charging flag, the motor board's power pin and its newest sensor reading's age (power.h)
+    net::logf("M,status %s (firmware %s, boot %04X): %s, selected %s, battery %d%%, WiFi %d dBm, charging %d, motor "
+              "board %s, sensors %lu ms old", net::name, FW_VERSION, gBootId, running ? "running" : "idle",
+              EXP_NAMES[gSelected], alvik.get_battery_charge(), (int)WiFi.RSSI(), alvik.is_battery_charging() ? 1 : 0,
+              power::boardWords(), power::ageMs());
     return false;
   }
   if (verb == "get") {
@@ -748,6 +755,7 @@ void loop() {
   if (gCheckinUntil && (long)(millis() - gCheckinUntil) >= 0) { gCheckinUntil = 0; goToSleep(gSleepMin); }
   if (gLedUntil && (long)(millis() - gLedUntil) >= 0) { gLedUntil = 0; showSelection(false); }   // `led` ends
   yawTrack();         // keeps the corrected heading's turn count while idle (motion.h)
+  power::tick();      // the motor board still sending? (power.h)
   net::keepTrying();  // joins WiFi later if it failed at startup
   if (net::up && !ota::tried) ota::begin();
   ota::handle();      // WiFi firmware updates, only while idle

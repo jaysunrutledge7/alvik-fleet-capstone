@@ -165,14 +165,13 @@ REFIND_NEAR_CM = 12.0   # by its lights within this of where it should be. DOE n
                         # round each crawl (seconds to "still" and spread per camera source, lamp / daylight); a
                         # larger spread lowers the crawl's precision by about the same amount
 GATE_CM = 3.0           # line check: each robot's 95th percentile within 3 cm of its planned lines (Phase 0's gate)
-MIN_BATTERY = 25        # chosen: below this a robot is kept out (a run at 20 % sagged on 2026-10-25). No DOE
-# Low-battery runs (Nick, 2 Nov 2026: "a low battery run"): `./run-fleet-pi.sh doe <h> low-battery` sets
-# MIRLT_MIN_BATTERY=10, so robots keep driving down to 10 % and the loop records accuracy as the battery runs out.
-# Never below 10 (Alvik 18650 cell: the E1b plan stopped at 8 %). The edge guard and every safety stop are unchanged.
-try:
-    MIN_BATTERY = max(10, int(os.environ.get("MIRLT_MIN_BATTERY", MIN_BATTERY)))
-except ValueError:
-    pass
+# Battery floor: below it a robot is kept out (a run at 20 % sagged on 2026-10-25). One source of truth since 2 Nov
+# 2026: engine_checks.battery_floor() (25 by default; MIRLT_MIN_BATTERY, never under 5). Low-battery runs (Nick, 2 Nov:
+# "I don't think it needs to stop before 5%"): `./run-fleet-pi.sh doe <h> low-battery` sets MIRLT_MIN_BATTERY=5, and
+# run_planned passes the same floor to every run_plan (dfb3396 lowered this line only, and run_plan's own 25 % floor
+# refused all 8 drives under 25 % on 2 Nov). The edge guard and every safety stop are unchanged. No DOE: safety floors
+import engine_checks as EC   # noqa: E402
+MIN_BATTERY = EC.battery_floor()
 MIN_FIRMWARE = "2026-10-18b"
 OBSTACLE_R_CM = 10.0    # chosen: a parked robot on the planner's map: a circle round its corners (half diagonal 6.7 cm)
                         # plus 3 cm (dry run 2026-10-27 with 7 cm: a drive passed the parked Center 6.8 cm body to
@@ -1395,6 +1394,7 @@ class Ladder:
     def L0(self, sub):
         bench = self.need_bench(sub)
         say("Robots heard: %s" % (", ".join(bench.robots()) or "none"))
+        say("Battery floor: %s" % EC.battery_floor_words(MIN_BATTERY))
         for n in bench.robots():
             bench.send(n, "stop")
         time.sleep(0.8)
@@ -1413,7 +1413,7 @@ class Ladder:
             ok = fw[0] >= MIN_FIRMWARE and fw[1] >= MIN_BATTERY
             say("  %s: firmware %s, battery %d%%%s" % (n, fw[0], fw[1], "" if ok else (
                 "  -> kept out: firmware older than %s" % MIN_FIRMWARE if fw[0] < MIN_FIRMWARE else
-                "  -> kept out: battery under %d%%" % MIN_BATTERY)))
+                "  -> kept out: battery under the %s floor" % EC.battery_floor_words(MIN_BATTERY))))
             if ok:
                 good.append(n)
             else:
@@ -2092,6 +2092,8 @@ class Ladder:
             rcmd += ["--robot", ip]
         for c in SAFE:
             rcmd += ["--send", c]
+        # the same battery floor as the loop's own check (one source: engine_checks.battery_floor; 2 Nov 2026)
+        rcmd += ["--battery-floor", str(MIN_BATTERY)]
         if self.a.dry:
             rcmd = ["nice", "-n", "10"] + rcmd
         say("    run_plan: %s" % m["notes"])

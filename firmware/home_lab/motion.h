@@ -6,6 +6,7 @@
 #include "net.h"
 #include "rawlog.h"
 #include "edge.h"
+#include "power.h"
 
 extern Arduino_Alvik alvik;
 
@@ -96,6 +97,7 @@ bool over() {
 // gStepStop set, just the current step).
 bool shouldAbort() {
   rawlog::tick();   // full sensor log rides along with every motion loop
+  power::tick();    // the motor board still sending? (power.h, 2026-10-29b)
   if (gTickHook) gTickHook();
   if (gAbortReason.length()) return true;
   if (alvik.get_touch_cancel()) { gAbortReason = "cancel button"; }

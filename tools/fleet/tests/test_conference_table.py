@@ -27,7 +27,7 @@ import missions as MS         # noqa: E402
 import sync_tools as ST       # noqa: E402
 import merge_external as ME   # noqa: E402
 
-TAGS = {"family": "tag25h9", "tag_cm": 8.0, "roof_cm": 9.5, "height_cm": 6.0, "ids": {"JayA": 0, "JayB": 1}}
+TAGS = {"family": "tag25h9", "tag_cm": 8.0, "roof_cm": 9.5, "height_cm": 6.0, "ids": {"Alpha": 0, "Bravo": 1}}
 
 
 def robot(x, y, hd, i, **kw):
@@ -45,7 +45,7 @@ def test_home_site_is_unchanged(monkeypatch):
 
 def test_school_site_tags_and_own_folders():
     s = SI.load("school-conference")
-    assert s["tracking"] == "tags" and SI.tag_ids(s) == {"JayA": 0, "JayB": 1}
+    assert s["tracking"] == "tags" and SI.tag_ids(s) == {"Alpha": 0, "Bravo": 1}
     assert s["conf_dir"].endswith(os.path.join("sites", "school-conference"))
     assert SI.robot_args(s) == ""                    # found on the WiFi by their hello
     env = "\n".join(SI.env_lines(s))
@@ -137,9 +137,9 @@ def test_site_fit_names_a_wrong_typed_size():
 
 # ------------------------------------------------------------------------------------------------- production
 def test_homes_equidistant_from_the_middle():
-    h = PR.homes(396.0, 168.0, ["JayA", "JayB"])
-    assert h["JayA"][1] == h["JayB"][1] == 84.0
-    assert (198.0 - h["JayA"][0]) == pytest.approx(h["JayB"][0] - 198.0) == pytest.approx(PR.HOME_GAP_CM / 2)
+    h = PR.homes(396.0, 168.0, ["Alpha", "Bravo"])
+    assert h["Alpha"][1] == h["Bravo"][1] == 84.0
+    assert (198.0 - h["Alpha"][0]) == pytest.approx(h["Bravo"][0] - 198.0) == pytest.approx(PR.HOME_GAP_CM / 2)
 
 
 def test_points_near_an_edge_are_moved_in_and_said():
@@ -150,10 +150,10 @@ def test_points_near_an_edge_are_moved_in_and_said():
 
 def test_production_program_plans_points_then_home_with_a_sync_spin():
     import tag_job as TJ
-    m, _ = PR.site_map((396, 168), ["JayA", "JayB"], points={"1": [60, 40], "2": [330, 120], "3": [120, 130]})
-    prog = TJ.add_sync_spin(PR.program({"JayA": ["1", "3"], "JayB": ["2"]}, dwell_s=2))
+    m, _ = PR.site_map((396, 168), ["Alpha", "Bravo"], points={"1": [60, 40], "2": [330, 120], "3": [120, 130]})
+    prog = TJ.add_sync_spin(PR.program({"Alpha": ["1", "3"], "Bravo": ["2"]}, dwell_s=2))
     mm = MS.build(m, prog)
-    va = mm["tasks"]["JayA"]["visit"]
+    va = mm["tasks"]["Alpha"]["visit"]
     assert [v.get("label") for v in va[:2]] == ["sync spin", "sync spin"]
     assert va[-1]["label"] == "home" and va[-1]["goto"][:2] == mm["robots"][0]["start"][:2]
     assert sum(1 for v in va if v.get("wait_s") == 2) == 2
@@ -162,7 +162,7 @@ def test_production_program_plans_points_then_home_with_a_sync_spin():
 
 
 def test_orders_naming_a_missing_point_are_refused():
-    assert PR.check_orders({"JayA": ["9"]}, {"1": [0, 0]})
+    assert PR.check_orders({"Alpha": ["9"]}, {"1": [0, 0]})
 
 
 # ------------------------------------------------------------------------------------------------- sync
@@ -174,11 +174,11 @@ def test_marks_and_timeline(tmp_path):
     os.makedirs(os.path.join(f, "bridge"))
     os.makedirs(os.path.join(f, "run"))
     with open(os.path.join(f, "bridge", "fixes.csv"), "w") as fh:
-        fh.write("t,robot,x,y,heading,sigma_cm,sigma_deg,cams,cams_apart_cm\n100.0,JayA,1,2,90,0.3,1,overhead,0\n")
+        fh.write("t,robot,x,y,heading,sigma_cm,sigma_deg,cams,cams_apart_cm\n100.0,Alpha,1,2,90,0.3,1,overhead,0\n")
     with open(os.path.join(f, "run", "follow.csv"), "w") as fh:
         fh.write("robot,t_recv,run,ms,step_id,state,queued,last_done,last_failed,x_cm,y_cm,th_deg,pos_sd_cm,"
                  "th_sd_deg,fixes_used,fixes_rejected,front_cm,travel_cm,quiet_ms\n"
-                 "JayA,100.05,r,1,0,drive,0,0,0,1.1,2.1,89,0.4,1,0,0,100,0,0\n")
+                 "Alpha,100.05,r,1,0,drive,0,0,0,1.1,2.1,89,0.4,1,0,0,100,0,0\n")
     p, counts = ST.export_timeline(f)
     rows = list(csv.DictReader(open(p)))
     assert [r["source"].split(" ")[0] for r in rows] == ["camera", "robot's"]
@@ -219,7 +219,7 @@ def test_compare_with_synthetic_external_data(tmp_path):
         fh.write("t,robot,x_cm,y_cm,heading_deg\n")
         for k in range(600):
             t = t0 + 0.1 * k
-            for n, ph in (("JayA", 0.0), ("JayB", 2.0)):
+            for n, ph in (("Alpha", 0.0), ("Bravo", 2.0)):
                 x, y = 200 + 80 * math.cos(0.05 * k + ph), 84 + 50 * math.sin(0.05 * k + ph)
                 fh.write("%.2f,%s,%.3f,%.3f,0\n" % (t, n, x, y))
                 rows.append((t, n, x, y))
@@ -240,7 +240,7 @@ def test_compare_with_synthetic_external_data(tmp_path):
     ME.synth_external(str(f), th, rf, pts, truth_csv=str(f / "run" / "sim" / "truth.csv"),
                       our_marks=[(m["t_unix"], m["what"]) for m in ms], noise_cm=3.0, outlier_pct=0)
     cfg = {"time": {"column": "timestamp", "format": "unix"},
-           "robot": {"column": "tag", "map": {"tag-JayA": "JayA", "tag-JayB": "JayB"}},
+           "robot": {"column": "tag", "map": {"tag-Alpha": "Alpha", "tag-Bravo": "Bravo"}},
            "x": {"column": "pos_x_ft"}, "y": {"column": "pos_y_ft"}, "units": "ft",
            "event": {"column": "note", "sync_values": ["start", "end"]}}
     s = ME.run(str(f), th, cfg, refs_csv=rf, our_points=pts, out=str(tmp_path / "cmp"), chart=False)
@@ -279,9 +279,9 @@ def test_bridge_fuses_both_cameras_and_sends_fixes(tmp_path):
         br.on_picture("side", cams[1].render(rs), t)
     br.summary()
     br.close()
-    a = [m for m in sent if m["robot"] == "JayA"]
+    a = [m for m in sent if m["robot"] == "Alpha"]
     assert a and all(abs(m["x"] - 190) < 1.0 and abs(m["y"] - 84) < 1.0 and abs(m["th"] - 90) < 3 for m in a)
-    assert br.counts["JayA"]["both"] >= 1
+    assert br.counts["Alpha"]["both"] >= 1
 
 
 def test_facing_check_by_tags():
@@ -293,16 +293,16 @@ def test_facing_check_by_tags():
         def between(self, c, t0, t1):
             return [img] * 3
     FC.TAG_LOOK_S = 0.0
-    res = FC.tag_check(["JayA", "JayB"], Grab(), {"overhead": cam.true_model()}, TAGS,
-                       assumed={"JayA": 90.0, "JayB": 90.0}, say=lambda s: None)
-    ra, rb = res["robots"]["JayA"], res["robots"]["JayB"]
+    res = FC.tag_check(["Alpha", "Bravo"], Grab(), {"overhead": cam.true_model()}, TAGS,
+                       assumed={"Alpha": 90.0, "Bravo": 90.0}, say=lambda s: None)
+    ra, rb = res["robots"]["Alpha"], res["robots"]["Bravo"]
     assert abs(TG.wrap180(ra["meas"]["heading"] - 180)) < 2 and not ra["verdict"]["ok"]
     assert rb["verdict"]["ok"] and math.hypot(rb["meas"]["centre"][0] - 130, rb["meas"]["centre"][1] - 90) < 1.0
 
 
 def test_tag_sheet_pdf(tmp_path):
     import tag_sheet as TS
-    out = TS.make(str(tmp_path / "s.pdf"), [0, 1, 2], names={0: "JayA", 1: "JayB"})
+    out = TS.make(str(tmp_path / "s.pdf"), [0, 1, 2], names={0: "Alpha", 1: "Bravo"})
     assert os.path.getsize(out) > 2000
     b = TS.bits("tag25h9", 0)
     assert b.shape == (7, 7) and b[0].all() and b[:, 0].all()
