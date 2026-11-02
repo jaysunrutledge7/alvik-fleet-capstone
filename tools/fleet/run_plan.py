@@ -1729,6 +1729,12 @@ class Coordinator:
     def on_failed(self, b, i, info, pose, front):
         if getattr(self, "straightening", False):
             return                  # the start's correction: a failed step is that correction failing (straighten)
+        if b.out or b.name not in getattr(self, "names", [b.name]):
+            # a held robot's late step report (2026-11-02 dry run, a tag covered: the robot was held after 41 cm blind,
+            # then its halted step came back "failed" and the re-plan, which no longer has it, stopped everyone with
+            # "re-plan failed ('JayA')"): it is already a fixed obstacle; its rejoin re-plans for it
+            self.log("step_failed_while_held", robot=b.name, i=i, info=info)
+            return
         stp = self.steps(b.name)[i]
         self.log("step_failed", robot=b.name, i=i, info=info)
         if b.ended or info.startswith(("robot lifted", "stop command", "cancel button")):
@@ -2448,8 +2454,8 @@ class Coordinator:
                 self.log("blind_stop", robot=b.name, dist_cm=round(bl["dist"], 2), own=list(b.pose),
                          body_edge_cm=round(body_edge, 2), held=True)
                 self.warnings = getattr(self, "warnings", []) + ["%s: %s" % (b.name, why)]
-                self.say("WARNING: %s: %s: it is halted and held (found again by its lights); the others carry on"
-                         % (b.name, why))
+                self.say("WARNING: %s: %s: it is halted and held (found again by its lights, or its roof tag); the "
+                         "others carry on" % (b.name, why))
                 b.blind = None
                 self.retire(b, why, kind="restarted")
                 continue

@@ -211,6 +211,9 @@ def resolve_site(args):
     tr = args.tracking if args.tracking != "auto" else ((site or {}).get("tracking") or "lights")
     args.tracking_ = tr
     args.site_ = site
+    if site and not os.environ.get("MIRLT_CONF_DIR"):
+        # the site's own folder for the day's calibration records and stored corrections (run_plan inherits it)
+        os.environ["MIRLT_CONF_DIR"] = site["conf_dir"]
     if tr == "tags" and args.robots == "Left,Right" and site and site.get("tracking") == "tags":
         args.robots = ",".join(r["name"] for r in site["robots"])        # the site's robots, not home's
     if tr == "tags":

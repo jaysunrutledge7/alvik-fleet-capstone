@@ -52,7 +52,8 @@ K1_SD = 0.15             # lens bend k1 prior (0 +- 0.15), when fitted
 AGREE_FRAC = 0.015       # a typed size or distance more than 1.5 % from the cameras' is said as a disagreement (2 % in
                          # corner_setup with the lights; the tags measure better). DOE note: the spread over real setups
 AGREE_CM = 1.5           # ... or more than this for a typed coordinate. Chosen: the tracking error tolerated near an edge
-MAX_GROUPS = 160         # tag moments used at most (spread over time); more cost time and add little
+MAX_GROUPS = 100         # tag moments used at most (spread over time). 160 took 1.5-5 min a refit here (about 5x that on
+                         # a Pi 4); 100 still put the refit within 0.6 cm of the truth. No DOE: a time limit
 TAG_SCALE_SD = 0.05      # with typed measurements, the tags' read size is fitted (k = read / printed): a blurred black
                          # square's corners come out slightly inside it (the dry runs: 1.5-3.5 % small), which would make
                          # the whole table that much large. Prior 1 +- 0.05. No DOE: the typed tape decides it
@@ -541,7 +542,7 @@ def checks(obs, untyped, typed=None):
     return rows, words
 
 
-def full(obs, fit_k1=None):
+def full(obs, fit_k1=None, untyped_check=True):
     """The result used, with its checks.
 
     With typed measurements (Nick has the table's size: 66 x 156 in): the fit with them, the tags' read size fitted
@@ -558,7 +559,8 @@ def full(obs, fit_k1=None):
                                                     "alone (a blurred tag reads 1.5-3.5 % small: type the table's size)."]
         return a
     b = solve(obs, use_typed=True, fit_k1=fit_k1, fit_tag_scale=True)
-    a = solve(obs, use_typed=False, fit_k1=fit_k1, x_start=None)
+    a = solve(obs, use_typed=False, fit_k1=fit_k1, x_start=None) if untyped_check else \
+        {"size_cm": b["size_cm"], "size_sd_cm": b.get("size_sd_cm")}
     rows, words = checks(obs, b)
     k = b.get("tag_scale", 1.0)
     rows.append(dict(what="tag read size / printed", cameras=k, typed=1.0, off=round(k - 1.0, 4),
@@ -570,8 +572,9 @@ def full(obs, fit_k1=None):
     b["untyped_size_cm"], b["untyped_size_sd_cm"] = a["size_cm"], a.get("size_sd_cm")
     b["checks"] = rows
     b["words"] = b["words"] + words + [
-        "Typed measurements used; the tags read %.1f %% %s than printed (fitted; tags alone would make the table "
-        "%.1f x %.1f cm)." % (100 * abs(k - 1), "larger" if k >= 1 else "smaller", *a["size_cm"])]
+        "Typed measurements used; the tags read %.1f %% %s than printed (fitted%s)." % (
+            100 * abs(k - 1), "larger" if k >= 1 else "smaller",
+            ("; tags alone would make the table %.1f x %.1f cm" % tuple(a["size_cm"])) if untyped_check else "")]
     if all(r["ok"] for r in rows):
         b["words"].append("Every typed measurement agrees with the cameras.")
     return b
@@ -716,7 +719,7 @@ def refit(obs_path, tag_obs_csv, out=None, max_groups=MAX_GROUPS):
         obs = json.load(f)
     groups = groups_from_obs_csv(tag_obs_csv, max_groups=max_groups)
     obs = dict(obs, tag_groups=list(obs.get("tag_groups") or []) + groups)
-    res = full(obs)
+    res = full(obs, untyped_check=False)
     res["words"].insert(0, "refit with %d moments from the run (%d seen by both cameras)"
                         % (len(groups), sum(1 for g in groups if len(g["reads"]) > 1)))
     if out:

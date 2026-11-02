@@ -22,7 +22,21 @@ import os
 import re
 import sys
 
-CONF_PATH = os.path.join(os.path.expanduser(os.environ.get("MIRLT_CONF_DIR", "~/.config/mirlt")), "cameras.json")
+def _conf_dir():
+    """MIRLT_CONF_DIR, else the site in use's folder (tools/fleet/sites.py, 2026-11-02: a school site keeps its own
+    camera names; home's is ~/.config/mirlt as before)."""
+    v = os.environ.get("MIRLT_CONF_DIR")
+    if v:
+        return os.path.expanduser(v)
+    try:
+        sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "fleet"))
+        import sites
+        return sites.load()["conf_dir"]
+    except BaseException:      # noqa: BLE001  (no site file: home's folder)
+        return os.path.expanduser("~/.config/mirlt")
+
+
+CONF_PATH = os.path.join(_conf_dir(), "cameras.json")
 DEFAULTS = {"overhead": "USB 2.0 Camera", "side": "EMEET SmartCam C950"}
 ROLES = ("overhead", "side")
 SYSFS = os.environ.get("MIRLT_V4L_SYSFS", "/sys/class/video4linux")     # tests point it at a stand-in folder
@@ -169,11 +183,13 @@ def main(argv=None):
             return 1
         print(dev)
         return 0
-    if argv[:1] == ["--set"] and len(argv) == 3 and argv[1] in ROLES:
+    if argv[:1] == ["--set"] and len(argv) in (3, 4) and argv[1] in ROLES:
+        # (2026-11-02) a 4th word: the USB port, for two cameras with the same name (the school's two new cameras)
         conf, _ = load_conf()
-        conf[argv[1]] = dict(name=argv[2], port="")
+        conf[argv[1]] = dict(name=argv[2], port=argv[3] if len(argv) == 4 else "")
         save_conf(conf)
-        print("Saved: the %s camera is the one named '%s' (%s)." % (argv[1], argv[2], CONF_PATH))
+        print("Saved: the %s camera is the one named '%s'%s (%s)." % (argv[1], argv[2], (" on USB port %s" % argv[3])
+                                                                    if len(argv) == 4 else "", CONF_PATH))
         return 0
     if argv[:1] == ["--init"]:
         # the installer: write the file with today's names if there is none yet (never overwrites)
