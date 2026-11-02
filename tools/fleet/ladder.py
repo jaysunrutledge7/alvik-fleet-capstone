@@ -166,6 +166,13 @@ REFIND_NEAR_CM = 12.0   # by its lights within this of where it should be. DOE n
                         # larger spread lowers the crawl's precision by about the same amount
 GATE_CM = 3.0           # line check: each robot's 95th percentile within 3 cm of its planned lines (Phase 0's gate)
 MIN_BATTERY = 25        # chosen: below this a robot is kept out (a run at 20 % sagged on 2026-10-25). No DOE
+# Low-battery runs (Nick, 2 Nov 2026: "a low battery run"): `./run-fleet-pi.sh doe <h> low-battery` sets
+# MIRLT_MIN_BATTERY=10, so robots keep driving down to 10 % and the loop records accuracy as the battery runs out.
+# Never below 10 (Alvik 18650 cell: the E1b plan stopped at 8 %). The edge guard and every safety stop are unchanged.
+try:
+    MIN_BATTERY = max(10, int(os.environ.get("MIRLT_MIN_BATTERY", MIN_BATTERY)))
+except ValueError:
+    pass
 MIN_FIRMWARE = "2026-10-18b"
 OBSTACLE_R_CM = 10.0    # chosen: a parked robot on the planner's map: a circle round its corners (half diagonal 6.7 cm)
                         # plus 3 cm (dry run 2026-10-27 with 7 cm: a drive passed the parked Center 6.8 cm body to
