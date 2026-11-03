@@ -63,6 +63,12 @@ MAX_GROUPS = 100         # tag moments used at most (spread over time). 160 took
 TAG_SCALE_SD = 0.05      # with typed measurements, the tags' read size is fitted (k = read / printed): a blurred black
                          # square's corners come out slightly inside it (the dry runs: 1.5-3.5 % small), which would make
                          # the whole table that much large. Prior 1 +- 0.05. No DOE: the typed tape decides it
+ROOF_H_PRIOR_SD = 5.0    # (2026-11-03) with the roofs measured (roof_fit), each robot's tag height is fitted with this weak
+                         # pull (cm) towards the typed or placeholder height: weak, so the cameras decide it when they can
+                         # (two cameras seeing it); with one camera it stays near the typed value and its +- says so.
+                         # Chosen; DOE note: the simulator's heights 6 and 9 with one and two cameras (report)
+ROOF_TILT_PRIOR_DEG = 35.0  # ... and its tilt pulled towards level with this 1-sigma (deg): weak (a 30 deg mount fits).
+                         # Chosen, no DOE: it only keeps an unseen tilt from wandering
 TAG_SCALE_WARN = 0.05    # k more than 5 % from 1: said (the printer scaled the page, or the tape is off). Blur alone
                          # reads a tag 1.5-3.5 % small in the simulator (its rounded corners are found inside the true
                          # ones), so 3 % (the first line) warned on every sharp static setup. DOE note: printed tags of
@@ -190,8 +196,18 @@ def rigid_from_plane(Pc, Pw2, n, zs=None):
 
 # ------------------------------------------------------------------------------------------------- the fit
 class Problem:
-    def __init__(self, obs, use_typed=True, fit_k1=False, fit_height=False, fit_tag_scale=False):
+    def __init__(self, obs, use_typed=True, fit_k1=False, fit_height=False, fit_tag_scale=False, roof_fit=False):
         self.obs = obs
+        # (2026-11-03) each robot's roof: its tag height and tilt fitted per tag id (roof_fit), or fixed at measured
+        # values (obs["roof"]: {id: {height_cm, tilt_deg, lean_deg}}), or flat at the one tag height (before)
+        self.roof_fit = roof_fit
+        self.roof_ids = sorted({int(g["id"]) for g in obs.get("tag_groups", [])})
+        self.roof_fixed = {int(k): v for k, v in (obs.get("roof") or {}).items()}
+        # a robot's own typed (tape-measured) height: its fit's starting value and weak pull (else the one tag height)
+        self.roof_typed = {int(k): float(v) for k, v in (obs.get("roof_typed_cm") or {}).items() if v is not None}
+        # robots whose height the cameras could not measure: held at the typed/placeholder one (_roof_hold)
+        self.roof_hold = {int(k) for k in (obs.get("roof_hold") or [])}
+        self.roof_hold_tilt = {int(k) for k in (obs.get("roof_hold_tilt") or [])}
         self.fit_tag_scale = fit_tag_scale
         self.cams = list(obs["cameras"])
         self.s = float(obs["tag_cm"])
@@ -249,12 +265,38 @@ class Problem:
         if self.fit_tag_scale:
             lay["k"] = (k, k + 1)
             k += 1
+        if self.roof_fit:
+            lay["roof"] = (k, k + 3 * len(self.roof_ids))
+            k += 3 * len(self.roof_ids)
         lay["stk"] = (k, k + 2 * len(self.stickers))
         k += 2 * len(self.stickers)
         lay["grp"] = (k, k + 3 * len(self.groups))
         k += 3 * len(self.groups)
         self.lay, self.n = lay, k
         return lay
+
+    def roof_geom(self, x, tag_id, H):
+        """(height, tilt rotation vector or None) of a robot's roof tag: fitted, fixed (measured) or flat at H."""
+        import tag_geom as TG
+        if self.roof_fit and tag_id in self.roof_ids:
+            a = self.lay["roof"][0] + 3 * self.roof_ids.index(tag_id)
+            return x[a], np.array([x[a + 1], x[a + 2], 0.0])
+        d = self.roof_fixed.get(tag_id)
+        if d:
+            return float(d.get("height_cm", H)), (TG.tilt_vec(d["tilt_deg"], d.get("lean_deg", 0.0))
+                                                  if d.get("tilt_deg") else None)
+        return H, None
+
+    def group_corners(self, x, gi, H, ks):
+        """A tag moment's 4 corners in the world (its middle at the group's x, y; its roof's height and tilt)."""
+        g = self.groups[gi]
+        ga = self.lay["grp"][0]
+        gx, gy, gth = x[ga + 3 * gi: ga + 3 * gi + 3]
+        h, tv = self.roof_geom(x, int(g["id"]), H)
+        if tv is None:
+            return tag_corners_world(gx, gy, gth, h, self.s * ks)
+        import tag_geom as TG
+        return TG.roof_corners_world(gx, gy, math.radians(gth), h, self.s * ks, tv)
 
     def cam_params(self, x, c):
         a, b = self.lay[c]
@@ -301,8 +343,7 @@ class Problem:
             if self.fit_k1:
                 out.append(np.array([k1 / K1_SD]))
         for gi, g in enumerate(self.groups):
-            gx, gy, gth = x[ga + 3 * gi: ga + 3 * gi + 3]
-            Pw = tag_corners_world(gx, gy, gth, H, self.s * ks)
+            Pw = self.group_corners(x, gi, H, ks)
             for c, corners in g["reads"].items():
                 rv, tv, f, k1 = self.cam_params(x, c)
                 uv = project(K_of(f, self.obs["cameras"][c]["size"]), k1, rv, tv, Pw)
@@ -325,6 +366,14 @@ class Problem:
             out.append(np.array([(H - self.H) / 1.0]))          # the measured height, +-1 cm
         if self.fit_tag_scale:
             out.append(np.array([(ks - 1.0) / TAG_SCALE_SD]))
+        if self.roof_fit:
+            a = self.lay["roof"][0]
+            for j, i in enumerate(self.roof_ids):
+                h0 = self.roof_typed.get(i, self.H)
+                tp = math.radians(ROOF_TILT_PRIOR_DEG)
+                hsd = 0.01 if i in self.roof_hold else ROOF_H_PRIOR_SD
+                tq = math.radians(0.05) if i in self.roof_hold_tilt else tp
+                out.append(np.array([(x[a + 3 * j] - h0) / hsd, x[a + 3 * j + 1] / tq, x[a + 3 * j + 2] / tq]))
         return np.concatenate(out) if out else np.zeros(1)
 
 
@@ -648,14 +697,15 @@ def initial(obs, prob):
     return x0, words
 
 
-def solve(obs, use_typed=True, fit_k1=None, fit_height=False, x_start=None, fit_tag_scale=False):
+def solve(obs, use_typed=True, fit_k1=None, fit_height=False, x_start=None, fit_tag_scale=False, roof_fit=False):
     """The fit. Returns a dict: ok, cameras {name: CameraModel dict + summary}, size_cm, stickers {id: [x, y]},
     residuals, checks (typed values against the cameras'), words (plain problems and checks)."""
     from scipy.optimize import least_squares
     if fit_k1 is None:
         fit_k1 = True       # a webcam's lens bends (the simulated ones too); with the 0 +- 0.15 prior a straight lens
                             # stays straight. Left out, a bent lens cost up to 4 cm on the table (self-test)
-    prob = Problem(obs, use_typed=use_typed, fit_k1=fit_k1, fit_height=fit_height, fit_tag_scale=fit_tag_scale)
+    prob = Problem(obs, use_typed=use_typed, fit_k1=fit_k1, fit_height=fit_height, fit_tag_scale=fit_tag_scale,
+                   roof_fit=roof_fit)
     if x_start is not None:
         prob.layout()
         x0, words = np.array(x_start, float), ["started from the fit with the typed measurements"]
@@ -663,6 +713,10 @@ def solve(obs, use_typed=True, fit_k1=None, fit_height=False, x_start=None, fit_
             x0, words = initial(obs, prob)
     else:
         x0, words = initial(obs, prob)
+    if roof_fit and x_start is None:
+        a = prob.lay["roof"][0]
+        for j, i in enumerate(prob.roof_ids):
+            x0[a + 3 * j] = prob.roof_typed.get(i, prob.H)
     r = least_squares(prob.resid, x0, loss="soft_l1", f_scale=3.0, x_scale="jac", max_nfev=400)
     x = r.x
     L, W = x[prob.lay["LW"][0]:prob.lay["LW"][1]]
@@ -710,9 +764,42 @@ def solve(obs, use_typed=True, fit_k1=None, fit_height=False, x_start=None, fit_
                            "offset_cm": prob.ref_off}
         if "_kref" in prob.lay:
             out["ref_tag_scale"] = round(float(x[prob.lay["_kref"][0]]), 4)
+    if roof_fit:
+        # (2026-11-03) each robot's roof as fitted, with its +- from the fit (sd scaled up when the pictures fit worse
+        # than the corners' assumed 0.35 px)
+        import tag_geom as TG
+        nres = max(1, len(r.fun) - len(x))
+        scale = max(1.0, math.sqrt(2.0 * float(r.cost) / nres))
+        a = prob.lay["roof"][0]
+        roofs = {}
+        for j, i in enumerate(prob.roof_ids):
+            tv = np.array([x[a + 3 * j + 1], x[a + 3 * j + 2], 0.0])
+            tilt, lean = TG.tilt_of_vec(tv)
+            # the tilt's +-: the larger of its two components' sd (deg)
+            tsd = math.degrees(max(sd[a + 3 * j + 1], sd[a + 3 * j + 2])) * scale
+            roofs[str(i)] = {"height_cm": round(float(x[a + 3 * j]), 2), "height_sd_cm": round(float(sd[a + 3 * j]) * scale, 2),
+                             "tilt_deg": round(tilt, 2), "tilt_sd_deg": round(tsd, 2), "lean_deg": round(lean, 1),
+                             "tilt_vec": [round(float(tv[0]), 5), round(float(tv[1]), 5)],
+                             "moments": sum(1 for g in prob.groups if int(g["id"]) == i),
+                             # how many ways round the tag was seen: the moments' headings, spread (deg). A still robot
+                             # seen by one camera: 0, and its tilt is not trusted (roof_cal)
+                             "heading_spread_deg": _spread_deg([x[prob.lay["grp"][0] + 3 * gi + 2]
+                                                                for gi, g in enumerate(prob.groups) if int(g["id"]) == i]),
+                             "two_camera_moments": sum(1 for g in prob.groups if int(g["id"]) == i and len(g["reads"]) > 1),
+                             "cameras": sorted({c for g in prob.groups if int(g["id"]) == i for c in g["reads"]})}
+        out["roofs"] = roofs
     out["cost"] = float(r.cost)
     out["nfev"] = int(r.nfev)
     return out
+
+
+def _spread_deg(hs):
+    """How much of the circle a set of headings covers (deg, 0-360): 360 less the widest gap between them."""
+    if len(hs) < 2:
+        return 0.0
+    a = np.sort(np.mod(np.asarray(hs, float), 360.0))
+    gaps = np.diff(np.concatenate([a, [a[0] + 360.0]]))
+    return round(float(360.0 - gaps.max()), 1)
 
 
 def rms_by_kind(prob, x):
@@ -742,8 +829,7 @@ def rms_by_kind(prob, x):
         d = []
         for gi, g in enumerate(prob.groups):
             if c in g["reads"]:
-                Pw = tag_corners_world(*x[ga + 3 * gi: ga + 3 * gi + 3], H,
-                                       prob.s * (x[prob.lay["k"][0]] if prob.fit_tag_scale else 1.0))
+                Pw = prob.group_corners(x, gi, H, x[prob.lay["k"][0]] if prob.fit_tag_scale else 1.0)
                 d.append(np.linalg.norm(project(K, k1, rv, tv, Pw) - np.asarray(g["reads"][c]), axis=1))
         if d:
             e["tags"] = float(np.sqrt(np.mean(np.square(np.concatenate(d)))))
@@ -830,12 +916,18 @@ def full(obs, fit_k1=None, untyped_check=True):
     has_typed = bool((obs.get("table") or {}).get("length_cm")) or any(
         d.get("xy_cm") is not None for d in (obs.get("stickers") or {}).values()) or bool(obs.get("distances")) or \
         bool((obs.get("ref_tags") or {}).get("typed_along_cm"))
+    # (2026-11-03) each robot's roof tag height and tilt fitted with the cameras (roof_cal.py); obs["roof_fit"] False:
+    # every roof flat at the one tag height, as before (the switch: the site's tags.roof_check)
+    rf = bool(obs.get("roof_fit", True)) and bool(obs.get("tag_groups"))
     if not has_typed:
-        a = solve(obs, use_typed=False, fit_k1=fit_k1)
+        a = solve(obs, use_typed=False, fit_k1=fit_k1, roof_fit=rf)
         a["checks"], a["words"] = [], a["words"] + ["No measurements typed: the scale rests on the tags' printed size "
                                                     "alone (a blurred tag reads 1.5-3.5 % small: type the table's size)."]
+        a = _roof_hold(obs, a, dict(use_typed=False, fit_k1=fit_k1, roof_fit=rf))
+        _roof_words(a, obs)
         return a
-    b = solve(obs, use_typed=True, fit_k1=fit_k1, fit_tag_scale=True)
+    b = solve(obs, use_typed=True, fit_k1=fit_k1, fit_tag_scale=True, roof_fit=rf)
+    b = _roof_hold(obs, b, dict(use_typed=True, fit_k1=fit_k1, fit_tag_scale=True, roof_fit=rf))
     a = solve(obs, use_typed=False, fit_k1=fit_k1, x_start=None) if untyped_check else \
         {"size_cm": b["size_cm"], "size_sd_cm": b.get("size_sd_cm")}
     rows, words = checks(obs, b)
@@ -869,7 +961,42 @@ def full(obs, fit_k1=None, untyped_check=True):
             ("; tags alone would make the table %.1f x %.1f cm" % tuple(a["size_cm"])) if untyped_check else "")]
     if all(r["ok"] for r in rows):
         b["words"].append("Every typed measurement agrees with the cameras.")
+    _roof_words(b, obs)
     return b
+
+
+def _roof_hold(obs, res, kw):
+    """A robot whose height the cameras could not pin (+- over roof_cal.HEIGHT_SD_USE_CM: one camera sees it) is used
+    at its typed/placeholder height by the bridge, so the cameras are fitted again with it held there (else they bend
+    to a height nobody uses: the simulator's one-camera tilt case went 0.3 -> 0.6 cm). Its measured height and +- stay
+    in the words."""
+    import roof_cal as RC
+    roofs = res.get("roofs") or {}
+    unsure = [i for i, r in roofs.items() if r["height_sd_cm"] > RC.HEIGHT_SD_USE_CM]
+    # a tilt seen from one side only (one camera, a still robot) is held level the same way: the simulator's flat tags
+    # read 18-30 deg that way, and fitting it bent the cameras (one camera: 0.7 -> 1.1 cm)
+    flat = [i for i, r in roofs.items() if not RC.tilt_trusted(r)]
+    if not unsure and not flat:
+        return res
+    r2 = solve(dict(obs, roof_hold=unsure, roof_hold_tilt=flat), x_start=res["x"], **kw)
+    for i in unsure:
+        r2["roofs"][i].update(height_cm=roofs[i]["height_cm"], height_sd_cm=roofs[i]["height_sd_cm"], held=True)
+    for i in flat:
+        r2["roofs"][i].update({k: roofs[i][k] for k in ("tilt_deg", "tilt_sd_deg", "lean_deg", "tilt_vec")},
+                              tilt_held=True)
+    r2["words"] = res["words"]
+    return r2
+
+
+def _roof_words(res, obs):
+    """res["roof_tags"] (roof_cal.summarize) and its words, when the roofs were fitted."""
+    if not res.get("roofs"):
+        return
+    import roof_cal as RC
+    rt = RC.summarize(res, obs, typed_cm=obs.get("tag_height_typed_cm"), placeholder=obs.get("tag_height_typed_cm") is None)
+    rt["source"] = "measure"
+    res["roof_tags"] = rt
+    res["words"] = res["words"] + rt["words"]
 
 
 def height_check(obs, res, fit_k1=None):
@@ -1053,6 +1180,15 @@ def refit(obs_path, tag_obs_csv, out=None, max_groups=MAX_GROUPS):
     res = full(obs, untyped_check=False)
     res["words"].insert(0, "refit with %d moments from the run (%d seen by both cameras)"
                         % (len(groups), sum(1 for g in groups if len(g["reads"]) > 1)))
+    if res.get("roof_tags"):
+        # (2026-11-03) the offsets from the run's spins (the sync spin), beside the reads; the setup's kept otherwise
+        import roof_cal as RC
+        old = [w for w in res["roof_tags"]["words"]]
+        prev = RC.load(os.path.dirname(os.path.abspath(obs_path)))
+        RC.add_offsets(res["roof_tags"], os.path.join(os.path.dirname(os.path.abspath(tag_obs_csv)), "tag_poses.csv"),
+                       prev=prev)
+        res["roof_tags"]["source"] = "refit"
+        res["words"] = [w for w in res["words"] if w not in old] + res["roof_tags"]["words"]
     if out:
         save(res, out)
         with open(os.path.join(out, "obs_refit.json"), "w") as f:
@@ -1171,6 +1307,10 @@ def save(res, out):
     for c, d in res["cameras"].items():
         with open(os.path.join(out, c + ".json"), "w") as f:
             json.dump(d, f, indent=1)
+    if res.get("roof_tags"):
+        # (2026-11-03) before site_fit.json: the tag bridge waits for site_fit.json, then reads this
+        with open(os.path.join(out, "roof_tags.json"), "w") as f:
+            json.dump(res["roof_tags"], f, indent=1, default=str)
     with open(os.path.join(out, "site_fit.json"), "w") as f:
         json.dump({k: v for k, v in res.items() if k != "cameras"}, f, indent=1, default=str)
 

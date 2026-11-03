@@ -156,15 +156,22 @@ class TagCamera:
         self._tex[key] = (tex.astype(np.float32), px_per_cm)
         return self._tex[key]
 
-    def _draw_roof(self, img, x, y, th, z, family, tag_id, tag_cm, roof_cm, grey_scale=1.0, off=(0, 0)):
+    def _draw_roof(self, img, x, y, th, z, family, tag_id, tag_cm, roof_cm, grey_scale=1.0, off=(0, 0), tv=None,
+                   tag_off=None):
         tex, ppcm = self.texture(family, tag_id, tag_cm, roof_cm)
         th_ = tex.shape[0]
         h = roof_cm / 2.0
         c, s = math.cos(th), math.sin(th)
         # texture corners (top-left, top-right, bottom-right, bottom-left of the printed tag) -> roof corners: the
         # printed "top" edge towards the robot's nose (+heading), the printed left on the robot's left
-        local = [(h, h), (h, -h), (-h, -h), (-h, h)]        # (ahead, left) of the robot
-        world = [(x + c * a - s * b, y + s * a + c * b, z) for a, b in local]
+        if tv is None and tag_off is None:
+            local = [(h, h), (h, -h), (-h, -h), (-h, h)]        # (ahead, left) of the robot
+            world = [(x + c * a - s * b, y + s * a + c * b, z) for a, b in local]
+        else:
+            # (2026-11-03) a hand-made roof: tilted (tv, a rotation vector in the robot's frame) and its middle tag_off
+            # (ahead, left) cm from the turning point; z is the middle's height (tag_geom.roof_corners_world)
+            import tag_geom as TG
+            world = TG.roof_corners_world(x, y, th, z, roof_cm, tv, tag_off if tag_off is not None else (0.0, 0.0))
         uv = self.project(world)
         if not np.all(np.isfinite(uv)):
             return
@@ -212,7 +219,8 @@ class TagCamera:
                                  for a, b in ((h, h), (h, -h), (-h, -h), (-h, h))], 235.0)
                 continue
             before = img.copy() if (r.get("vx") or r.get("vy")) else None
-            self._draw_roof(img, r["x"], r["y"], r["th"], r["z"], r["family"], r["id"], r["tag_cm"], r["roof_cm"])
+            self._draw_roof(img, r["x"], r["y"], r["th"], r["z"], r["family"], r["id"], r["tag_cm"], r["roof_cm"],
+                            tv=r.get("tv"), tag_off=r.get("tag_off"))
             if before is not None:
                 # motion blur: the robot moves vx, vy during the exposure: smear its region along its picture motion
                 dt = self.exposure_ms / 1000.0
@@ -258,8 +266,9 @@ class TagCamera:
         noise = self._noise[k]
         bg = self.background()
         for r in robots:
-            h = max(ROBOT_BODY_CM, r["roof_cm"]) / 2.0 + 1.0
-            pts = [(r["x"] + a, r["y"] + b, z) for a in (-h, h) for b in (-h, h) for z in (0.0, r["z"])]
+            h = max(ROBOT_BODY_CM, r["roof_cm"]) / 2.0 + 1.0 + float(np.linalg.norm(r.get("tag_off") or (0, 0)))
+            ztop = r["z"] + (r["roof_cm"] / 2.0 if r.get("tv") is not None else 0.0)
+            pts = [(r["x"] + a, r["y"] + b, z) for a in (-h, h) for b in (-h, h) for z in (0.0, ztop)]
             uv = self.project(pts)
             if not np.all(np.isfinite(uv)):
                 continue
@@ -279,7 +288,7 @@ class TagCamera:
                                  for a, b in ((hh, hh), (hh, -hh), (-hh, -hh), (-hh, hh))], 235.0, off=off)
             else:
                 self._draw_roof(roi, r["x"], r["y"], r["th"], r["z"], r["family"], r["id"], r["tag_cm"],
-                                r["roof_cm"], off=off)
+                                r["roof_cm"], off=off, tv=r.get("tv"), tag_off=r.get("tag_off"))
             if self.blur_px > 0:
                 roi = cv2.GaussianBlur(roi, (0, 0), self.blur_px)
             roi = roi * self.gain + self.offset + noise[v0:v1, u0:u1]
@@ -377,6 +386,24 @@ def default_config(table=(396.24, 167.64), size=(1280, 960), height_cm=200.0, hf
     return out
 
 
+def roof_truth(cfg, name):
+    """(2026-11-03) A simulated robot's hand-made roof from cfg["roof_truth"][name]: {height_cm (the tag middle's true
+    height), tilt_deg, lean_deg (tag_geom.tilt_vec), offset_cm [ahead, left]} -> render keys {z, tv, tag_off}; {} when
+    the config has none for it (flat, at tags.height_cm, centred: as before)."""
+    d = (cfg.get("roof_truth") or {}).get(name)
+    if not d:
+        return {}
+    import tag_geom as TG
+    out = {}
+    if d.get("height_cm") is not None:
+        out["z"] = float(d["height_cm"])
+    if d.get("tilt_deg"):
+        out["tv"] = TG.tilt_vec(d["tilt_deg"], d.get("lean_deg", 0.0))
+    if d.get("offset_cm"):
+        out["tag_off"] = [float(v) for v in d["offset_cm"]]
+    return out
+
+
 def serve_live(sim, cfg, out_dir):
     """fleet_sim.py --tag-cams: each camera's pictures at its port's /live (as the Pi's recorder serves them), drawn
     from the TRUE poses; the true camera models written to <out_dir>/true_<name>.json (what a perfect setup gives,
@@ -462,8 +489,10 @@ def serve_live(sim, cfg, out_dir):
             if p is not None and t_cap > p[2]:
                 vx, vy = (rb.x - p[0]) / (t_cap - p[2]), (rb.y - p[1]) / (t_cap - p[2])
             prev[name] = (rb.x, rb.y, t_cap)
-            rs.append(dict(x=rb.x, y=rb.y, th=rb.th, z=float(tags["height_cm"]), family=tags["family"], id=ids[name],
-                           tag_cm=float(tags["tag_cm"]), roof_cm=float(tags["roof_cm"]), vx=vx, vy=vy))
+            rd = dict(x=rb.x, y=rb.y, th=rb.th, z=float(tags["height_cm"]), family=tags["family"], id=ids[name],
+                      tag_cm=float(tags["tag_cm"]), roof_cm=float(tags["roof_cm"]), vx=vx, vy=vy)
+            rd.update(roof_truth(cfg, name))
+            rs.append(rd)
         n += 1
         for c in cams:
             body, img = c.render_fast(rs, covered=covered)

@@ -678,6 +678,22 @@ function tagPicCard(cam) {
 // the refit after a run (2026-11-03): the run starts it in the background (site setting auto_refit); the card shows
 // where it is, polls while it runs, and the button REUSES the run's result
 let refitPoll = null;
+function roofCard(rt) {
+  // (2026-11-03) each robot's roof tag as the cameras measured it (roof_cal.py): height, tilt, offset, in plain words
+  if (!rt || !rt.robots || !Object.keys(rt.robots).length) return "";
+  const rows = Object.values(rt.robots).map(d => {
+    const off = d.offset_used ? `${Math.hypot(d.offset_cm[0], d.offset_cm[1]).toFixed(1)} cm` : (d.offset_cm ? "not sure" : "after a run's spin");
+    const ok = d.level !== false && d.height_used;
+    return `<tr><td><b>${esc(d.name)}</b></td><td>${d.height_used ? d.height_cm.toFixed(1) + " &plusmn; " + d.height_sd_cm.toFixed(1) + " cm" : (d.height_in_use_cm ?? 6).toFixed(1) + " cm typed/placeholder <span class='muted'>(the cameras cannot measure it here)</span>"}</td>
+      <td style="${d.level === false ? "color:var(--warn);font-weight:600" : ""}">${d.level === null || d.level === undefined ? "not checked yet (one camera, robot still): after a run's spin" : d.tilt_deg.toFixed(0) + "&deg; &plusmn; " + d.tilt_sd_deg.toFixed(1) + (d.level ? " (level)" : " towards " + esc(d.lean_words))}</td>
+      <td>${off}</td><td style="color:${ok ? "var(--green)" : "var(--warn)"};font-weight:600">${d.level === false ? "LEVEL IT" : (d.height_used ? (d.level ? "OK" : "OK so far") : "type its height")}</td></tr>`;
+  }).join("");
+  const warn = Object.values(rt.robots).filter(d => d.level === false).map(d => `<p class="small" style="color:var(--warn)"><b>${esc(d.name)}'s tag leans ${d.tilt_deg.toFixed(0)}&deg; towards ${esc(d.lean_words)}:</b> level it with the wedge and Measure again. Uncorrected, a tilt like this costs about ${d.tilt_err_cm.toFixed(1)} cm of position and ${(d.tilt_err_deg ?? 0).toFixed(0)}&deg; of heading, and some reads at the table's ends are refused; the tracking corrects for the measured tilt meanwhile.</p>`).join("");
+  return `<div class="card" id="roofcard" style="margin:8px 0"><h2>Roof tags</h2>
+    <table class="small"><tr><th>Robot</th><th>Height above the table</th><th>Tilt</th><th>Offset from turning point</th><th></th></tr>${rows}</table>${warn}
+    <p class="small muted">Each robot's roof tag as the cameras measured it at Measure (and again after each run): how high its middle is above the table, how far it leans from level (OK up to ${rt.tilt_ok_deg ?? 5}&deg;), and how far its middle sits from the point the robot turns about.</p></div>`;
+}
+
 function refitCard(T) {
   const L = T.refit_live || {state: "none"}, R = T.refit;
   const live = L.state === "running" ? `<p class="small" id="trlive"><b>Refit running in the background</b>: ${Math.round(L.seconds || 0)} s so far (a few minutes on the Pi). Nothing waits for it; this card fills in by itself.</p>`
@@ -712,6 +728,7 @@ function camerasTable() {
     `<div class="card"><h2>Measure</h2><p class="small muted">Reads ${rc ? "the reference tags on the table and " : ""}the robots' tags (${esc(tags.family || "")}, ${tags.tag_cm || "?"} cm, roof ${tags.height_cm != null ? tags.height_cm + " cm up" : "<b style='color:var(--red)'>height not measured yet</b>"}), fits both cameras, the table's size and every sticker's spot, and makes the workspace: the table, the stickers as production points, the homes${rc ? ", the reference tiles as keep-out areas" : ""}.</p>
       <button class="p" id="tmeasure">Measure</button>
       ${r ? `<div style="margin-top:10px"><div class="kpis"><div class="kpi"><b>${r.size_cm[0].toFixed(1)} x ${r.size_cm[1].toFixed(1)}</b><span>table (cm)</span></div><div class="kpi"><b>${Object.keys(r.stickers || {}).length}</b><span>production points</span></div><div class="kpi"><b>${r.reads}</b><span>tag reads</span></div></div>
+        ${roofCard(r.roof_tags)}
         <ul class="small">${(r.words || []).map(w => `<li style="${/WARNING|DISAGREE|NOT/.test(w) ? "color:var(--warn)" : ""}">${esc(w)}</li>`).join("")}</ul>
         ${r.sim_truth ? `<p class="small muted">Simulator truth: floor error median ${esc(Object.entries(r.sim_truth).filter(([k, v]) => v && typeof v === "object" && v.median_cm != null).map(([k, v]) => k + " " + v.median_cm + " cm (worst " + v.worst_cm + ")").join(", "))}; stickers worst ${esc(r.sim_truth.stickers_worst_cm ?? "-")} cm${r.sim_truth.side_tags_along_off_cm ? "; side tags along their edges off by " + esc(Object.entries(r.sim_truth.side_tags_along_off_cm).map(([k, v]) => k + " " + v + " cm").join(", ")) : ""}.</p>` : ""}</div>` : ""}</div>
     <div class="card"><h2>Measurements (checks, optional)</h2><p class="small muted">Typed values are compared with the cameras' own measure, never silently averaged. The site's table size is filled in.</p>

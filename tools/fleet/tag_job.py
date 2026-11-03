@@ -317,6 +317,7 @@ class TagJob:
         self.d["result"] = {"size_cm": res["size_cm"], "words": words, "stickers": (m.get("spots") if SP.typed_on(self.site) else res["stickers"]),
                             "rms_px": res["rms_px"], "checks": res.get("checks"), "tag_scale": res.get("tag_scale"),
                             "ref_tags": res.get("ref_tags"), "height_check": res.get("height_check"),
+                            "roof_tags": res.get("roof_tags"),      # (2026-11-03) each robot's roof: height, tilt
                             "corner_clicks": self.corner_clicks_on(),
                             "t": time.time(), "conn": conn, "saved_to": out_dir, "reads": len(reads)}
         if conn != "robots" and self.room_cfg:

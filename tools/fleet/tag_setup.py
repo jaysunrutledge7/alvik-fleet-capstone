@@ -125,7 +125,14 @@ def make_obs(sizes, corners, stickers, tags, groups, table=None, distances=None,
     refs {cam: {id: corners}} (ref_tags.read_refs) with ref_cfg (the site's ref_tags); typed_along {id: cm}."""
     obs = {"cameras": {c: {"size": list(sz)} for c, sz in sizes.items()}, "corners": corners,
            "stickers": stickers or {}, "tag_cm": float(tags["tag_cm"]), "tag_height_cm": float(tags["height_cm"]),
-           "tag_groups": groups, "table": table or None, "distances": distances or []}
+           "tag_groups": groups, "table": table or None, "distances": distances or [],
+           # (2026-11-03) each robot's roof measured (roof_cal.py): its name, the typed height (None: placeholder),
+           # and the switch (the site's tags.roof_check, default on)
+           "tag_names": {str(i): n for n, i in (tags.get("ids") or {}).items()},
+           "tag_height_typed_cm": None if tags.get("height_placeholder") else tags.get("height_cm"),
+           "roof_typed_cm": {str(i): (tags.get("heights_cm") or {}).get(n) for n, i in (tags.get("ids") or {}).items()
+                             if (tags.get("heights_cm") or {}).get(n) is not None},
+           "roof_fit": str(tags.get("roof_check", True)).lower() not in ("0", "false", "off", "no")}
     if refs and any(refs.values()):
         import ref_tags as RT
         rc = ref_cfg or RT.default_config()

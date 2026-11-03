@@ -25,6 +25,11 @@ Bumped cameras (2026-11-03): with reference tags on the table (ref_tags.py) and 
 small windows where the setup saw them. When their median shift is over ref_tags.BUMP_PX for BUMP_CONFIRM checks in a
 row, the camera has moved: a WARNING line, a camera_moved event (mission_run says it on the screen), ref_watch.csv.
 
+Measured roofs (2026-11-03): roof_tags.json beside the camera models (the setup's or a used refit's, roof_cal.py) gives
+each robot its own tag height, tilt and offset from the turning point; tag_geom.pose_from_detection uses them. The
+site's tags.roof_measured / tags.tilt_correct switch them off (the typed/placeholder height for every robot, flat).
+They are said at start and logged (events.jsonl "start", bridge_summary.json "roofs").
+
 Writes to --out: track.csv (as cam_bridge's, for line_check.py), tag_poses.csv (every read: camera, robot, pose,
 sigma, size check, picture position), tag_obs.csv (every read's corners: the site fit's input), ref_watch.csv,
 events.jsonl, bridge_summary.json.
@@ -220,9 +225,12 @@ def ref_expected(models, site_fit_path, cfg=None):
 
 
 class Bridge:
-    def __init__(self, tags, cams, send, out, observe=False, robots=None, say=None, ref_expected=None, ref_cfg=None):
-        """tags: load_tags(); cams: {name: CameraModel}; send(msg)."""
+    def __init__(self, tags, cams, send, out, observe=False, robots=None, say=None, ref_expected=None, ref_cfg=None,
+                 roofs=None):
+        """tags: load_tags(); cams: {name: CameraModel}; send(msg). roofs: {tag id: roof dict} (roof_cal.roofs_for_bridge;
+        None or {}: every robot flat at tags.height_cm, as before)."""
         self.tags = tags
+        self.roofs = {int(k): v for k, v in (roofs or {}).items()}
         self.ids = {int(i): n for n, i in tags["ids"].items() if robots is None or n in robots}
         self.robot_of = self.ids
         self.cams = cams
@@ -252,7 +260,7 @@ class Bridge:
         self.pose_f = open(os.path.join(out, "tag_poses.csv"), "w", newline="")
         self.pose_w = csv.writer(self.pose_f)
         self.pose_w.writerow(["t", "cam", "robot", "id", "x", "y", "heading", "sigma_cm", "sigma_deg", "size_ratio",
-                              "px_per_cm", "u", "v", "used"])
+                              "px_per_cm", "u", "v", "used", "mid_x", "mid_y"])
         self.fix_f = open(os.path.join(out, "fixes.csv"), "w", newline="")
         self.fix_w = csv.writer(self.fix_f)
         self.fix_w.writerow(["t", "robot", "x", "y", "heading", "sigma_cm", "sigma_deg", "cams", "cams_apart_cm"])
@@ -260,7 +268,7 @@ class Bridge:
         self.obs_w = csv.writer(self.obs_f)
         self.obs_w.writerow(["t", "cam", "id", "u0", "v0", "u1", "v1", "u2", "v2", "u3", "v3"])
         self.ev_f = open(os.path.join(out, "events.jsonl"), "a")
-        self.event("start", tags=tags, cams=list(cams), robots=self.ids)
+        self.event("start", tags=tags, cams=list(cams), robots=self.ids, roofs=self.roofs)
         # the reference tags' watch (2026-11-03): a bumped camera
         self.refw = {}
         if ref_expected:
@@ -348,7 +356,7 @@ class Bridge:
         out = []
         for tag_id, d in found.items():
             n = self.robot_of[tag_id]
-            p = TG.pose_from_detection(cam, d, H, S)
+            p = TG.pose_from_detection(cam, d, H, S, roof=self.roofs.get(int(tag_id)))
             c = d.corners.ravel()
             self.obs_w.writerow(["%.4f" % t, cam_name, tag_id] + ["%.2f" % v for v in c])
             if p is None:
@@ -358,7 +366,10 @@ class Bridge:
             cu, cv = d.center
             self.pose_w.writerow(["%.4f" % t, cam_name, n, tag_id, "%.2f" % p.x, "%.2f" % p.y, "%.2f" % p.heading,
                                   "%.3f" % p.sigma_cm, "%.2f" % p.sigma_deg, "%.3f" % p.size_ratio,
-                                  "%.2f" % p.px_per_cm, "%.1f" % cu, "%.1f" % cv, used])
+                                  "%.2f" % p.px_per_cm, "%.1f" % cu, "%.1f" % cv, used,
+                                  # (2026-11-03) the tag's own middle (x, y are the turning point when an offset is
+                                  # taken off): the refit measures the offset from these
+                                  "%.2f" % (p.mid or (p.x, p.y))[0], "%.2f" % (p.mid or (p.x, p.y))[1]])
             out.append((n, p, used))
         with self.lock:
             self.flush(t)
@@ -454,6 +465,7 @@ class Bridge:
              "windows": {c: self.trk[c].windows for c in self.cams}, "full_searches": {c: self.trk[c].fulls
                                                                                        for c in self.cams},
              "tags": {k: v for k, v in self.tags.items() if k != "ids"},
+             "roofs": {self.robot_of.get(i, str(i)): v for i, v in self.roofs.items()},
              "ref_watch": {c: {"moved": w.moved, "last_median_px": None if not w.last or w.last[0] is None
                                else round(w.last[0], 2), "tags": sorted(w.expected, key=int)}
                            for c, w in self.refw.items()}}
@@ -543,7 +555,12 @@ def main(argv=None):
         if rexp:
             print("Reference tags watched (a bumped camera): %s" % "; ".join(
                 "%s %s" % (c, ", ".join(sorted(v, key=int))) for c, v in rexp.items()), flush=True)
-    br = Bridge(tags, models, send, out, observe=a.observe, robots=robots, ref_expected=rexp)
+    import roof_cal as RC
+    cal_dir = os.path.dirname(a.cam[0].partition("=")[2].partition(",")[2]) if a.cam else ""
+    roofs, rwords = RC.roofs_for_bridge(cal_dir, tags)
+    for w in rwords:
+        print("Roof: " + w, flush=True)
+    br = Bridge(tags, models, send, out, observe=a.observe, robots=robots, ref_expected=rexp, roofs=roofs)
     print("Tag bridge: %s tags (%s cm, %s cm up) on %s; cameras %s; fixes to %s%s. Logs: %s" % (
         tags.get("family"), tags.get("tag_cm"), tags.get("height_cm"),
         ", ".join("%s=%d" % kv for kv in tags["ids"].items()), ", ".join(models), a.to,
