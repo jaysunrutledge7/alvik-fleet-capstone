@@ -17,5 +17,9 @@
  "ref_tags": {"use": true, "family": "tag25h9", "tag_cm": 12.0, "offset_cm": 7.75, "z_cm": 0.18,
               "corners": {"1": 20, "2": 21, "3": 22, "4": 23}, "sides": {"1": 24, "3": 25}},
  "corner_clicks": false,
- "auto_refit": "background"
+ "auto_refit": "background",
+ "_note_keep_going": "Nick 2 Nov 21:01-21:06: keep going and finish with the best position estimate at every step; the camera is trusted over the edge sensors. on_problem: keep_going or stop; feel_out_trust: camera or sensor; lost_robot_points: reassign (Claude's assumption, Nick did not answer) or skip.",
+ "on_problem": "keep_going",
+ "feel_out_trust": "camera",
+ "lost_robot_points": "reassign"
 }

@@ -527,6 +527,19 @@ with a random sign (Nick's brief), gyro errors 6.5-8.5 % round Nick's 7.5 % with
 | Back-off speed (planner probe_back_cms) | 3 cm/s (the crawl's) | not worth one | - | ruled out |
 | Conference table's drop in the simulator (mission_run DROP_CM) | 74 cm | not a DOE: measure the school table's height | School, 1 min | to measure |
 
+## Keep going and confidence at every point (2026-11-03, built; docs/build-reports/e02-nov03-keep-going-confidence.md)
+
+| Number (where) | Value now | Experiment that would set it | Needs | Status |
+|---|---|---|---|---|
+| Odometry drift per cm with no camera (run_plan ODO_P95_PER_CM) | 0.07 cm per cm (p95), MEASURED on 29 Oct straight drives up to 40 cm (e02-oct29-start-straighten-blind-strip.md, section 3) | logs: rebuild dead reckoning over longer stretches and over turns (the DOE loops' raw.csv against both cameras), per robot; then the school robots' own | Logs (home), then a school session | open |
+| A tag camera's fit error before its site_fit.json is read (CAM_CAL_DEFAULT_CM) | 0.5 cm, CHOSEN | yes: tape-measure 6-8 points on the school table, compare with each camera alone; the error per camera against the fit's residuals (is rms px / px per cm a fair 1 sigma?) | School table, 15 min | open |
+| The +- convention (CONF_Z) | 2 sigma (about 95 %) | not a DOE: check it instead (the simulator: 100 % of points inside so far; on the board, against tape-measured points) | School table (same points) | check |
+| Px per cm fallback (PPC_DEFAULT) | 5, CHOSEN | not worth one: only until a fix says it | - | ruled out |
+| Re-plans spaced past the cap (REPLAN_SPACING_S) | 5 s | not worth one: a guard against a loop | - | ruled out |
+| Failed re-plans before a robot is set out (REPLAN_FAIL_MAX) | 3 | not worth one: a guard (each failure also skips one point) | - | ruled out |
+| Time limit stretched to the newest plan's end + DEADLINE_TAIL_S, at most DEADLINE_MAX_X x the limit | 120 s, 3 x | not worth one: a hang must still end | - | ruled out |
+| Which robot takes a lost robot's point (run_plan reassign_points) | the nearest to its last point, in order (CHOSEN rule) | simulator: nearest / least loaded / re-solve the whole order, against the run's end time with one robot lost at 10 random times | Sim | open |
+
 ## Already set by data
 
 - **Line edge cue edge_thr 150** (e02.py SAFETY_SETTINGS): plywood reads 52-84 in every E02 session, the two real

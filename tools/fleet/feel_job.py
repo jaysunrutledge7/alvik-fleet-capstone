@@ -7,6 +7,10 @@ run: calibration, the crawls), its result is saved in the site's folder and appl
 the robots felt), the production mission is planned again on it, and the production run starts by itself. Yes: the
 saved outline is used and the feels are skipped. Nick can skip it once ("Skip it this time") or run it again ("Feel
 out again"). A result that says the outline is too far off holds the production run: Nick reads it and decides.
+Keep going (2026-11-03, the site's on_problem / the Run screen's tick-box): nothing here holds the production run: a
+feel-out that did not finish, or an outline too far off, is said and the production run starts on the cameras' outline.
+Camera trust (the site's feel_out_trust "camera", the school): a felt-vs-camera difference is reported per side and
+logged; the outline is never moved.
 
 The robots' calibration lives in the site's folder (<conf_dir>/feel_table/); the simulator's in Mission Control's
 practice room (<mc_dir>/practice-room/feel_table/), so practice never overwrites the real table's.
@@ -118,7 +122,26 @@ class FeelJob:
             time.sleep(0.5)
         return run is not None and run.status().get("exit") in (0,), (run.status().get("exit") if run else "?")
 
+    def keep_going(self):
+        try:
+            return self.s.on_problem() == "keep_going"
+        except Exception:      # noqa: BLE001
+            return False
+
+    def trust(self):
+        return (self.s.site or {}).get("feel_out_trust") or FT.TRUST
+
     def _failed(self, what, code):
+        if self.keep_going() and not getattr(self.s, "stop_asked", False):
+            # keep going (2026-11-03): the production run starts on the cameras' outline (a Stop is still a stop:
+            # Mission Control's Stop sets stop_asked)
+            with self.lock:
+                self.phase = "failed"
+                self.err = "the %s ended without finishing (exit %s): KEEP GOING: nothing saved; the production run " \
+                           "starts on the cameras' outline" % (what, code)
+                self.words.append(self.err)
+            self._chain(self.conn)
+            return
         with self.lock:
             self.phase = "failed"
             self.err = "the %s ended without finishing (exit %s): nothing saved, the production run not started" % (
@@ -159,6 +182,9 @@ class FeelJob:
             with self.lock:
                 self.phase, self.err = "failed", "%s: %s" % (type(e).__name__, e)
                 self.words.append("The surface check could not be read: %s" % self.err)
+            if self.keep_going() and not getattr(self.s, "stop_asked", False):
+                self.words.append("KEEP GOING: no crawls; the production run starts on the cameras' outline.")
+                self._chain(conn)
             return
         ok, code = self._wait_run()
         if not ok:
@@ -168,18 +194,24 @@ class FeelJob:
         try:
             with self.s.lock:            # the page's requests change the map too
                 res, cal = FT.finish(self.fm, os.path.join(self.folder, "crawl", "run"), self.sp, cdir, key, sid,
-                                     site=self.s.site["name"], surface=self.surface)
+                                     site=self.s.site["name"], surface=self.surface, trust=self.trust())
                 self.result = res
                 self.apply(cal)
                 self.words = list(res["words"]) + ["Saved as this table's calibration: %s" % FT.cal_path(cdir, key)]
-                self.phase = "held" if res.get("hold") else "done"
-                if not res.get("hold"):
+                self.phase = "held" if res.get("hold") and not self.keep_going() else "done"
+                if res.get("hold") and self.keep_going():
+                    self.words.append("KEEP GOING: the outline was not moved; the production run starts on the "
+                                      "cameras' outline.")
+                if self.phase == "done":
                     self._chain(conn)
         except Exception as e:      # noqa: BLE001
             with self.lock:
                 self.phase = "failed"
                 self.err = "%s: %s" % (type(e).__name__, e)
                 self.words.append("The feel-out's result could not be used: %s" % self.err)
+            if self.keep_going() and not getattr(self.s, "stop_asked", False):
+                self.words.append("KEEP GOING: the production run starts on the cameras' outline.")
+                self._chain(conn)
 
     def apply(self, cal):
         """The calibration's outline into the workspace map (homes and points follow it)."""

@@ -12,5 +12,9 @@
  "capture": {"width": 640, "height": 480, "fps": 25},
  "tracking": "lights",
  "table": null,
- "corner_clicks": true
+ "corner_clicks": true,
+ "_note_2026_11_03": "Keep-going policy (sites.py POLICY_WORDS): home stops on a problem, as before. on_problem: keep_going or stop; feel_out_trust: camera or sensor; lost_robot_points: reassign or skip (used only with keep_going).",
+ "on_problem": "stop",
+ "feel_out_trust": "sensor",
+ "lost_robot_points": "reassign"
 }

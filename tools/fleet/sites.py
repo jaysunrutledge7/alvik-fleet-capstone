@@ -42,6 +42,20 @@ BASE_CONF = "~/.config/mirlt"
 DEFAULT_SITE = "home"
 NAME_RE = re.compile(r"^[A-Za-z0-9_-]{1,10}$")    # the firmware keeps at most 10 characters (net.h setName)
 
+# The keep-going policy (2026-11-03; Nick 2 Nov 21:01: "finishing the run with the highest confidence positional
+# assessment it can make every step of the way"). Per site; home keeps exactly what it did before ("stop"):
+#   on_problem         "keep_going": a problem that used to end the whole run (camera and pose disagree for long, out
+#                      of re-plans, no plan, a robot lost) is said once, logged and worked round; only a full card,
+#                      the operator's Stop and every robot out end it. "stop": as before
+#   feel_out_trust     "camera": the feel-out reports a felt-vs-camera difference per side and logs it, but the cameras'
+#                      outline stands and the production run never waits for it (AprilTag sites). "sensor": as before
+#                      (a side moved in up to 10 cm, held past 10)
+#   lost_robot_points  with keep_going: "reassign" (a robot that is out hands its remaining production points to the
+#                      robots still running) or "skip" (they are listed as not done, as before)
+POLICY_WORDS = {"on_problem": ("keep_going", "stop"), "feel_out_trust": ("camera", "sensor"),
+                "lost_robot_points": ("reassign", "skip")}
+POLICY_DEFAULTS = {"on_problem": "stop", "feel_out_trust": "sensor", "lost_robot_points": "reassign"}
+
 ROBOT_COLOURS = ["#2952CC", "#C2410C", "#7A3EC8", "#12805C", "#B54708", "#0E7490"]
 
 
@@ -157,6 +171,10 @@ def _type_problems(d):
     rt = d.get("ref_tags")
     if rt is not None and not isinstance(rt, dict):
         probs.append('"ref_tags" should be {...}')
+    # the keep-going policy (2026-11-03, Nick 2 Nov 21:01): each a word from its list
+    for k, ok in POLICY_WORDS.items():
+        if k in d and d[k] not in ok:
+            probs.append('%s should be %s, not %s' % (k, " or ".join('"%s"' % w for w in ok), json.dumps(d[k])))
     return probs
 
 
@@ -223,6 +241,8 @@ def load(name=None):
     d.setdefault("cameras", {"overhead": {"label": "overhead camera"}, "side": {"label": "side camera"}})
     d.setdefault("capture", {"width": 640, "height": 480, "fps": 25})
     d.setdefault("table", None)
+    for k, v in POLICY_DEFAULTS.items():
+        d.setdefault(k, v)
     cd = d.get("conf_dir") or (BASE_CONF if name == DEFAULT_SITE else BASE_CONF + "/sites/" + name)
     d["conf_dir"] = os.path.expanduser(cd)
     md = d.get("mc_dir") or ("logs/mission-control" if name == DEFAULT_SITE else "logs/mission-control-" + name)
@@ -293,7 +313,15 @@ def words(site=None):
              "  Mission Control's folder: %s" % os.path.relpath(s["mc_dir"], REPO)]
     if s.get("table"):
         lines.append("  table (typed): %s x %s cm" % (s["table"].get("length_cm"), s["table"].get("width_cm")))
+    lines.append("  on a problem: %s" % ("keep going (said once, logged, worked round; stops only for a full card, "
+                                          "Stop, or every robot out); a lost robot's points %s" % (
+                                              "go to the robots still running" if s.get("lost_robot_points") ==
+                                              "reassign" else "are listed as not done")
+                                          if s.get("on_problem") == "keep_going" else "stop the run (as before)"))
     if s["tracking"] == "tags":
+        lines.append("  feel-out: %s" % ("the cameras' outline is trusted; a felt difference is reported, never moves "
+                                         "it or holds the run" if s.get("feel_out_trust") == "camera" else
+                                         "a side felt 2-10 cm in is moved in; further holds the run"))
         t = s.get("tags") or {}
         lines.append("  tags: %s, %.1f cm black square on a %.1f cm roof, %s cm above the table; ids %s, spares %s" % (
             t.get("family"), t.get("tag_cm", 0), t.get("roof_cm", 0),

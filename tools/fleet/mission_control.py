@@ -73,6 +73,8 @@ RUN_DEFAULTS = {
     "straighten": True,               # a robot off its start pose is turned on the spot or driven to its spot, then
                                       # checked again, instead of a stop (run_plan --straighten, 2026-10-29 15:41).
                                       # Not for the warm-up (it starts where the robots stand, as before)
+    "on_problem": "",                 # "" = the site's on_problem (home: stop; school: keep_going); "keep_going" or
+                                      # "stop" for the runs from this page (the Run screen's tick-box, 2026-11-03)
     "mirror": True,                   # a mirrored mission (Monday: Left and Right) is re-timed so they reach matching
                                       # points together: the late one speeds up, the leader slows or waits (run_plan's
                                       # mirror sync, 2026-10-29 20:06). Off: every leg at its planned speed
@@ -318,7 +320,9 @@ class Session:
                            "robots": [r["name"] for r in st["robots"]],
                            "colours": {r["name"]: r["colour"] for r in st["robots"]},
                            "cameras": {k: v.get("label", k) for k, v in st["cameras"].items()},
-                           "capture": st["capture"], "tags": st.get("tags"), "table": st.get("table")}
+                           "capture": st["capture"], "tags": st.get("tags"), "table": st.get("table"),
+                           "on_problem": st.get("on_problem", "stop"), "feel_out_trust": st.get("feel_out_trust"),
+                           "lost_robot_points": st.get("lost_robot_points")}
         if self.feel is not None:
             out["feel"] = self.feel.status()
         if self.tag:
@@ -473,6 +477,7 @@ class Session:
     def start_run(self, d):
         if self.run and self.run.alive():
             raise ValueError("a run is going: stop it first")
+        self.stop_asked = False
         kind = d.get("kind", "mission")
         dry = bool(d.get("dry", True))
         conn = d.get("conn") or ("sim" if dry else "robots")
@@ -518,6 +523,7 @@ class Session:
             cmd += ["--turn-pause"]
         if not rs.get("mirror", True):
             cmd += ["--no-mirror"]
+        cmd += ["--on-problem", self.on_problem()]          # keep going or stop (2026-11-03)
         if dry:
             cmd += ["--dry-run"]
             if rs.get("sim_true_sides"):
@@ -531,6 +537,13 @@ class Session:
         self.run = Run(kind, folder, cmd)
         self.last_runs[kind] = folder
         return self.run.status()
+
+    def on_problem(self):
+        """keep_going or stop for the runs from this page: the Run screen's tick-box, else the site's (home: stop)."""
+        v = (self.settings.get("run") or {}).get("on_problem") or ""
+        if v in ("keep_going", "stop"):
+            return v
+        return (self.site or {}).get("on_problem") or "stop"
 
     def start_cam_run(self, kind, conn, d):
         """The run through the cameras (mission_run.py): the robots on the Pi, or the simulator's two cameras through
@@ -595,6 +608,7 @@ class Session:
             cmd += ["--no-straighten"]
         if not rs.get("mirror", True):
             cmd += ["--no-mirror"]
+        cmd += ["--on-problem", self.on_problem()]          # the Run screen's tick-box, else the site's (2026-11-03)
         if conn == "sim-cameras":
             cmd += ["--dry"]
             if rs.get("sim_washout"):
@@ -920,6 +934,7 @@ class Session:
         return self.run.status()
 
     def stop_run(self):
+        self.stop_asked = True       # (2026-11-03) keep going never starts the next run of a chain after a Stop
         if self.run:
             self.run.stop()
             return self.run.status()

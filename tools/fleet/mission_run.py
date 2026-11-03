@@ -158,6 +158,9 @@ def build(args, out):
     over = {"separation_cm": max(float(((mm.get("mission") or {}).get("planner") or {}).get("separation_cm", 8.0)),
                                  args.min_gap_cm)}
     t0 = time.time()
+    if getattr(args, "on_problem_", "stop") == "keep_going":
+        over["skip_unreachable"] = True     # keep going (2026-11-03): a point no route reaches is skipped and listed,
+        #                                     not a plan refused
     plan = MS.plan_synced(mm, over=over, t_limit_s=PLAN_LIMIT_S, log=say)
     gap = EC.plan_gap(plan, mm, gate_cm=args.min_gap_cm)
     bad = EC.gate_words(gap, args.min_gap_cm)
@@ -173,6 +176,9 @@ def build(args, out):
            time.time() - t0, plan["summary"]["makespan_s"], gap["closest_cm"]))
     for n in mm["mission"].get("notes", []):
         say("  " + n)
+    for w in plan.get("warnings") or []:
+        if " skips task " in str(w) and "(at point" not in str(w):
+            say("KEEP GOING: %s (skipped; listed in the summary)" % w)
     if bad:
         raise SystemExit("Plan refused: %s" % bad)
     return mm, plan, mp, pp
@@ -274,6 +280,13 @@ def resolve_site(args):
     tr = args.tracking if args.tracking != "auto" else ((site or {}).get("tracking") or "lights")
     args.tracking_ = tr
     args.site_ = site
+    # the keep-going policy (2026-11-03): this run's --on-problem / --lost-robot-points / --feel-trust, else the site's,
+    # else home's (stop, as before)
+    import sites as SI_
+    for k, a in (("on_problem", "on_problem"), ("lost_robot_points", "lost_robot_points"),
+                 ("feel_out_trust", "feel_trust")):
+        v = getattr(args, a, "auto") or "auto"
+        setattr(args, k + "_", v if v != "auto" else ((site or {}).get(k) or SI_.POLICY_DEFAULTS[k]))
     if site and not os.environ.get("MIRLT_CONF_DIR"):
         # the site's own folder for the day's calibration records and stored corrections (run_plan inherits it)
         os.environ["MIRLT_CONF_DIR"] = site["conf_dir"]
@@ -343,7 +356,10 @@ def feel_first(args, out):
             say("  (saved) " + w)
         return 0
     fdir = os.path.join(out, "feel")
-    extra = ["--robots", ",".join(robots), "--seed", str(args.seed), "--timeout-s", str(args.timeout_s)]
+    kg = args.on_problem_ == "keep_going"
+    # the feel-out's own runs: the same policy; a lost robot's crawls are not handed on (they are its half's edges)
+    extra = ["--robots", ",".join(robots), "--seed", str(args.seed), "--timeout-s", str(args.timeout_s),
+             "--on-problem", args.on_problem_, "--lost-robot-points", "skip"]
     if args.dry and args.sim_true_floor:
         extra += ["--sim-true-floor", args.sim_true_floor]
     for a in args.sim_arg:
@@ -360,6 +376,10 @@ def feel_first(args, out):
         "edge sensors' thresholds?" % FTB.SURFACE_HOLD_S)
     code = subprocess.call([PY] + FTB.mission_run_args(smp, spp, sdir, site=site_name, dry=args.dry, extra=extra,
                                                        calibrate=True), cwd=REPO)
+    if code and kg:
+        say("KEEP GOING: the surface check did not finish (exit %s, see %s): no crawls; the production run uses the "
+            "cameras' outline as it is" % (code, sdir))
+        return 0
     if code:
         say("THE SURFACE CHECK DID NOT FINISH (exit %s): the production run is not started. Look at %s" % (code, sdir))
         return code or 1
@@ -378,13 +398,29 @@ def feel_first(args, out):
         len(sp), ", ".join("%s %d" % (n, len([s for s in sp if s["robot"] == n])) for n in robots), mk))
     cmd = [PY] + FTB.mission_run_args(mp, pp, fdir, site=site_name, dry=args.dry, extra=extra)
     code = subprocess.call(cmd, cwd=REPO)
-    if code:
+    if code and not kg:
         say("THE FEEL-OUT DID NOT FINISH (exit %s): the production run is not started. Look at %s" % (code, fdir))
         return code or 1
-    res, cal = FTB.finish(FM.load(mp), os.path.join(fdir, "run"), sp, conf, key, sid, site=site_name, surface=surf)
+    if code:
+        say("KEEP GOING: the feel-out did not finish (exit %s, see %s): what it felt is used; the production run "
+            "starts" % (code, fdir))
+    try:
+        res, cal = FTB.finish(FM.load(mp), os.path.join(fdir, "run"), sp, conf, key, sid, site=site_name, surface=surf,
+                              trust=args.feel_out_trust_)
+    except Exception as e:     # noqa: BLE001
+        if not kg:
+            raise
+        say("KEEP GOING: the feel-out's result could not be read (%s: %s): the cameras' outline is used" % (
+            type(e).__name__, e))
+        return 0
     for w in res["words"]:
         say("  " + w)
     say("saved as this table's calibration: %s" % FTB.cal_path(conf, key))
+    if res.get("hold") and kg:
+        say("KEEP GOING: the outline is too far off on a side (above) and was not moved; the production run starts "
+            "on the cameras' outline")
+        args.feel_cal_ = cal
+        return 0
     if res.get("hold"):
         say("NOT STARTED: the production run waits (the outline is too far off). Do the camera setup again.")
         return 4
@@ -437,6 +473,14 @@ def run(args):
           "--place-tol-cm", "4"]
     if not args.no_turn_pause:
         rp += ["--turn-pause"]         # after each turn, stand until the cameras agree (2026-10-29)
+    # the keep-going policy (2026-11-03): the site's on_problem (home: stop, as before)
+    rp += ["--on-problem", args.on_problem_, "--lost-robot-points", args.lost_robot_points_]
+    say("on a problem: %s" % ("KEEP GOING (said once, logged, worked round; a lost robot's points %s)" % (
+        "go to the robots still running" if args.lost_robot_points_ == "reassign" else "are listed as not done")
+        if args.on_problem_ == "keep_going" else "stop the run (as before)"))
+    if args.tracking_ == "tags":
+        # confidence at every point: a bumped camera (the bridge's events) counts in the +-
+        rp += ["--bridge-events", os.path.join(out, "bridge", "events.jsonl")]
     if args.no_mirror:
         rp += ["--no-mirror"]          # mirrored legs at their planned speed, no waits (the points still measured)
     if args.below_net_doe:
@@ -561,6 +605,9 @@ def run(args):
             say(words)
         stream, side_stream = args.stream, args.side_stream
         launcher = [PY]
+    if args.tracking_ == "tags" and cal:
+        # confidence at every point (2026-11-03): each camera's fit error from the setup's site_fit.json
+        rp += ["--cam-fit", os.path.join(os.path.dirname(os.path.abspath(cal)), "site_fit.json")]
     # the facing check (2026-10-29): run_plan measures which way each robot faces from its lights before anything
     # moves, through both cameras (facing.py)
     if not args.no_facing_check:
@@ -697,8 +744,51 @@ def run(args):
             up += ["--recording-dir", frames_dir, "--exclude", "frames"]
         say("uploading: " + " ".join(up[1:]))
         subprocess.call(up, cwd=REPO)
+    for q in summ.get("points") or []:
+        say("POINT %s%s" % (q.get("words"), "" if q.get("truth_err_cm") is None else
+                            "  [simulator truth: %.1f cm off, %s]" % (q["truth_err_cm"], "inside" if q.get("within")
+                                                                     else "OUTSIDE its \u00b1")))
+    for q in summ.get("points_skipped") or []:
+        say("SKIPPED %s (%s): %s" % (q["point"], q["robot"], q["why"]))
+    for q in summ.get("points_reassigned") or []:
+        say("REASSIGNED %s: %s -> %s" % (q["point"], q["frm"], q["to"]))
+    if summ.get("on_problem") == "keep_going":
+        say("keep going: %d problem(s) worked round without stopping the run" % len(summ.get("kept_going") or []))
     say("result: %s; saved in %s" % (summ.get("result"), out))
     return code
+
+
+def point_truth(points, truth_csv, sess):
+    """Simulator only: each point's estimate against the simulator's true pose at the point's time (the median over
+    the dwell's last second): truth_err_cm and whether it fell inside its +- (within)."""
+    import csv as _csv
+    rows = {}
+    try:
+        with open(truth_csv) as f:
+            for r in _csv.DictReader(f):
+                rows.setdefault(r["robot"], []).append((float(r["t"]), float(r["x_cm"]), float(r["y_cm"])))
+        with open(os.path.join(sess, "coordinator.jsonl")) as f:
+            t_run = None
+            for ln in f:
+                e = json.loads(ln)
+                if e.get("event") == "message" and str(e.get("text", "")).startswith("plan ") and "started" in e["text"]:
+                    t_run = e["t"]
+                    break
+    except (OSError, ValueError, KeyError):
+        return
+    if t_run is None:
+        return
+    for q in points:
+        if q.get("x") is None or q.get("t_run") is None or q["robot"] not in rows:
+            continue
+        t1 = t_run + q["t_run"]
+        near = [(x, y) for t, x, y in rows[q["robot"]] if t1 - 1.0 <= t <= t1]
+        if not near:
+            continue
+        import statistics as _st
+        tx, ty = _st.median([p[0] for p in near]), _st.median([p[1] for p in near])
+        q["truth_err_cm"] = round(((q["x"] - tx) ** 2 + (q["y"] - ty) ** 2) ** 0.5, 2)
+        q["within"] = q["truth_err_cm"] <= (q.get("plus_minus_cm") or 0)
 
 
 def summarise(out, sess, frames, cond):
@@ -714,6 +804,12 @@ def summarise(out, sess, frames, cond):
              robots_out=rs.get("robots_out"), plans_refused=rs.get("plans_refused"),
              sensor_stops=len(rs.get("sensor_stops") or []), confirm_checks=rs.get("confirm_checks"),
              battery=rs.get("battery"), start_checks=rs.get("start_checks"))
+    # keep going and confidence at every point (2026-11-03)
+    s.update(on_problem=rs.get("on_problem"), kept_going=rs.get("kept_going") or [], points=rs.get("points") or [],
+             points_skipped=rs.get("points_skipped") or [], points_reassigned=rs.get("points_reassigned") or [])
+    tru = os.path.join(sess, "sim", "truth.csv")
+    if s["points"] and os.path.exists(tru):
+        point_truth(s["points"], tru, sess)
     mir = rs.get("mirror") or {}
     if mir.get("on"):
         s["mirror"] = {k: mir.get(k) for k in ("lane_ends", "all_points", "holds", "retimed_legs", "target_s",
@@ -856,6 +952,17 @@ def main(argv=None):
                                                                "no production run")
     ap.add_argument("--feel-conf-dir", default="", help="where table calibrations are saved (default: the site's folder; "
                                                          "--dry: the session's)")
+    ap.add_argument("--on-problem", choices=["auto", "keep_going", "stop"], default="auto",
+                    help="this run only (2026-11-03): keep_going = a problem that used to stop the whole run is said "
+                         "once, logged and worked round (only a full card, Stop / Ctrl+C or every robot out end it); "
+                         "stop = as before; auto = the site's on_problem (home: stop; school: keep_going)")
+    ap.add_argument("--lost-robot-points", choices=["auto", "reassign", "skip"], default="auto",
+                    help="with keep_going: a robot that is out hands its points not done to the others (reassign) or "
+                         "they are listed as not done (skip); auto = the site's lost_robot_points")
+    ap.add_argument("--feel-trust", choices=["auto", "camera", "sensor"], default="auto",
+                    help="tags, feel-out: camera = a felt-vs-camera difference is reported and logged, the cameras' "
+                         "outline stands and nothing waits; sensor = a side moved in up to 10 cm, held past 10 (as "
+                         "built 2 Nov); auto = the site's feel_out_trust")
     ap.add_argument("--points-each", type=int, default=3, help="tags, no --program: points per robot")
     ap.add_argument("--dwell-s", type=float, default=3.0, help="tags, no --program: seconds at each point")
     ap.add_argument("--no-mirror", action="store_true",

@@ -421,7 +421,9 @@ class Bridge:
             sth = max(SIGMA_DEG_FLOOR, f.sigma_deg)
             msg = {"type": "fix", "robot": n, "t": round(f.t, 4), "x": round(f.x, 2), "y": round(f.y, 2),
                    "th": round(f.heading, 2), "sigma": round(sig, 2), "sigma_th": round(sth, 2),
-                   "src": "tag_bridge:%s" % f.cam}
+                   "src": "tag_bridge:%s" % f.cam,
+                   # (2026-11-03, confidence at every point) the two cameras' positions apart, and px per cm
+                   "apart": round(float(spread or 0.0), 2), "ppc": round(float(f.px_per_cm or 0.0), 2)}
             if not self.observe:
                 self.send(msg)
                 self.counts[n]["fixes"] += 1

@@ -611,6 +611,7 @@ class Coordinator:
         stp = self.steps(b.name)[i]
         if not stp.get("label"):
             return
+        self.point_step(b, stp, state, t)
         cam = getattr(b, "last_cam", None)
         self.log("labelled_step", robot=b.name, plan=self.plan_no, i=i, label=stp["label"], phase=stp["phase"],
                  state=state, t_run=round(t - self.t_run, 2) if self.t_run else None, pose=list(pose), front_cm=front,
@@ -645,7 +646,7 @@ class Coordinator:
             if getattr(b, "guard_since", None) is None:
                 b.guard_since = t
                 self.log("cam_guard_start", robot=b.name, d_cm=round(d, 2), cam=cam, own=list(b.pose))
-            elif t - b.guard_since >= self.CAM_GUARD_S and getattr(self, "self_correct", False) and not \
+            elif t - b.guard_since >= self.CAM_GUARD_S and self.holds_one() and not \
                     getattr(self, "straightening", False):
                 # its own pose has drifted from the camera's: that robot alone is halted and its pose set from the
                 # camera (the heading its own gyro has); a third time within a minute it is held and checked again
@@ -661,9 +662,14 @@ class Coordinator:
                     self.retire(b, "camera and its own pose disagreed 3 times in a minute", kind="restarted")
                     continue
                 th = cam[2] if cam[2] is not None else b.pose[2]
+                if self.keep_going():
+                    self.carry_on("cam_guard", b.name, "%s: the camera and its own pose disagreed by %.1f cm for %.1f s: "
+                                  "its pose was set to the camera's (the camera is trusted), the run goes on"
+                                  % (b.name, d, self.CAM_GUARD_S), d_cm=round(d, 2), cam=cam, own=list(b.pose))
                 self.control(b, "halt")
                 self.send(b.name, "fpose %.2f %.2f %.2f 1.0 3.0" % (cam[0], cam[1], th))
                 b.pose, b.pose_t = (cam[0], cam[1], th), t
+                b.acc_t, b.acc_odo = t, getattr(b, "odo", 0.0)     # its pose is the camera's again (confidence)
                 self.warnings = getattr(self, "warnings", []) + ["%s: camera and own pose disagreed %.1f cm: pose "
                                                                  "reset from the camera" % (b.name, d)]
                 self.say("WARNING: %s: camera and its own pose disagree by %.1f cm: halted, its pose set from the "
@@ -709,6 +715,7 @@ class Coordinator:
         b.follow = dict(t=t, ms=ms, cur=cur, state=state, queued=queued, last_done=last_done, last_failed=last_failed,
                         x=x, y=y, th=th, sd=v[10], fixes_used=v[12], fixes_rejected=v[13], front=v[14])
         if state != "nopose":
+            self.odometer(b, t, x, y, v[12])
             b.pose, b.pose_t = (x, y, th), t
             self.echo_pose(b, t, ms, x, y, th, state)
             ph = b.__dict__.setdefault("pose_hist", [])       # (laptop time of the pose, x, y, th): blind_watch
@@ -842,6 +849,7 @@ class Coordinator:
                 # "cam_bridge:both" / ":overhead" / ":side" / ":lights"; the simulator's direct fixes say nothing
                 # (truth plus noise: counted as both)
                 src = str(ev.get("src") or "both").split(":")[-1]
+                self.note_fix(b, ev, src)
                 h = b.__dict__.setdefault("cam_hist", [])
                 h.append((float(ev.get("t", now())), now(), float(ev["x"]), float(ev["y"]), src))
                 if len(h) > 40:
@@ -966,11 +974,25 @@ class Coordinator:
         if self.planning is not None:
             self.deferred.append((ob, cause, budget, improving))
             return
-        if len(self.replans) >= self.args.max_replans:
+        if len(self.replans) >= self.args.max_replans and self.keep_going():
+            # keep going (2026-11-03): past the cap, re-planning goes on (it is how a blocked point is skipped
+            # safely), spaced REPLAN_SPACING_S apart so a loop of re-plans cannot spin; the run's time limit still ends
+            # it (keep_going_deadline)
+            self.carry_on("out_of_replans", None, "%d re-plans so far (the cap): the run goes on; from now on "
+                          "re-plans are at least %.0f s apart" % (len(self.replans), self.REPLAN_SPACING_S))
+            wait = getattr(self, "last_replan_t", 0.0) + self.REPLAN_SPACING_S - now()
+            if wait > 0:
+                self.halt_all()
+                self.add_obstacle(ob)
+                if self.pending_replan is None or self.pending_replan[1] > now() + wait:
+                    self.pending_replan = ("re-plan after the cap, spaced", now() + wait)
+                return
+        elif len(self.replans) >= self.args.max_replans:
             self.say("out of re-plans (%d); stopping everyone" % len(self.replans))
             self.halt_all()
             self.abort = "out of re-plans"
             return
+        self.last_replan_t = now()
         t_event = now()
         states = self.states(cause)
         over = dict(self.plan["settings"])
@@ -984,6 +1006,9 @@ class Coordinator:
             dec = P.obstacle_decide(self.m, self.plan, states, [ob] if ob else [], over=over,
                                     t_now=t_event - self.plan_start)
         except Exception as e:      # noqa: BLE001  (never leave robots driving on a planner bug)
+            if self.keep_going():
+                self.replan_trouble("the re-plan failed (%s: %s)" % (type(e).__name__, e), ob, cause)
+                return
             self.say("re-plan failed (%s): stopping everyone" % e)
             self.halt_all()
             self.abort = "re-plan failed"
@@ -1017,6 +1042,9 @@ class Coordinator:
                 self.say("improvement try found no plan (%s)" % job["error"])
                 return self.next_deferred()
             if self.no_plan_drop(ob, cause, job["error"]):
+                return
+            if self.keep_going():
+                self.replan_trouble("no new plan (%s)" % job["error"], ob, cause)
                 return
             self.say("no new plan (%s): stopping everyone" % job["error"])
             self.halt_all()
@@ -1130,6 +1158,10 @@ class Coordinator:
         self.plan_no += 1
         self.plan_start = t_event
         self.save_plan()
+        self.replan_fails = 0
+        self.trouble_cause = None
+        self.note_skips(newplan)
+        self.keep_reassigned()
         self.next_retry = now() + self.args.retry_s if newplan.get("stranded") else math.inf
         if newplan["summary"].get("first_safe_only") and not newplan.get("stranded"):
             # the first safe plan went out at once: the search for a shorter one starts now, in the background
@@ -1260,6 +1292,8 @@ class Coordinator:
             self.say(self.abort)
             return
         self.plan = self.without(self.plan, [b.name])
+        if self.keep_going() and self.t_run_started():
+            self.reassign_points(b, why)
         self.handle_obstacle(ob)
 
     # -- unconfirmed sensor obstacles (Nick, 2026-10-29 16:2x; front_stop.py) -------------------------------------
@@ -1565,6 +1599,7 @@ class Coordinator:
         self.control(b, "halt")                 # whatever it still had queued is dropped
         self.send(n, "fpose %.2f %.2f %.2f 1.0 3.0" % (cam[0], cam[1], th))
         b.pose, b.pose_t = (cam[0], cam[1], th), now()
+        b.acc_t, b.acc_odo = now(), getattr(b, "odo", 0.0)         # its pose is the camera's again (confidence)
         entry = b.out_entry
         for st in entry["steps"]:
             st["after"] = []
@@ -1641,6 +1676,245 @@ class Coordinator:
             return
         self.rejoin(b, "restarted, checked again: %s" % words)
 
+    # -- confidence at every point (2026-11-03, Nick 2 Nov 21:01: "the highest confidence positional assessment it
+    # can make every step of the way, sometimes that won't be 100%") ----------------------------------------------------
+    # Every position is said with a "+-" (95 %: about 2 standard deviations) and where it came from:
+    #   two cameras / one camera   the bridge's own sigma for the fix (its pixel noise), combined with the camera fit's
+    #                              own error (the setup's site_fit.json: robot-tag residuals in px / px per cm, at
+    #                              least its sticker uncertainty), at least half the two cameras' distance apart, plus
+    #                              the size of a bump the bridge reports for that camera;
+    #   odometry only              the robot's own pose (wheels and gyro) since the last camera fix it accepted: that
+    #                              fix's +- plus ODO_P95_PER_CM for every cm driven since.
+    CONF_Z = 2.0              # +- = 2 sigma (about 95 %). No DOE: a convention
+    ODO_P95_PER_CM = 0.07     # the drift's p95 per cm driven with no camera: 29 Oct logs, 4,124
+                              # stretches of Left's and Center's straight drives (docs/build-reports/e02-oct29-start-
+                              # straighten-blind-strip.md, section 3: p95 2.17 cm after 5 cm to 4.44 after 40, i.e.
+                              # +0.065-0.07 per cm over the camera's own error). MEASURED, but only up to 40 cm and on
+                              # straight drives: beyond 40 cm and over turns it is extrapolated (DOE backlog)
+    CAM_CAL_DEFAULT_CM = 0.5  # CHOSEN: a tag camera's fit error (1 sigma) until its site_fit.json is read. DOE backlog:
+                              # tape-measured points against the camera's at the school table
+    PPC_DEFAULT = 5.0         # CHOSEN: px per cm when no fix has said it (1280 x 960 at about 2 m). Only a fallback
+    LIVE_FIX_S = 0.6          # a camera fix this recent = the camera sees it now (as BLIND_AFTER_S)
+
+    def note_fix(self, b, ev, src):
+        cams = src.split("+") if "+" in src else (["overhead", "side"] if src == "both" else [src])
+        f = dict(t=now(), x=float(ev["x"]), y=float(ev["y"]), sigma=float(ev.get("sigma") or 0.5), cams=cams,
+                 apart=float(ev.get("apart") or 0.0), ppc=ev.get("ppc"), tagged=str(ev.get("src", "")).startswith(
+                     "tag_bridge"))
+        f["unc"] = self.cam_unc(f)
+        lg = b.__dict__.setdefault("fix_log", [])
+        lg.append(f)
+        if len(lg) > 300:
+            del lg[:-200]
+        b.last_fix_unc = f["unc"]
+        if not hasattr(b, "acc_t"):
+            b.acc_t, b.acc_odo = f["t"], getattr(b, "odo", 0.0)
+
+    def odometer(self, b, t, x, y, used):
+        last = getattr(b, "odo_last", None)
+        b.odo = getattr(b, "odo", 0.0) + (math.hypot(x - last[0], y - last[1]) if last else 0.0)
+        b.odo_last = (x, y)
+        try:
+            u = int(float(used))
+        except (TypeError, ValueError):
+            return
+        if u > getattr(b, "used_n", -1):
+            if getattr(b, "used_n", -1) >= 0:
+                b.acc_t, b.acc_odo = t, b.odo       # it took a camera fix: its own pose is the camera's again
+            b.used_n = u
+        elif u < getattr(b, "used_n", -1):
+            b.used_n = u                            # a new follow run counts from 0 again (a rejoin, a re-check)
+
+    def cam_info(self):
+        """Per camera: the fit's error (cm, 1 sigma) from site_fit.json (read again every 15 s until found) and the
+        bridge's bumps (events.jsonl: camera_moved / camera_back)."""
+        t = now()
+        ci = self.__dict__.setdefault("_cam_info", {"cal": {}, "moved": {}, "fit_t": 0.0, "ev_t": 0.0, "ev_pos": 0,
+                                                     "fit": None})
+        fp = getattr(self.args, "cam_fit", None)
+        if fp and ci["fit"] is None and t - ci["fit_t"] > 15.0:
+            ci["fit_t"] = t
+            try:
+                with open(fp) as fh:
+                    ci["fit"] = json.load(fh)
+                self.log("cam_fit_read", path=fp, rms_px=ci["fit"].get("rms_px"))
+            except (OSError, ValueError):
+                pass
+        ep = getattr(self.args, "bridge_events", None)
+        if ep and t - ci["ev_t"] > 2.0:
+            ci["ev_t"] = t
+            try:
+                with open(ep) as fh:
+                    fh.seek(ci["ev_pos"])
+                    for ln in fh:
+                        if not ln.endswith("\n"):
+                            break
+                        ci["ev_pos"] += len(ln.encode())
+                        try:
+                            ev = json.loads(ln)
+                        except ValueError:
+                            continue
+                        if ev.get("kind") == "camera_moved":
+                            ci["moved"][ev.get("cam")] = float(ev.get("about_cm") or 0.0)
+                            self.log("camera_moved_seen", cam=ev.get("cam"), about_cm=ev.get("about_cm"))
+                            self.bump_back(ev.get("cam"), float(ev.get("about_cm") or 0.0))
+                        elif ev.get("kind") == "camera_back":
+                            ci["moved"].pop(ev.get("cam"), None)
+            except OSError:
+                pass
+        return ci
+
+    BUMP_LOOKBACK_S = 12.0    # the bridge says a camera moved after 2 checks 5 s apart: points stood at this long before
+                              # it are counted as possibly moved too. No DOE: from the bridge's own check timing
+
+    def bump_back(self, cam, about):
+        """A camera reported moved: the points recorded in the BUMP_LOOKBACK_S before, from that camera, get its shift
+        in their +- (the move happened before it was noticed)."""
+        t = now()
+        for q in self.__dict__.get("points", []):
+            if q.get("source") in (None, "none", "odometry only") or q.get("t_abs") is None:
+                continue
+            if t - q["t_abs"] > self.BUMP_LOOKBACK_S or ("cam " + cam) in q.get("words", ""):
+                continue
+            cams = ["overhead", "side"] if q["source"] == "two cameras" else [q["source"][len("one camera ("):-1]]
+            if cam not in cams:
+                continue
+            q["plus_minus_cm"] = round(q["plus_minus_cm"] + about * (0.5 if len(cams) > 1 else 1.0), 1)
+            q["words"] = re.sub(r"\u00b1[0-9.]+ cm", "\u00b1%.1f cm" % q["plus_minus_cm"], q["words"], count=1) + \
+                " (cam %s reported moved %.0f s later: counted in)" % (cam, t - q["t_abs"])
+            self.log("point_confidence_bumped", robot=q["robot"], point=q["point"], cam=cam, plus_minus_cm=q["plus_minus_cm"])
+            self.say("POINT %s (updated)" % q["words"])
+
+    def cam_cal(self, cam, ppc=None):
+        fit = self.cam_info()["fit"]
+        if not fit:
+            return self.CAM_CAL_DEFAULT_CM
+        rp = ((fit.get("rms_px") or {}).get(cam) or {})
+        px = rp.get("tags") if rp.get("tags") is not None else rp.get("ref")
+        sd = [float(v) for v in (fit.get("sticker_sd_cm") or {}).values() if v is not None]
+        sd_med = statistics.median(sd) if sd else 0.0
+        if px is None:
+            return max(sd_med, self.CAM_CAL_DEFAULT_CM)
+        return max(sd_med, float(px) / float(ppc or self.PPC_DEFAULT))
+
+    def cam_unc(self, f):
+        """+- (cm, 95 %) of one camera fix."""
+        moved = self.cam_info()["moved"]
+        if f.get("tagged"):
+            cals = [self.cam_cal(c, f.get("ppc")) for c in f["cams"]]
+            cal = 1.0 / math.sqrt(sum(1.0 / max(c, 0.05) ** 2 for c in cals)) if cals else self.CAM_CAL_DEFAULT_CM
+        else:
+            cal = 0.0                     # the lights' bridge and the simulator's own fixes: their sigma says it all
+        sig = math.sqrt(max(f["sigma"], 0.0) ** 2 + cal ** 2)
+        if f.get("apart"):
+            sig = max(sig, f["apart"] / 2.0)
+        pm = self.CONF_Z * sig
+        bump = [moved[c] for c in f["cams"] if c in moved]
+        if bump:
+            # a bumped camera's shift is a bias, not noise: added once (all of it with that camera alone, half when
+            # the other camera, not moved, is in the fix; first build counted it twice: point 6 of the bump run)
+            pm += max(bump) * (0.5 if len(bump) < len(f["cams"]) else 1.0)
+        return round(pm, 2)
+
+    @staticmethod
+    def source_words(cams):
+        return "two cameras" if len(cams) > 1 else "one camera (%s)" % cams[0]
+
+    def odo_unc(self, b):
+        d = max(0.0, getattr(b, "odo", 0.0) - getattr(b, "acc_odo", 0.0))
+        base = getattr(b, "last_fix_unc", None)
+        base = 2.0 if base is None else base
+        return round(base + self.ODO_P95_PER_CM * d, 2), round(d, 1)
+
+    def conf_now(self, b, t=None):
+        """{x, y, plus_minus_cm, source, since_fix_cm, since_fix_s} now: the camera's when it sees the robot, else
+        the robot's own pose with the odometry's growing +-."""
+        t = t or now()
+        lg = getattr(b, "fix_log", None) or []
+        if lg and t - lg[-1]["t"] <= self.LIVE_FIX_S:
+            f = lg[-1]
+            return {"x": round(f["x"], 1), "y": round(f["y"], 1), "plus_minus_cm": f["unc"],
+                    "source": self.source_words(f["cams"]), "since_fix_cm": 0.0, "since_fix_s": 0.0}
+        if b.pose is None:
+            return None
+        u, d = self.odo_unc(b)
+        return {"x": round(b.pose[0], 1), "y": round(b.pose[1], 1), "plus_minus_cm": u, "source": "odometry only",
+                "since_fix_cm": d, "since_fix_s": round(t - getattr(b, "acc_t", t), 1)}
+
+    def point_step(self, b, stp, state, t):
+        """The dwell at a production point ("at point 7"): the fixes during it make the point's estimate."""
+        lab = str(stp.get("label") or "")
+        if not lab.startswith("at ") or stp.get("type") != "wait":
+            if state == "done" and lab:
+                self.__dict__.setdefault("done_labels", set()).add(lab)
+            return
+        if state == "started":
+            b.dwell = dict(point=lab[3:], t0=t)
+        elif state == "done":
+            self.__dict__.setdefault("done_labels", set()).add(lab)
+            d = getattr(b, "dwell", None)
+            t0 = d["t0"] if d and d["point"] == lab[3:] else t - float(stp.get("t_end", 0) - stp.get("t_start", 0))
+            b.dwell = None
+            self.record_point(b, lab[3:], t0, t)
+
+    def record_point(self, b, point, t0, t1):
+        lg = [f for f in (getattr(b, "fix_log", None) or []) if t0 - 0.05 <= f["t"] <= t1 + 0.05]
+        own = list(b.pose) if b.pose else None
+        rec = dict(robot=b.name, point=point, t_run=round(t1 - self.t_run, 2) if self.t_run else None,
+                   dwell_s=round(t1 - t0, 2), n_fixes=len(lg), t_abs=round(t1, 3))
+        if lg:
+            xs, ys = [f["x"] for f in lg], [f["y"] for f in lg]
+            x, y = statistics.median(xs), statistics.median(ys)
+            spread = math.sqrt(statistics.pvariance(xs) + statistics.pvariance(ys)) if len(lg) > 1 else 0.0
+            two = sum(1 for f in lg if len(f["cams"]) > 1) / float(len(lg))
+            # each fix's +- with what is known NOW (bump run, 3 Nov: a camera_moved event read after the stand's
+            # fixes arrived left point 4 at +-1.2 cm, 3.1 cm off the truth)
+            unc = max(statistics.median([self.cam_unc(f) for f in lg]), round(self.CONF_Z * spread, 2))
+            cams = ["overhead", "side"] if two >= 0.5 else [statistics.mode([f["cams"][0] for f in lg
+                                                                             if len(f["cams"]) == 1] or ["?"])]
+            src = self.source_words(cams)
+            rec.update(x=round(x, 2), y=round(y, 2), plus_minus_cm=round(unc, 1), source=src,
+                       two_camera_share=round(two, 2), since_fix_cm=0.0, since_fix_s=0.0)
+            words = "%s (%s): \u00b1%.1f cm, %s" % (point, b.name, unc, src)
+        elif own is not None:
+            u, d = self.odo_unc(b)
+            ago = t1 - getattr(b, "acc_t", t1)
+            rec.update(x=round(own[0], 2), y=round(own[1], 2), plus_minus_cm=round(u, 1), source="odometry only",
+                       two_camera_share=0.0, since_fix_cm=d, since_fix_s=round(ago, 1))
+            words = "%s (%s): \u00b1%.1f cm, odometry for %.0f cm since the last camera fix (%.0f s ago)" % (
+                point, b.name, u, d, ago)
+        else:
+            rec.update(x=None, y=None, plus_minus_cm=None, source="none", since_fix_cm=None, since_fix_s=None)
+            words = "%s (%s): no position (no camera fix and no pose of its own)" % (point, b.name)
+        if own is not None:
+            rec.update(own_x=round(own[0], 2), own_y=round(own[1], 2))
+            if rec.get("x") is not None and lg:
+                rec["own_vs_camera_cm"] = round(math.hypot(own[0] - rec["x"], own[1] - rec["y"]), 2)
+        moved = self.cam_info()["moved"]
+        if moved:
+            rec["cameras_moved"] = dict(moved)
+            words += " (camera %s reported moved: counted in)" % ", ".join(sorted(moved))
+        rec["words"] = words
+        self.__dict__.setdefault("points", []).append(rec)
+        self.log("point_confidence", **rec)
+        self.say("POINT " + words)
+        self.point_csv(rec)
+
+    POINT_COLS = ["robot", "point", "t_run", "x", "y", "plus_minus_cm", "source", "n_fixes", "two_camera_share",
+                  "since_fix_cm", "since_fix_s", "own_x", "own_y", "own_vs_camera_cm", "dwell_s", "words"]
+
+    def point_csv(self, rec):
+        try:
+            if getattr(self, "_pts_f", None) is None:
+                self._pts_f = open(os.path.join(self.outdir, "points.csv"), "a", newline="")
+                self._pts_w = csv.writer(self._pts_f)
+                if self._pts_f.tell() == 0:
+                    self._pts_w.writerow(self.POINT_COLS)
+            self._pts_w.writerow(["" if rec.get(k) is None else rec.get(k) for k in self.POINT_COLS])
+            self._pts_f.flush()
+        except OSError:
+            pass
+
     LIVE_EVERY_S = 0.5    # live.json for Mission Control's Run screen. No DOE: a display rate
 
     def write_live(self, final=False):
@@ -1678,10 +1952,17 @@ class Coordinator:
             rob[n] = {"cam": cam, "own": [round(v, 2) for v in b.pose] if b.pose else None, "battery": b.battery,
                       "doing": doing, "last": last, "edge_cm": edge, "out": b.out,
                       "done": sum(st["status"] == "done" for st in b.stat), "steps": len(b.stat),
-                      "held": bool(b.out) and self.rejoinable(b), "stop_cm": getattr(b, "stop_cm", None)}
+                      "held": bool(b.out) and self.rejoinable(b), "stop_cm": getattr(b, "stop_cm", None),
+                      "conf": self.conf_now(b, t)}
         live = {"t": round(t, 2), "t_run": round(t - self.t_run, 1) if self.t_run_started() else None,
                 "plan_no": self.plan_no, "replans": len(self.replans), "result": self.abort or ("done" if final else None),
-                "robots": rob, "obstacles": self.live_obstacles()}
+                "robots": rob, "obstacles": self.live_obstacles(),
+                "points": [{k: q.get(k) for k in ("robot", "point", "plus_minus_cm", "source", "words")}
+                           for q in self.__dict__.get("points", [])],
+                "keep_going": self.keep_going(),
+                "kept_going": [q["words"] for q in self.__dict__.get("kept_going", [])][-12:],
+                "skipped": self.__dict__.get("skipped", []),
+                "reassigned": [{k: q[k] for k in ("point", "frm", "to")} for q in self.__dict__.get("reassigned", [])]}
         mp = getattr(self, "mirror_points", None)
         if self.mirror_cfg():
             live["mirror"] = {"robots": self.mirror_cfg()["robots"], "n": len(mp or []),
@@ -1725,6 +2006,274 @@ class Coordinator:
     def request_replan(self, why):
         if self.pending_replan is None:
             self.pending_replan = (why, now() + 0.3)
+
+    # -- keep going (2026-11-03, Nick 2 Nov 21:01: "stay focused on finishing the run with the highest confidence
+    # positional assessment it can make every step of the way") -------------------------------------------------------
+    # --on-problem keep_going (the site's on_problem; mission_run passes it): a problem that used to stop everyone is
+    # said once in plain words, logged (coordinator.jsonl "keep_going", the summary's kept_going) and worked round.
+    # Still real stops: the Pi's card nearly full, the operator's Stop / stopall / Ctrl+C, every robot out, and the
+    # time limit (stretched to the newest plan's end). --on-problem stop (default, home): exactly as before.
+    REPLAN_SPACING_S = 5.0     # past --max-replans, re-plans at least this far apart. Chosen; no DOE (a guard against a
+                               # loop; the robots stand meanwhile)
+    REPLAN_FAIL_MAX = 3        # failed re-plans in a row before the robot that cannot be planned is set out. Chosen;
+                               # no DOE (a guard)
+    DEADLINE_TAIL_S = 120.0    # keep going: the time limit is at least the newest plan's planned end plus this. Chosen;
+    DEADLINE_MAX_X = 3.0       # no DOE; never more than this many times --timeout-s (a hang still ends)
+
+    def keep_going(self):
+        return getattr(self.args, "on_problem", "stop") == "keep_going"
+
+    def edge_end_strip(self, b):
+        """Keep going: a robot whose edge guard ended its follow run: the spot becomes a no-go strip on the map, so no
+        robot is planned there again (it is then held and checked again, as the self-correcting run does)."""
+        if not (self.keep_going() and SC.run_outcome(b.ended) == SC.CALIB_LIMITED and b.pose):
+            return None
+        self.n_sensor_obstacles += 1
+        ob = self.edge_boundary(b, b.pose, "")
+        self.add_obstacle(ob)
+        self.carry_on("edge_guard_ended", b.name, "%s: its edge guard ended its run at (%.0f, %.0f): that spot is a "
+                      "no-go strip now; %s is checked again, the others go on" % (b.name, b.pose[0], b.pose[1], b.name),
+                      obstacle=ob)
+        return ob
+
+    def holds_one(self):
+        """One robot's trouble holds that robot, never stops everyone: the self-correcting run (mission_run's
+        --straighten, 30 Oct) or keep going."""
+        return bool(getattr(self, "self_correct", False)) or self.keep_going()
+
+    def carry_on(self, kind, robot, words, **kw):
+        """A problem that would have stopped the run, worked round: said once (per kind and robot), always logged."""
+        rec = dict(kind=kind, robot=robot, words=words, t_run=round(now() - self.t_run, 2)
+                   if getattr(self, "t_run", None) else None)
+        rec.update({k: v for k, v in kw.items() if k not in rec})
+        self.__dict__.setdefault("kept_going", []).append(rec)
+        self.log("keep_going", **rec)
+        said = self.__dict__.setdefault("_carry_said", set())
+        if (kind, robot) not in said:
+            said.add((kind, robot))
+            self.say("KEEP GOING: " + words)
+            self.warnings = getattr(self, "warnings", []) + [words]
+
+    def deadline(self, timeout_s):
+        if not self.keep_going():
+            return self.t_run + timeout_s
+        end = (self.plan_start or self.t_run) + float(self.plan.get("summary", {}).get("makespan_s") or 0.0)
+        d = min(self.t_run + self.DEADLINE_MAX_X * timeout_s, max(self.t_run + timeout_s, end + self.DEADLINE_TAIL_S))
+        if d > self.t_run + timeout_s and not getattr(self, "_deadline_said", False) and now() > self.t_run + timeout_s:
+            self._deadline_said = True
+            self.carry_on("time_limit", None, "the time limit (%.0f s) is reached but the newest plan ends later: "
+                          "the run goes on to %.0f s at most" % (timeout_s, d - self.t_run))
+        return d
+
+    def add_obstacle(self, ob):
+        if ob and ob.get("id") not in {o.get("id") for o in self.m.get("obstacles", [])}:
+            self.m["obstacles"].append(FM._norm_obstacle(ob, len(self.m["obstacles"])))
+            self.m = FM.normalize(self.m)
+
+    @staticmethod
+    def point_of(label):
+        """'point 7' / 'at point 7' -> 'point 7'; anything else None."""
+        lab = str(label or "")
+        if lab.startswith("at point "):
+            return lab[3:]
+        if lab.startswith("point "):
+            return lab
+        return None
+
+    def current_task(self, n):
+        """(index in the plan's visit_order, the item) of the work robot n is on now, or (None, None)."""
+        steps = self.steps(n) if n in self.plan["robots"] else []
+        b = self.bots[n]
+        i = next((k for k, st in enumerate(b.stat) if st["status"] != "done"), None)
+        entry = self.plan["robots"].get(n) or {}
+        vo = [v for v in entry.get("visit_order") or [] if v != "park"]
+        off = int(entry.get("task_offset") or 0)
+        if i is None or i >= len(steps) or steps[i].get("task") is None:
+            return None, None
+        k = max(int(steps[i]["task"]), off) - off
+        return (k, vo[k]) if 0 <= k < len(vo) else (None, None)
+
+    def skip_current_point(self, n, why):
+        """Keep going, no plan: robot n's current production point is taken out of its list (the goto and its dwell,
+        or only the dwell when it is already there). Returns the point's label, or None (nothing to skip)."""
+        k, item = self.current_task(n)
+        pt = self.point_of(item.get("label")) if isinstance(item, dict) else None
+        if pt is None:
+            return None
+        vo = self.plan["robots"][n]["visit_order"]
+        idx = [j for j, v in enumerate(vo) if isinstance(v, dict) and j >= k and self.point_of(v.get("label")) == pt]
+        for j in reversed(idx):
+            del vo[j]
+        self.__dict__.setdefault("skipped", []).append(dict(robot=n, point=pt, why=why, t_run=round(now() - self.t_run, 2)))
+        self.log("point_skipped", robot=n, point=pt, why=why)
+        return pt
+
+    def replan_trouble(self, why, ob, cause):
+        """Keep going when a re-plan fails: everyone stands, the obstacle stays on the map, the robot whose step failed
+        skips the point it was going to, and the plan is made again; after REPLAN_FAIL_MAX failures in a row the robot
+        that cannot be planned is set out (its points go to the others) and the rest go on."""
+        self.halt_all()
+        self.add_obstacle(ob)
+        self.replan_fails = getattr(self, "replan_fails", 0) + 1
+        who = cause if cause in self.names else None
+        if who is None and getattr(self, "trouble_cause", None) in self.names:
+            who = self.trouble_cause           # (the retry re-plans with no cause: the robot that had it is remembered)
+        self.trouble_cause = who
+        if self.replan_fails > self.REPLAN_FAIL_MAX:
+            n = who or next((x for x in (self.plan.get("stranded") or []) if x in self.names), None) or \
+                (self.names[-1] if self.names else None)
+            self.replan_fails = 0
+            if n is not None:
+                self.carry_on("replan_failed_out", n, "%s could not be planned %d times in a row (%s): it is set out "
+                              "where it stands; the others go on" % (n, self.REPLAN_FAIL_MAX + 1, why))
+                self.retire(self.bots[n], "no plan could be made for it (%s)" % why, kind="out")
+                return
+        pt = self.skip_current_point(who, why) if who else None
+        if pt:
+            self.carry_on("point_skipped", who, "%s: %s: %s is skipped (listed in the summary); the plan is made again "
+                          "with its next point" % (who, why, pt))
+        else:
+            self.carry_on("replan_failed", who, "%s: everyone stands where they are and the plan is made again in "
+                          "%.0f s" % (why, self.args.retry_s))
+        self.pending_replan = ("again after a failed re-plan", now() + (0.5 if pt else self.args.retry_s))
+
+    def note_skips(self, plan):
+        """Production points the planner skipped (unreachable: 'robot X skips task N (point 7): ...'): listed once."""
+        seen = {(x["robot"], x["point"]) for x in self.__dict__.get("skipped", [])}
+        for w in plan.get("warnings") or []:
+            mm = re.match(r"robot (\S+) skips task \d+ \(([^)]*)\): (.*)", str(w))
+            if not mm:
+                continue
+            n, lab, why = mm.group(1), mm.group(2), mm.group(3)
+            pt = self.point_of(lab)
+            if pt is None or (n, pt) in seen or lab.startswith("at "):
+                continue
+            seen.add((n, pt))
+            self.__dict__.setdefault("skipped", []).append(dict(robot=n, point=pt, why="cannot be reached: " + why,
+                                                                 t_run=round(now() - self.t_run, 2) if self.t_run else 0))
+            self.log("point_skipped", robot=n, point=pt, why=why)
+            self.say("%s: %s cannot be reached (%s): skipped, listed in the summary; on to the next" % (n, pt, why))
+
+    def remaining_points(self, entry, stat):
+        """A robot's production points not done yet, from its plan entry: [[goto item, dwell item or None], ...]."""
+        if not entry:
+            return []
+        done = set(self.__dict__.get("done_labels", set()))
+        vo = [v for v in entry.get("visit_order") or [] if isinstance(v, dict)]
+        pend = entry.get("pending") or {}
+        if pend and pend.get("visits"):
+            vo = [v for v in pend["visits"] if isinstance(v, dict)]
+        out = []
+        for j, v in enumerate(vo):
+            lab = str(v.get("label") or "")
+            if not lab.startswith("point ") or "goto" not in v:
+                continue
+            nxt = vo[j + 1] if j + 1 < len(vo) and str(vo[j + 1].get("label") or "") == "at " + lab else None
+            if ("at " + lab) in done or (nxt is None and lab in done):
+                continue
+            out.append([v, nxt])
+        return out
+
+    def reassign_points(self, b, why):
+        """Keep going, lost_robot_points reassign (Claude's assumption, 2026-11-03: Nick did not answer): the points the
+        robot that went out had not done go to the robots still running (each to the one whose last point, or where it
+        stands, is nearest, in order), before their trip home. If it rejoins later it only goes home."""
+        if getattr(self.args, "lost_robot_points", "reassign") != "reassign":
+            left = [g[0]["label"] for g in self.remaining_points(b.out_entry, b.out_stat)]
+            if left:
+                self.carry_on("points_not_done", b.name, "%s is %s: its points %s are not done unless it rejoins "
+                              "(lost-robot points: skip)" % (b.name, "held" if self.rejoinable(b) else "out",
+                                                             ", ".join(x.replace("point ", "") for x in left)))
+            return
+        groups = self.remaining_points(b.out_entry, b.out_stat)
+        live = [n for n in self.names if n in self.plan["robots"]]
+        if not live:
+            return
+        b.handed_over = True                 # its production work is the others' now (finished() need not wait)
+        if not groups:
+            return
+
+        def home_idx(vo):
+            return next((j for j in range(len(vo) - 1, -1, -1) if isinstance(vo[j], dict) and
+                         str(vo[j].get("label", "")) == "home"), len(vo))
+
+        def tail(n):
+            entry = self.plan["robots"][n]
+            vo = (entry.get("pending") or {}).get("visits") or entry.get("visit_order") or []
+            pts = [v["goto"] for v in vo[:home_idx(vo)] if isinstance(v, dict) and "goto" in v]
+            p = self.bots[n].pose or (getattr(self.bots[n], "last_cam", None)) or entry["start"]
+            return pts[-1][:2] if pts else list(p[:2])
+        got = {}
+        tails = {n: tail(n) for n in live}
+        for g in groups:
+            xy = g[0]["goto"]
+            n = min(live, key=lambda r: math.hypot(tails[r][0] - xy[0], tails[r][1] - xy[1]))
+            got.setdefault(n, []).append(g)
+            tails[n] = list(xy[:2])
+        recs = self.__dict__.setdefault("reassigned", [])
+        for n, gs in got.items():
+            items = [x for g in gs for x in g if x is not None]
+            self.insert_visits(n, items)
+            for g in gs:
+                recs.append(dict(point=g[0]["label"], items=[x for x in g if x is not None], frm=b.name, to=n,
+                                 t_run=round(now() - self.t_run, 2)))
+        # the robot that went out: if it rejoins, it only goes home (its points are the others' now)
+        home = next((v for v in reversed((b.out_entry or {}).get("visit_order") or []) if isinstance(v, dict) and
+                     str(v.get("label", "")) == "home"), None)
+        vis = [home] if home else []
+        b.out_entry = {"start": (b.out_entry or {}).get("start") or [0.0, 0.0, 0.0], "steps": [], "visit_order": vis,
+                       "task_offset": 0, "finish_s": 0.0,
+                       "pending": {"visits": vis, "task_offset": 0, "park": False, "lead_board": None,
+                                   "lead_phase": None}}
+        b.out_ids, b.out_stat = [], []
+        words = "; ".join("%s to %s" % (", ".join(g[0]["label"].replace("point ", "") for g in gs), n)
+                          for n, gs in got.items())
+        self.log("points_reassigned", robot=b.name, why=why, to={n: [g[0]["label"] for g in gs] for n, gs in got.items()})
+        self.carry_on("points_reassigned", b.name, "%s is %s (%s): its points not done go to the robots still "
+                      "running: %s (points %s)" % (b.name, "held" if self.rejoinable(b) else "out", why,
+                                                   ", ".join(sorted(got)), words))
+
+    def insert_visits(self, n, items):
+        """Production items into robot n's list, before its trip home (a finished robot gets them as pending work)."""
+        import copy
+        entry = self.plan["robots"][n]
+        items = copy.deepcopy(items)
+        b = self.bots[n]
+        finished = bool(b.stat) and all(st["status"] == "done" for st in b.stat) or not entry.get("steps")
+        vo = entry.setdefault("visit_order", [])
+        if finished and not (entry.get("pending") or {}).get("visits"):
+            home = next((v for v in reversed(vo) if isinstance(v, dict) and str(v.get("label", "")) == "home"), None)
+            off = int(entry.get("task_offset") or 0) + len(vo)
+            entry["pending"] = {"visits": items + ([copy.deepcopy(home)] if home else []), "task_offset": off,
+                                "park": False, "lead_board": None, "lead_phase": None}
+            return
+        for lst in ([vo] + ([entry["pending"]["visits"]] if (entry.get("pending") or {}).get("visits") else [])):
+            hi = next((j for j in range(len(lst) - 1, -1, -1) if isinstance(lst[j], dict) and
+                       str(lst[j].get("label", "")) == "home"), len(lst))
+            k, _ = self.current_task(n) if lst is vo else (None, None)
+            if k is not None and hi < k:
+                hi = len(lst)
+            lst[hi:hi] = copy.deepcopy(items)
+
+    def keep_reassigned(self):
+        """After a new plan: a reassigned point that is not done and not in its new robot's list any more (a re-plan
+        that was being computed when it was handed over) goes back in, and the plan is made again."""
+        missing = False
+        done = set(self.__dict__.get("done_labels", set()))
+        skipped = {x["point"] for x in self.__dict__.get("skipped", [])}
+        for r in self.__dict__.get("reassigned", []):
+            n, pt = r["to"], r["point"]
+            if n not in self.names or n not in self.plan["robots"] or ("at " + pt) in done or pt in skipped:
+                continue
+            entry = self.plan["robots"][n]
+            labs = {str(v.get("label")) for v in (entry.get("visit_order") or []) + list((entry.get("pending") or {})
+                                                                                        .get("visits") or [])
+                    if isinstance(v, dict)}
+            if pt not in labs and ("at " + pt) not in labs:
+                self.insert_visits(n, r["items"])
+                missing = True
+        if missing:
+            self.request_replan("reassigned points back into the plan")
 
     def on_failed(self, b, i, info, pose, front):
         if getattr(self, "straightening", False):
@@ -2449,7 +2998,7 @@ class Coordinator:
                 why = ("with no camera seeing it, its body may be %.1f cm from an edge (its own pose %.1f cm, less the "
                        "blind error %.1f cm; it must keep %.0f cm)" % (body_edge - err, body_edge, err,
                                                                        self.BLIND_EDGE_CM))
-            if why and getattr(self, "self_correct", False) and not getattr(self, "straightening", False):
+            if why and self.holds_one() and not getattr(self, "straightening", False):
                 # that robot alone stops (halted at once) and is held; the re-check finds it by its lights and rejoins
                 self.log("blind_stop", robot=b.name, dist_cm=round(bl["dist"], 2), own=list(b.pose),
                          body_edge_cm=round(body_edge, 2), held=True)
@@ -2484,6 +3033,7 @@ class Coordinator:
             # the camera's spot moved on by what the robot did since that picture
             nx, ny = cx + (b.pose[0] - own[1]), cy + (b.pose[1] - own[2])
             self.send(b.name, "fpose %.2f %.2f %.2f %.2f %.2f" % (nx, ny, b.pose[2], 1.0, 3.0))
+            b.acc_t, b.acc_odo = now(), getattr(b, "odo", 0.0)     # its pose is the camera's again (confidence)
             rec["reset"] = [round(nx, 2), round(ny, 2)]
             self.say("%s: seen again after %.0f cm with no camera; its own pose was %.1f cm off: set to the camera's, "
                      "and it steers back onto its planned line" % (b.name, bl["dist"], d))
@@ -2507,6 +3057,14 @@ class Coordinator:
         # everyone running is done: a held robot may still rejoin (rejoin_watch), for REJOIN_WAIT_S at most from now
         # (each retry of it renews its own out time; the run must still end: 30 Oct simulator, a run that never did)
         held = [b for b in self.bots.values() if b.out and self.rejoinable(b)]
+        if held and self.keep_going() and all(getattr(b, "handed_over", False) for b in held):
+            # keep going, points reassigned (2026-11-03): a held robot's points were done by the others; it would only
+            # drive home if it rejoined, so the run does not wait REJOIN_WAIT_S for it
+            if not getattr(self, "_handover_end_said", False):
+                self._handover_end_said = True
+                self.say("%s still held: its points were handed over and are done, so the run ends without waiting "
+                         "for it" % ", ".join(b.name for b in held))
+            held = []
         if held and now() - self.others_done_t < self.REJOIN_WAIT_S:
             return False
         if held:
@@ -2519,6 +3077,7 @@ class Coordinator:
         self.say("plan %s started: %d robots, %d steps, planned %.1f s"
                  % (self.plan.get("plan_id"), len(self.names), sum(len(self.steps(n)) for n in self.names),
                     self.plan["summary"]["makespan_s"]))
+        self.note_skips(self.plan)           # points the first plan could not reach (keep going plans them skipped)
         for n, why in list((getattr(self, "start_aside", None) or {}).items()):
             # held at the start (the self-correcting start, 30 Oct): a fixed obstacle where it stands; checked again
             # every so often and rejoins when it passes (rejoin_watch, recheck)
@@ -2530,11 +3089,12 @@ class Coordinator:
             self.fixes()
             for b in self.bots.values():
                 if b.ended and not self.abort and not b.out:
-                    if getattr(self, "self_correct", False):
+                    if self.holds_one():
                         # Nick 30 Oct 10:08: one robot's trouble is not everyone's stop. Its edge guard (or anything)
                         # ended its follow run: it has stopped already; it is held and checked again, the others go on
                         why = ("its edge guard stopped it before an open plywood edge" if SC.run_outcome(b.ended) ==
                                SC.CALIB_LIMITED else "its follow run ended (%s)" % b.ended)
+                        self.edge_end_strip(b)
                         self.warnings = getattr(self, "warnings", []) + ["%s: %s" % (b.name, why)]
                         self.say("WARNING: %s: %s: held and checked again; the others carry on" % (b.name, why))
                         self.retire(b, why, kind="restarted")
@@ -2592,7 +3152,7 @@ class Coordinator:
                 self.say("all robots done")
                 self.write_live(final=True)
                 break
-            if now() - self.t_run > timeout_s:
+            if now() > self.deadline(timeout_s):
                 self.say("timed out; stopping everyone")
                 self.halt_all()
                 self.abort = "timeout"
@@ -2622,6 +3182,15 @@ class Coordinator:
         return out
 
     def summary(self):
+        if self.__dict__.get("points") and getattr(self, "outdir", None):
+            try:                                   # final rows (a later bump may have widened a point's +-)
+                with open(os.path.join(self.outdir, "points.csv"), "w", newline="") as fh:
+                    w = csv.writer(fh)
+                    w.writerow(self.POINT_COLS)
+                    for q in self.points:
+                        w.writerow(["" if q.get(k) is None else q.get(k) for k in self.POINT_COLS])
+            except OSError:
+                pass
         return {"plan_id_first": self.first_plan_id, "plans": self.plan_no + 1, "result": self.abort or "done",
                 "duration_s": round(now() - self.started, 2),
                 "planned_makespan_s": self.first_makespan,
@@ -2650,6 +3219,13 @@ class Coordinator:
                 "start_checks": getattr(self, "start_checks", {}),
                 "straighten": getattr(self, "straighten_record", None),
                 "blind": getattr(self, "blinds", []),
+                "on_problem": getattr(self.args, "on_problem", "stop"),
+                "lost_robot_points": getattr(self.args, "lost_robot_points", "reassign"),
+                "kept_going": self.__dict__.get("kept_going", []),
+                "points": self.__dict__.get("points", []),
+                "points_skipped": self.__dict__.get("skipped", []),
+                "points_reassigned": [{k: q[k] for k in ("point", "frm", "to", "t_run")}
+                                      for q in self.__dict__.get("reassigned", [])],
                 "turn_pause": {"on": bool(getattr(self.args, "turn_pause", False)) and self.source.live,
                                "robots": self.turn_pause_summary()},
                 "mirror": self.mirror_summary()}
@@ -4061,6 +4637,18 @@ def main(argv=None):
     ap.add_argument("--cam-guard-cm", type=float, default=Coordinator.CAM_GUARD_CM,
                     help="stop everyone when a robot's own pose and the camera disagree by more than this for 1 s "
                          "(0 = off; default %(default)s)")
+    ap.add_argument("--on-problem", choices=("stop", "keep_going"), default="stop",
+                    help="keep_going (2026-11-03; a site's on_problem, mission_run passes it): a problem that stopped "
+                         "everyone (camera and pose disagree for long, out of re-plans, no plan, a robot lost) is said "
+                         "once, logged and worked round; only a full card, Stop / Ctrl+C and every robot out end the "
+                         "run (and the time limit, stretched to the newest plan's end). stop: as before (default)")
+    ap.add_argument("--lost-robot-points", choices=("reassign", "skip"), default="reassign",
+                    help="with --on-problem keep_going: a robot that is out hands its production points not done to "
+                         "the robots still running (reassign, default), or they are listed as not done (skip)")
+    ap.add_argument("--bridge-events", default="", help="the tag bridge's events.jsonl: a bumped camera's size counts "
+                                                         "in the positions' +- (confidence at every point)")
+    ap.add_argument("--cam-fit", default="", help="the camera setup's site_fit.json: each camera's fit error counts in "
+                                                  "the positions' +- (read when it appears)")
     ap.add_argument("--poses-to", metavar="HOST:PORT",
                     help="send each robot's own pose (FOLLOW records) as JSON lines here: the camera bridge "
                          "(tools/fleet/cam_bridge.py, default port 5011) predicts who is who from them")
@@ -4243,6 +4831,17 @@ def print_summary(s):
     for r in s.get("replans", []):
         print("  re-plan at %.1f s (%s): %.2f s to compute%s" % (r["t_run"], r["source"], r["cpu_s"],
                                                                 "" if r.get("kept", True) else ", not kept"))
+    if s.get("on_problem") == "keep_going":
+        kg = s.get("kept_going") or []
+        print("Keep going: %d problem(s) worked round without stopping the run" % len(kg))
+    if s.get("points"):
+        print("Confidence at each point (\u00b1 = 95 %%; %d points):" % len(s["points"]))
+        for q in s["points"]:
+            print("  " + q["words"])
+    for q in s.get("points_skipped") or []:
+        print("  SKIPPED: %s (%s): %s" % (q["point"], q["robot"], q["why"]))
+    for q in s.get("points_reassigned") or []:
+        print("  REASSIGNED: %s from %s to %s" % (q["point"], q["frm"], q["to"]))
     sim = s.get("simulator")
     if sim:
         print("Simulator truth: closest two robots %.2f cm (%s); closest to a board/brick %.2f cm (%s); contact: %s"

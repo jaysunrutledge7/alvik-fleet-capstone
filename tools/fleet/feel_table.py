@@ -56,7 +56,7 @@ if HERE not in sys.path:
 
 import fleetmap as FM    # noqa: E402
 
-VERSION = "2026-11-02a"
+VERSION = "2026-11-03a"   # 2026-11-03: TRUST ("camera": the outline is never moved or held by a feel)
 
 SPOTS_LONG = 2           # feels on each long side (at 1/4 and 3/4 of its length: one in each robot's half). Nick: "about
                          # 6-8 spots in total"; 2 per side gives every side its own check (two feels that should
@@ -80,6 +80,12 @@ AGREE_CM = 2.0           # chosen: a side whose felt edge is within this of the 
 MAX_ADJUST_CM = 10.0     # chosen: a side is moved at most this far. Further apart, the camera setup itself is suspect
                          # (a corner clicked on the wrong place, a camera knocked): the outline is NOT moved, the
                          # production run waits, and the words say to do the camera setup again. No DOE: a limit
+TRUSTS = ("sensor", "camera")
+TRUST = "sensor"         # which the comparison believes when a side's felt edge and the cameras' line disagree (2026-11-03,
+                         # Nick 2 Nov 21:06: "The camera should be more trusted than the sensor if we're using April
+                         # tags"). "sensor": as built on 2 Nov (moved in up to MAX_ADJUST_CM, held past it). "camera":
+                         # the difference is reported and logged per side; the outline is never moved and the production
+                         # run never waits for it. Per site: feel_out_trust (sites.py); the school uses "camera"
 MOVE_OUT = False         # a side felt further OUT than the cameras' line: kept (the risk review, 2 Nov). True: moved
                          # out like an inward side (the first design, kept behind this switch: Nick's rule)
 SPREAD_CM = 3.0          # two feels on one side further apart than this: the side's more inward feel is used (the safe
@@ -318,9 +324,10 @@ def cue_words(cue):
     return {"line": "line sensors", "bottom": "the distance sensor's look-ahead (bottom zone)"}.get(cue, cue)
 
 
-def analyze(m, session, sp=None, conf_dir=None):
+def analyze(m, session, sp=None, conf_dir=None, trust=None):
     """Where the robots felt each edge against the camera's outline (m: the feel-out's map). Returns the result dict
-    (feels, sides, reach, misses, words)."""
+    (feels, sides, reach, misses, words). trust: "sensor" or "camera" (default TRUST)."""
+    trust = trust or TRUST
     m = FM.normalize(m)
     sp = sp or spots(m)
     tr = trips(session)
@@ -369,19 +376,19 @@ def analyze(m, session, sp=None, conf_dir=None):
         offs = [f["offset_cm"] for f in feels if f["side"] == side and f["kind"] == "felt" and f.get("offset_cm") is not None]
         offs += [t["offset_cm"] for t in extra if t["side"] == side]
         nothing = [f for f in feels if f["side"] == side and f["kind"] == "nothing"]
-        sides[side] = side_verdict(side, offs, nothing, reach)
+        sides[side] = side_verdict(side, offs, nothing, reach, trust=trust)
     misses = suspected_misses(feels, sides, reach)
     res = {"version": VERSION, "made": dt.datetime.now().isoformat(timespec="seconds"), "outline": rect(m),
            "feels": feels, "trips": tr, "sides": sides, "reach": reach, "reach_samples": now_, "misses": misses,
-           "session": session}
+           "session": session, "trust": trust}
     res["hold"] = any(s["verdict"] == "suspect" for s in sides.values())
     res["adjusted"] = {k: s["move_cm"] for k, s in sides.items() if s.get("move_cm")}
     res["words"] = words(res)
     return res
 
 
-def side_verdict(side, offs, nothing, reach):
-    """One side: agree / adjusted / suspect / none felt."""
+def side_verdict(side, offs, nothing, reach, trust=None):
+    """One side: agree / adjusted / suspect / none felt; with trust "camera": agree / camera kept / none felt."""
     name = SIDE_WORDS[side]
     if not offs:
         if nothing:
@@ -399,7 +406,13 @@ def side_verdict(side, offs, nothing, reach):
     d = {"n": len(v), "offsets_cm": [round(x, 2) for x in v], "offset_cm": round(use, 2), "spread_cm": round(spread, 2),
          "how": how}
     inout = "further out" if use > 0 else "further in"
-    if abs(use) <= AGREE_CM:
+    if abs(use) > AGREE_CM and (trust or TRUST) == "camera":
+        # the camera is trusted over the edge sensors (2026-11-03): reported and logged, nothing moved, nothing held
+        d.update(verdict="camera kept", move_cm=0.0, felt_cm=round(use, 1),
+                 words="NOTE: %s: the robots felt the edge %.1f cm %s than the camera's outline (%s). The camera's "
+                       "outline is kept (this site trusts the cameras over the edge sensors); logged, the run goes "
+                       "on." % (name, abs(use), inout, how))
+    elif abs(use) <= AGREE_CM:
         d.update(verdict="agree", move_cm=0.0, words="%s: felt %.1f cm %s than the camera's line (%s): agrees" % (
             name, abs(use), inout, how))
     elif use > 0 and not MOVE_OUT:
@@ -459,6 +472,10 @@ def words(res):
         out.append("The production run waits for you: see the STOP line above.")
     elif res["adjusted"]:
         out.append("Outline adjusted on %d side(s); the production run uses it." % len(res["adjusted"]))
+    elif any(s.get("verdict") == "camera kept" for s in res["sides"].values()):
+        out.append("The robots felt %d side(s) apart from the camera's outline (above); the camera's outline is used "
+                   "as it is (this site trusts the cameras)." % sum(s.get("verdict") == "camera kept"
+                                                                   for s in res["sides"].values()))
     else:
         out.append("The camera's outline agrees with the edges the robots felt; nothing changed.")
     return out
@@ -559,7 +576,7 @@ def save_cal(conf_dir, key, sid, res, site=None):
     used = outline if res.get("hold") else adjusted_rect(outline, res.get("adjusted") or {})
     cal = {"version": VERSION, "table": key, "site": site, "setup_id": sid, "made": res["made"],
            "outline_camera": outline, "outline_used": used, "adjusted": res.get("adjusted") or {},
-           "hold": bool(res.get("hold")), "sides": res["sides"], "reach": res["reach"], "words": res["words"],
+           "hold": bool(res.get("hold")), "trust": res.get("trust") or TRUST, "sides": res["sides"], "reach": res["reach"], "words": res["words"],
            "misses": res["misses"], "session": res.get("session"), "surface": res.get("surface"),
            "feels": [{k: f.get(k) for k in ("id", "robot", "side", "along", "kind", "cue", "offset_cm", "place",
                                             "felt_xy")}
@@ -572,7 +589,10 @@ def save_cal(conf_dir, key, sid, res, site=None):
     rp = os.path.join(d, "reach.json")
     old = load_reach(conf_dir)
     for t in res.get("trips") or []:
-        if t.get("side") and t.get("inside_cm") is not None and t["inside_cm"] > -2.0 and not res.get("hold"):
+        if t.get("side") and t.get("inside_cm") is not None and t["inside_cm"] > -2.0 and not res.get("hold") and \
+                (res["sides"].get(t["side"]) or {}).get("verdict") != "camera kept":
+            # (2026-11-03: not on a side the cameras were kept on against the feels: its trips would teach a reach off
+            # by the very difference that was not resolved)
             # only trips on sides that agreed or were adjusted from many feels: a suspect outline would teach a wrong
             # reach. The reach sample is measured against the outline as it is now believed (adjusted)
             sd = res["sides"].get(t["side"]) or {}
@@ -799,9 +819,9 @@ def mission_run_args(mp, pp, session, site=None, dry=False, extra=(), calibrate=
     return a + list(extra)
 
 
-def finish(fm, session, sp, conf_dir, key, sid, site=None, surface=None):
+def finish(fm, session, sp, conf_dir, key, sid, site=None, surface=None, trust=None):
     """After the feel-out run: analyze, save as the table's calibration. Returns (result, calibration)."""
-    res = analyze(fm, session, sp, conf_dir=conf_dir)
+    res = analyze(fm, session, sp, conf_dir=conf_dir, trust=trust)
     if surface:
         res["surface"] = surface
         res["words"] = list(surface.get("words") or []) + res["words"]
@@ -888,6 +908,8 @@ def main(argv=None):
     a2.add_argument("--session", required=True)
     a2.add_argument("--conf-dir", default="")
     a2.add_argument("--out")
+    a2.add_argument("--trust", choices=TRUSTS, default=None, help="camera: a felt difference never moves the outline "
+                                                                   "(default %s)" % TRUST)
     a3 = sub.add_parser("status")
     a3.add_argument("--conf-dir", required=True)
     a3.add_argument("--table", required=True, help="e.g. 396x168")
@@ -900,7 +922,7 @@ def main(argv=None):
             json.dump(sp, f, indent=1)
         print("feel-out: %s -> %s" % ({k: len(v["visit"]) for k, v in m["tasks"].items()}, a.out))
     elif a.cmd == "analyze":
-        res = analyze(FM.load(a.map), a.session, conf_dir=a.conf_dir or None)
+        res = analyze(FM.load(a.map), a.session, conf_dir=a.conf_dir or None, trust=a.trust)
         print("\n".join(res["words"]))
         with open(a.out or os.path.join(a.session, "feel_result.json"), "w") as f:
             json.dump(res, f, indent=1)

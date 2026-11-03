@@ -809,9 +809,17 @@ def build_prims(job, order, grid, world, docks, s, body, warnings, allow_skip=Tr
             pose = out[-1]["to"]
     t_frozen = sum(p["dur"] for _, p in job.frozen) if job.frozen else 0
     beat_next = None
+    skipped_label = None
     for pos, k in enumerate(order):
         item = job.visits[k]
         task = job.task_offset + pos
+        if skipped_label and isinstance(item, dict) and "wait_s" in item and \
+                str(item.get("label", "")) == "at " + skipped_label:
+            # the dwell of a production point that was just skipped (2026-11-03): not stood out somewhere else
+            warnings.append("robot %s skips task %d (%s): its point was skipped" % (job.name, task + 1, item["label"]))
+            skipped_label = None
+            continue
+        skipped_label = None
         if isinstance(item, dict) and "until_s" in item:
             # stand still until the mission's clock reaches until_s (a show's beat target). The clock: the mission's
             # time at this plan's start (job.clock0) + the steps before (scheduler waits for other robots come on top:
@@ -839,7 +847,9 @@ def build_prims(job, order, grid, world, docks, s, body, warnings, allow_skip=Tr
                 beat_next = None
         except PlanError as e:
             if s.skip_unreachable and allow_skip:
-                warnings.append("robot %s skips task %d: %s" % (job.name, task + 1, e))
+                lab = item.get("label") if isinstance(item, dict) else item
+                warnings.append("robot %s skips task %d%s: %s" % (job.name, task + 1, " (%s)" % lab if lab else "", e))
+                skipped_label = str(lab) if lab else None
                 continue
             raise PlanError("robot %s, task %d: %s" % (job.name, task + 1, e))
         out += ps
