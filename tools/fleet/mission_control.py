@@ -247,6 +247,8 @@ class Session:
             import sites as SI
             self.site = SI.load(getattr(self, "site_name", None))
         except (SystemExit, ValueError, OSError) as e:
+            if getattr(e, "site_file_error", False):
+                raise                    # a broken site file stops loudly (2026-11-03), never home's ways in silence
             print("site not read (%s): home's ways" % e, flush=True)
         self.feel = None             # Feel out the table (2026-11-02): feel_job.py, a tag site's first run on a table
         self.last_production = None  # the Production screen's last orders (planned again on a felt outline)
@@ -321,6 +323,10 @@ class Session:
             out["feel"] = self.feel.status()
         if self.tag:
             out["tag"] = {k: v for k, v in self.tag.d.items()}
+            try:
+                out["tag"]["refit_live"] = self.tag.refit_live(os.path.dirname(self.last_runs.get("mission") or ""))
+            except Exception as e:     # noqa: BLE001  (a status line never breaks the page)
+                out["tag"]["refit_live"] = {"state": "none", "why": str(e)}
             out["tag"]["room"] = bool(self.tag.room is not None and self.tag.room.poll() is None)
             out["sync"] = self.tag.sync_state()
         return out
@@ -545,7 +551,15 @@ class Session:
             cmd += ["--tracking", "tags", "--site", self.site["name"], "--session-id",
                     self.tag.sync_state()["session_id"]]
             if kind != "feel":
-                cmd += ["--refit", "--feel-table", "skip"]     # Mission Control felt the table first (feel_job.py)
+                cmd += ["--feel-table", "skip"]                # Mission Control felt the table first (feel_job.py)
+                # the refit after the run (2026-11-03, risk review #10): per site, "background" (the default: its own
+                # process, the run's end and this screen never wait), "wait" (the old way: the run ends after it) or
+                # "off" (the Refit button only)
+                ar = str(self.site.get("auto_refit", "background")).lower()
+                if ar in ("wait", "old", "blocking"):
+                    cmd += ["--refit"]
+                elif ar not in ("off", "no", "false", "button"):
+                    cmd += ["--refit-bg"]
             if conn == "sim-cameras" and rs.get("sim_true_floor"):
                 cmd += ["--sim-true-floor", str(rs["sim_true_floor"])]
         if kind == "feel":

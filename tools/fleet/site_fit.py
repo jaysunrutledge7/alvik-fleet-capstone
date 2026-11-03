@@ -729,12 +729,80 @@ def refit(obs_path, tag_obs_csv, out=None, max_groups=MAX_GROUPS):
     return res
 
 
+# ------------------------------------------------------------------------------------------------- refit in the background
+# (2026-11-03, risk review #10) the refit after a run took 2 min 19 s here (about 10 min on a Pi, est.) and blocked the
+# run's end and Mission Control's screen. Now it runs as its own process; status.json in its folder says where it is,
+# and the Refit button reuses its result instead of computing it again.
+STATUS_FILE = "status.json"
+
+
+def _write_status(out, **kw):
+    os.makedirs(out, exist_ok=True)
+    kw["t"] = round(__import__("time").time(), 1)
+    tmp = os.path.join(out, STATUS_FILE + ".tmp")
+    with open(tmp, "w") as f:
+        json.dump(kw, f, indent=1, default=str)
+    os.replace(tmp, os.path.join(out, STATUS_FILE))
+
+
+def _pid_alive(pid):
+    try:
+        os.kill(int(pid), 0)
+        return True
+    except (OSError, ValueError, TypeError):
+        return False
+
+
+def refit_status(out):
+    """{state: none | running | done | failed, words, size_cm, rms_px, started, seconds} for a refit folder."""
+    import time as _t
+    p = os.path.join(out, STATUS_FILE)
+    try:
+        with open(p) as f:
+            st = json.load(f)
+    except (OSError, ValueError):
+        if os.path.exists(os.path.join(out, "site_fit.json")):
+            # a refit made before status files (or by the old blocking way): its result is there
+            with open(os.path.join(out, "site_fit.json")) as f:
+                r = json.load(f)
+            return {"state": "done", "words": r.get("words") or [], "size_cm": r.get("size_cm"),
+                    "rms_px": r.get("rms_px"), "folder": out}
+        return {"state": "none", "folder": out}
+    st["folder"] = out
+    if st.get("state") == "running":
+        st["seconds"] = round(_t.time() - float(st.get("started") or _t.time()), 1)
+        if st.get("pid") and not _pid_alive(st["pid"]):
+            st["state"] = "failed"
+            st["why"] = "the refit process ended without a result (stopped or crashed: see refit.txt)"
+    return st
+
+
+def start_refit_bg(obs_path, tag_obs_csv, out, python=None, cwd=None):
+    """Starts the refit as its own process (it keeps going if the caller ends); returns its status."""
+    import subprocess
+    import time as _t
+    os.makedirs(out, exist_ok=True)
+    t0 = round(_t.time(), 1)
+    _write_status(out, state="running", pid=None, started=t0, obs=obs_path, reads=tag_obs_csv)
+    log = open(os.path.join(out, "refit.txt"), "w")
+    p = subprocess.Popen([python or sys.executable, os.path.abspath(__file__), "--obs", obs_path, "--refit", tag_obs_csv,
+                          "--out", out, "--status"], stdout=log, stderr=subprocess.STDOUT, cwd=cwd or HERE,
+                         start_new_session=True)
+    log.close()
+    st = refit_status(out)
+    if st.get("state") == "running" and not st.get("pid"):
+        _write_status(out, state="running", pid=p.pid, started=t0, obs=obs_path, reads=tag_obs_csv)
+    return refit_status(out)
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--selftest", action="store_true")
     ap.add_argument("--refit", metavar="TAG_OBS_CSV", help="with --obs: add a run's tag reads (tag_obs.csv) and fit again")
     ap.add_argument("--obs", help="observations JSON (Mission Control's setup writes it)")
     ap.add_argument("--out", help="folder for the camera models (<camera>.json) and site_fit.json")
+    ap.add_argument("--status", action="store_true", help="with --refit: write status.json in --out (running, done, "
+                                                          "failed) for Mission Control's Refit card")
     a = ap.parse_args(argv)
     if a.selftest:
         return _selftest()
@@ -742,7 +810,21 @@ def main(argv=None):
         print(__doc__)
         return 1
     if a.refit:
-        res = refit(a.obs, a.refit, a.out)
+        import time as _t
+        t0 = _t.time()
+        if a.status and a.out:
+            prev = refit_status(a.out)
+            _write_status(a.out, state="running", pid=os.getpid(), started=prev.get("started") or round(t0, 1),
+                          obs=a.obs, reads=a.refit)
+        try:
+            res = refit(a.obs, a.refit, a.out)
+        except Exception as e:     # noqa: BLE001
+            if a.status and a.out:
+                _write_status(a.out, state="failed", why=str(e), seconds=round(_t.time() - t0, 1))
+            raise
+        if a.status and a.out:
+            _write_status(a.out, state="done", words=res["words"], size_cm=res["size_cm"], rms_px=res["rms_px"],
+                          seconds=round(_t.time() - t0, 1))
         print("\n".join(res["words"]))
         return 0
     with open(a.obs) as f:

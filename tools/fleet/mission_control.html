@@ -617,6 +617,23 @@ function tagPicCard(cam) {
     <p class="small muted" style="margin:6px 0">Red: corners clicked; blue: stickers; green: robots' tags read.</p>` : `<p class="small muted">Press Take pictures.</p>`}
     <div class="row">${list || `<span class="small muted">Nothing clicked yet in this picture.</span>`}</div></div>`;
 }
+// the refit after a run (2026-11-03): the run starts it in the background (site setting auto_refit); the card shows
+// where it is, polls while it runs, and the button REUSES the run's result
+let refitPoll = null;
+function refitCard(T) {
+  const L = T.refit_live || {state: "none"}, R = T.refit;
+  const live = L.state === "running" ? `<p class="small" id="trlive"><b>Refit running in the background</b>: ${Math.round(L.seconds || 0)} s so far (a few minutes on the Pi). Nothing waits for it; this card fills in by itself.</p>`
+    : L.state === "done" ? `<p class="small" id="trlive"><b style="color:var(--green)">The last run's refit is ready</b>${L.seconds ? ` (took ${Math.round(L.seconds)} s)` : ""}: press Refit from the last run to see it (no new computing).</p>`
+    : L.state === "failed" ? `<p class="small" id="trlive" style="color:var(--warn)"><b>The last run's refit failed</b>: ${esc(L.why || "")}. Refit from the last run starts it again.</p>` : "";
+  return `<div class="card"><h2>Refit after a run</h2><p class="small muted">Nick's idea: the robots' tags seen all over the table during a run pin each camera's height and tilt far better than two robots standing still. Each run starts its refit by itself in the background; look at the numbers, then use it.</p>
+      ${live}
+      <div class="row"><button class="b" id="trefit" ${L.state === "running" ? "disabled" : ""}>Refit from the last run</button><button class="b" id="tuse" ${R && !R.running ? "" : "disabled"}>Use the refit</button></div>
+      ${R ? `<ul class="small">${(R.words || []).map(w => `<li>${esc(w)}</li>`).join("")}</ul>` : ""}</div>`;
+}
+function wireRefit() {
+  clearInterval(refitPoll);
+  if (((S.tag || {}).refit_live || {}).state === "running") refitPoll = setInterval(async () => { await load(); if (((S.tag || {}).refit_live || {}).state !== "running") clearInterval(refitPoll); }, 3000);
+}
 function camerasTable() {
   const T = tagState(), r = T.result, tb = (T.typed || {}).table || {};
   const st = Object.entries((T.typed || {}).stickers || {}).map(([k, v]) => `${k}: ${v[0]}, ${v[1]}`).join("\n");
@@ -639,9 +656,7 @@ function camerasTable() {
       <label class="lbl">Sticker coordinates (one a line: <code>3: 120.5, 40.2</code>, cm in the table's frame)</label><textarea id="tst">${esc(st)}</textarea>
       <label class="lbl">Distances between stickers (one a line: <code>1-2: 85.0</code>, cm)</label><textarea id="tds">${esc(ds)}</textarea>
       <button class="b" id="ttyped">Save measurements</button></div>
-    <div class="card"><h2>Refit after a run</h2><p class="small muted">Nick's idea: the robots' tags seen all over the table during a run pin each camera's height and tilt far better than two robots standing still. Refit, look at the numbers, then use it.</p>
-      <div class="row"><button class="b" id="trefit">Refit from the last run</button><button class="b" id="tuse" ${T.refit ? "" : "disabled"}>Use the refit</button></div>
-      ${T.refit ? `<ul class="small">${T.refit.words.map(w => `<li>${esc(w)}</li>`).join("")}</ul>` : ""}</div>
+    ${refitCard(T)}
     ${syncCard(null)}
     <button class="p" id="tnext">Continue to production</button>`);
   $("tkind").onchange = () => { tagPick.kind = $("tkind").value; tagPick.label = tagPick.kind === "corner" ? "1" : "1"; render(); };
@@ -663,7 +678,8 @@ function camerasTable() {
     for (const ln of $("tds").value.split("\n")) { const m = ln.match(/^\s*(\w+)\s*-\s*(\w+)\s*:\s*([\d.]+)/); if (m) dist.push([m[1], m[2], +m[3]]); }
     try { S.tag.typed = await api("/api/tags/typed", {table: {length_cm: $("tl").value, width_cm: $("tw").value}, stickers: stk, distances: dist}); flash("Saved"); render(); } catch (e) { flash(e.message, true); } };
   $("tmeasure").onclick = async () => { $("tmeasure").disabled = true; $("tmeasure").textContent = "Measuring (about 10-30 s)..."; try { const r = await api("/api/tags/measure", {conn}); S = r.state; Object.assign(COL, S.site.colours || {}); done.add(7); render(); } catch (e) { flash(e.message, true); render(); } };
-  $("trefit").onclick = async () => { try { S.tag.refit = await api("/api/tags/refit", {}); render(); } catch (e) { flash(e.message, true); } };
+  $("trefit").onclick = async () => { try { S.tag.refit = await api("/api/tags/refit", {}); if (S.tag.refit.running) await load(); else render(); } catch (e) { flash(e.message, true); } };
+  wireRefit();
   $("tuse").onclick = async () => { try { S.tag.refit = await api("/api/tags/refit", {use: true}); flash("The refit's camera models are in use from the next run"); render(); } catch (e) { flash(e.message, true); } };
   $("tnext").onclick = () => { done.add(7); screen = 8; render(); };
   wireSync();

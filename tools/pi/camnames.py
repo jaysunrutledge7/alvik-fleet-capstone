@@ -32,7 +32,9 @@ def _conf_dir():
         sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "fleet"))
         import sites
         return sites.load()["conf_dir"]
-    except BaseException:      # noqa: BLE001  (no site file: home's folder)
+    except BaseException as e:      # noqa: BLE001  (no site module: home's folder)
+        if getattr(e, "site_file_error", False):
+            raise                       # a broken or missing site file stops loudly (2026-11-03), never home's names
         return os.path.expanduser("~/.config/mirlt")
 
 
@@ -91,6 +93,27 @@ def scan(sysfs=None):
                          nodes=sorted(n for _, n in nodes)))
     cams.sort(key=lambda c: c["dev"])
     return cams
+
+
+BY_ID = os.environ.get("MIRLT_V4L_BY_ID", "/dev/v4l/by-id")   # tests point it at a stand-in folder
+
+
+def by_id_names(folder=None):
+    """{video number: its stable name under /dev/v4l/by-id} (2026-11-03). The kernel's /dev/videoN numbers can swap
+    after a restart; these names stay (they carry the camera's maker, model and serial, when it has one). The launchers
+    already find each camera by its name and USB port at every start (resolve below), which is what by-id gives, so
+    the numbers swapping never picks the wrong camera; these names are shown to check by eye."""
+    folder = folder or BY_ID
+    out = {}
+    try:
+        names = sorted(os.listdir(folder))
+    except OSError:
+        return out
+    for n in names:
+        m = re.fullmatch(r"video(\d+)", os.path.basename(os.path.realpath(os.path.join(folder, n))))
+        if m and n.endswith("-index0"):
+            out[int(m.group(1))] = n
+    return out
 
 
 def load_conf(path=None):
@@ -206,9 +229,12 @@ def main(argv=None):
     conf, from_file = load_conf()
     rep = report(conf=conf)
     print("Camera names from %s" % (CONF_PATH if from_file else "the built-in defaults (no %s yet)" % CONF_PATH))
+    byid = by_id_names()
     for c in rep["cameras"]:
         print("  /dev/video%-2d %-40s USB port %-6s %s" % (c["dev"], c["name"], c["port"] or "?",
                                                          ("<- " + c["role"].upper()) if c["role"] else ""))
+        if c["dev"] in byid:
+            print("               stable name: /dev/v4l/by-id/%s" % byid[c["dev"]])
     if not rep["cameras"]:
         print("  (no cameras found)")
     for r in ROLES:

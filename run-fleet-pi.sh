@@ -2,13 +2,13 @@
 # Phase 0 on the Pi (2026-10-27): the fleet planner (tools/fleet/run_plan.py) on the real robots, with camera fixes
 # from the overhead camera through the camera bridge (tools/fleet/cam_bridge.py). Plan: docs/session-plans/2026-10-27.md
 #
-# ONE ADDRESS for everything (2026-10-28): http://100.122.222.75:8091 in the laptop's or phone's browser (the start
+# ONE ADDRESS for everything (2026-10-28): http://<the Pi>:8091 in the laptop's or phone's browser (the start
 # page, always on). Tabs: Live lab (an E02 session's live page; a DOE loop's or Monday mission's own screen and Stop
 # while one runs) | Mission Control (opened from there on demand: the same as `mc` below) | Start/Stop.
 #
 # In a terminal ON THE PI (SSH from the laptop), one of:
 #     ./run-fleet-pi.sh setup              camera setup page (after moving a camera): overhead corners, side picture,
-#                                          the lights' flash check; http://100.122.222.75:8096. Stop the recorder first
+#                                          the lights' flash check; http://<the Pi>:8096. Stop the recorder first
 #     ./run-fleet-pi.sh rec                start the recorder only (its picture: http://<the Pi>:8000 in a browser)
 #     ./run-fleet-pi.sh check              every robot's firmware and battery (nothing moves)
 #     ./run-fleet-pi.sh turn Center        Center turns 90 deg once (repeat it 4 times: it should face the same way)
@@ -54,12 +54,18 @@
 #     ./run-fleet-pi.sh practice mow|circle|chicken|dance [61x122]   ONE block of Monday's mission alone (tmux
 #                                          "practice"; tools/fleet/examples/practice/*.json); as `monday` otherwise
 #     ./run-fleet-pi.sh stopall            STOP EVERYTHING: Ctrl+C to every fleet run in tmux, Mission Control's Stop,
-#                                          and `stop` straight to every robot (works while a run holds the robots)
+#                                          and `stop` straight to every robot (works while a run holds the robots): the
+#                                          site's robots, a broadcast to the whole WiFi, every robot heard (2026-11-03).
+#                                          `stopall listed`: the old way, only the listed addresses
 #     ./run-fleet-pi.sh settings [Left]    bench: send gyro_scale 1.075 and wheel_scale 0.979, read them back
 #     ./run-fleet-pi.sh dance Left         bench: the dance alone where it stands, about 8 s (firmware 2026-10-28a)
-#     ./run-fleet-pi.sh mc                 Mission Control on the Pi (also the Mission Control tab at :8091, which runs
-#                                          this in tmux "mc"); its own address http://100.122.222.75:8095 still works
-#     ./run-fleet-pi.sh mc-stop            close Mission Control opened from the tab (a run of its own stops first)
+#     ./run-fleet-pi.sh mc                 Mission Control on the Pi, in tmux session "mc" (2026-11-03: it keeps running
+#                                          when this window closes); prints http://<this Pi>:8095. `mc here`: the old
+#                                          way, in this window. See it: tmux attach -t mc (leave: Ctrl+B, then D)
+#     ./run-fleet-pi.sh mc-stop            close Mission Control (a run of its own stops first)
+#     ./run-fleet-pi.sh address            this Pi's addresses (Tailscale, WiFi, name) and the one the screens show
+#     ./run-fleet-pi.sh selfcheck          a new Pi's setup tested: packages, OpenCV, tags, cameras, repo, token,
+#                                          Tailscale, clock, site, disk: one PASS / WARN / FAIL line each
 # Sites (2026-11-02, tools/fleet/sites.py): home is the default and unchanged; a school site has its own robots, cameras,
 # calibration folder and Mission Control folder:
 #     ./run-fleet-pi.sh site               which site is in use, and the list
@@ -80,9 +86,21 @@ IPS="--robot 192.168.1.250 --robot 192.168.1.252 --robot 192.168.1.253"
 # the site in use (2026-11-02, tools/fleet/sites.py): home (the default) gives exactly the line above; a school site
 # its own robots (none listed: found on the WiFi by their hello), its own calibration folder (MIRLT_CONF_DIR), picture
 # size and Mission Control folder. Change it with: ./run-fleet-pi.sh site <name>
-if SITE_ENV="$(python3 tools/fleet/sites.py env 2>/dev/null)"; then eval "$SITE_ENV"; IPS="$MIRLT_ROBOT_ARGS"; fi
+# A site file that does not load STOPS here with the file, the line and what is wrong (risk review 2 Nov, #9: a typo
+# used to fall back to home's robots and picture size in silence). Two exceptions: `site` (to switch to a good one) and
+# `stopall` (the emergency stop never waits on a file: it still broadcasts `stop`).
+WHAT0="${1:-}"
+if SITE_ENV="$(python3 tools/fleet/sites.py env 2>&1)"; then eval "$SITE_ENV"; IPS="$MIRLT_ROBOT_ARGS"
+else
+  case "$WHAT0" in
+    site|stopall|selfcheck|"") echo "WARNING: $SITE_ENV" >&2 ;;
+    *) echo "$SITE_ENV" >&2; echo "STOPPED: the site file must load first (nothing was started)." >&2; exit 1 ;;
+  esac
+fi
 CAPTURE="${MIRLT_CAPTURE:---width 640 --height 480}"; CAPFPS="${MIRLT_CAPTURE_FPS:-25}"
-PIADDR="${MIRLT_PI_ADDR:-100.122.222.75}"; [ -z "$PIADDR" ] && PIADDR="$(hostname -I 2>/dev/null | awk '{print $1}')"
+# the Pi's own address for the screens (risk review 2 Nov, #3): detected on this Pi (Tailscale if up, else its WiFi
+# address, else its name), never a hard-coded one (tools/fleet/pi_addr.py; a site may still pin one: use_site_address)
+PIADDR="$(python3 tools/fleet/pi_addr.py 2>/dev/null)"; [ -z "$PIADDR" ] && PIADDR="$(hostname).local"
 # the overhead calibration and exposure saved by the camera setup page (./run-fleet-pi.sh setup, 2026-10-27);
 # roam1 and the camera's automatic exposure when nothing was saved (setup_conf.py says which on the screen)
 CALIB="$(python3 tools/pi/setup_conf.py calib)"
@@ -221,7 +239,7 @@ case "$WHAT" in
     echo "You can close this window: it keeps running on the Pi."
     echo "Watch it:        tmux capture-pane -p -t doe | tail -40"
     echo "Or live:         tmux attach -t doe        (leave it again: Ctrl+B, then D)"
-    echo "Pictures:        http://100.122.222.75:8000 (overhead), http://100.122.222.75:8001 (side)"
+    echo "Pictures:        http://$PIADDR:8000 (overhead), http://$PIADDR:8001 (side)"
     echo "Progress:        ./run-fleet-pi.sh doe-status"
     echo "Stop it:         ./run-fleet-pi.sh doe-stop" ;;
   doe-run)          # (inside the tmux session doe)
@@ -295,7 +313,30 @@ case "$WHAT" in
     fi ;;
   mc)
     if python3 -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8095/api/run', timeout=2)" 2>/dev/null; then
-      echo "Mission Control is already open: http://100.122.222.75:8091 (Mission Control tab) or http://100.122.222.75:8095"; exit 0
+      echo "Mission Control is already open: http://$PIADDR:8095 in the laptop's browser"
+      tmux has-session -t mc 2>/dev/null && echo "It runs in tmux session mc. See it: tmux attach -t mc (leave: Ctrl+B, then D). Close it: ./run-fleet-pi.sh mc-stop"
+      exit 0
+    fi
+    # (2026-11-03, risk review #5) Mission Control runs inside tmux session "mc", so it keeps running when the SSH window
+    # closes or the laptop sleeps. `./run-fleet-pi.sh mc here` keeps the old way (in this window; Ctrl+C stops it).
+    # Already inside tmux (the start page's Mission Control tab starts it in tmux mc): runs here.
+    if [ -z "${TMUX:-}" ] && [ "${1:-}" != here ]; then
+      tmux kill-session -t mc 2>/dev/null || true          # a closed one's window, waiting for Enter
+      tmux new-session -d -s mc "cd '$REPO' && bash ./run-fleet-pi.sh mc here; read -r -p 'Mission Control stopped. Press Enter.'"
+      echo "Mission Control is starting in tmux session mc (about 10 s) ..."
+      for k in $(seq 1 30); do
+        python3 -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8095/api/run', timeout=2)" 2>/dev/null && break
+        tmux has-session -t mc 2>/dev/null || break; sleep 1
+      done
+      if python3 -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8095/api/run', timeout=2)" 2>/dev/null; then
+        echo "Mission Control is open: http://$PIADDR:8095 in the laptop's browser"
+      else
+        echo "Mission Control did not answer yet. See its window: tmux attach -t mc (leave: Ctrl+B, then D)"
+      fi
+      echo "It keeps running if this window closes."
+      echo "See its window:   tmux attach -t mc        (leave it running: Ctrl+B, then D)"
+      echo "Close it:         ./run-fleet-pi.sh mc-stop"
+      exit 0
     fi
     # the recorder (its pictures for the robots' runs); in a subshell, so that an E02 session holding the cameras
     # leaves Mission Control open for planning and the simulator instead of stopping here
@@ -303,18 +344,20 @@ case "$WHAT" in
       ( start_recorder ) || echo "(No recorder: Mission Control opens for planning and the simulator only; robot runs need the cameras.)"
     fi
     # the addresses the page may make changes from (its Host check): Tailscale, the Pi's name on the WiFi, its WiFi number
-    HOSTS="--allow-host 100.122.222.75 --allow-host $(hostname).local"
+    HOSTS="--allow-host 100.122.222.75 --allow-host $(hostname).local"     # (home's Tailscale address kept: home's Pi)
     for ip in $(hostname -I 2>/dev/null); do case "$ip" in *.*.*.*) HOSTS="$HOSTS --allow-host $ip" ;; esac; done
-    echo "Mission Control: http://$PIADDR:8091 (Mission Control tab), or http://$PIADDR:8095 (Ctrl+C here stops it)"
+    echo "Mission Control: http://$PIADDR:8095 in the laptop's browser (Ctrl+C here stops it)"
     [ -n "${MIRLT_PI_ADDR:-}" ] && HOSTS="$HOSTS --allow-host $MIRLT_PI_ADDR"
+    case "$PIADDR" in *.*.*.*) HOSTS="$HOSTS --allow-host $PIADDR" ;; esac
+    for ts in $(tailscale ip -4 2>/dev/null); do HOSTS="$HOSTS --allow-host $ts"; done
     python3 tools/fleet/mission_control.py --dir "${MIRLT_MC_DIR:-logs/mission-control}" --listen 0.0.0.0 $HOSTS ;;
   site)            # (2026-11-02) which site: ./run-fleet-pi.sh site (shows it), ./run-fleet-pi.sh site school-conference
     if [ -n "${1:-}" ]; then python3 tools/fleet/sites.py use "$1"; else python3 tools/fleet/sites.py; python3 tools/fleet/sites.py list; fi ;;
   camcheck)        # (2026-11-02) the camera check-out in the terminal (the recorder must be running: ./run-fleet-pi.sh rec)
     python3 tools/fleet/camera_checkout.py ;;
   mc-stop)
-    if tmux has-session -t mc 2>/dev/null; then tmux send-keys -t mc C-c; echo "Mission Control is closing."
-    else echo "Mission Control was not opened from the tab (tmux mc): if it runs in a terminal, Ctrl+C there."; fi ;;
+    if tmux has-session -t mc 2>/dev/null; then tmux send-keys -t mc C-c; sleep 3; tmux send-keys -t mc Enter 2>/dev/null; echo "Mission Control is closing (a run of its own stops first)."
+    else echo "Mission Control is not running in tmux session mc: if it runs in a terminal window, Ctrl+C there."; fi ;;
   space)           # free space on the card and the USB drive, the biggest folders (nothing changed)
     python3 tools/fleet/diskguard.py space ;;
   clean-uploaded)  # only what GitHub confirms (exact sizes); a list first, deletes only with --yes
@@ -335,11 +378,18 @@ case "$WHAT" in
     python3 tools/pi/camera_setup.py "$@" ;;
   rec)
     start_recorder
-    echo "Recorder running. Its picture: http://100.122.222.75:8000 (Tailscale) in the laptop's browser" ;;
+    echo "Recorder running. Its picture: http://$PIADDR:8000 in the laptop's browser" ;;
   check)
     python3 tools/fleet/robot_cmd.py $IPS --wait-s 3 status ;;
-  stopall)         # everything that drives the robots stops, and `stop` straight to each robot (works mid-run)
-    python3 tools/fleet/stop_all.py $IPS ;;
+  stopall)         # everything that drives the robots stops, and `stop` straight to each robot (works mid-run): the
+                   # site's robots, a broadcast `stop` and every robot heard on the WiFi (2026-11-03; risk review #2).
+                   # `stopall listed`: the old way, only the listed addresses (home's three when the site has none)
+    if [ "${1:-}" = listed ]; then python3 tools/fleet/stop_all.py --only-listed $IPS
+    else python3 tools/fleet/stop_all.py $IPS; fi ;;
+  selfcheck)       # (2026-11-03) the new Pi's setup, tested: PASS / FAIL lines (tools/pi/selfcheck.py)
+    python3 tools/pi/selfcheck.py "$@" ;;
+  address)         # (2026-11-03) the Pi's addresses: Tailscale, WiFi, name, and the one the screens show
+    python3 tools/fleet/pi_addr.py --all ;;
   settings)        # the settings read-back on the bench: send each robot its driving corrections, read them back
     R="${1:-all}"
     python3 tools/fleet/robot_cmd.py $IPS --to "$R" --wait-s 1.5 "set gyro_scale 1.075" --then "set wheel_scale 0.979" \
@@ -380,5 +430,5 @@ case "$WHAT" in
     python3 tools/pi/upload_session.py --recordings "$OUT" --stop-recorder --no-logs --tag "p0-$DAY-recording" || true
     tmux kill-session -t fleet 2>/dev/null || true ;;
   *)
-    sed -n '2,57p' "$0"; exit 1 ;;
+    sed -n '2,81p' "$0"; exit 1 ;;
 esac

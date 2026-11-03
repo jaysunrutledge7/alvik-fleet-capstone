@@ -75,6 +75,91 @@ def current_name():
     return DEFAULT_SITE
 
 
+class SiteFileError(SystemExit):
+    """A site file that cannot be used (risk review 2 Nov, #9: a typo silently turned the school into home). Raised by
+    load(): the message names the file, the line and what is wrong, and every launcher stops on it. A SystemExit, so a
+    command line prints the message alone (no traceback) and exits 1; programs that used to fall back to home's ways
+    on a missing site re-raise this one (is_site_file_error)."""
+    site_file_error = True
+
+
+class SiteValueError(SiteFileError, ValueError):
+    """A value in a site file that cannot be used (a name, an address, a tag id): a SiteFileError, and a ValueError as
+    before 2026-11-03 (callers that caught ValueError still do)."""
+
+
+def is_site_file_error(e):
+    return bool(getattr(e, "site_file_error", False))
+
+
+def _json_error_words(path, text, e):
+    """'line 14, column 26: Expecting ',' delimiter' with the line itself and a caret under the spot."""
+    lines = text.splitlines()
+    ln = lines[e.lineno - 1] if 0 < e.lineno <= len(lines) else ""
+    hint = ""
+    if re.search(r"\d,\d", ln):
+        hint = " (a comma inside a number? JSON numbers use a point: 6.2, not 6,2)"
+    elif e.msg.startswith("Expecting property name") or "trailing" in e.msg:
+        hint = " (a comma after the last item of a list or {...}? JSON allows none there)"
+    elif e.msg.startswith("Expecting ',' delimiter"):
+        hint = " (a missing comma between two items, or a quote missing round a word)"
+    elif e.msg.startswith("Expecting value"):
+        hint = " (a word without quotes? text goes in double quotes; empty values are null)"
+    return ("The site file %s is broken at line %d, column %d: %s%s.\n  %4d | %s\n         %s^\n"
+            "Nothing was started. Fix that line (on GitHub: open the file, the pencil, fix, Commit; then on the Pi: "
+            "git pull), or switch site: ./run-fleet-pi.sh site home" % (
+                os.path.relpath(path, REPO), e.lineno, e.colno, e.msg, hint, e.lineno, ln, " " * max(0, e.colno - 1)))
+
+
+def _type_problems(d):
+    """Values of the wrong kind (a number typed as text, a list where a number goes): [words]."""
+    probs = []
+
+    def num(v, where, null_ok=False):
+        if v is None and null_ok:
+            return
+        if isinstance(v, bool) or not isinstance(v, (int, float)):
+            probs.append("%s should be a number%s, not %s" % (where, " or null" if null_ok else "", json.dumps(v)))
+    if not isinstance(d, dict):
+        return ["the file should be one {...} object"]
+    if not isinstance(d.get("robots", []), list):
+        probs.append('"robots" should be a list [...]')
+    cap = d.get("capture")
+    if cap is not None:
+        if not isinstance(cap, dict):
+            probs.append('"capture" should be {"width": ..., "height": ..., "fps": ...}')
+        else:
+            for k in ("width", "height", "fps"):
+                if k in cap:
+                    num(cap[k], "capture.%s" % k)
+    tags = d.get("tags")
+    if tags is not None:
+        if not isinstance(tags, dict):
+            probs.append('"tags" should be {...}')
+        else:
+            for k in ("tag_cm", "roof_cm"):
+                if k in tags:
+                    num(tags[k], "tags.%s" % k)
+            if "height_cm" in tags:
+                num(tags["height_cm"], "tags.height_cm", null_ok=True)
+            if not isinstance(tags.get("ids", {}), dict):
+                probs.append('tags.ids should be {"Alpha": 0, ...}')
+    tb = d.get("table")
+    if tb is not None:
+        if not isinstance(tb, dict):
+            probs.append('"table" should be {"length_cm": ..., "width_cm": ...} or null')
+        else:
+            for k in ("length_cm", "width_cm", "drop_cm"):
+                if k in tb:
+                    num(tb[k], "table.%s" % k, null_ok=True)
+    if d.get("tracking") not in (None, "lights", "tags"):
+        probs.append('tracking should be "lights" or "tags", not %s' % json.dumps(d.get("tracking")))
+    rt = d.get("ref_tags")
+    if rt is not None and not isinstance(rt, dict):
+        probs.append('"ref_tags" should be {...}')
+    return probs
+
+
 def _check(d, name):
     probs = []
     seen_ids = {}
@@ -94,7 +179,8 @@ def _check(d, name):
             if r.get("name") not in (tags.get("ids") or {}):
                 probs.append("robot %s has no tag id (tags.ids)" % r.get("name"))
     if probs:
-        raise ValueError("site %s: %s" % (name, "; ".join(probs)))
+        raise SiteValueError("The site file tools/fleet/sites/%s.json has a value that cannot be used: %s. Nothing was "
+                            "started. Fix it, or switch site: ./run-fleet-pi.sh site home" % (name, "; ".join(probs)))
 
 
 def load(name=None):
@@ -102,10 +188,23 @@ def load(name=None):
     name = name or current_name()
     path = os.path.join(SITES_DIR, name + ".json")
     if not os.path.exists(path):
-        raise SystemExit("No site called %r (sites: %s). Make one: copy tools/fleet/sites/school-conference.json to "
-                         "tools/fleet/sites/%s.json and edit it." % (name, ", ".join(names()), name))
+        raise SiteFileError("No site called %r (sites: %s)%s. Nothing was started. Switch site: ./run-fleet-pi.sh site "
+                            "home, or make one: copy tools/fleet/sites/school-conference.json to tools/fleet/sites/%s.json "
+                            "and edit it." % (name, ", ".join(names()), " (chosen in %s)" % chosen_file()
+                                              if not os.environ.get("MIRLT_SITE") and name != DEFAULT_SITE else
+                                              " (MIRLT_SITE)" if os.environ.get("MIRLT_SITE") else "", name))
     with open(path) as f:
-        d = json.load(f)
+        text = f.read()
+    try:
+        d = json.loads(text)
+    except ValueError as e:
+        if hasattr(e, "lineno"):
+            raise SiteFileError(_json_error_words(path, text, e))
+        raise SiteFileError("The site file %s cannot be read: %s. Nothing was started." % (path, e))
+    tp = _type_problems(d)
+    if tp:
+        raise SiteFileError("The site file tools/fleet/sites/%s.json has values of the wrong kind: %s. Nothing was "
+                            "started. Fix it, or switch site: ./run-fleet-pi.sh site home" % (name, "; ".join(tp)))
     d = copy.deepcopy(d)
     d["name"] = name
     d.setdefault("title", name)
@@ -202,8 +301,11 @@ def main(argv=None):
     elif cmd == "list":
         cur = current_name()
         for n in names():
-            s = load(n)
-            print("%s %-20s %s" % ("*" if n == cur else " ", n, s["title"]))
+            try:
+                s = load(n)
+                print("%s %-20s %s" % ("*" if n == cur else " ", n, s["title"]))
+            except SiteFileError as e:
+                print("%s %-20s BROKEN: %s" % ("*" if n == cur else " ", n, str(e).splitlines()[0]))
     elif cmd == "use":
         if len(argv) < 2:
             raise SystemExit("Which site? python3 tools/fleet/sites.py use <name> (sites: %s)" % ", ".join(names()))

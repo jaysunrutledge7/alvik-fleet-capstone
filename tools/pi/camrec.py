@@ -678,6 +678,27 @@ def list_cameras(run=subprocess.run, devices=None, opener=None, log=print, secon
 DISK_GB_PER_CAM_10MIN = 0.5   # measured 2026-10-21/22: 2.9 GB for 63 min, 69 MB for 104 s at 25 fps (~0.45 GB per 10 min); was 2.0
 DISK_WARN_GB = 1.0            # during recording: one loud warning below this
 DISK_STOP_GB = 0.3            # during recording: stop and save cleanly below this (a full card corrupts video.avi)
+# (2026-11-03, risk review #6) the rate above was measured at 640 x 480, 25 a second. Bigger pictures write more: the
+# rate is scaled by the pixels and the rate of pictures (1280 x 960 at 15 a second: 2.4 x, 1.2 GB per 10 min a camera).
+# Linear in pixels is an upper bound for MJPG (a bigger picture of the same scene compresses a little better): the
+# warning comes early rather than late. The warn / stop lines are minutes of recording left, never under the old GB.
+DISK_REF_W, DISK_REF_H, DISK_REF_FPS = 640, 480, 25
+DISK_WARN_MIN = 10.0          # chosen: the old 1.0 GB was 10 min of two cameras at 640 x 480. No DOE: a margin
+DISK_STOP_MIN = 3.0           # chosen: the old 0.3 GB was 3 min of two cameras at 640 x 480. No DOE: a margin
+
+
+def disk_gb_per_cam_10min(width=DISK_REF_W, height=DISK_REF_H, fps=DISK_REF_FPS):
+    """GB one camera writes in 10 minutes at this picture size and rate (scaled from the 640 x 480 measurement)."""
+    return DISK_GB_PER_CAM_10MIN * (float(width) * height) / (DISK_REF_W * DISK_REF_H) * float(fps) / DISK_REF_FPS
+
+
+DISK_WARN_GB_, DISK_STOP_GB_ = DISK_WARN_GB, DISK_STOP_GB
+
+
+def disk_floors(sizes, fps=DISK_REF_FPS):
+    """(warn GB, stop GB) for cameras of these sizes [(w, h), ...]: minutes of recording left, at least the old lines."""
+    per_min = sum(disk_gb_per_cam_10min(w, h, fps) for w, h in sizes) / 10.0
+    return max(DISK_WARN_GB, per_min * DISK_WARN_MIN), max(DISK_STOP_GB, per_min * DISK_STOP_MIN)
 
 
 def free_gb(path):
@@ -687,20 +708,24 @@ def free_gb(path):
     return shutil.disk_usage(p).free / 1e9
 
 
-def disk_precheck(out, n_cams, seconds=0, log=print, free=None):
-    """Before starting: warn (lines starting with '!') if the card has less than
-    DISK_GB_PER_CAM_10MIN per camera per 10 minutes planned (10 minutes when no
-    --seconds is given). Returns (free GB, GB wanted, minutes that fit)."""
+def disk_precheck(out, n_cams, seconds=0, log=print, free=None, width=DISK_REF_W, height=DISK_REF_H,
+                  fps=DISK_REF_FPS):
+    """Before starting: warn (lines starting with '!') if the card has less than the recording needs for the minutes
+    planned (10 minutes when no --seconds is given): DISK_GB_PER_CAM_10MIN per camera per 10 minutes, scaled by the
+    picture size and rate (2026-11-03). Returns (free GB, GB wanted, minutes that fit)."""
     free = free_gb(out) if free is None else free
     minutes = seconds / 60.0 if seconds else 10.0
-    want = DISK_GB_PER_CAM_10MIN * n_cams * minutes / 10.0
-    fit = free / (DISK_GB_PER_CAM_10MIN * n_cams / 10.0)
+    per10 = disk_gb_per_cam_10min(width, height, fps)
+    want = per10 * n_cams * minutes / 10.0
+    fit = free / (per10 * n_cams / 10.0)
+    size = "" if (width, height, fps) == (DISK_REF_W, DISK_REF_H, DISK_REF_FPS) else \
+        f" at {width}x{height}, {fps} a second ({per10:.1f} GB per 10 min a camera)"
     if free < want:
-        log(f"! LOW DISK SPACE: {free:.1f} GB free in {out}; {n_cams} camera(s) for {minutes:.0f} min "
+        log(f"! LOW DISK SPACE: {free:.1f} GB free in {out}; {n_cams} camera(s){size} for {minutes:.0f} min "
             f"need about {want:.1f} GB. Roughly {fit:.0f} min fit.")
         log("! Copy old recordings to the laptop and delete them from the Pi (README: Copy recordings).")
     else:
-        log(f"Disk: {free:.1f} GB free, enough for about {fit:.0f} min with {n_cams} camera(s).")
+        log(f"Disk: {free:.1f} GB free, enough for about {fit:.0f} min with {n_cams} camera(s){size}.")
     return free, want, fit
 
 
@@ -1190,7 +1215,9 @@ def run_session(caps, devices, names=None, out="~/recordings", label="", seconds
         log("Type a note and press Enter to mark a moment. Ctrl+C stops.")
         start_notes(cams, stdin_notes, notes_port, log)
         if disk_check_s:
-            threading.Thread(target=watch_disk, args=(out, stop, disk_check_s, log, cams), daemon=True).start()
+            warn_gb, stop_gb = disk_floors([(c.w, c.h) for c in cams], fps)
+            threading.Thread(target=watch_disk, args=(out, stop, disk_check_s, log, cams),
+                             kwargs=dict(warn_gb=warn_gb, stop_gb=stop_gb), daemon=True).start()
 
     threads = []
     try:
@@ -1292,10 +1319,12 @@ def start_notes(cams, stdin_notes, notes_port, log=print):
         threading.Thread(target=net_notes, daemon=True).start()
 
 
-def watch_disk(out, stop, every_s, log=print, cams=(), free=None, keep_live=True):
-    """While recording: one loud warning below DISK_WARN_GB free; below
-    DISK_STOP_GB stop and save cleanly (a full card leaves a broken video.avi)."""
+def watch_disk(out, stop, every_s, log=print, cams=(), free=None, keep_live=True, warn_gb=None, stop_gb=None):
+    """While recording: one loud warning below warn_gb free; below stop_gb stop and save cleanly (a full card leaves
+    a broken video.avi). Defaults DISK_WARN_GB / DISK_STOP_GB; run_session passes disk_floors (picture size, cameras)."""
     free = free or free_gb
+    DISK_WARN_GB = DISK_WARN_GB_ if warn_gb is None else warn_gb      # noqa: N806
+    DISK_STOP_GB = DISK_STOP_GB_ if stop_gb is None else stop_gb      # noqa: N806
     warned = False
     while not stop.wait(every_s):
         try:
@@ -1393,7 +1422,7 @@ def main(argv=None):
         sys.exit(f"--names has {len(args.names)} name(s) but --device has {len(devices)} camera(s).")
     multi = len(devices) > 1
     if not args.no_record:
-        disk_precheck(args.out, len(devices), args.seconds)
+        disk_precheck(args.out, len(devices), args.seconds, width=args.width, height=args.height, fps=args.fps)
 
     caps = []
     for d in devices:

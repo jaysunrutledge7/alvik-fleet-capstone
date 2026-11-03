@@ -241,6 +241,31 @@ class Session:
         return tail[0] if len(tail) == 1 else None
 
 
+HEARD_FILE = os.environ.get("MIRLT_HEARD_FILE") or os.path.expanduser("~/.config/mirlt/heard_robots.json")
+
+
+def remember_robot(name, ip, path=None):
+    """Every robot a link hears goes in ~/.config/mirlt/heard_robots.json ({name: {ip, t}}), so the emergency stop
+    (tools/fleet/stop_all.py, 2026-11-03) reaches robots that have no fixed address. Never raises."""
+    path = path or HEARD_FILE
+    try:
+        try:
+            with open(path) as f:
+                d = json.load(f)
+            if not isinstance(d, dict):
+                d = {}
+        except (OSError, ValueError):
+            d = {}
+        d[str(name)] = {"ip": str(ip), "t": round(time.time(), 1)}
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        tmp = "%s.%d.tmp" % (path, os.getpid())
+        with open(tmp, "w") as f:
+            json.dump(d, f, indent=1)
+        os.replace(tmp, path)
+    except OSError:
+        pass
+
+
 def write_session_info(outdir):
     """Who, where and with what code this session was recorded."""
     try:
@@ -278,7 +303,7 @@ class Link:
         self.robot_ips = list(robot_ips)
         self.tx = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.tx.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-        self.session = Session(outdir, show_rows, on_new_robot=lambda n: self.send_name(n, "ping"))
+        self.session = Session(outdir, show_rows, on_new_robot=self._new_robot)
         write_session_info(outdir)
         self.rx = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         # No SO_REUSEADDR: with it, a second program on this port binds fine
@@ -298,6 +323,13 @@ class Link:
         for t in self.threads:
             t.start()
         self.send_all("ping")
+
+    def _new_robot(self, name):
+        self.send_name(name, "ping")
+        with self.session.lock:
+            r = self.session.robots.get(name)
+        if r is not None:
+            remember_robot(name, r["ip"])
 
     def send_ip(self, ip, cmd):
         self.tx.sendto(cmd.encode(), (ip, CMD_PORT))

@@ -50,6 +50,49 @@ FRAMES_GB_PER_H = 2.9   # measured, not chosen: 2026-10-27 21:34-22:03, both cam
                         # zipped to 1.42 GB in 29 min. A 4 h loop: ~12 GB of frames, ~24 GB with the upload's copy
 
 
+# (2026-11-03, risk review #6) the numbers above were measured with two cameras at 640 x 480. The frames saved and the
+# recorder's video grow with the picture's pixels and the number of cameras: the frames' floors, the hour's estimate and
+# the recorder's line scale with them (1280 x 960, two cameras: 4 x). At home (640 x 480, two cameras) nothing changes.
+REF_PIXELS = 640 * 480
+REF_CAMS = 2
+REC_GB_PER_CAM_H_REF = 3.0   # the recorder's video at 640 x 480, 25 a second (camrec.DISK_GB_PER_CAM_10MIN: 0.5 per 10
+                             # min, measured 2026-10-21/22)
+
+
+def capture(env=None):
+    """(width, height, fps, cameras) the recorder uses: the site's (the launcher's MIRLT_CAPTURE, MIRLT_CAPTURE_FPS,
+    MIRLT_CAMS), else 640 x 480, 25 a second, two cameras."""
+    env = os.environ if env is None else env
+    w, h = 640, 480
+    words = (env.get("MIRLT_CAPTURE") or "").split()
+    for k, v in zip(words, words[1:]):
+        if k == "--width" and v.isdigit():
+            w = int(v)
+        if k == "--height" and v.isdigit():
+            h = int(v)
+    try:
+        fps = float(env.get("MIRLT_CAPTURE_FPS") or 25)
+    except ValueError:
+        fps = 25.0
+    try:
+        cams = int(env.get("MIRLT_CAMS") or REF_CAMS)
+    except ValueError:
+        cams = REF_CAMS
+    return w, h, fps, cams
+
+
+def capture_scale(env=None):
+    """How much faster than the measured 640 x 480 two-camera numbers the frames grow (pixels x cameras); never under 1."""
+    w, h, fps, cams = capture(env)
+    return max(1.0, (w * h) / float(REF_PIXELS) * cams / float(REF_CAMS))
+
+
+def rec_gb_per_h(env=None):
+    """The recorder's video, GB an hour for all its cameras (camrec's rate scaled by pixels and pictures a second)."""
+    w, h, fps, cams = capture(env)
+    return REC_GB_PER_CAM_H_REF * (w * h) / float(REF_PIXELS) * fps / 25.0 * cams
+
+
 def free_gb(path):
     """Free space (GB, for this user) of the filesystem holding path (its nearest existing parent); None on error."""
     p = os.path.abspath(path)
@@ -157,10 +200,17 @@ class Guard:
     state(frames_bytes) -> dict(card_gb, frames_gb, frames_on_card, frames_ok, stop, why). `fake` (or MIRLT_FAKE_FREE)
     replaces the readings (GB) for tests and the dry run; fall(gb) lowers them (the dry run's falling disk)."""
 
-    def __init__(self, card=None, frames_dir=None, card_stop_gb=CARD_STOP_GB, card_frames_gb=CARD_FRAMES_GB,
-                 drive_frames_gb=DRIVE_FRAMES_GB, fake=None):
+    def __init__(self, card=None, frames_dir=None, card_stop_gb=CARD_STOP_GB, card_frames_gb=None,
+                 drive_frames_gb=None, fake=None, scale=None):
         self.card = card or os.path.join(REPO, "logs")
         self.frames_dir = frames_dir
+        # the frames' floors scale with the picture size and cameras (2026-11-03): the 1 GB between the frames' stop and
+        # the card's stays; the frames' own share grows. Given floors are used as they are
+        self.scale = capture_scale() if scale is None else float(scale)
+        if card_frames_gb is None:
+            card_frames_gb = card_stop_gb + (CARD_FRAMES_GB - CARD_STOP_GB) * self.scale
+        if drive_frames_gb is None:
+            drive_frames_gb = DRIVE_FRAMES_GB * self.scale
         self.card_stop_gb, self.card_frames_gb, self.drive_frames_gb = card_stop_gb, card_frames_gb, drive_frames_gb
         self.frames_on_card = frames_dir is None or same_fs(self.card, frames_dir)
         self.fake = dict(fake) if fake is not None else _fake()
@@ -216,7 +266,8 @@ class Guard:
         else:
             parts.append("Frames go to %s (USB drive: %.1f GB free; they stop under %.0f GB plus room for the "
                          "upload's copy; a 4 h loop needs about %.0f GB there)." % (
-                             self.frames_dir, self.frames_gb() or 0.0, self.drive_frames_gb, 8 * FRAMES_GB_PER_H))
+                             self.frames_dir, self.frames_gb() or 0.0, self.drive_frames_gb,
+                             8 * FRAMES_GB_PER_H * self.scale))
         parts.append("The Pi's card: %s GB free (the run ends cleanly under %.0f GB)." % (
             "?" if c is None else "%.1f" % c, self.card_stop_gb))
         return " ".join(parts)
@@ -300,9 +351,28 @@ def space(k=10, out=print):
     return 0
 
 
+def rec_words(d=None, env=None):
+    """The recorder's line: how fast its video grows and how long the place it writes to lasts."""
+    w, h, fps, cams = capture(env)
+    rate = rec_gb_per_h(env)
+    place = os.path.join(d, "recordings") if d else os.path.expanduser("~/recordings")
+    free = free_gb(place)
+    hours = (free / rate) if (free is not None and rate > 0) else None
+    line = "The recorder's video: about %.1f GB an hour (%d camera%s at %dx%d, %g a second) to %s%s" % (
+        rate, cams, "" if cams == 1 else "s", w, h, fps, "the USB drive" if d else "THE PI'S CARD (no USB drive)",
+        "" if hours is None else ": %.1f GB free there, about %.1f h" % (free, hours))
+    low = hours is not None and hours < 1.0
+    return line + ("." if not low else ". LOW: under an hour of video fits. Plug in a USB drive or free space "
+                                       "(./run-fleet-pi.sh space)."), low
+
+
 def preflight(session=None, out=print):
     """The start-up line for a run about to start; 1 when the card is under its floor (nothing should start)."""
     d = drive_mount()
+    try:
+        out(rec_words(d)[0])
+    except Exception:     # noqa: BLE001  (a words line never stops a run)
+        pass
     if d:
         frames = os.path.join(d, "fleet-frames", "<session>", "frames")
     else:

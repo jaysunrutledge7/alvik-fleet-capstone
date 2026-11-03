@@ -267,25 +267,55 @@ class TagJob:
         self.save()
         return self.d["result"]
 
-    def refit(self, run_folder, use=False):
-        import site_fit as SF
+    def _refit_inputs(self, run_folder):
         ob = os.path.join(self.cal_dir if not run_folder or "-sim" not in run_folder else self.sim_cal_dir(), "obs.json")
         to = os.path.join(run_folder, "bridge", "tag_obs.csv")
         for cand in (os.path.join(run_folder, "tagcal", "obs.json"), ob):
             if os.path.exists(cand):
                 ob = cand
                 break
-        if not (os.path.exists(ob) and os.path.exists(to)):
-            raise ValueError("no setup or no tag reads to refit with (%s, %s)" % (ob, to))
+        return ob, to
+
+    def refit_live(self, run_folder):
+        """The last run's refit: none / running (seconds so far) / done / failed (site_fit.refit_status)."""
+        import site_fit as SF
+        if not run_folder:
+            return {"state": "none"}
+        return SF.refit_status(os.path.join(run_folder, "tagcal_refit"))
+
+    def refit(self, run_folder, use=False, wait=False):
+        """The Refit button (2026-11-03): the run's own refit is REUSED when it is done (the run starts it in the
+        background); while it runs, says so; when there is none (auto refit off, or it failed), starts one in the
+        background and returns at once. wait=True: the old way (computed here, the request waits for it)."""
+        import site_fit as SF
+        ob, to = self._refit_inputs(run_folder)
         out = os.path.join(run_folder, "tagcal_refit")
-        res = SF.refit(ob, to, out)
-        self.d["refit"] = {"folder": out, "size_cm": res["size_cm"], "words": res["words"], "rms_px": res["rms_px"]}
+        st = SF.refit_status(out) if run_folder else {"state": "none"}
+        if st["state"] == "running":
+            return {"running": True, "folder": out, "words": [
+                "The refit from this run is still running in the background (%.0f s so far; a few minutes on the Pi). "
+                "This card fills in by itself when it is done; then Use the refit." % st.get("seconds", 0)]}
+        if st["state"] != "done" or wait:
+            if not (os.path.exists(ob) and os.path.exists(to)):
+                raise ValueError("no setup or no tag reads to refit with (%s, %s)" % (ob, to))
+            if not wait:
+                SF.start_refit_bg(ob, to, out)
+                return {"running": True, "folder": out, "words": [
+                    "Refit started in the background (a few minutes on the Pi%s). This card fills in by itself when it "
+                    "is done." % ("; the run's own refit had failed: %s" % st.get("why") if st["state"] == "failed"
+                                  else "")]}
+            res = SF.refit(ob, to, out)
+            st = {"state": "done", "size_cm": res["size_cm"], "words": res["words"], "rms_px": res["rms_px"]}
+        self.d["refit"] = {"folder": out, "size_cm": st.get("size_cm"), "words": st.get("words") or [],
+                           "rms_px": st.get("rms_px"), "reused": not wait}
         if use:
             bk = self.cal_dir + "-before-" + time.strftime("%Y%m%d-%H%M%S")
             if os.path.isdir(self.cal_dir):
                 shutil.copytree(self.cal_dir, bk)
             os.makedirs(self.cal_dir, exist_ok=True)
             for f in os.listdir(out):
+                if f in ("status.json", "refit.txt") or f.endswith(".tmp"):
+                    continue          # the background refit's own notes stay with the run
                 shutil.copy(os.path.join(out, f), os.path.join(self.cal_dir, f))
             self.d["refit"]["used"] = True
         self.save()

@@ -216,7 +216,9 @@ def resolve_site(args):
     if site is None:
         try:
             site = SI.load()
-        except SystemExit:
+        except SystemExit as e:
+            if SI.is_site_file_error(e):
+                raise            # a broken or missing chosen site stops loudly (2026-11-03), never home in silence
             site = None
     tr = args.tracking if args.tracking != "auto" else ((site or {}).get("tracking") or "lights")
     args.tracking_ = tr
@@ -591,7 +593,17 @@ def run(args):
         p_, counts = ST.export_timeline(out)
         summ["pose_timeline"] = {"file": p_, "rows": counts}
         say("pose timeline: %s (%s)" % (p_, ", ".join("%s %d" % kv for kv in counts.items())))
-        if args.tracking_ == "tags" and args.refit:
+        if args.tracking_ == "tags" and getattr(args, "refit_bg", False):
+            import site_fit as SF
+            ob = os.path.join(out, "tagcal", "obs.json") if args.dry else os.path.join(
+                (args.site_ or {}).get("conf_dir") or "", "tagcal", "obs.json")
+            to = os.path.join(out, "bridge", "tag_obs.csv")
+            if os.path.exists(ob) and os.path.exists(to):
+                st = SF.start_refit_bg(ob, to, os.path.join(out, "tagcal_refit"), python=PY, cwd=REPO)
+                summ["refit"] = {"background": True, "folder": os.path.join(out, "tagcal_refit"), "state": st["state"]}
+                say("refit started in the background (its own process, a few minutes; the run is over and nothing waits "
+                    "for it): %s" % os.path.join(out, "tagcal_refit"))
+        if args.tracking_ == "tags" and args.refit and not getattr(args, "refit_bg", False):
             import site_fit as SF
             ob = os.path.join(out, "tagcal", "obs.json") if args.dry else os.path.join(
                 (args.site_ or {}).get("conf_dir") or "", "tagcal", "obs.json")
@@ -751,7 +763,11 @@ def main(argv=None):
                     help="how the cameras find the robots: the site's (auto), their lights, or their roof AprilTags")
     ap.add_argument("--session-id", default="", help="the session id both teams write down (Mission Control's)")
     ap.add_argument("--refit", action="store_true", help="tags: after the run, fit the cameras again with the run's "
-                                                          "tag reads (saved beside the run, not used until chosen)")
+                                                          "tag reads (saved beside the run, not used until chosen); "
+                                                          "the run's end waits for it (the old way)")
+    ap.add_argument("--refit-bg", action="store_true", help="tags: the same refit, started in the background as its own "
+                                                             "process (2026-11-03): the run ends at once; its folder's "
+                                                             "tagcal_refit/status.json says when it is done")
     g.add_argument("--cam-size", default="1280x960", help="tags: the simulated cameras' picture size")
     g.add_argument("--tag-gap", action="append", default=[], metavar="NAME@T:DUR",
                    help="tags: that robot's tag covered (unreadable) from T s after the plan starts for DUR s")
