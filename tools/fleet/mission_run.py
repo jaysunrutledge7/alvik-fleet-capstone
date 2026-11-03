@@ -720,6 +720,12 @@ def run(args):
     elif not args.no_frames:
         try:
             import doe_loop as DL
+            if (args.site_ or {}).get("frames_part_s"):
+                # (2026-11-03) the tracking-rate pictures are held in memory until each .avi part is written: 5 min
+                # parts took the simulator's mission_run to 1.2 GB, 3 GB while writing (the 450 s experiments). A site
+                # may cut shorter parts (school: 60 s); home keeps doe_loop's 300 s
+                DL.PART_S = float(args.site_["frames_part_s"])
+                say("frames: .avi parts of %.0f s (the site's frames_part_s)" % DL.PART_S)
             streams = [("overhead", stream, 12.0)] + ([("side", side_stream, 10.0)] if scal else [])
             if args.dry:
                 time.sleep(0.1)

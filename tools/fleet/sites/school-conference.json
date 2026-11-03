@@ -185,5 +185,7 @@
    "deg": 90.0,
    "pause_s": 1.0
   }
- }
+ },
+ "_note_frames_part_s": "frames_part_s: the tracking-rate pictures are cut into .avi parts this long (s); each part is held in memory until written (300 s parts: 1.2 GB, 3 GB while writing, in the simulator's longest experiment). 60 s at school (Claude's choice, 3 Nov); delete the line for the old 300 s.",
+ "frames_part_s": 60.0
 }

@@ -161,7 +161,7 @@ def experiment_orders(site, pts, zones, homes_xy, exp, swap=False, seed=None):
     traded = {n: [] for n in hv}
     if kind in ("reversed", "zigzag", "shuffled"):
         traded, hv = trade(hv, pts, int(c["cross_points"]), rng, mid)
-    out, seed_used = {}, seed
+    out, tries_used = {}, {}
     for n, own in hv.items():
         if kind == "default":
             out[n] = PR.short_order(homes_xy[n][:2], own, pts)
@@ -180,7 +180,7 @@ def experiment_orders(site, pts, zones, homes_xy, exp, swap=False, seed=None):
                 if not traded[n] or crossings(cand, pts, homes_xy[n], mid) >= MIN_CROSS_LEGS:
                     break
             out[n] = cand
-            seed_used = "%d-%s-%s-%d" % (seed, exp, n, tries) if n == list(hv)[0] else seed_used
+            tries_used[n] = "%d-%s-%s-%d" % (seed, exp, n, tries)     # the exact shuffle's seed (random.Random)
     meta = {"id": exp, "name": KINDS[exp]["name"], "order_kind": kind, "is_experiment": KINDS[exp]["experiment"],
             "swap_halves": bool(swap), "seed": seed, "middle_x_in": c["middle_in"],
             "cross_points_each": int(c["cross_points"]) if kind in ("reversed", "zigzag", "shuffled") else 0,
@@ -189,7 +189,7 @@ def experiment_orders(site, pts, zones, homes_xy, exp, swap=False, seed=None):
             "crossings": {n: crossings(v, pts, homes_xy[n], mid) for n, v in out.items()},
             "halves": {n: sorted(set(zones[l] for l in v)) for n, v in halves(site, labels, zones, swap).items()}}
     if kind == "shuffled":
-        meta["shuffle_seeds"] = {n: "%d-%s-%s-<try>" % (seed, exp, n) for n in out}
+        meta["shuffle_seeds"] = tries_used
     return out, meta
 
 

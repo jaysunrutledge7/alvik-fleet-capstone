@@ -87,9 +87,9 @@ For each experiment, in order 1, 2, 3, 4:
 ./run-fleet-pi.sh jay-bundle
 ```
 
-You should see `the newest run: .../logs/mission-control-school-conference/runs/<date-time>-run-robots`, then
+You should see `the newest run: .../logs/mission-control-school-conference/runs/<date-time>-mission-robots`, then
 `camera track: ... (Alpha N, Bravo N)`, `wheel+gyro odometry, no camera corrections: ...`, and finally
-`bundle for Jay-Sun: .../jay-raw-<date-time>-run-robots.zip (24 files, ...)`.
+`bundle for Jay-Sun: .../jay-raw-<date-time>-mission-robots.zip (about 25 files, ... MB)`.
 
 For an older run, give its folder (Review shows the folder name):
 

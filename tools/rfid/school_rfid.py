@@ -450,8 +450,9 @@ WIGGLE_PRE_S = 6.0       # the wiggle's window: from this long before its start 
 WIGGLE_POST_S = 0.5      # ... to this long after its end (the experiments drive off at once). Chosen; DOE note: 3 / 6 /
                          # 10 s against the offset error on fakes
 WIGGLE_STEP_S = 0.02
-WIGGLE_FLOOR_S = 0.1     # smallest stated half-range of the wiggle's clock shift (s): from the fakes (build report
-                         # e02-nov03-experiments-routes-data); DOE note: real wiggle vs the reader's own clock
+WIGGLE_FLOOR_S = 0.15    # smallest stated half-range of the wiggle's clock shift (s): the largest error on the fakes
+                         # was 0.12 s (build report e02-nov03-experiments-routes-data: 0.10 left one of 9 outside);
+                         # DOE note: real wiggle vs the reader's own clock
 
 
 def load_wiggle(session):
