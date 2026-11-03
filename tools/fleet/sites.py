@@ -16,6 +16,16 @@ A site (tools/fleet/sites/<name>.json) says:
                 tag_bridge.py)
   tags          family, printed size, roof size and height, each robot's tag id, spares
   table         the table's size when it is known (typed: a check on the measured one), else null
+  (2026-11-03, school sticker points)
+  points        {"use": "typed" | "clicked", "file": "<site>-points.csv", "overrides": [...]}: production points typed
+                (Jay's sheet, sticker_points.py) or clicked in the pictures (the old way, the default)
+  edge_in_cm    a point's robot centre at least this far from an open edge (default 17, home's)
+  homes         {"use": "points" | "middle", "<robot>": "<point>", "face_deg": 90}: homes at named points, or the
+                old homes near the table's middle (the default)
+  keepouts      [{"name", "centre_in", "size_in", "solid", "use", "note"}]: the site's own keep-out rectangles
+  production    {"zones": {"<robot>": [zones]}, "orders": null | {...}, "dwell_s": 3}: the default production mission
+  run_tracking  "tags" | "lights" | "none": how the robots are followed during a run (default: the site's tracking).
+                none = odometry only (each robot placed on its home by hand)
 
 Which site is used: MIRLT_SITE in the environment, else the one saved by `sites.py use <name>` (the file
 ~/.config/mirlt/site), else home.
@@ -55,6 +65,10 @@ NAME_RE = re.compile(r"^[A-Za-z0-9_-]{1,10}$")    # the firmware keeps at most 1
 POLICY_WORDS = {"on_problem": ("keep_going", "stop"), "feel_out_trust": ("camera", "sensor"),
                 "lost_robot_points": ("reassign", "skip")}
 POLICY_DEFAULTS = {"on_problem": "stop", "feel_out_trust": "sensor", "lost_robot_points": "reassign"}
+
+RUN_TRACKING_WORDS = {"tags": "roof AprilTags (tag bridge)",
+                      "lights": "the robots' lights and outlines (camera bridge; corners clicked)",
+                      "none": "no camera: odometry only (robots placed on their homes by hand; +- grows 0.07 cm per cm)"}
 
 ROBOT_COLOURS = ["#2952CC", "#C2410C", "#7A3EC8", "#12805C", "#B54708", "#0E7490"]
 
@@ -166,6 +180,18 @@ def _type_problems(d):
             for k in ("length_cm", "width_cm", "drop_cm"):
                 if k in tb:
                     num(tb[k], "table.%s" % k, null_ok=True)
+    if d.get("run_tracking") not in (None, "lights", "tags", "none"):
+        probs.append('run_tracking should be "tags", "lights" or "none", not %s' % json.dumps(d.get("run_tracking")))
+    pt = d.get("points")
+    if pt is not None and (not isinstance(pt, dict) or pt.get("use", "clicked") not in ("typed", "clicked")):
+        probs.append('"points" should be {"use": "typed" or "clicked", "file": ...}')
+    if "edge_in_cm" in d:
+        num(d["edge_in_cm"], "edge_in_cm")
+    hm = d.get("homes")
+    if hm is not None and (not isinstance(hm, dict) or hm.get("use", "middle") not in ("points", "middle")):
+        probs.append('"homes" should be {"use": "points" or "middle", ...}')
+    if d.get("keepouts") is not None and not isinstance(d.get("keepouts"), list):
+        probs.append('"keepouts" should be a list [{...}]')
     if d.get("tracking") not in (None, "lights", "tags"):
         probs.append('tracking should be "lights" or "tags", not %s' % json.dumps(d.get("tracking")))
     rt = d.get("ref_tags")
@@ -241,6 +267,7 @@ def load(name=None):
     d.setdefault("cameras", {"overhead": {"label": "overhead camera"}, "side": {"label": "side camera"}})
     d.setdefault("capture", {"width": 640, "height": 480, "fps": 25})
     d.setdefault("table", None)
+    d.setdefault("run_tracking", d["tracking"])
     for k, v in POLICY_DEFAULTS.items():
         d.setdefault(k, v)
     cd = d.get("conf_dir") or (BASE_CONF if name == DEFAULT_SITE else BASE_CONF + "/sites/" + name)
@@ -313,6 +340,11 @@ def words(site=None):
              "  Mission Control's folder: %s" % os.path.relpath(s["mc_dir"], REPO)]
     if s.get("table"):
         lines.append("  table (typed): %s x %s cm" % (s["table"].get("length_cm"), s["table"].get("width_cm")))
+    if s.get("run_tracking", s["tracking"]) != s["tracking"] or s.get("points"):
+        lines.append("  during a run: %s" % RUN_TRACKING_WORDS.get(s.get("run_tracking"), s.get("run_tracking")))
+    if (s.get("points") or {}).get("use") == "typed":
+        lines.append("  production points: typed (%s), %d correction(s) to confirm; edge room %s cm" % (
+            s["points"].get("file"), len(s["points"].get("overrides") or []), s.get("edge_in_cm", 17)))
     lines.append("  on a problem: %s" % ("keep going (said once, logged, worked round; stops only for a full card, "
                                           "Stop, or every robot out); a lost robot's points %s" % (
                                               "go to the robots still running" if s.get("lost_robot_points") ==

@@ -11,7 +11,15 @@
             readings for the external recorder), then home. The planner keeps the two 8 cm apart (the net); a point
             the robots cannot reach safely is moved in from the edge and said, never a stop.
 
+  typed     (2026-11-03) a site may give its points typed (Jay's sticker sheet: sticker_points.py, the site's "points":
+            {"use": "typed"}): the typed spots are the production points, the cameras or corner tags only fix the frame.
+            "use": "clicked" is the old way (each sticker clicked), kept as the switch. The site also gives its edge
+            room ("edge_in_cm"), its homes at named points ("homes": {"use": "points"}; "middle" = the old homes),
+            keep-outs of its own ("keepouts": a raised box) and its default production orders ("production": zones
+            per robot, nearest-neighbour order with 2-opt, or typed orders)
+
     python3 tools/fleet/production.py --table 396x168 --points 1:40,30 2:300,120 --order Alpha=1,2 --order Bravo=2,1
+    python3 tools/fleet/production.py --site school-conference      # the site's typed points, homes, box and orders
 """
 import argparse
 import copy
@@ -41,8 +49,16 @@ EDGE_IN_CM = 17.0        # a point closer than this to an open edge (the robot's
                          # body's nearest corner 10 cm from an open edge by plan, turns included). No DOE: Nick's rule
 
 
-def homes(L, W, names, gap_cm=HOME_GAP_CM, x0=0.0, y0=0.0):
-    """{robot: [x, y, heading]}: equidistant from the table's middle along x, gap_cm apart, facing HOME_FACE_DEG."""
+def homes(L, W, names, gap_cm=HOME_GAP_CM, x0=0.0, y0=0.0, at=None):
+    """{robot: [x, y, heading]}: equidistant from the table's middle along x, gap_cm apart, facing HOME_FACE_DEG.
+    at: {robot: [x, y(, heading)]} given homes (a site's homes at named points, 2026-11-03); the others as before."""
+    if at:
+        out = homes(L, W, [n for n in names if n not in at], gap_cm, x0, y0) if any(n not in at for n in names) else {}
+        for n in names:
+            if n in at:
+                h = list(at[n])
+                out[n] = [round(float(h[0]), 2), round(float(h[1]), 2), float(h[2]) if len(h) > 2 else HOME_FACE_DEG]
+        return {n: out[n] for n in names}
     n = len(names)
     cx, cy = x0 + L / 2.0, y0 + W / 2.0
     out = {}
@@ -109,32 +125,36 @@ def clear_keepouts(points, keepouts, r=BODY_R_CM):
                         c = np.mean(np.asarray(k["polygon"], float), axis=0)
                         v = (q - c) / max(1e-9, np.linalg.norm(q - c))
                     p = q + v * (r + 0.5)
-                    moved = True
+                    moved = k.get("name") or "a keep-out"
         if moved:
-            words.append("WARNING: point %s at (%.1f, %.1f) was on or beside a reference tile: the robot goes to "
-                         "(%.1f, %.1f) instead" % (lab, xy[0], xy[1], p[0], p[1]))
+            what = "a reference tile" if str(moved).startswith("reference") else "the " + str(moved)
+            words.append("WARNING: point %s at (%.1f, %.1f) was on or beside %s: the robot goes to "
+                         "(%.1f, %.1f) instead" % (lab, xy[0], xy[1], what, p[0], p[1]))
         out[lab] = [round(float(p[0]), 2), round(float(p[1]), 2)]
     return out, words
 
 
-def site_map(table, names, points=None, gap_cm=HOME_GAP_CM, outline=None, keepouts=None):
+def site_map(table, names, points=None, gap_cm=HOME_GAP_CM, outline=None, keepouts=None, room_cm=EDGE_IN_CM,
+             home_at=None, keepout_r=BODY_R_CM):
     """The workspace map of a site's table: the measured rectangle, every side an open edge (a conference table has no
     walls), the production points as spots, each robot's start and park at its home. outline [x0, y0, x1, y1]: the
     table's outline when it is not (0, 0, L, W) (the feel-out moved a side: feel_table.py); table is then ignored.
-    keepouts: areas no robot drives over (the reference tags' tiles, 2026-11-03: ref_tags.keepouts)."""
+    keepouts: areas no robot drives over (the reference tags' tiles, 2026-11-03: ref_tags.keepouts; a site's own, e.g.
+    the school's raised box). room_cm: the edge room for the points (a site's edge_in_cm). home_at: {robot: [x, y,
+    heading]} homes at given spots (a site's homes at points), else the middle homes."""
     if outline:
         x0, y0, x1, y1 = (float(v) for v in outline)
     else:
         x0, y0, x1, y1 = 0.0, 0.0, float(table[0]), float(table[1])
     L, W = x1 - x0, y1 - y0
-    hs = homes(L, W, names, gap_cm, x0=x0, y0=y0)
+    hs = homes(L, W, names, gap_cm, x0=x0, y0=y0, at=home_at)
     m = WS.blank_map((x0, y0, x1, y1), [(n, hs[n]) for n in names])
     for k in FM.SIDES:
         m = WS.set_side(m, k, "open", source="conference table (Nick: no walls)")
-    pts, words = clamp_points(points or {}, L, W, x0=x0, y0=y0)
+    pts, words = clamp_points(points or {}, L, W, room_cm=room_cm, x0=x0, y0=y0)
     m = copy.deepcopy(m)
     if keepouts:
-        pts, w2 = clear_keepouts(pts, keepouts)
+        pts, w2 = clear_keepouts(pts, keepouts, r=keepout_r)
         words = words + w2
     m["spots"] = pts
     if keepouts:
@@ -150,12 +170,19 @@ def save_map(mw, path):
     return path
 
 
-def program(orders, dwell_s=DWELL_S, home=True, name="production"):
-    """A production program (missions.build blocks). orders: {robot: [point labels in order]}."""
+def program(orders, dwell_s=DWELL_S, home=True, name="production", at_home=None):
+    """A production program (missions.build blocks). orders: {robot: [point labels in order]}. at_home: {robot: label}
+    of the point at its home (2026-11-03): when it is the robot's first point it is done where the robot stands (the
+    stand only, no drive away and back)."""
     blocks = []
     robots = list(orders)
+    at_home = {n: str(v).upper() for n, v in (at_home or {}).items()}
     for n, labs in orders.items():
-        for lab in labs:
+        for k, lab in enumerate(labs):
+            if k == 0 and at_home.get(n) == str(lab).upper():
+                blocks.append({"block": "wait", "robots": [n], "seconds": float(max(dwell_s, 0.5)),
+                               "label": "at point %s" % str(lab).upper()})
+                continue
             blocks.append({"block": "go-to-spot", "robot": n, "spot": str(lab).upper(),
                            "label": "point %s" % str(lab).upper()})
             if dwell_s > 0:
@@ -164,7 +191,149 @@ def program(orders, dwell_s=DWELL_S, home=True, name="production"):
         if home:
             blocks.append({"block": "go-home", "robot": n})
     return {"name": name, "robots": robots, "blocks": blocks, "production": {"orders": orders, "dwell_s": dwell_s,
-                                                                             "home": home}}
+                                                                             "home": home, "at_home": at_home}}
+
+
+# ---------------------------------------------------------------- a site's own production setup (2026-11-03)
+def site_edge_cm(site):
+    """The site's edge room for the points: "edge_in_cm" (school: 13), else EDGE_IN_CM (home: 17, as before)."""
+    v = (site or {}).get("edge_in_cm")
+    return EDGE_IN_CM if v is None else float(v)
+
+
+def turn_room(L, W):
+    """The room the planner needs round a point to turn there (its turn_thr: the body's turn circle + its safety margin,
+    8.2 cm today) + 0.3 cm: a point beside a site keep-out is moved this far clear, so it is reached, not skipped (the
+    school's first plan skipped P12 and P21 at 7.2-7.3 cm from the 12 x 12 in box with BODY_R_CM)."""
+    import planner as PL
+    try:
+        m, _ = site_map((L, W), ["a"])
+        return float(PL.Planner(m).grid.turn_thr) + 0.3
+    except Exception:      # noqa: BLE001
+        return BODY_R_CM + 2.0
+
+
+def site_keepouts(site):
+    """The site's own keep-outs ("keepouts": [{name, centre_in or centre_cm, size_in or size_cm, solid, note}]):
+    rectangles on the table (the school's raised box, 12 x 12 in until Nick measures it). The planner keeps the
+    robot's body clear of each (its own clearance); a point beside one is moved clear of it (clear_keepouts)."""
+    out = []
+    for k in (site or {}).get("keepouts") or []:
+        if k.get("use", True) is False:
+            continue
+        if "centre_in" in k:
+            cx, cy = (float(v) * 2.54 for v in k["centre_in"])
+        else:
+            cx, cy = (float(v) for v in k["centre_cm"])
+        if "size_in" in k:
+            sx, sy = (float(v) * 2.54 for v in k["size_in"])
+        else:
+            sx, sy = (float(v) for v in k["size_cm"])
+        poly = [[cx - sx / 2, cy - sy / 2], [cx + sx / 2, cy - sy / 2], [cx + sx / 2, cy + sy / 2],
+                [cx - sx / 2, cy + sy / 2]]
+        d = {"name": k.get("name", "keep-out"), "polygon": [[round(a, 2), round(b, 2)] for a, b in poly],
+             "source": "site keep-out (%s)" % (k.get("note") or "site file")}
+        if k.get("solid", True):
+            d["solid"] = True
+        out.append(d)
+    return out
+
+
+def site_home_at(site, points):
+    """{robot: [x, y, heading]} when the site's homes are at named points ("homes": {"use": "points", "Alpha": "P11",
+    ...}), else None (the middle homes, as before: "use": "middle")."""
+    h = (site or {}).get("homes") or {}
+    if h.get("use", "middle") != "points":
+        return None
+    face = float(h.get("face_deg", HOME_FACE_DEG))
+    out = {}
+    for r in (site or {}).get("robots") or []:
+        lab = h.get(r["name"])
+        if lab is None:
+            continue
+        lab = str(lab).upper()
+        if lab not in points:
+            raise ValueError("home of %s is point %s, which is not a production point" % (r["name"], lab))
+        out[r["name"]] = [points[lab][0], points[lab][1], face]
+    return out or None
+
+
+def site_home_points(site):
+    h = (site or {}).get("homes") or {}
+    if h.get("use", "middle") != "points":
+        return {}
+    return {r["name"]: str(h[r["name"]]).upper() for r in (site or {}).get("robots") or [] if h.get(r["name"])}
+
+
+def tour_len(start, labs, pts, back=True):
+    p, d = start, 0.0
+    for l in labs:
+        d += math.hypot(pts[l][0] - p[0], pts[l][1] - p[1])
+        p = pts[l]
+    if back:
+        d += math.hypot(start[0] - p[0], start[1] - p[1])
+    return d
+
+
+def short_order(start, labs, pts, back=True):
+    """A short order through labs from start (and back): nearest neighbour, then 2-opt until nothing shortens it.
+    Not the proven shortest; within a few % of it for 20 points."""
+    left, p, out = list(labs), start, []
+    while left:
+        nxt = min(left, key=lambda l: (math.hypot(pts[l][0] - p[0], pts[l][1] - p[1]), l))
+        out.append(nxt)
+        left.remove(nxt)
+        p = pts[nxt]
+    best = tour_len(start, out, pts, back)
+    better = True
+    while better:
+        better = False
+        for i in range(len(out) - 1):
+            for j in range(i + 1, len(out)):
+                cand = out[:i] + out[i:j + 1][::-1] + out[j + 1:]
+                c = tour_len(start, cand, pts, back)
+                if c < best - 1e-6:
+                    out, best, better = cand, c, True
+    return out
+
+
+def site_orders(site, points, zones, home_xy):
+    """The site's default production orders: "production": {"orders": {robot: [labels]}} as typed, else each robot's
+    zones ("zones": {"Alpha": [1, 2], ...}) in a short order from its home and back; the point at its home first."""
+    pr = (site or {}).get("production") or {}
+    if pr.get("orders"):
+        return {n: [str(x).upper() for x in v] for n, v in pr["orders"].items()}
+    hp = site_home_points(site)
+    out = {}
+    for n, zs in (pr.get("zones") or {}).items():
+        labs = [k for k in points if zones.get(k) in set(int(z) for z in zs)]
+        first = [hp[n]] if hp.get(n) in labs else []
+        rest = [k for k in labs if k not in first]
+        out[n] = first + short_order(home_xy[n][:2], rest, points)
+    return out
+
+
+def site_production(site, names=None, table=None, outline=None, keepouts=None, seen=None):
+    """A site with typed points (sticker_points.py): (map, words, program, orders). table: (L, W) measured (else the
+    site's typed size); keepouts: more keep-outs (the reference tiles); seen: {label: [x, y]} stickers the cameras
+    fitted (the old click way): any far from its typed spot is flagged, never moved."""
+    import sticker_points as SP
+    names = names or [r["name"] for r in site["robots"]]
+    pts, zones, words = SP.points_cm(site)
+    tb = site.get("table") or {}
+    L, W = table or (float(tb.get("length_cm") or 396.24), float(tb.get("width_cm") or 167.64))
+    at = site_home_at(site, pts)
+    kos = site_keepouts(site) + list(keepouts or [])
+    m, w2 = site_map((L, W), names, points=pts, outline=outline, keepouts=kos, room_cm=site_edge_cm(site),
+                     home_at=at, keepout_r=turn_room(L, W))
+    words = list(words) + list(w2) + SP.flag_seen(pts, seen)
+    m["notes"] = ["production points typed (%s)" % os.path.basename(SP.points_file(site))] + words
+    homes_ = {r["name"]: r["start"] for r in m["robots"]}
+    orders = site_orders(site, m["spots"], zones, homes_)
+    orders = {n: v for n, v in orders.items() if n in names}
+    pr = site.get("production") or {}
+    prog = program(orders, dwell_s=float(pr.get("dwell_s", DWELL_S)), at_home=site_home_points(site))
+    return m, words, prog, orders
 
 
 def parse_orders(specs):
@@ -191,7 +360,20 @@ def main(argv=None):
     ap.add_argument("--points", nargs="*", default=[], help="LABEL:x,y")
     ap.add_argument("--order", action="append", default=[], help="ROBOT=1,2,3")
     ap.add_argument("--out", default="")
+    ap.add_argument("--site", default="", help="a site with typed points: its map, words and default orders")
     a = ap.parse_args(argv)
+    if a.site:
+        import sites as SI
+        m, words, prog, orders = site_production(SI.load(a.site))
+        print("\n".join(words))
+        for n, labs in orders.items():
+            print("%s: %s" % (n, ", ".join(labs)))
+        if a.out:
+            os.makedirs(a.out, exist_ok=True)
+            save_map(m, os.path.join(a.out, "map.json"))
+            with open(os.path.join(a.out, "program.json"), "w") as f:
+                json.dump(prog, f, indent=1)
+        return 0
     L, W = (float(v) for v in a.table.split("x"))
     pts = {}
     for p in a.points:

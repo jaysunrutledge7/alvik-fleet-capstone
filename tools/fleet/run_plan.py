@@ -1881,8 +1881,13 @@ class Coordinator:
             ago = t1 - getattr(b, "acc_t", t1)
             rec.update(x=round(own[0], 2), y=round(own[1], 2), plus_minus_cm=round(u, 1), source="odometry only",
                        two_camera_share=0.0, since_fix_cm=d, since_fix_s=round(ago, 1))
-            words = "%s (%s): \u00b1%.1f cm, odometry for %.0f cm since the last camera fix (%.0f s ago)" % (
-                point, b.name, u, d, ago)
+            if getattr(b, "fix_log", None) or getattr(b, "last_fix_unc", None) is not None:
+                words = "%s (%s): \u00b1%.1f cm, odometry for %.0f cm since the last camera fix (%.0f s ago)" % (
+                    point, b.name, u, d, ago)
+            else:
+                # no camera this run (tracking none, 2026-11-03): from the hand-placed start, not a camera fix
+                words = "%s (%s): \u00b1%.1f cm, odometry for %.0f cm since the start (no camera this run)" % (
+                    point, b.name, u, d)
         else:
             rec.update(x=None, y=None, plus_minus_cm=None, source="none", since_fix_cm=None, since_fix_s=None)
             words = "%s (%s): no position (no camera fix and no pose of its own)" % (point, b.name)

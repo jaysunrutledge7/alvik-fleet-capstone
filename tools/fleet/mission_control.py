@@ -73,6 +73,10 @@ RUN_DEFAULTS = {
     "straighten": True,               # a robot off its start pose is turned on the spot or driven to its spot, then
                                       # checked again, instead of a stop (run_plan --straighten, 2026-10-29 15:41).
                                       # Not for the warm-up (it starts where the robots stand, as before)
+    "tracking": "",                   # "" = the site's run_tracking; "tags" (roof AprilTags), "lights" (the robots' lights,
+                                      # corners clicked) or "none" (no camera: odometry only, robots placed on their
+                                      # homes by hand). The Run screen's selector (2026-11-03, Nick: "with or without
+                                      # tags")
     "on_problem": "",                 # "" = the site's on_problem (home: stop; school: keep_going); "keep_going" or
                                       # "stop" for the runs from this page (the Run screen's tick-box, 2026-11-03)
     "mirror": True,                   # a mirrored mission (Monday: Left and Right) is re-timed so they reach matching
@@ -270,6 +274,40 @@ class Session:
                     self.map = m
                     self.save_map()
                 open(os.path.join(self.dir, "map.json.tagsite"), "w").close()
+            self.load_typed_points()
+
+    def load_typed_points(self, force=False):
+        """A site with typed production points (Jay's sticker sheet, 2026-11-03): the map with its points, homes and
+        raised box, and the default production mission loaded ready to run. Made again whenever the points file or the
+        site's settings change (a marker with their fingerprint), never over a Measure of the same inputs."""
+        import sticker_points as SP
+        if not (self.site and SP.typed_on(self.site)):
+            return None
+        import hashlib
+        import production as PR
+        with open(SP.points_file(self.site), "rb") as f:
+            fp = hashlib.sha1(f.read() + json.dumps({k: self.site.get(k) for k in (
+                "points", "edge_in_cm", "homes", "keepouts", "production", "table")}, sort_keys=True,
+                default=str).encode()).hexdigest()[:12]
+        mark = os.path.join(self.dir, "map.json.typed-" + fp)
+        if os.path.exists(mark) and not force and self.program is not None:
+            return None
+        m, words, prog, orders = PR.site_production(self.site)
+        self.map = m
+        self.save_map()
+        self.program = prog
+        with open(os.path.join(self.dir, "program.json"), "w") as f:
+            json.dump(prog, f, indent=1)
+        self.last_production = {"orders": orders, "dwell_s": prog["production"]["dwell_s"], "home": True}
+        self.typed_words = words
+        for old in [x for x in os.listdir(self.dir) if x.startswith("map.json.typed-")]:
+            os.remove(os.path.join(self.dir, old))
+        open(mark, "w").close()
+        try:
+            self.make_mission({"mode": "program", "program": prog})
+        except Exception as e:     # noqa: BLE001  (the page shows Plan's error when Nick presses it)
+            print("typed points: the default mission was not planned (%s)" % e, flush=True)
+        return words
 
     # -- files -------------------------------------------------------------
     def save_map(self):
@@ -322,7 +360,15 @@ class Session:
                            "cameras": {k: v.get("label", k) for k, v in st["cameras"].items()},
                            "capture": st["capture"], "tags": st.get("tags"), "table": st.get("table"),
                            "on_problem": st.get("on_problem", "stop"), "feel_out_trust": st.get("feel_out_trust"),
-                           "lost_robot_points": st.get("lost_robot_points")}
+                           "lost_robot_points": st.get("lost_robot_points"),
+                           "run_tracking": st.get("run_tracking", st["tracking"]),
+                           "points_typed": bool((st.get("points") or {}).get("use") == "typed"),
+                           "edge_in_cm": st.get("edge_in_cm"), "homes": st.get("homes"),
+                           "keepouts": st.get("keepouts"), "guesses": st.get("guesses")}
+            out["tracking_now"] = self.run_tracking()
+            out["typed_words"] = list(getattr(self, "typed_words", []) or [])
+            if self.last_production:
+                out["production_orders"] = self.last_production.get("orders")
         if self.feel is not None:
             out["feel"] = self.feel.status()
         if self.tag:
@@ -481,7 +527,8 @@ class Session:
         kind = d.get("kind", "mission")
         dry = bool(d.get("dry", True))
         conn = d.get("conn") or ("sim" if dry else "robots")
-        if self.feel is not None and kind == "mission" and conn in ("sim-cameras", "robots"):
+        if self.feel is not None and kind == "mission" and conn in ("sim-cameras", "robots") and \
+                self.run_tracking() == "tags":
             # Feel out the table (Nick, 2 Nov 18:33): the first production run on a table (this camera setup) feels its
             # edges first, then starts by itself on the felt outline; later runs use the saved outline
             need, cal, why = self.feel.use_saved(conn)
@@ -538,6 +585,13 @@ class Session:
         self.last_runs[kind] = folder
         return self.run.status()
 
+    def run_tracking(self):
+        """tags / lights / none for the runs from this page: the Run screen's selector, else the site's run_tracking."""
+        v = (self.settings.get("run") or {}).get("tracking") or ""
+        if v in ("tags", "lights", "none"):
+            return v
+        return (self.site or {}).get("run_tracking") or (self.site or {}).get("tracking") or "lights"
+
     def on_problem(self):
         """keep_going or stop for the runs from this page: the Run screen's tick-box, else the site's (home: stop)."""
         v = (self.settings.get("run") or {}).get("on_problem") or ""
@@ -559,7 +613,14 @@ class Session:
         folder = os.path.join(self.dir, "runs", "%s-%s-%s" % (now_tag(), kind, conn))
         cmd = [sys.executable, os.path.join(HERE, "mission_run.py"), "--session", folder,
                "--timeout-s", str(rs["timeout_s"]), "--border-cm", str(rs["border_cm"])]
-        if self.tag:
+        trk = self.run_tracking() if self.tag else None
+        if self.tag and trk != "tags":
+            # with or without tags (2026-11-03): the same site, followed by the robots' lights (camera bridge, corners
+            # clicked) or by nothing (odometry only); no feel-out, no refit (both need the roof tags)
+            self.tag.stop_room()
+            cmd += ["--tracking", trk, "--site", self.site["name"], "--session-id",
+                    self.tag.sync_state()["session_id"], "--feel-table", "skip"]
+        elif self.tag:
             # the AprilTag site (2026-11-02): the practice room closes first (its simulator would answer as the robots),
             # the run reads the roof tags, writes the sync marks with the session id, and refits the cameras after
             self.tag.stop_room()
@@ -635,6 +696,11 @@ class Session:
         if not self.tag:
             raise ValueError("production runs are for a site with tags on the robots")
         prog = self.tag.production_program(d)
+        if self.site and (self.site.get("homes") or {}).get("use") == "points":
+            import production as PR
+            hp = PR.site_home_points(self.site)
+            prog = PR.program(prog["production"]["orders"], dwell_s=prog["production"]["dwell_s"],
+                              home=prog["production"]["home"], at_home=hp) if not prog.get("sync_spin") else prog
         out = self.make_mission({"mode": "program", "program": prog})
         out["program"] = prog
         self.last_production = dict(d)

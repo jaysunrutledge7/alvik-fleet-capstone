@@ -76,7 +76,9 @@ svg.table{width:100%;height:auto;display:block;background:#fff;border-radius:8px
 const STEPS = ["Connect", "Setup", "Workspace", "Warm-up", "Mission", "Run", "Review", "Cameras & table", "Production"];
 // a site with AprilTags on the robots (2026-11-02, tools/fleet/sites.py): its own steps; home keeps the first seven
 function isTags() { return !!(S && S.site && S.site.tracking === "tags"); }
-function stepOrder() { return isTags() ? [0, 7, 8, 5, 6] : [0, 1, 2, 3, 4, 5, 6]; }
+// tracking by the robots' lights at a tag site (2026-11-03): the corner-clicking Setup screen comes back (the camera bridge's
+// floor calibration); roof tags and no camera keep the tag site's steps
+function stepOrder() { return isTags() ? ((S.tracking_now === "lights") ? [0, 1, 7, 8, 5, 6] : [0, 7, 8, 5, 6]) : [0, 1, 2, 3, 4, 5, 6]; }
 const COL = {Left: "#2952CC", Center: "#C2410C", Right: "#7A3EC8"};
 const SIDES = ["x_min", "x_max", "y_min", "y_max"];
 const SIDE_WORDS = {x_min: "Left side", x_max: "Right side", y_min: "Bottom side (audience)", y_max: "Top side"};
@@ -550,13 +552,29 @@ function keepGoingCard(run) {
       : "A problem that cannot be worked round stops every robot (as before)."} This site's setting: <b>${siteOnProblem() === "keep_going" ? "keep going" : "stop"}</b>.</p>
     ${kg.length ? `<ul class="small" style="margin:6px 0 0">${kg.map(w => `<li>${esc(w)}</li>`).join("")}</ul>` : ""}</div>`;
 }
+// With or without tags (2026-11-03, Nick: "I want to be able to run with or without tags"): how the robots are followed
+// during a run. The site's run_tracking is the default; the choice here is for the runs from this page.
+const TRACK = [["tags", "Roof tags", "the cameras read each robot's roof AprilTag (corner tags or corner clicks fix the table)"],
+  ["lights", "Robots' lights", "the cameras follow each robot's lights and outline (no roof tags; click the table's corners on the Setup screen)"],
+  ["none", "No camera (odometry only)", "each robot starts on its home sticker by hand, facing away from the A3-A4 edge, then drives on its wheels and gyro; its \u00b1 grows 0.07 cm per cm driven"]];
+function trackingCard(run) {
+  if (!isTags()) return "";
+  const now = S.tracking_now || S.site.run_tracking || "tags", running = run && run.running;
+  return `<div class="card" id="trackcard"><h3>Tracking during the run</h3>
+    ${TRACK.map(([v, t, w]) => `<label class="lbl" style="display:block;margin:4px 0;color:var(--ink)"><input type="radio" name="trk" value="${v}" ${v === now ? "checked" : ""} ${running ? "disabled" : ""}> <b>${t}</b> <span class="small muted">${w}</span></label>`).join("")}
+    <p class="small muted" style="margin:6px 0 0">This site's setting: <b>${esc((TRACK.find(x => x[0] === S.site.run_tracking) || [0, S.site.run_tracking])[1])}</b>.${now !== "tags" ? " The feel-out and the refit after the run need the roof tags: off in this mode." : ""}${now === "none" ? " <b>Put Alpha on P11 and Bravo on P22, both facing away from the A3-A4 edge, before Run.</b>" : ""}</p></div>`;
+}
+function wireTracking() {
+  document.querySelectorAll("[name=trk]").forEach(r => r.onchange = async () => { const v = r.value;
+    try { S = await api("/api/settings", {run: {tracking: v === S.site.run_tracking ? "" : v}}); render(); flash("Tracking for the runs from this page: " + (TRACK.find(x => x[0] === v) || [0, v])[1]); } catch (e) { flash(e.message, true); } });
+}
 function wireKeepGoing() {
   if ($("kgbox")) $("kgbox").onchange = async () => { const v = $("kgbox").checked ? "keep_going" : "stop";
     try { S = await api("/api/settings", {run: {on_problem: v === siteOnProblem() ? "" : v}}); render(); flash(v === "keep_going" ? "Runs from this page keep going" : "Runs from this page stop on a problem"); } catch (e) { flash(e.message, true); } };
 }
 function confWords(c) {
   if (!c || c.plus_minus_cm == null) return "";
-  return c.source === "odometry only" ? `\u00b1${c.plus_minus_cm.toFixed(1)} cm, odometry for ${Math.round(c.since_fix_cm || 0)} cm since the last camera fix (${Math.round(c.since_fix_s || 0)} s ago)`
+  return c.source === "odometry only" ? (S.tracking_now === "none" ? `\u00b1${c.plus_minus_cm.toFixed(1)} cm, odometry for ${Math.round(c.since_fix_cm || 0)} cm since the start (no camera)` : `\u00b1${c.plus_minus_cm.toFixed(1)} cm, odometry for ${Math.round(c.since_fix_cm || 0)} cm since the last camera fix (${Math.round(c.since_fix_s || 0)} s ago)`)
     : `\u00b1${c.plus_minus_cm.toFixed(1)} cm, ${c.source}`;
 }
 function confLine(c) {
@@ -586,7 +604,7 @@ function runScreen() {
       <figure style="margin:0;flex:1 1 300px"><img id="camo" alt="The overhead camera's picture with each robot ringed" src="/api/frame?cam=overhead&t=${Date.now()}" style="width:100%;border-radius:8px"><figcaption class="small muted">${isTags() ? esc(S.site.cameras.overhead) : "Overhead camera"} (${run.mode === "robots" ? "the Pi's" : "simulated"}): each robot ringed in its colour where the camera bridge has it, planned routes as thin lines.</figcaption></figure>
       <figure style="margin:0;flex:1 1 300px"><img id="cams" alt="The side camera's picture with each robot ringed" src="/api/frame?cam=side&t=${Date.now()}" style="width:100%;border-radius:8px" onerror="this.parentElement.style.display='none'"><figcaption class="small muted">${isTags() ? esc(S.site.cameras.side) : "Side camera"}, the same rings.</figcaption></figure></div></div>
       <div class="card eng"><h3>How the robots mapped the table</h3><div id="mapv">Loading...</div><p class="small muted">Each robot's path as the camera bridge saw it this run, in its colour (mapview.py).</p></div>` : ""}`,
-    `${keepGoingCard(run)}${run && run.running || isTags() ? "" : lightingCard()}${isTags() ? feelCard() : ""}${(pv ? Object.keys(pv.frames) : S.map.robots.map(r => r.name)).map(n => { const lv = run && run.live && run.live.robots ? run.live.robots[n] : null;
+    `${trackingCard(run)}${keepGoingCard(run)}${run && run.running || isTags() ? "" : lightingCard()}${isTags() && (S.tracking_now || "tags") === "tags" ? feelCard() : ""}${(pv ? Object.keys(pv.frames) : S.map.robots.map(r => r.name)).map(n => { const lv = run && run.live && run.live.robots ? run.live.robots[n] : null;
       return `<div class="card"><div class="between"><b><span class="dot" style="background:${COL[n]}"></span>${esc(n)}</b><span class="small muted">${run && run.robots[n] ? `(${run.robots[n][0].toFixed(0)}, ${run.robots[n][1].toFixed(0)})` : ""}</span></div>
       <span class="small muted">${esc(lv && lv.out ? (lv.held ? "HELD (rejoins when heard again): " : "OUT: ") + lv.out : (lv && lv.doing) || (run && run.doing && run.doing[n]) || (run && run.running ? "driving" : "waiting"))}</span>
       ${lv ? `<div class="row small" style="margin-top:6px;gap:14px"><span>Battery <b>${lv.battery ?? "-"} %</b></span><span>Edge <b>${lv.edge_cm ?? "-"} cm</b></span><span>Steps <b>${lv.done}/${lv.steps}</b></span>${lv.stop_cm != null ? `<span title="Its distance sensor stops it for anything in its path nearer than this (floor check at start-up)">Stops at <b>${lv.stop_cm} cm</b></span>` : ""}</div><div class="small muted">${esc(lv.last || "")}</div>${confLine(lv.conf)}` : ""}</div>`; }).join("")}
@@ -600,7 +618,7 @@ function runScreen() {
   $("stop").onclick = async () => { try { await api("/api/run/stop", {}); await load(); } catch (e) { flash(e.message, true); } };
   $("go").onclick = () => { done.add(5); screen = 6; render(); };
   if (isTags()) { wireSync(); wireFeel(); }
-  wireKeepGoing();
+  wireKeepGoing(); wireTracking();
   const lg = $("log"); if (lg) lg.scrollTop = lg.scrollHeight;
   if ($("mapv")) api("/api/mapping").then(r => { $("mapv").innerHTML = r.svg; }).catch(() => {});
 }
@@ -733,6 +751,7 @@ function camerasTable() {
 }
 function production() {
   const robots = S.site.robots, spots = S.map.spots || {};
+  if (!prodOrders && S.production_orders) prodOrders = JSON.parse(JSON.stringify(S.production_orders));  // the site's default (typed points)
   if (!prodOrders) { prodOrders = {}; const labs = Object.keys(spots).sort((a, b) => (+a || 0) - (+b || 0) || a.localeCompare(b));
     robots.forEach((n, k) => prodOrders[n] = labs.filter((_, i) => i % robots.length === k).slice(0, 3)); }
   if (!prodRobot) prodRobot = robots[0];
@@ -742,7 +761,7 @@ function production() {
   robots.forEach(n => { paths[n] = [homes[n] || [0, 0]].concat((prodOrders[n] || []).filter(l => spots[l]).map(l => spots[l])).concat([homes[n] || [0, 0]]); });
   page(`<div><h1>Production run</h1><p class="sub">Each robot: its start-up (calibrated on this power-on? if not, it calibrates; a calibration from earlier today on the same power-on is kept), its points in the order below, ${"a stop of a few seconds at each"}, then home. Click a point on the table to add it to the chosen robot's list.</p></div>
     <div class="card">${tableSVG({id: "ptab", paths: pv ? pv.paths : paths, pathOp: .55, pathW: 2, robots: homes})}
-      <p class="small muted" style="margin:8px 0 0">The table from above (corner 1 bottom left). Numbered circles: the production points from Measure; dots: each robot at its home; lines: ${pv ? "the planned routes" : "each robot's points in order (straight lines; Plan makes the real routes)"}.</p></div>`,
+      <p class="small muted" style="margin:8px 0 0">The table from above (corner 1 bottom left). Numbered circles: the production points (${S.site && S.site.points_typed ? "typed from the sticker sheet" : "from Measure"}); dots: each robot at its home; shaded red: keep-out areas (the raised box, reference tiles); lines: ${pv ? "the planned routes" : "each robot's points in order (straight lines; Plan makes the real routes)"}.</p></div>`,
     `<div class="card"><h2>Orders</h2>${robots.map(n => `<div style="padding:8px 0;border-bottom:1px solid #F0F1F3"><label class="row"><input type="radio" name="prob" value="${esc(n)}" ${n === prodRobot ? "checked" : ""}><b><span class="dot" style="background:${COL[n] || "#5B6474"}"></span>${esc(n)}</b><span class="small muted">clicks add here</span></label>
       <input id="po_${esc(n)}" value="${esc((prodOrders[n] || []).join(", "))}" style="width:100%;margin-top:6px" aria-label="${esc(n)}'s points in order"></div>`).join("")}
       <div class="row" style="margin-top:8px"><label class="lbl">Stop at each point <input id="pdwell" class="n" value="3"> s</label><label class="lbl"><input type="checkbox" id="phome" checked> then home</label></div>

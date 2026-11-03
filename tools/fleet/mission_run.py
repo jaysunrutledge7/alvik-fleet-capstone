@@ -23,6 +23,11 @@ What it does, in order (each step logged in the session folder, logs/<date-time>
      a clip 5 s either side of every stop (frames: on the USB drive, <drive>/fleet-frames/<session>/frames, since
      2026-10-28; no drive: <session>/frames), the line check, mission_summary.json; --upload: a release with a tag of
      its own (upload_session.py --unique-tag), the frames as their own asset (rec-frames-small.zip).
+Tracking during the run (2026-11-03, Nick: "I want to be able to run with or without tags"): --tracking tags (roof
+AprilTags, tag bridge), lights (the robots' lights and outlines, camera bridge; home's way) or none (no camera at all:
+each robot starts on its home by hand and drives on its wheels and gyro; no bridge, no facing check, no feel-out; the
++- at each point grows 0.07 cm per cm driven). auto = the site's run_tracking, else its tracking. A site with typed
+production points (sticker_points.py) gives the map, homes, keep-outs and default orders in every mode.
 Ctrl+C stops every robot (run_plan's own stop). Free space (diskguard.py, 2026-10-28): not started when the card is
 under its floor; frame saving stops under the frames' floor; under the card's floor during the run, run_plan is sent
 Ctrl+C (every robot stops) and the run ends as it would on Ctrl+C, with the upload.
@@ -100,6 +105,14 @@ def build(args, out):
             m, _w = FTB.apply_to_map(m, cal)
             for w_ in _w:
                 say(w_)
+    elif typed_site(args):
+        # a site with typed production points (2026-11-03, Jay's sticker sheet): its points, homes, raised box and
+        # default orders, in every tracking mode
+        import production as PR
+        m, _w, sprog, _o = PR.site_production(args.site_, robots, outline=(cal or {}).get("outline_used"))
+        args.site_program_ = sprog
+        for w_ in _w:
+            say(w_)
     elif getattr(args, "tracking_", "lights") == "tags":
         # the AprilTag site (2026-11-02): the table with its production points and the homes near the middle
         import production as PR
@@ -124,6 +137,8 @@ def build(args, out):
     if args.program:
         with open(args.program) as f:
             prog = json.load(f)
+    elif getattr(args, "site_program_", None):
+        prog = args.site_program_                      # the typed site's default production mission
     elif getattr(args, "tracking_", "lights") == "tags":
         # a production run over the map's points (half each, in order), then home (2026-11-02)
         import production as PR
@@ -265,6 +280,12 @@ def gap_args(args):
         args.min_gap_cm = MS.gap_floor()
 
 
+def typed_site(args):
+    """The site's production points are typed (sticker_points.py; the site's points.use "typed")."""
+    import sticker_points as SP
+    return bool(getattr(args, "site_", None)) and SP.typed_on(args.site_)
+
+
 def resolve_site(args):
     """--site / the site in use: its tracking (lights or tags), its tags and calibration folder (2026-11-02). Home (the
     default) changes nothing: lights, as before."""
@@ -277,7 +298,8 @@ def resolve_site(args):
             if SI.is_site_file_error(e):
                 raise            # a broken or missing chosen site stops loudly (2026-11-03), never home in silence
             site = None
-    tr = args.tracking if args.tracking != "auto" else ((site or {}).get("tracking") or "lights")
+    tr = args.tracking if args.tracking != "auto" else ((site or {}).get("run_tracking") or (site or {}).get(
+        "tracking") or "lights")
     args.tracking_ = tr
     args.site_ = site
     # the keep-going policy (2026-11-03): this run's --on-problem / --lost-robot-points / --feel-trust, else the site's,
@@ -290,7 +312,7 @@ def resolve_site(args):
     if site and not os.environ.get("MIRLT_CONF_DIR"):
         # the site's own folder for the day's calibration records and stored corrections (run_plan inherits it)
         os.environ["MIRLT_CONF_DIR"] = site["conf_dir"]
-    if tr == "tags" and args.robots == "Left,Right" and site and site.get("tracking") == "tags":
+    if tr in ("tags", "none", "lights") and args.robots == "Left,Right" and site and site.get("tracking") == "tags":
         args.robots = ",".join(r["name"] for r in site["robots"])        # the site's robots, not home's
     if tr == "tags":
         tags = dict((site or {}).get("tags") or {})
@@ -338,6 +360,9 @@ def feel_first(args, out):
     robots = [r.strip() for r in args.robots.split(",") if r.strip()]
     if args.map:
         m = FM.load(args.map)
+        m["tasks"] = {}
+    elif typed_site(args):
+        m = PR.site_production(args.site_, robots)[0]       # the site's homes (2026-11-03: at points P11 / P22)
         m["tasks"] = {}
     else:
         a_, b_ = (float(v) for v in args.table.lower().split("x"))
@@ -471,6 +496,16 @@ def run(args):
           "--poses-to", "127.0.0.1:5011", "--replan-from-camera", "--timeout-s", str(args.timeout_s),
           "--border-cm", str(args.border_cm), "--min-gap-cm", str(args.min_gap_cm),
           "--place-tol-cm", "4"]
+    if args.tracking_ == "none":
+        # no camera at all (2026-11-03): run_plan's own "none" source (each robot gets its start pose once, then wheels
+        # and gyro); nothing waits for a camera (no facing check, no turn pause, no re-plan from the camera)
+        rp[rp.index("--fixes") + 1] = "none"
+        rp.remove("--replan-from-camera")
+        args.no_facing_check = True
+        args.no_turn_pause = True
+        say("TRACKING: none (odometry only). Each robot must stand on its home sticker, facing +y (away from the "
+            "A3-A4 edge), before Run: its start pose is taken as exact. The +- at each point grows 0.07 cm per cm "
+            "driven (29 Oct logs, measured to 40 cm only); no camera checks anything during the run.")
     if not args.no_turn_pause:
         rp += ["--turn-pause"]         # after each turn, stand until the cameras agree (2026-10-29)
     # the keep-going policy (2026-11-03): the site's on_problem (home: stop, as before)
@@ -548,7 +583,11 @@ def run(args):
                 say("SETUP FAILED: %s" % e)
         tag_setup_thread = _th.Thread(target=_setup, daemon=True)
     if args.dry:
-        if args.tracking_ != "tags":
+        if args.tracking_ == "none":
+            cal = scal = ""
+            stream, side_stream = args.stream, args.side_stream
+            rp += ["--dry-run", "--yes", "--seed", str(args.seed)]
+        elif args.tracking_ != "tags":
             cal = os.path.join(sess, "sim", "table_camera.json")
             scal = os.path.join(sess, "sim", "side_camera.json") if not args.no_side else ""
             stream, side_stream = "127.0.0.1:8765", "127.0.0.1:8766"
@@ -573,6 +612,10 @@ def run(args):
                 json.dump(cond, f)
             rp += ["--sim-arg=--sweep-cond=%s" % cp]
         launcher = [PY, os.path.join(HERE, "sweeps", "rp_shim.py")]     # sim_shim's conditions (drops, a dead robot)
+    elif args.tracking_ == "none":
+        cal = scal = ""                        # no camera models needed (odometry only)
+        stream, side_stream = args.stream, args.side_stream
+        launcher = [PY]
     elif args.tracking_ == "tags":
         # the AprilTag site on the Pi: the camera models the tag setup saved (Mission Control's Setup, Measure)
         tc = os.path.join((args.site_ or {}).get("conf_dir") or os.path.expanduser("~/.config/mirlt"), "tagcal")
@@ -630,12 +673,16 @@ def run(args):
         cpu.start()
     except Exception as e:     # noqa: BLE001
         say("(cpu log not started: %s)" % e)
-    br, brf = start_bridge(args, out, mp, cal, scal, stream, side_stream)
-    if args.tracking_ == "tags":
+    br, brf = (None, None) if args.tracking_ == "none" else start_bridge(args, out, mp, cal, scal, stream, side_stream)
+    if args.tracking_ == "none":
+        say("no camera bridge (tracking none)")
+    elif args.tracking_ == "tags":
         say("tag bridge starting (each robot found by its roof tag, wherever it is)")
     else:
         say("camera bridge starting (it learns the empty floor round the robots: keep hands out of the picture)")
-    if not args.no_frames and not st0["frames_ok"]:
+    if args.tracking_ == "none":
+        pass                                   # no camera pictures to save
+    elif not args.no_frames and not st0["frames_ok"]:
         say("FRAMES NOT SAVED: %s" % st0["why_frames"])
     elif not args.no_frames:
         try:
@@ -656,7 +703,8 @@ def run(args):
     try:
         child = subprocess.Popen(launcher + (rp[1:] if args.dry else rp), cwd=REPO)
     except BaseException:
-        br.send_signal(signal.SIGINT)        # never leave the bridge running on its own (2026-11-02: one did)
+        if br is not None:
+            br.send_signal(signal.SIGINT)    # never leave the bridge running on its own (2026-11-02: one did)
         raise
     if tag_setup_thread is not None:
         tag_setup_thread.start()
@@ -679,7 +727,7 @@ def run(args):
             child.kill()
     finally:
         disk_stop.set()
-        for p, f in ((br, brf),):
+        for p, f in ((br, brf),) if br is not None else ():
             try:
                 p.send_signal(signal.SIGINT)
                 p.wait(timeout=10)
@@ -920,8 +968,8 @@ def main(argv=None):
     ap.add_argument("--setting", action="append", default=[], metavar="NAME=VALUE",
                     help="a mission setting (missions.SETTINGS), e.g. separation_cm=6.5 (repeatable)")
     ap.add_argument("--site", default="", help="the site profile (default: the one in use; home: lights as before)")
-    ap.add_argument("--tracking", choices=["auto", "lights", "tags"], default="auto",
-                    help="how the cameras find the robots: the site's (auto), their lights, or their roof AprilTags")
+    ap.add_argument("--tracking", choices=["auto", "lights", "tags", "none"], default="auto",
+                    help="how the robots are followed: the site's run_tracking (auto), their lights, their roof AprilTags, or none (odometry only, no camera)")
     ap.add_argument("--session-id", default="", help="the session id both teams write down (Mission Control's)")
     ap.add_argument("--refit", action="store_true", help="tags: after the run, fit the cameras again with the run's "
                                                           "tag reads (saved beside the run, not used until chosen); "

@@ -112,6 +112,17 @@ What runs: Mission Control on the new Pi, site `school-conference`. Last night's
   moved and the production run starts anyway.
 - **Every production point gets a position and a ±**, e.g. `point 7 (Alpha): ±0.9 cm, two cameras` or
   `point 12 (Bravo): ±6.4 cm, odometry for 80 cm since the last camera fix`.
+- **New this morning (3 Nov build): Jay's 40 stickers are typed in.** The production points come from Jay-Sun's
+  spreadsheet; you do **not** click each sticker. Alpha does zones 1-2 (P01-P20), Bravo zones 3-4 (P21-P40), each in a
+  short order, already loaded in Mission Control. **Homes are stickers: Alpha on P11, Bravo on P22**, both facing the
+  whiteboard (away from the A3-A4 edge). The raised box in the middle is kept out (a 12 x 12 in square until you
+  measure it).
+- **You can run with or without AprilTags** (B7c): roof tags, the robots' lights, or no camera at all.
+
+**Two things to check at the table with Jay (assumed until you say):** sticker **P09** is at (17, 57.5) in and **P10** at
+(33, 37.5) in, as his drawing shows (his spreadsheet says 37.5 and 27.5). Measure both from the A3 corner. If the
+spreadsheet is right, tell me (or delete the two `overrides` lines in `tools/fleet/sites/school-conference.json`).
+And measure the raised box: its edges, in inches from the A3 corner.
 
 ### B1. Pack
 
@@ -202,7 +213,8 @@ WARN or FAIL line says.
 
 ### B5. The corner tiles and (0, 0) (at the table, with Jay)
 
-1. Agree with Jay which table corner is **(0, 0)**: Jay measures his stickers from it, x along the long side.
+1. **(0, 0) is the table corner nearest antenna A3 (the TV end, near side)**: Jay's stickers are measured from it, x
+   along the 156 in edge toward the door end (A4), y toward the whiteboard (A1).
 2. Tile **20** on that corner (corner 1). Then going round **counter-clockwise seen from above**: **21** on the far end
    of that long side (corner 2), **22** opposite 20 (corner 3), **23** the last corner (corner 4). **24** in the middle
    of the long side from 20 to 21, **25** in the middle of the other long side.
@@ -234,15 +246,34 @@ laptop. You may close the PowerShell window: Mission Control keeps running.
    **Check the cameras**: every line PASS (do what a WARN or FAIL line says).
 3. Press **Take pictures**. You should see orange outlines `20 corner 1`, `21 corner 2` ... in the pictures: every
    tile in at least one picture, 24 and 25 in both. Do **not** click the corners.
-4. **Jay's stickers become the production points.** Switch **Next click is** to **sticker**, type the sticker's
-   number, click its middle in every picture it is in (the number goes up by itself). If Jay gave you coordinates,
-   type them under **Sticker coordinates**, one a line, e.g. `3: 120.5, 40.2` (cm from corner 1): they are checked
-   against the cameras.
-5. Press **Measure**. You should see the table near 396.2 x 167.6 cm, the number of production points, and `Every
-   typed measurement agrees`. A tile not seen: its line says which; move it so a camera sees it, Measure again.
-6. **Production**: type each robot's points in order (Alpha's, then Bravo's). Press **Plan**, then **Continue to
-   run**.
+4. **Do not click the stickers.** They are typed in from Jay's spreadsheet. (The old way, clicking each sticker, is
+   still there: it is only needed if you switch `points` `use` to `clicked` in the site file.)
+5. Press **Measure**. You should see the table near 396.2 x 167.6 cm, **40 production points**, the line
+   `Production points: the 40 typed stickers (school-conference-points.csv); their spots are not clicked`, and `Every
+   typed measurement agrees`. A tile not seen: its line says which; move it so a camera sees it, Measure again. A
+   line starting `CHECK: sticker` means the cameras saw that sticker somewhere else: tell me its number.
+6. **Production**: Alpha's and Bravo's lists are already filled in (Alpha starts `P11, P20, P19, ...`, Bravo
+   `P22, P21, P28, ...`). You may change them (type, or click points on the table). Press **Plan**. You should see
+   `Planned: everyone done in about 3 min` and two lines about P12 and P21 moved just clear of the raised box. Press
+   **Continue to run**.
 7. **Upload at the end (once):** on the Run screen, **More**, set **upload** to `true`, press **Save run settings**.
+
+### B7c. With or without AprilTags (Run screen, card "Tracking during the run")
+
+The Run screen's first card on the right has three choices. Pick one **before** pressing Run:
+
+| Choice | Needs | What you do differently |
+|---|---|---|
+| **Roof tags** (the site's setting) | roof tags on Alpha and Bravo; corner tiles (or corner clicks) | B7-B8 as written |
+| **Robots' lights** | no tags at all; the robots' lights must be visible to the cameras (Jay's RFID tag on top may cover them: check in the camera pictures) | a **Setup** step appears in the top bar: click the table's 4 corners in each camera picture there, press its Measure. No feel-out, no refit |
+| **No camera (odometry only)** | nothing: cameras may be off | Put **Alpha exactly on sticker P11** and **Bravo exactly on P22**, each robot's middle over its sticker, nose pointing at the whiteboard (away from the A3-A4 edge), square to the table's edge. You may skip B4 and B7 steps 2-5 (cameras, Measure): the points are typed. No feel-out, no refit |
+
+With **no camera**: each point's ± grows with distance driven (about ±5 cm after the first 40 cm, ±60 cm by the end
+of the run): the event log says `odometry for N cm since the start (no camera this run)`. That is the honest
+number, not a fault. The edge guard still stops a robot at a drop. Keep the pillows round the table.
+
+To test without any tags **at first** (Nick's plan): pick **No camera**, run once; then **Robots' lights**; then put
+the tags on and pick **Roof tags**.
 
 ### B8. The run: feel-out, then production (Run screen)
 
@@ -280,5 +311,5 @@ When the robots are done: switch them off. Pi window:
 
 ---
 
-**Still needs you:** the roof tag's height above the table (`tags.height_cm` in the site file; 6.0 cm is a
+**Still needs you:** P09 and P10's true positions and the raised box's size (above, start of B). The roof tag's height above the table (`tags.height_cm` in the site file; 6.0 cm is a
 placeholder). Measure it at school with a ruler and tell me, or edit it on GitHub.

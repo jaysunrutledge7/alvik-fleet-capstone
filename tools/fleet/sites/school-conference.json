@@ -2,24 +2,171 @@
  "title": "School conference table (66 x 156 in), second Pi, two borrowed Alviks",
  "_note": "Robot names and tag ids are Claude's picks (2 Nov 2026): change them here before reflashing if Nick wants others. No WiFi password goes in this file or anywhere in the repo.",
  "robots": [
-  {"name": "Alpha", "ip": null, "colour": "#2952CC"},
-  {"name": "Bravo", "ip": null, "colour": "#C2410C"}
+  {
+   "name": "Alpha",
+   "ip": null,
+   "colour": "#2952CC"
+  },
+  {
+   "name": "Bravo",
+   "ip": null,
+   "colour": "#C2410C"
+  }
  ],
- "pi": {"address": "", "hostname": ""},
- "cameras": {"overhead": {"label": "Camera 1 (over the corner 1 half)"},
-             "side": {"label": "Camera 2 (over the corner 2 half)"}},
- "capture": {"width": 1280, "height": 960, "fps": 15},
+ "pi": {
+  "address": "",
+  "hostname": ""
+ },
+ "cameras": {
+  "overhead": {
+   "label": "Camera 1 (over the corner 1 half)"
+  },
+  "side": {
+   "label": "Camera 2 (over the corner 2 half)"
+  }
+ },
+ "capture": {
+  "width": 1280,
+  "height": 960,
+  "fps": 15
+ },
  "tracking": "tags",
- "tags": {"family": "tag25h9", "tag_cm": 8.0, "roof_cm": 9.5, "height_cm": null,
-          "ids": {"Alpha": 0, "Bravo": 1}, "spares": [2, 3, 4, 5]},
- "table": {"length_cm": 396.2, "width_cm": 167.6, "how": "Nick: 66 x 156 in"},
+ "tags": {
+  "family": "tag25h9",
+  "tag_cm": 8.0,
+  "roof_cm": 9.5,
+  "height_cm": null,
+  "ids": {
+   "Alpha": 0,
+   "Bravo": 1
+  },
+  "spares": [
+   2,
+   3,
+   4,
+   5
+  ]
+ },
+ "table": {
+  "length_cm": 396.2,
+  "width_cm": 167.6,
+  "how": "Nick: 66 x 156 in"
+ },
  "_note_2026_11_03": "Reference tags on the table (tools/fleet/ref_tags.py): corners 20-23 (corner 1 = 0,0), sides 24 (edge 1-2) and 25 (edge 3-4), 12 cm, tiles 15.5 cm. corner_clicks: false = the corners come from the tags (set true to click them as before). auto_refit: background (the run's refit runs on its own), wait (the old way) or off (the button only).",
- "ref_tags": {"use": true, "family": "tag25h9", "tag_cm": 12.0, "offset_cm": 7.75, "z_cm": 0.18,
-              "corners": {"1": 20, "2": 21, "3": 22, "4": 23}, "sides": {"1": 24, "3": 25}},
+ "ref_tags": {
+  "use": true,
+  "family": "tag25h9",
+  "tag_cm": 12.0,
+  "offset_cm": 7.75,
+  "z_cm": 0.18,
+  "corners": {
+   "1": 20,
+   "2": 21,
+   "3": 22,
+   "4": 23
+  },
+  "sides": {
+   "1": 24,
+   "3": 25
+  }
+ },
  "corner_clicks": false,
  "auto_refit": "background",
  "_note_keep_going": "Nick 2 Nov 21:01-21:06: keep going and finish with the best position estimate at every step; the camera is trusted over the edge sensors. on_problem: keep_going or stop; feel_out_trust: camera or sensor; lost_robot_points: reassign (Claude's assumption, Nick did not answer) or skip.",
  "on_problem": "keep_going",
  "feel_out_trust": "camera",
- "lost_robot_points": "reassign"
+ "lost_robot_points": "reassign",
+ "_note_2026_11_03_points": "Nick 3 Nov 05:58: Jay-Sun's sticker sheet (table_points.xlsx, Points tab) is the production points: typed coordinates, no clicking each sticker. Frame = the reference tags' frame: (0,0) = corner 1 (tag 20, the A3/TV corner), x along the 156 in edge to the door end (A4), y toward the whiteboard (A1). points.use: typed (the sheet) or clicked (the old way: each sticker clicked in the pictures). The CSV is what Jay typed; overrides are applied on load. P09 and P10: the sheet disagrees with Jay's drawing; the drawing is believed right (ASSUMED, TO CONFIRM by Nick at school: delete the override to use the sheet's value).",
+ "points": {
+  "use": "typed",
+  "file": "school-conference-points.csv",
+  "units": "in",
+  "flag_cm": 3.0,
+  "overrides": [
+   {
+    "id": "P09",
+    "x_in": 17,
+    "y_in": 57.5,
+    "status": "assumed, to confirm",
+    "why": "the sheet says y 37.5 in; Jay's drawing (as marked) says 57.5. The sheet's 37.5 equals the drawing's P10 y (a shifted value) and puts P09 7 in from P06 (one of only two such close pairs)"
+   },
+   {
+    "id": "P10",
+    "x_in": 33,
+    "y_in": 37.5,
+    "status": "assumed, to confirm",
+    "why": "the sheet says y 27.5 in; Jay's drawing (as marked) says 37.5. The sheet's value puts P10 7 in from P02 (the other close pair)"
+   }
+  ]
+ },
+ "_note_edge": "edge_in_cm: a point's robot centre at least this far from an open edge (home: 17, the default). 13 cm at school so every sticker is reachable (nearest: P04 at 5.25 in = 13.3 cm). With 13 the body's corner can swing to 6.3 cm from the edge on a turn there (6.72 cm half diagonal); the edge guard (line sensors, bottom zone ~11 cm ahead) is the backstop. Chosen; DOE note in the report.",
+ "edge_in_cm": 13.0,
+ "_note_homes": "homes.use: points (each robot's home at a production point, facing face_deg; the point is done first, where it stands) or middle (the old homes near the table's middle, 30 cm apart).",
+ "homes": {
+  "use": "points",
+  "Alpha": "P11",
+  "Bravo": "P22",
+  "face_deg": 90.0
+ },
+ "_note_keepouts": "The raised box in the table's middle: believed centred on the table and no larger than 4 x 12 in, its turn unknown, so a 12 x 12 in square centred at (78, 33) in is kept out; the planner adds the robot body's clearance. NICK TO MEASURE (its edges, from corner 1) and replace this; use: false switches it off.",
+ "keepouts": [
+  {
+   "name": "raised box",
+   "centre_in": [
+    78,
+    33
+   ],
+   "size_in": [
+    12,
+    12
+   ],
+   "solid": true,
+   "use": true,
+   "note": "Nick to measure: assumed 12 x 12 in square centred on the table"
+  }
+ ],
+ "_note_production": "The default production mission Mission Control loads: Alpha zones 1-2, Bravo zones 3-4 (the cameras' split at x = 78 in), each in a short order (nearest neighbour then 2-opt) from its home and back, its home point first. To fix an order by hand: \"orders\": {\"Alpha\": [\"P11\", ...], \"Bravo\": [...]} (used instead of the zones).",
+ "production": {
+  "zones": {
+   "Alpha": [
+    1,
+    2
+   ],
+   "Bravo": [
+    3,
+    4
+   ]
+  },
+  "order": "nearest+2opt",
+  "orders": null,
+  "dwell_s": 3.0,
+  "default": true
+ },
+ "_note_run_tracking": "run_tracking: how the robots are followed during a run. tags = roof AprilTags (tag bridge); lights = the robots' lights and outlines (home's camera bridge; the table's frame from corner clicking, Setup screen); none = no camera at all: each robot starts on its home sticker by hand and drives on its wheels and gyro; the +- grows 0.07 cm per cm driven. Mission Control's Run screen has the same choice. Corner tags: ref_tags.use false switches them off (corner_clicks then needed for lights).",
+ "run_tracking": "tags",
+ "_guesses": "GUESSES, not used by the robots (Nick allowed them, 3 Nov): antennas ~6 in diagonally outside each table corner, from Jay's drawing; height unknown. Outlet strips (TV and door ends) and table seams: unknown.",
+ "guesses": {
+  "antennas_in": {
+   "A1": [
+    -6,
+    72
+   ],
+   "A2": [
+    162,
+    72
+   ],
+   "A3": [
+    -6,
+    -6
+   ],
+   "A4": [
+    162,
+    -6
+   ]
+  },
+  "antenna_height_in": null,
+  "outlets": null,
+  "seams": null,
+  "table_height_in": 33
+ }
 }

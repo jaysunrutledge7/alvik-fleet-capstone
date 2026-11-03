@@ -115,7 +115,11 @@ class TagJob:
         cp = os.path.join(d, "tag_cams.json")
         with open(cp, "w") as f:
             json.dump(cfg, f, indent=1)
-        m, _ = PR.site_map((L, W), names)
+        import sticker_points as SP
+        if SP.typed_on(self.site):
+            m = PR.site_production(self.site, names, table=(L, W))[0]     # the site's homes (P11 / P22)
+        else:
+            m, _ = PR.site_map((L, W), names)
         cfg["room_robots"] = {r["name"]: r["start"] for r in m["robots"]}
         with open(cp, "w") as f:
             json.dump(cfg, f, indent=1)
@@ -295,11 +299,22 @@ class TagJob:
         if res.get("ref_tags"):
             import ref_tags as RT
             kos = RT.keepouts(res["ref_tags"]["poses"], self.ref_cfg)
-        m, moved = PR.site_map((L, W), names, points=res["stickers"], keepouts=kos)
+        import sticker_points as SP
+        if SP.typed_on(self.site):
+            # typed points (Jay's sheet, 2026-11-03): the fit fixes the frame and the table's size; the typed spots are
+            # the production points; a sticker the cameras put elsewhere (clicked) is flagged, never moved
+            m, moved, prog, orders = PR.site_production(self.site, names, table=(L, W), keepouts=kos,
+                                                        seen=res["stickers"])
+            self.s.program = prog
+            self.s.last_production = {"orders": orders, "dwell_s": prog["production"]["dwell_s"], "home": True}
+            words.append("Production points: the %d typed stickers (%s); their spots are not clicked" % (
+                len(m.get("spots") or {}), os.path.basename(SP.points_file(self.site))))
+        else:
+            m, moved = PR.site_map((L, W), names, points=res["stickers"], keepouts=kos)
         words += moved
         self.s.map = m
         self.s.save_map()
-        self.d["result"] = {"size_cm": res["size_cm"], "words": words, "stickers": res["stickers"],
+        self.d["result"] = {"size_cm": res["size_cm"], "words": words, "stickers": (m.get("spots") if SP.typed_on(self.site) else res["stickers"]),
                             "rms_px": res["rms_px"], "checks": res.get("checks"), "tag_scale": res.get("tag_scale"),
                             "ref_tags": res.get("ref_tags"), "height_check": res.get("height_check"),
                             "corner_clicks": self.corner_clicks_on(),
