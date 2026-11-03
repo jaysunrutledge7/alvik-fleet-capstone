@@ -122,13 +122,15 @@ def _site(tmp_path, monkeypatch, text):
 
 
 def test_broken_site_names_file_line_and_problem(tmp_path, monkeypatch):
-    txt = open(os.path.join(FLEET, "sites", "school-conference.json")).read().replace('"height_cm": null',
-                                                                                    '"height_cm": 6,2')
+    orig = open(os.path.join(FLEET, "sites", "school-conference.json")).read()
+    txt = orig.replace('"height_cm": null', '"height_cm": 6,2')
+    # the broken line found in the file itself (2026-11-03: the sticker build re-laid the file out; never hard-coded)
+    line = orig[:orig.index('"height_cm": null')].count("\n") + 1
     _site(tmp_path, monkeypatch, txt)
     with pytest.raises(SI.SiteFileError) as e:
         SI.load()
     msg = str(e.value)
-    assert "broken.json" in msg and "line 13" in msg and "6.2, not 6,2" in msg and "Nothing was started" in msg
+    assert "broken.json" in msg and ("line %d" % line) in msg and "6.2, not 6,2" in msg and "Nothing was started" in msg
 
 
 def test_wrong_kind_of_value_is_named(tmp_path, monkeypatch):
