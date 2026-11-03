@@ -389,3 +389,14 @@ One line per picture: what it shows (feature or problem), and where it comes fro
 - `2026-11-02/keep-going-feature-terminal-bump-summary-sim.png`: **feature.** Terminal: side camera knocked: the warning, and that camera's points with a wider ±. Report e02-nov03-keep-going-confidence.
 - `2026-11-02/keep-going-feature-terminal-feel8-summary-sim.png`: **feature.** Terminal: feel-out with the table 8 cm smaller than the cameras' outline: NOTE per side, camera kept, no hold, production runs. Report e02-nov03-keep-going-confidence.
 - `2026-11-02/keep-going-problem-terminal-bump-first-version-point-4-outside-its-plus-minus-sim.png`: **problem.** Terminal: the first version's bump run: point 4 said ±1.2 cm but was 3.1 cm off (the bump was noticed after the stand); fixed. Report e02-nov03-keep-going-confidence.
+
+## 2026-11-03 (build: RFID pipeline for the school sessions, analysis only; report e02-nov03-rfid-pipeline)
+
+- `2026-11-03/rfid-pipeline-feature-clock-recovered-10-fakes-sim.png`: **feature.** Clock shift found minus injected on 10 fake RFID captures (one 40-point school dry run), with the stated ranges and the motion check. Report e02-nov03-rfid-pipeline.
+- `2026-11-03/rfid-pipeline-feature-clock-shift-found-sim.png`: **feature.** The tool's clock chart: coarse search over ±180 s, fine 0.05 s with its range, motion check. Report e02-nov03-rfid-pipeline.
+- `2026-11-03/rfid-pipeline-feature-which-tag-on-which-robot-11-tags-sim.png`: **feature.** Every tag in a fake capture scored against Alpha and Bravo: the two robot tags stand out (invented tag numbers). Report e02-nov03-rfid-pipeline.
+- `2026-11-03/rfid-pipeline-feature-rows-labelled-stops-shaded-sim.png`: **feature.** RFID rows per antenna placed on our run, 3 s stops shaded. Report e02-nov03-rfid-pipeline.
+- `2026-11-03/rfid-pipeline-feature-model-vs-baselines-zones-and-points-held-out-sim.png`: **feature.** Our RFID model vs table centre and strongest antenna, zones held out and points held out (fakes). Report e02-nov03-rfid-pipeline.
+- `2026-11-03/rfid-pipeline-feature-model-answer-at-each-stop-sim.png`: **feature.** Map: where each robot stood and where the model put it, that point held out (fakes). Report e02-nov03-rfid-pipeline.
+- `2026-11-03/rfid-pipeline-problem-stickers-p09-p10-typed-vs-stood-sim.png`: **problem.** Typed stickers vs where the robots stood: P09 (51 cm) and P10 (25 cm) are the site's overrides of the typed sheet. Report e02-nov03-rfid-pipeline.
+- `2026-11-03/rfid-pipeline-feature-terminal-end-to-end-run-sim.png`: **feature.** Terminal: one end-to-end run of tools/rfid/school_rfid.py on a fake capture. Report e02-nov03-rfid-pipeline.

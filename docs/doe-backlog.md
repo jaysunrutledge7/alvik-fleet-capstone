@@ -540,6 +540,17 @@ with a random sign (Nick's brief), gyro errors 6.5-8.5 % round Nick's 7.5 % with
 | Time limit stretched to the newest plan's end + DEADLINE_TAIL_S, at most DEADLINE_MAX_X x the limit | 120 s, 3 x | not worth one: a hang must still end | - | ruled out |
 | Which robot takes a lost robot's point (run_plan reassign_points) | the nearest to its last point, in order (CHOSEN rule) | simulator: nearest / least loaded / re-solve the whole order, against the run's end time with one robot lost at 10 random times | Sim | open |
 
+## RFID pipeline (2026-11-03, built; analysis only; docs/build-reports/e02-nov03-rfid-pipeline.md)
+
+| Number (where) | Value now | Experiment that would set it | Needs | Status |
+|---|---|---|---|---|
+| Window length, features, k neighbours (tools/rfid/rfid_model.py) | 1 s and 3 s, all features, k 7, CHOSEN | yes: the 3 x 3 x 3 grid the tool already runs (windows 1 / 3 / 5 s x rssi / +counts / +phase spread x k 3 / 7 / 15, points held out) on the first REAL session; on fakes 5 s, RSSI only, k 3 was best (39 cm) but the fakes' counts and phase carry no information by construction | Logs (first school session with RFID) | open |
+| Clock range floor (school_rfid SYS_FLOOR_S, SYS_FLOOR_NO_FIRST_S) | 0.15 s / 0.3 s, from 6 fakes | not a DOE: check against the session's sync marks or a sync spin seen in both recordings; widen if the real error is larger | Logs (a session with start/end marks) | check |
+| Stand share for a window (STAND_SHARE) | 0.6, CHOSEN | not worth one: a reporting definition (0.5 / 0.8 change the standing count, not the model) | - | ruled out |
+| Motion check's own search (MOTION_HALF_S) | +- 10 s | not worth one: beyond it the fakes gave false peaks; the position fit covers the wide search | - | ruled out |
+| Clock search with / without NTP (SEARCH_S) | 10 s / 180 s | not worth one: a search window; the tool warns when the answer is at its edge | - | ruled out |
+| Dwell at each point (production DWELL_S) | 3 s | yes (noted 2 Nov): 0 / 3 / 10 s against the RFID estimate's spread at a still robot; the pipeline now gives the standing error per point | School sessions | open |
+
 ## Already set by data
 
 - **Line edge cue edge_thr 150** (e02.py SAFETY_SETTINGS): plywood reads 52-84 in every E02 session, the two real
