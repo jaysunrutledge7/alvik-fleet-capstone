@@ -317,6 +317,7 @@ class Coordinator:
             import change as SITE_CHANGE
             self.change = SITE_CHANGE.ChangeCheck(args.site_map, log_path=os.path.join(outdir, "site_changes.jsonl"),
                                                   say=lambda msg: self.say("site map: " + msg))
+        self.plan_obstacle_keys = {self.obstacle_key(o) for o in self.m.get("obstacles", [])}
         self.save_plan()
         self._install(plan, keep={}, first={}, old=None)
 
@@ -1002,8 +1003,22 @@ class Coordinator:
             over["replan_budget_s"] = budget
         if improving:
             over["replan_first_safe"] = False     # the background search for a shorter plan: the full search
+        news = [ob] if ob else []
+        if self.gap_fix_on():
+            # robot gap (3 Nov, seed-2 school run): an obstacle put on the map without a decision (keep going's
+            # spaced re-plan past the cap, a held robot while every robot was held, a confirmed stop coming back) is
+            # checked here too, so no robot carries on a committed step into it (Bravo drove its old step into a
+            # held Alpha: bodies 6.6 cm). Off (--gap-fix off): only the new obstacle, as before
+            known = getattr(self, "plan_obstacle_keys", None)
+            if known is not None:
+                seen = {self.obstacle_key(o) for o in news}
+                for o in self.m.get("obstacles", []):
+                    k = self.obstacle_key(o)
+                    if k not in known and k not in seen:
+                        news.append(o)
+                        seen.add(k)
         try:
-            dec = P.obstacle_decide(self.m, self.plan, states, [ob] if ob else [], over=over,
+            dec = P.obstacle_decide(self.m, self.plan, states, news, over=over,
                                     t_now=t_event - self.plan_start)
         except Exception as e:      # noqa: BLE001  (never leave robots driving on a planner bug)
             if self.keep_going():
@@ -1018,7 +1033,8 @@ class Coordinator:
                 self.act_on_decision(n, dec["keep"][n], dec["first_step"][n], states[n]["in_progress"])
         self.limit = {n: dec["first_step"][n] + dec["keep"][n] for n in self.names}
         job = dict(dec=dec, ob=ob, cause=cause, improving=improving, t_event=t_event, over=over, states=states,
-                   result=None, error=None, cpu=None)
+                   result=None, error=None, cpu=None,
+                   map_keys={self.obstacle_key(o) for o in dec["m2"].get("obstacles", [])})
 
         def work():
             t0 = time.perf_counter()
@@ -1155,6 +1171,7 @@ class Coordinator:
             self.m["obstacles"].append(FM._norm_obstacle(ob, len(self.m["obstacles"])))
             self.m = FM.normalize(self.m)
         self._install(newplan, dec["keep"], dec["first_step"], old)
+        self.plan_obstacle_keys = job["map_keys"]      # what the plan in force was made around
         self.plan_no += 1
         self.plan_start = t_event
         self.save_plan()
@@ -1203,6 +1220,11 @@ class Coordinator:
             self.control(b, "halt")
 
     # -- a robot out of the run (silent, restarted): a fixed obstacle; the others re-plan and carry on ----------
+    HELD_PM_MAX_CM = 10.0  # CHOSEN (Claude, 3 Nov): the most odometry drift added round a held robot (40 cm blind = 2.8
+                           # cm; with no camera at all the +- grows to ~50 cm, which would wall the table off). DOE note:
+                           # held robots' true offset against this +- on the board (blind 40 cm, 5 runs) and the
+                           # skipped points it costs at 5 / 10 / 20 cm
+
     def out_obstacle(self, b):
         """Where a robot that went out may be: its body at its last pose, plus the area of every step it had been
         sent and not reported done (it may still drive what it buffered), 1 cm bigger all round."""
@@ -1234,13 +1256,26 @@ class Coordinator:
         # net (8 - 1.5 = 6.5 cm). Before: 1 cm, and Right passed a held Left at 3.4-5.9 cm (false-stops report)
         sep = max(float(getattr(self.args, "min_gap_cm", EC.MIN_GAP_CM) or EC.MIN_GAP_CM), EC.MIN_GAP_CM)
         grow = max(1.0, sep - float((self.plan.get("settings") or {}).get("safety_margin_cm", 1.5)))
+        # robot gap (3 Nov, Claude's choice): a held robot whose position is its own odometry (no camera sees it) may
+        # be off by the drift since its last camera fix; that drift is added to the net round it, at most
+        # --held-pm-max-cm (0 = off, the old outline). The camera's own error is already inside the 8 cm
+        extra_pm = 0.0
+        cap = float(getattr(self.args, "held_pm_max_cm", self.HELD_PM_MAX_CM) or 0.0)
+        if cap > 0 and b.pose is not None:
+            try:
+                c = self.conf_now(b)
+            except Exception:       # noqa: BLE001  (an outline is always made)
+                c = None
+            if c and c.get("source") == "odometry only":
+                extra_pm = min(cap, self.ODO_P95_PER_CM * float(c.get("since_fix_cm") or 0.0))
+        grow += extra_pm
         # a true offset (each corner rounded by a disc of that radius, 16 points), not a push out from the middle,
         # which along the sides gave only 70 % of it
         a_ = np.linspace(0, 2 * math.pi, 16, endpoint=False)
         disc = np.c_[np.cos(a_), np.sin(a_)] * (grow / math.cos(math.pi / 16))
         hull = G.convex_hull((hull[:, None, :] + disc[None, :, :]).reshape(-1, 2))
         return {"id": "out-%s" % b.name, "shape": "polygon", "points": hull.round(2).tolist(), "source": "robot_out",
-                "time": FM.now_iso(), "gap_cm": round(grow, 2)}
+                "time": FM.now_iso(), "gap_cm": round(grow, 2), "odometry_pm_cm": round(extra_pm, 2)}
 
     @staticmethod
     def without(plan, names):
@@ -1287,6 +1322,10 @@ class Coordinator:
                 self.say("every robot is held: waiting up to %.0f s for %s to be heard again" % (self.REJOIN_WAIT_S,
                                                                                                b.name))
                 self.plan = self.without(self.plan, [b.name])
+                if self.gap_fix_on():
+                    # robot gap (3 Nov): it is on the map while everyone is held, so the robot that rejoins first
+                    # plans round it (before: no outline, and Bravo's rejoin plan drove straight through Alpha)
+                    self.add_obstacle(ob)
                 return
             self.abort = "every robot is out (%s)" % why
             self.say(self.abort)
@@ -2083,6 +2122,17 @@ class Coordinator:
             self.carry_on("time_limit", None, "the time limit (%.0f s) is reached but the newest plan ends later: "
                           "the run goes on to %.0f s at most" % (timeout_s, d - self.t_run))
         return d
+
+    def gap_fix_on(self):
+        return getattr(self.args, "gap_fix", "on") != "off"
+
+    @staticmethod
+    def obstacle_key(o):
+        """An obstacle by its shape (ids are renumbered when a map is normalised): source, points or centre/radius."""
+        if o.get("points"):
+            return (o.get("source"), tuple((round(float(p[0]), 1), round(float(p[1]), 1)) for p in o["points"]))
+        c = o.get("center") or (0.0, 0.0)
+        return (o.get("source"), round(float(c[0]), 1), round(float(c[1]), 1), round(float(o.get("radius", 0.0)), 1))
 
     def add_obstacle(self, ob):
         if ob and ob.get("id") not in {o.get("id") for o in self.m.get("obstacles", [])}:
@@ -4575,6 +4625,13 @@ def main(argv=None):
     ap.add_argument("--improve-after-s", type=float, default=1.0)
     ap.add_argument("--improve-budget-s", type=float, default=6.0)
     ap.add_argument("--max-replans", type=int, default=30, help="give up (stop everyone) after this many re-plans")
+    ap.add_argument("--gap-fix", choices=("on", "off"), default="on",
+                    help="robot gap fix (3 Nov): on (default): a re-plan checks the robots' carried-on steps against "
+                         "every obstacle the plan in force was not made with, and a robot held while every robot is "
+                         "held is on the map; off: the old way (only the newest obstacle checked)")
+    ap.add_argument("--held-pm-max-cm", type=float, default=10.0,
+                    help="a held robot seen by no camera: its odometry drift since the last fix is added to the net "
+                         "round it, at most this (cm); 0 = off (the old outline). Claude's choice, 3 Nov")
     ap.add_argument("--timeout-s", type=float, default=400.0)
     ap.add_argument("--find-s", type=float, default=20.0)
     ap.add_argument("--place-tol-cm", type=float, default=2.0)
