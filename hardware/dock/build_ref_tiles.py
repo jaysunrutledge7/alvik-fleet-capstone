@@ -371,7 +371,7 @@ def main(argv=None):
     section_png(os.path.join(B.PNG, "ref_tile_lip_section.png"))
     roof_png(os.path.join(B.PNG, "roof_tag_tile.png"))
     B.preview("ref_corner_20 (as printed: face down)", parts["ref_corner_20"],
-              os.path.join(B.PNG, "ref_corner_tile_3d.png"), plan_z=1.0)
+              os.path.join(B.PNG, "ref_corner_tile_3d.png"), plan_z=0.3)
     print("\nwhat the parts fix (tools/fleet/ref_tags.py must match):")
     print("  reference tag middle: %.2f mm in from each edge line the tile hooks (OFFSET_CM %.3f)" % (
         OFFSET_MM, RT.OFFSET_CM))

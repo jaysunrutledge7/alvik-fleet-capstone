@@ -154,8 +154,10 @@ def check_site(R):
         R.add("PASS" if h is not None else "WARN", "roof height", "%s cm" % h if h is not None else
               "not measured yet (6.0 cm placeholder): measure table to tag face, send it to Claude")
         rt = s.get("ref_tags") or {}
+        import ref_tags as RT
         R.add("PASS" if rt.get("use", True) and rt else "WARN", "reference tags",
-              "%s ids %s, %s cm; corner clicking %s" % (rt.get("family", "tag25h9"), rt.get("ids"), rt.get("tag_cm"),
+              "%s ids %s, %s cm; corner clicking %s" % (rt.get("family", "tag25h9"),
+                                                      ", ".join(str(i) for i in RT.ids(rt)), rt.get("tag_cm"),
                                                       "ON" if s.get("corner_clicks", True) else "off")
               if rt else "none in the site profile (corners are clicked by hand)")
     return s
@@ -228,13 +230,19 @@ def check_cameras(R, site=None):
               v["words"] + ". Name it: python3 tools/pi/camnames.py --set %s \"<name>\" <port>" % r)
 
 
-def check_disk(R):
+def check_disk(R, site=None):
     import diskguard as DG
     d = DG.drive_mount()
+    env = dict(os.environ)
+    if site and not env.get("MIRLT_CAPTURE"):
+        # run by hand (not through the launcher): the site's picture size and rate, as the recorder will use them
+        cap = site.get("capture") or {}
+        env["MIRLT_CAPTURE"] = "--width %d --height %d" % (cap.get("width", 640), cap.get("height", 480))
+        env["MIRLT_CAPTURE_FPS"] = str(cap.get("fps", 25))
     c = DG.free_gb(os.path.join(REPO, "logs"))
     R.add("PASS" if (c or 0) >= 5 else "WARN" if (c or 0) >= DG.CARD_STOP_GB else "FAIL", "SD card",
           "%.1f GB free" % (c or 0))
-    line, low = DG.rec_words(d)
+    line, low = DG.rec_words(d, env)
     R.add("WARN" if (low or not d) else "PASS", "video space", line)
 
 
@@ -277,7 +285,7 @@ def main(argv=None):
     except Exception as e:      # noqa: BLE001
         R.add("FAIL", "site", str(e)[:100])
     for f in (lambda: check_token(R, net=not a.no_net), lambda: check_tailscale(R), lambda: check_clock(R),
-              lambda: check_cameras(R, site), lambda: check_disk(R), lambda: check_power(R), lambda: check_address(R)):
+              lambda: check_cameras(R, site), lambda: check_disk(R, site), lambda: check_power(R), lambda: check_address(R)):
         try:
             f()
         except Exception as e:      # noqa: BLE001
