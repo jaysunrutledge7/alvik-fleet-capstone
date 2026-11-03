@@ -160,3 +160,50 @@ def test_mission_run_none_mode_plans_from_the_site(tmp_path):
     assert not [w for w in plan.get("warnings") or [] if "skips task" in str(w)]     # all 40 reached
     cmd = json.load(open(out / "mission_cmd.json"))
     assert cmd["args"]["tracking_"] == "none"
+
+
+def test_mission_control_loads_the_default_and_keeps_it_after_a_restart(tmp_path, monkeypatch):
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    monkeypatch.setenv("MIRLT_SITE", "school-conference")
+    import mission_control as MC
+    s1 = MC.Session(str(tmp_path / "mc"))
+    st = s1.state()
+    assert st["site"]["name"] == "school-conference" and st["site"]["points_typed"]
+    assert {k: len(v) for k, v in st["production_orders"].items()} == {"Alpha": 20, "Bravo": 20}
+    assert len(st["map"]["spots"]) == 40 and st["tracking_now"] == "tags"
+    assert s1.preview is not None                      # planned, ready to run
+    s2 = MC.Session(str(tmp_path / "mc"))              # a restart: the same orders, not the first-3 default
+    assert s2.state()["production_orders"] == st["production_orders"]
+    s2.settings["run"]["tracking"] = "none"
+    assert s2.run_tracking() == "none"
+
+
+def test_production_screen_orders_stand_at_the_home_point(school):
+    import tag_job as TJ
+
+    class FakeS:
+        map = PR.site_production(school)[0]
+    tj = TJ.TagJob.__new__(TJ.TagJob)
+    tj.s, tj.site = FakeS(), school
+    prog = tj.production_program({"orders": {"Alpha": ["P11", "P01"], "Bravo": ["P22"]}, "dwell_s": 3, "home": True,
+                                  "sync_spin": True})
+    assert {"block": "wait", "robots": ["Alpha"], "seconds": 3.0, "label": "at point P11"} in prog["blocks"]
+    assert not any(b.get("spot") in ("P11", "P22") for b in prog["blocks"])
+
+
+def test_camera_plus_minus_counts_the_frame_error_corner_clicks_or_corner_tags():
+    import types
+    import run_plan as RP
+    C = RP.Coordinator
+
+    def cal(rp, k=None):
+        fake = types.SimpleNamespace(cam_info=lambda: {"fit": {"rms_px": {"side": rp}, "sticker_sd_cm": {}}},
+                                     CAM_CAL_DEFAULT_CM=C.CAM_CAL_DEFAULT_CM, PPC_DEFAULT=C.PPC_DEFAULT,
+                                     FRAME_K=C.FRAME_K if k is None else k)
+        return C.cam_cal(fake, "side", 4.0)
+    old = cal({"tags": 2.0})                                          # no frame residual: as before (0.5 cm)
+    assert old == pytest.approx(0.5)
+    clicked = cal({"tags": 2.0, "corners": 2.7})                      # clicked corners 2.7 px: + 2 x 2.7 / 4 in quadrature
+    assert clicked == pytest.approx(math.hypot(0.5, 2 * 2.7 / 4.0))
+    assert cal({"tags": 2.0, "ref": 0.2}) == pytest.approx(math.hypot(0.5, 0.1))   # corner tags: small
+    assert cal({"tags": 2.0, "corners": 2.7}, k=0) == pytest.approx(0.5)            # the switch: 0 = the old +-

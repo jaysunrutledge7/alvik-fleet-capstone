@@ -394,7 +394,9 @@ class TagJob:
         bad = PR.check_orders(orders, self.s.map.get("spots") or {})
         if bad:
             raise ValueError("; ".join(bad))
-        prog = PR.program(orders, dwell_s=float(d.get("dwell_s", PR.DWELL_S)), home=bool(d.get("home", True)))
+        # homes at points (2026-11-03): a robot's home point first in its list is stood at, not driven to
+        prog = PR.program(orders, dwell_s=float(d.get("dwell_s", PR.DWELL_S)), home=bool(d.get("home", True)),
+                          at_home=PR.site_home_points(self.site))
         if d.get("sync_spin"):
             prog = add_sync_spin(prog)
         return prog

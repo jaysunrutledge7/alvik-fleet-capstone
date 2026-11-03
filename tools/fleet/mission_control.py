@@ -291,6 +291,11 @@ class Session:
                 default=str).encode()).hexdigest()[:12]
         mark = os.path.join(self.dir, "map.json.typed-" + fp)
         if os.path.exists(mark) and not force and self.program is not None:
+            pr = self.program.get("production") or {}
+            if pr.get("orders") and self.last_production is None:
+                # a restart: the orders in use stay the Production screen's (never the first-3 default)
+                self.last_production = {"orders": pr["orders"], "dwell_s": pr.get("dwell_s", 3.0),
+                                        "home": pr.get("home", True)}
             return None
         m, words, prog, orders = PR.site_production(self.site)
         self.map = m
@@ -696,11 +701,6 @@ class Session:
         if not self.tag:
             raise ValueError("production runs are for a site with tags on the robots")
         prog = self.tag.production_program(d)
-        if self.site and (self.site.get("homes") or {}).get("use") == "points":
-            import production as PR
-            hp = PR.site_home_points(self.site)
-            prog = PR.program(prog["production"]["orders"], dwell_s=prog["production"]["dwell_s"],
-                              home=prog["production"]["home"], at_home=hp) if not prog.get("sync_spin") else prog
         out = self.make_mission({"mode": "program", "program": prog})
         out["program"] = prog
         self.last_production = dict(d)

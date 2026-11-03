@@ -1785,6 +1785,15 @@ class Coordinator:
             self.log("point_confidence_bumped", robot=q["robot"], point=q["point"], cam=cam, plus_minus_cm=q["plus_minus_cm"])
             self.say("POINT %s (updated)" % q["words"])
 
+    FRAME_K = 2.0             # CHOSEN (2026-11-03): the table's frame (where the corners are) has its own error, the
+                              # fit's residual on the corners (clicked corners, or the corner tags), in px. Not in the
+                              # +- before: with corners clicked, 6 of 40 points fell outside their +- in the school
+                              # simulator (34 of 40), with corner tags 3 of 40, all on the frame's bias (a whole half's
+                              # points off the same way). A 4-corner frame's residual underestimates the click error
+                              # (the fit absorbs part of it) and points far from the corners are extrapolated: x 2.
+                              # 0 = the old +- (no frame term). DOE note: set from tape-measured points at the school
+                              # table (the real click and lens errors), not from the simulator alone
+
     def cam_cal(self, cam, ppc=None):
         fit = self.cam_info()["fit"]
         if not fit:
@@ -1795,7 +1804,12 @@ class Coordinator:
         sd_med = statistics.median(sd) if sd else 0.0
         if px is None:
             return max(sd_med, self.CAM_CAL_DEFAULT_CM)
-        return max(sd_med, float(px) / float(ppc or self.PPC_DEFAULT))
+        base = max(sd_med, float(px) / float(ppc or self.PPC_DEFAULT))
+        # the frame's own error (2026-11-03): clicked corners' residual, else the corner tags'
+        fpx = rp.get("corners") if rp.get("corners") is not None else rp.get("ref")
+        if fpx is None or not self.FRAME_K:
+            return base
+        return math.sqrt(base ** 2 + (self.FRAME_K * float(fpx) / float(ppc or self.PPC_DEFAULT)) ** 2)
 
     def cam_unc(self, f):
         """+- (cm, 95 %) of one camera fix."""
