@@ -5,7 +5,11 @@
   room        the cameras' pictures: the Pi's recorder (robots), or a simulated room (two tag cameras over the site's
               table, the robots standing at their homes: tools/sim/tag_cam.py through fleet_sim.py) for practice
   check-out   camera_checkout.py on both cameras
-  clicks      corners (1-4) and stickers (their numbers) clicked in each camera's picture; typed measurements
+  clicks      corners (1-4) and stickers (their numbers) clicked in each camera's picture; typed measurements.
+              (2026-11-03) With reference tags on the table the corners come from the tags; corner clicking is a
+              switch per site (the site's corner_clicks, changeable on the page; kept, never removed)
+  refs        the reference tags (ref_tags.py) read in the pictures and fitted with everything else; their tiles
+              become keep-out areas in the workspace map
   measure     tag_setup.py: the robots' tags read, site_fit.full, camera models saved to <conf_dir>/tagcal/, and the
               workspace map remade: the measured table, the production points as spots, the homes
   refit       site_fit.refit with the last run's tag reads (saved beside the run; "Use it" copies it in)
@@ -56,17 +60,31 @@ class TagJob:
         self.state_path = os.path.join(session.dir, "tag_setup.json")
         self.d = {"clicks": {"overhead": {"corners": {}, "stickers": {}}, "side": {"corners": {}, "stickers": {}}},
                   "typed": {"table": dict(site.get("table") or {}), "stickers": {}, "distances": []},
-                  "result": None, "checkout": None, "pictures": {}, "session_id": None, "refit": None}
+                  "result": None, "checkout": None, "pictures": {}, "session_id": None, "refit": None,
+                  "corner_clicks": None}
         try:
             with open(self.state_path) as f:
                 self.d.update(json.load(f))
         except (OSError, ValueError):
             pass
+        self.d.setdefault("typed", {}).setdefault("along", {})
+        rt = site.get("ref_tags") or {}
+        self.ref_cfg = rt if (rt and rt.get("use", True)) else None
         self.pics = {}            # camera -> (t, grey)
         self.room = None          # the practice simulator (subprocess)
         self.room_cfg = None
         self.busy = None
         self.lock = threading.Lock()
+
+    def corner_clicks_on(self):
+        """Corner clicking: the page's choice when made, else the site's corner_clicks (default on)."""
+        v = self.d.get("corner_clicks")
+        return bool(self.site.get("corner_clicks", True)) if v is None else bool(v)
+
+    def set_corner_clicks(self, on):
+        self.d["corner_clicks"] = bool(on)
+        self.save()
+        return {"corner_clicks": self.corner_clicks_on()}
 
     def save(self):
         with open(self.state_path, "w") as f:
@@ -89,7 +107,7 @@ class TagJob:
         L, W = float(tb.get("length_cm") or 396.24), float(tb.get("width_cm") or 167.64)
         names = [r["name"] for r in self.site["robots"]]
         cfg = TCAM.default_config(table=(L, W), size=(self.site["capture"]["width"], self.site["capture"]["height"]),
-                                  tags=self.tags)
+                                  tags=self.tags, refs=self.ref_cfg or False)
         for k, c in enumerate(cfg["cams"]):
             c["port"] = list(SIM_PORTS.values())[k]
         d = os.path.join(self.s.dir, "practice-room")
@@ -142,6 +160,17 @@ class TagJob:
                 cv2.polylines(img, [np.round(d.corners).astype(np.int32)], True, (60, 160, 18), 2)
                 cv2.putText(img, "tag %d" % d.id, tuple(int(v) for v in d.corners[0] + [0, -6]), cv2.FONT_HERSHEY_SIMPLEX,
                             0.6, (60, 160, 18), 2)
+            if self.ref_cfg:
+                # the reference tags (orange): which corner or side each is, found by themselves (2026-11-03)
+                import ref_tags as RT
+                lay = RT.layout(self.ref_cfg)
+                for d in RT.detector(self.ref_cfg).detect_full(g):
+                    it = lay.get(str(d.id), {})
+                    lab = ("corner %d" % it["corner"]) if it.get("kind") == "corner" else "side"
+                    cv2.polylines(img, [np.round(d.corners).astype(np.int32)], True, (0, 140, 255), 3)
+                    c = d.center
+                    cv2.putText(img, "%d %s" % (d.id, lab), (int(c[0]) - 40, int(c[1]) + 5), cv2.FONT_HERSHEY_SIMPLEX,
+                                0.6, (0, 110, 230), 2)
             cl = self.d["clicks"].get(cam) or {}
             for k, (u, v) in (cl.get("corners") or {}).items():
                 cv2.circle(img, (int(u), int(v)), 9, (24, 35, 180), 2)
@@ -180,6 +209,9 @@ class TagJob:
             t["stickers"] = {str(k).upper(): [float(a), float(b)] for k, (a, b) in (d["stickers"] or {}).items()}
         if "distances" in d:
             t["distances"] = [[str(a).upper(), str(b).upper(), float(c)] for a, b, c in (d["distances"] or [])]
+        if "along" in d:
+            # a side tag's place along its edge, taped (a check, 2026-11-03): {id: cm from the edge's first corner}
+            t["along"] = {str(k): float(v) for k, v in (d["along"] or {}).items() if v not in ("", None)}
         self.save()
         return t
 
@@ -221,11 +253,22 @@ class TagJob:
         streams = self.streams(conn)
         pics = TSU.grab_pictures(streams, TSU.PICTURE_S)
         reads, ms = TSU.read_tags(pics, self.tags)
-        if not reads:
+        refs = None
+        if self.ref_cfg:
+            import ref_tags as RT
+            refs = RT.read_refs(pics, self.ref_cfg)
+        if not reads and not (refs and any(refs.values())):
             raise ValueError("no robot's tag was read: put the robots on the table where both cameras see them (their "
                              "homes near the middle), check the camera check-out, then Measure again")
         sizes = {c: [int(p[-1][1].shape[1]), int(p[-1][1].shape[0])] for c, p in pics.items() if p}
-        corners = {c: dict((self.d["clicks"].get(c) or {}).get("corners") or {}) for c in sizes}
+        if self.corner_clicks_on():
+            corners = {c: dict((self.d["clicks"].get(c) or {}).get("corners") or {}) for c in sizes}
+        else:
+            corners = {c: {} for c in sizes}       # switched off: the reference tags give the corners
+            if not (refs and any(refs.values())):
+                raise ValueError("no reference tag was read and corner clicking is off: put the reference tiles on the "
+                                 "table's corners and sides (ids 20-25), or switch corner clicking on and click the "
+                                 "corners")
         st = {}
         for c in sizes:
             for k, uv in ((self.d["clicks"].get(c) or {}).get("stickers") or {}).items():
@@ -235,7 +278,8 @@ class TagJob:
                 st[k]["xy_cm"] = xy
         tb = self.d["typed"].get("table") or {}
         obs = TSU.make_obs(sizes, corners, st, self.tags, TSU.groups_from_reads(reads, still=True),
-                           table=tb if tb.get("length_cm") else None, distances=self.d["typed"].get("distances"))
+                           table=tb if tb.get("length_cm") else None, distances=self.d["typed"].get("distances"),
+                           refs=refs, ref_cfg=self.ref_cfg, typed_along=self.d["typed"].get("along"))
         out_dir = self.cal_dir if conn == "robots" else self.sim_cal_dir()
         if conn == "robots" and os.path.isdir(out_dir):
             bk = out_dir + "-before-" + time.strftime("%Y%m%d-%H%M%S")
@@ -247,12 +291,18 @@ class TagJob:
                             "face and put it in the site profile (tags.height_cm), then Measure again.")
         L, W = res["size_cm"]
         names = [r["name"] for r in self.site["robots"]]
-        m, moved = PR.site_map((L, W), names, points=res["stickers"])
+        kos = None
+        if res.get("ref_tags"):
+            import ref_tags as RT
+            kos = RT.keepouts(res["ref_tags"]["poses"], self.ref_cfg)
+        m, moved = PR.site_map((L, W), names, points=res["stickers"], keepouts=kos)
         words += moved
         self.s.map = m
         self.s.save_map()
         self.d["result"] = {"size_cm": res["size_cm"], "words": words, "stickers": res["stickers"],
                             "rms_px": res["rms_px"], "checks": res.get("checks"), "tag_scale": res.get("tag_scale"),
+                            "ref_tags": res.get("ref_tags"), "height_check": res.get("height_check"),
+                            "corner_clicks": self.corner_clicks_on(),
                             "t": time.time(), "conn": conn, "saved_to": out_dir, "reads": len(reads)}
         if conn != "robots" and self.room_cfg:
             truth = {}

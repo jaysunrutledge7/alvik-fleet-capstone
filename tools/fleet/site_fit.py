@@ -11,6 +11,12 @@ What goes in (all optional except the clicks of at least two table corners per c
              table are known: that is the scale, and (Nick's idea, 2 Nov) the difference between the tag plane and the
              table plane across many spots and two cameras pins each camera's height and tilt.
   stickers   the production points' stickers clicked in each picture they are in (unknown spots, shared by the cameras)
+  ref_tags   (2026-11-03) flat reference tags on the table top (ref_tags.py): one in each corner, fixed by a tile that
+             hooks the corner, so its middle is a known distance in from both edges; one on each long side where the
+             cameras overlap, its middle a known distance in from that edge, its place along the edge fitted. They give
+             each camera its pose, the table's corners and size, and the scale (their printed size) with no clicks,
+             and tie the two cameras together; corner 1's tag is (0, 0). No height correction: they lie on the table.
+             Corner clicks still work beside them (a switch per site: off at school, on at home).
   typed      optional measurements: the table's length and width; a sticker's coordinates; distances between
              stickers. They are CHECKS first: the fit is run without them, and each typed value is compared with what
              the cameras measured; a disagreement is said in words, never silently averaged in.
@@ -197,6 +203,30 @@ class Problem:
         self.groups = obs.get("tag_groups", [])
         tb = obs.get("table") or {}
         self.typed_L, self.typed_W = tb.get("length_cm"), tb.get("width_cm")
+        # the reference tags (2026-11-03): only the ones some camera read
+        rt = obs.get("ref_tags") or {}
+        self.ref = rt if any((rt.get("reads") or {}).values()) else None
+        if self.ref:
+            self.ref_lay = {str(k): v for k, v in (rt.get("layout") or {}).items()}
+            self.ref_reads = {c: {str(i): v for i, v in (rt["reads"].get(c) or {}).items() if str(i) in self.ref_lay}
+                              for c in self.cams}
+            seen = sorted({i for c in self.cams for i in self.ref_reads.get(c, {})}, key=int)
+            self.ref_sides = [i for i in seen if self.ref_lay[i]["kind"] == "side"]
+            self.ref_s = float(rt.get("tag_cm", 12.0))
+            self.ref_z = float(rt.get("z_cm", 0.18))
+            self.ref_off = float(rt.get("offset_cm", 7.75))
+            self.ref_q = {str(k): int(v) for k, v in (rt.get("quarters") or {}).items()}
+            self.typed_along = {str(k): float(v) for k, v in (rt.get("typed_along_cm") or {}).items()
+                                if str(k) in self.ref_sides}
+        else:
+            self.ref_sides, self.typed_along = [], {}
+
+    def ref_pose(self, i, L, W, along):
+        """The reference tag i's middle and printed top (x, y, heading) for a table L x W."""
+        import ref_tags as RT
+        it = self.ref_lay[i]
+        x, y = RT.centre(it, L, W, self.ref_off, along.get(i))
+        return x, y, RT.heading(it, self.ref_q.get(i, 0))
 
     # parameter layout
     def layout(self):
@@ -208,6 +238,11 @@ class Problem:
             k += per
         lay["LW"] = (k, k + 2)
         k += 2
+        lay["_along"] = (k, k + len(self.ref_sides))
+        k += len(self.ref_sides)
+        if self.fit_tag_scale and self.ref:
+            lay["_kref"] = (k, k + 1)
+            k += 1
         if self.fit_height:
             lay["H"] = (k, k + 1)
             k += 1
@@ -236,10 +271,16 @@ class Problem:
         sa = self.lay["stk"][0]
         stk = {sid: x[sa + 2 * i: sa + 2 * i + 2] for i, sid in enumerate(self.stickers)}
         ga = self.lay["grp"][0]
+        along = {i: x[self.lay["_along"][0] + j] for j, i in enumerate(self.ref_sides)}
+        kref = x[self.lay["_kref"][0]] if "_kref" in self.lay else 1.0
         for c in self.cams:
             rv, tv, f, k1 = self.cam_params(x, c)
             size = self.obs["cameras"][c]["size"]
             K = K_of(f, size)
+            if self.ref:
+                for i, corners in self.ref_reads.get(c, {}).items():
+                    Pw = tag_corners_world(*self.ref_pose(i, L, W, along), self.ref_z, self.ref_s * kref)
+                    out.append(((project(K, k1, rv, tv, Pw) - np.asarray(corners, float)) / TAG_SD_PX).ravel())
             cc = (self.obs.get("corners") or {}).get(c) or {}
             if cc:
                 ids = sorted(int(k) for k in cc)
@@ -276,11 +317,197 @@ class Problem:
             for a_, b_, dcm in self.obs.get("distances", []):
                 if a_ in stk and b_ in stk:
                     out.append(np.array([(np.linalg.norm(stk[a_] - stk[b_]) - dcm) / TYPED_SD_CM]))
+            for i, v in self.typed_along.items():
+                out.append(np.array([(along[i] - v) / TYPED_SD_CM]))
+        if "_kref" in self.lay:
+            out.append(np.array([(kref - 1.0) / TAG_SCALE_SD]))
         if self.fit_height:
             out.append(np.array([(H - self.H) / 1.0]))          # the measured height, +-1 cm
         if self.fit_tag_scale:
             out.append(np.array([(ks - 1.0) / TAG_SCALE_SD]))
         return np.concatenate(out) if out else np.zeros(1)
+
+
+def _kabsch2(P, Q):
+    """2-D rotation angle (rad) and translation taking points P (n, 2) onto Q (n, 2), no reflection."""
+    pc, qc = P.mean(0), Q.mean(0)
+    Hm = (P - pc).T @ (Q - qc)
+    ang = math.atan2(Hm[0, 1] - Hm[1, 0], Hm[0, 0] + Hm[1, 1])
+    Rm = np.array([[math.cos(ang), -math.sin(ang)], [math.sin(ang), math.cos(ang)]])
+    return ang, qc - Rm @ pc
+
+
+def _rot2(a):
+    return np.array([[math.cos(a), -math.sin(a)], [math.sin(a), math.cos(a)]])
+
+
+def ref_initial(obs, prob):
+    """Starting values from the reference tags alone (2026-11-03): each camera sees its tags on the table plane (each
+    tag's solvePnP gives the plane; the corners meet it); cameras that share a tag (the side tags in the overlap) are
+    joined; each joined group's turn to the table frame comes from the tags' known turns (each tag's quarter turn on
+    its tile is read, not assumed), then its shift, the table's length and width and the side tags' places along their
+    edges from one small linear solve (typed sizes join it as equations). Returns dict(placed {cam: (R, t, f0)}, L, W,
+    along {id: cm}, quarters {id: 0-3}, words) or None when no camera can be placed this way."""
+    import cv2
+    import ref_tags as RT
+    s, z, off = prob.ref_s, prob.ref_z, prob.ref_off
+    obj = np.array([[-s / 2, s / 2, 0], [s / 2, s / 2, 0], [s / 2, -s / 2, 0], [-s / 2, -s / 2, 0]], np.float64)
+    flag = getattr(cv2, "SOLVEPNP_IPPE_SQUARE", cv2.SOLVEPNP_ITERATIVE)
+    loc = {}
+    for c in prob.cams:
+        reads = prob.ref_reads.get(c) or {}
+        if not reads:
+            continue
+        size = obs["cameras"][c]["size"]
+        f0 = obs["cameras"][c].get("f_prior") or (size[0] / 2.0) / math.tan(math.radians(HFOV_PRIOR_DEG) / 2)
+        K = K_of(f0, size)
+        mids, norms = [], []
+        for i, cs in reads.items():
+            ok, rv, tv = cv2.solvePnP(obj, np.asarray(cs, np.float64).reshape(4, 1, 2), K, None, flags=flag)
+            if not ok:
+                continue
+            nrm = _R(rv)[:, 2]
+            mids.append(tv.ravel())
+            norms.append(-nrm if nrm[2] > 0 else nrm)
+        if not mids:
+            continue
+        n = np.mean(norms, axis=0)
+        n /= np.linalg.norm(n)
+        M = np.array(mids)
+        if len(M) >= 3:
+            _, sv, Vt = np.linalg.svd(M - M.mean(0))
+            if sv[1] > 5.0:
+                n2 = Vt[2] if np.dot(Vt[2], n) > 0 else -Vt[2]
+                if np.dot(n2, n) > math.cos(math.radians(25)):
+                    n = n2
+        d = float(np.dot(n, M.mean(0)))
+        a = np.cross(n, [1.0, 0, 0])
+        if np.linalg.norm(a) < 0.1:
+            a = np.cross(n, [0, 1.0, 0])
+        a /= np.linalg.norm(a)
+        b = np.cross(n, a)
+        tags = {}
+        for i, cs in reads.items():
+            P = ray_plane(K, 0.0, cs, n, d)
+            q = np.column_stack([P @ a, P @ b])
+            top = (q[0] + q[1]) / 2 - (q[2] + q[3]) / 2
+            tags[i] = dict(P=P, q=q, c=q.mean(0), h=math.atan2(top[1], top[0]))
+        loc[c] = dict(K=K, f0=f0, n=n, d=d, tags=tags)
+    if not loc:
+        return None
+    # join the cameras that share a tag: each camera's plane coordinates -> its group's (the first camera's)
+    comps = []
+    left = sorted(loc, key=lambda c: -len(loc[c]["tags"]))
+    while left:
+        base = left.pop(0)
+        comp = {"cams": {base: (0.0, np.zeros(2))}, "tags": {i: [t["q"]] for i, t in loc[base]["tags"].items()}}
+        grew = True
+        while grew:
+            grew = False
+            for c in list(left):
+                shared = [i for i in loc[c]["tags"] if i in comp["tags"]]
+                if not shared:
+                    continue
+                P = np.vstack([loc[c]["tags"][i]["q"] for i in shared])
+                Q = np.vstack([np.mean(comp["tags"][i], axis=0) for i in shared])
+                ang, t2 = _kabsch2(P, Q)
+                comp["cams"][c] = (ang, t2)
+                for i, t in loc[c]["tags"].items():
+                    comp["tags"].setdefault(i, []).append(t["q"] @ _rot2(ang).T + t2)
+                left.remove(c)
+                grew = True
+        comps.append(comp)
+    # each group's turn to the table frame, then one linear solve for the shifts, L, W and the side tags' places
+    lay = prob.ref_lay
+    sides = prob.ref_sides
+    words = []
+    quarters = {}
+    nc = len(comps)
+    ncol = 2 * nc + 2 + len(sides)
+    rows, rhs = [], []
+    for k, comp in enumerate(comps):
+        tq = {i: np.mean(v, axis=0) for i, v in comp["tags"].items()}
+        cand = []
+        for i, q in tq.items():
+            top = (q[0] + q[1]) / 2 - (q[2] + q[3]) / 2
+            cand.append(math.radians(RT.heading(lay[i], 0)) - math.atan2(top[1], top[0]))
+        # the turn most tags agree with (a paper tag turned on its square disagrees by a quarter turn and is outvoted)
+        best = max(cand, key=lambda t0: sum(1 for t1 in cand if abs(wrap180(math.degrees(t1 - t0))) < 20))
+        near = [t1 for t1 in cand if abs(wrap180(math.degrees(t1 - best))) < 20]
+        th = math.atan2(np.mean([math.sin(v) for v in near]), np.mean([math.cos(v) for v in near]))
+        comp["theta"] = th
+        Rt = _rot2(th)
+        for i, q in tq.items():
+            top = (q[0] + q[1]) / 2 - (q[2] + q[3]) / 2
+            hw = math.degrees(th + math.atan2(top[1], top[0]))
+            quarters[i] = int(round(wrap180(hw - RT.heading(lay[i], 0)) / 90.0)) % 4
+            cw_ = Rt @ q.mean(0)
+            it = lay[i]
+            # world centre = const + cL * L + cW * W + ca * along
+            if it["kind"] == "corner":
+                cx = {1: (off, 0, 0), 2: (-off, 1, 0), 3: (-off, 1, 0), 4: (off, 0, 0)}[it["corner"]]
+                cy = {1: (off, 0, 0), 2: (off, 0, 0), 3: (-off, 0, 1), 4: (-off, 0, 1)}[it["corner"]]
+                ca = (0.0, 0.0)
+            else:
+                e = it["edge"]
+                cx = {1: (0, 0, 0), 2: (-off, 1, 0), 3: (0, 0, 0), 4: (off, 0, 0)}[e]
+                cy = {1: (off, 0, 0), 2: (0, 0, 0), 3: (-off, 0, 1), 4: (0, 0, 0)}[e]
+                ca = {1: (1.0, 0.0), 2: (0.0, 1.0), 3: (1.0, 0.0), 4: (0.0, 1.0)}[e]
+            for ax, cc_ in ((0, cx), (1, cy)):
+                r = np.zeros(ncol)
+                r[2 * k + ax] = 1.0                       # the group's shift
+                r[2 * nc] -= cc_[1]                       # L
+                r[2 * nc + 1] -= cc_[2]                   # W
+                if it["kind"] == "side" and i in sides:
+                    r[2 * nc + 2 + sides.index(i)] -= ca[ax]
+                rows.append(r)
+                rhs.append(cc_[0] - cw_[ax])
+    if prob.typed_L:
+        for col, v in ((2 * nc, prob.typed_L), (2 * nc + 1, prob.typed_W)):
+            r = np.zeros(ncol)
+            r[col] = 1.0
+            rows.append(r)
+            rhs.append(float(v))
+    for i, v in prob.typed_along.items():
+        r = np.zeros(ncol)
+        r[2 * nc + 2 + sides.index(i)] = 1.0
+        rows.append(r)
+        rhs.append(v)
+    A, y = np.array(rows), np.array(rhs)
+    sol, _, rank, _ = np.linalg.lstsq(A, y, rcond=None)
+    if rank < ncol:
+        raise ValueError("the reference tags do not fix the table: %d groups of cameras that share no tag, %d tags seen "
+                         "(%s). Each camera needs a corner tag, and the two cameras a shared side tag (or type the "
+                         "table's size)" % (nc, sum(len(c["tags"]) for c in comps),
+                                            ", ".join(sorted({i for c in comps for i in c["tags"]}, key=int))))
+    L0, W0 = float(sol[2 * nc]), float(sol[2 * nc + 1])
+    along = {i: float(sol[2 * nc + 2 + j]) for j, i in enumerate(sides)}
+    res = A @ sol - y
+    bad = float(np.sqrt(np.mean(res ** 2)))
+    if bad > 6.0:
+        words.append("WARNING: the reference tags do not sit where their ids say (%.1f cm apart from their places): "
+                      "is each tag in its own corner (ids %s)?" % (bad, ", ".join("%s = corner %d" % (i, it["corner"])
+                                                                                 for i, it in sorted(lay.items())
+                                                                                 if it["kind"] == "corner")))
+    turned = sorted(i for i, q in quarters.items() if q)
+    if turned:
+        words.append("reference tag%s %s %s turned on %s square (fine: the turn is read)" % (
+            "s" if len(turned) > 1 else "", ", ".join(turned), "are" if len(turned) > 1 else "is",
+            "their" if len(turned) > 1 else "its"))
+    placed = {}
+    prob.ref_q.update(quarters)
+    for comp in comps:
+        for c in comp["cams"]:
+            Pc, Pw = [], []
+            for i, t in loc[c]["tags"].items():
+                x, y_, hd = prob.ref_pose(i, L0, W0, along)
+                Pw.append(tag_corners_world(x, y_, hd, z, s)[:, :2])
+                Pc.append(t["P"])
+            R, tt = rigid_from_plane(np.vstack(Pc), np.vstack(Pw), loc[c]["n"], np.full(4 * len(Pc), z))
+            placed[c] = (R, tt, loc[c]["f0"])
+            words.append("%s placed from %d reference tag%s (%s)" % (c, len(Pc), "" if len(Pc) == 1 else "s",
+                                                                     ", ".join(sorted(loc[c]["tags"], key=int))))
+    return dict(placed=placed, L=L0, W=W0, along=along, quarters=quarters, words=words, rms_cm=round(bad, 2))
 
 
 def initial(obs, prob):
@@ -299,7 +526,19 @@ def initial(obs, prob):
         K = K_of(f0, size)
         reads = [g["reads"][c] for g in prob.groups if c in g["reads"]]
         pl = plane_from_tags(K, reads, s, H)
+        if pl is None and prob.ref and (prob.ref_reads.get(c) or {}):
+            # no robot tag in this camera: the reference tags give its table plane (they lie on it)
+            pl = plane_from_tags(K, list((prob.ref_reads.get(c) or {}).values()), prob.ref_s, prob.ref_z)
         planes[c] = (K, f0, pl)
+    if prob.ref:
+        r = ref_initial(obs, prob)
+        if r:
+            placed.update(r["placed"])
+            L0, W0 = r["L"], r["W"]
+            words += r["words"]
+            prob.ref_q.update({str(k): int(v) for k, v in r["quarters"].items()})
+            prob.ref_along0 = r["along"]
+            words.append("reference tags: table %.1f x %.1f cm to start with" % (L0, W0))
     # the table's size: typed, else measured from a camera that sees 1-2 or 1-4 edges
     if not L0:
         L0, W0 = None, None
@@ -325,7 +564,7 @@ def initial(obs, prob):
     for c in prob.cams:
         K, f0, pl = planes[c]
         cc = (obs.get("corners") or {}).get(c) or {}
-        if pl is None or len(cc) < 2:
+        if pl is None or len(cc) < 2 or c in placed:
             continue
         ks = sorted(int(k) for k in cc)
         Pc = ray_plane(K, 0.0, [cc[str(k)] if str(k) in cc else cc[k] for k in ks], pl[0], pl[1])
@@ -386,6 +625,12 @@ def initial(obs, prob):
         x0[a + 3:a + 6] = t
         x0[a + 6] = f0
     x0[lay["LW"][0]:lay["LW"][1]] = [L0, W0]
+    al0 = getattr(prob, "ref_along0", {}) or {}
+    for j, i in enumerate(prob.ref_sides):
+        it = prob.ref_lay[i]
+        x0[lay["_along"][0] + j] = al0.get(i, (L0 if it["edge"] in (1, 3) else W0) / 2.0)
+    if "_kref" in lay:
+        x0[lay["_kref"][0]] = 1.0
     if prob.fit_height:
         x0[lay["H"][0]] = prob.H
     sa = lay["stk"][0]
@@ -453,6 +698,18 @@ def solve(obs, use_typed=True, fit_k1=None, fit_height=False, x_start=None, fit_
     out["x"] = [float(v) for v in x]
     if prob.fit_tag_scale:
         out["tag_scale"] = round(float(x[prob.lay["k"][0]]), 4)
+    if prob.ref:
+        along = {i: float(x[prob.lay["_along"][0] + j]) for j, i in enumerate(prob.ref_sides)}
+        out["ref_tags"] = {"poses": {i: [round(v, 3) for v in prob.ref_pose(i, float(L), float(W), along)]
+                                     for i in prob.ref_lay},
+                           "seen": {c: sorted(prob.ref_reads.get(c, {}), key=int) for c in prob.cams},
+                           "along_cm": {i: round(v, 2) for i, v in along.items()},
+                           "along_sd_cm": {i: round(float(sd[prob.lay["_along"][0] + j]), 2)
+                                           for j, i in enumerate(prob.ref_sides)},
+                           "quarters": dict(prob.ref_q), "tag_cm": prob.ref_s, "z_cm": prob.ref_z,
+                           "offset_cm": prob.ref_off}
+        if "_kref" in prob.lay:
+            out["ref_tag_scale"] = round(float(x[prob.lay["_kref"][0]]), 4)
     out["cost"] = float(r.cost)
     out["nfev"] = int(r.nfev)
     return out
@@ -491,6 +748,14 @@ def rms_by_kind(prob, x):
         if d:
             e["tags"] = float(np.sqrt(np.mean(np.square(np.concatenate(d)))))
             e["tag_reads"] = len(d)
+        if prob.ref and prob.ref_reads.get(c):
+            along = {i: x[prob.lay["_along"][0] + j] for j, i in enumerate(prob.ref_sides)}
+            kref = x[prob.lay["_kref"][0]] if "_kref" in prob.lay else 1.0
+            d = [np.linalg.norm(project(K, k1, rv, tv, tag_corners_world(*prob.ref_pose(i, L, W, along), prob.ref_z,
+                                                                          prob.ref_s * kref)) - np.asarray(cs), axis=1)
+                 for i, cs in prob.ref_reads[c].items()]
+            e["ref"] = float(np.sqrt(np.mean(np.square(np.concatenate(d)))))
+            e["ref_tags"] = len(d)
         out[c] = {k: round(v, 3) if isinstance(v, float) else v for k, v in e.items()}
     return out
 
@@ -529,6 +794,17 @@ def checks(obs, untyped, typed=None):
                 words.append("Sticker %s: the cameras put it at (%.1f, %.1f) cm, you typed (%.1f, %.1f): %.1f cm apart. "
                              "Check the click in each picture and the tape." % (sid, st[sid][0], st[sid][1], xy[0],
                                                                               xy[1], off))
+    rt = untyped.get("ref_tags") or {}
+    for i, v in ((obs.get("ref_tags") or {}).get("typed_along_cm") or {}).items():
+        cam_v = (rt.get("along_cm") or {}).get(str(i))
+        if cam_v is None:
+            continue
+        off = cam_v - float(v)
+        ok = abs(off) <= max(AGREE_CM, 3.0 * float((rt.get("along_sd_cm") or {}).get(str(i)) or 0.0))
+        rows.append(dict(what="side tag %s along its edge" % i, cameras=cam_v, typed=float(v), off=round(off, 2), ok=ok))
+        if not ok:
+            words.append("Side tag %s: the cameras put it %.1f cm along its edge, you typed %.1f cm (%.1f cm apart)."
+                         % (i, cam_v, float(v), off))
     for a_, b_, dcm in obs.get("distances", []):
         if a_ in st and b_ in st:
             cam_d = math.hypot(st[a_][0] - st[b_][0], st[a_][1] - st[b_][1])
@@ -552,7 +828,8 @@ def full(obs, fit_k1=None, untyped_check=True):
     the tape is off); and the cameras' own measure (tags alone, k = 1) for comparison.
     Without typed measurements: the tags alone (k = 1), and the words say the scale rests on the tags' printed size."""
     has_typed = bool((obs.get("table") or {}).get("length_cm")) or any(
-        d.get("xy_cm") is not None for d in (obs.get("stickers") or {}).values()) or bool(obs.get("distances"))
+        d.get("xy_cm") is not None for d in (obs.get("stickers") or {}).values()) or bool(obs.get("distances")) or \
+        bool((obs.get("ref_tags") or {}).get("typed_along_cm"))
     if not has_typed:
         a = solve(obs, use_typed=False, fit_k1=fit_k1)
         a["checks"], a["words"] = [], a["words"] + ["No measurements typed: the scale rests on the tags' printed size "
@@ -565,11 +842,26 @@ def full(obs, fit_k1=None, untyped_check=True):
     k = b.get("tag_scale", 1.0)
     rows.append(dict(what="tag read size / printed", cameras=k, typed=1.0, off=round(k - 1.0, 4),
                      ok=abs(k - 1.0) <= TAG_SCALE_WARN))
+    if "ref_tag_scale" in b:
+        kr = b["ref_tag_scale"]
+        rows.append(dict(what="reference tag read size / printed", cameras=kr, typed=1.0, off=round(kr - 1.0, 4),
+                         ok=abs(kr - 1.0) <= TAG_SCALE_WARN))
+        if abs(kr - 1.0) > TAG_SCALE_WARN:
+            words.append("The reference tags read %.1f %% %s than printed, against your typed measurements. Measure a "
+                         "printed reference tag's black square (should be %.1f cm) and the table again."
+                         % (100 * abs(kr - 1), "larger" if kr > 1 else "smaller", obs["ref_tags"].get("tag_cm", 12.0)))
     if abs(k - 1.0) > TAG_SCALE_WARN:
         words.append("The tags read %.1f %% %s than printed, against your typed measurements. Measure a printed "
                      "tag's black square (should be %.1f cm) and the table again: one of them is off."
                      % (100 * abs(k - 1), "larger" if k > 1 else "smaller", obs["tag_cm"]))
     b["untyped_size_cm"], b["untyped_size_sd_cm"] = a["size_cm"], a.get("size_sd_cm")
+    if untyped_check and b.get("ref_tags") and obs.get("tag_groups"):
+        try:
+            hc = height_check(obs, b, fit_k1=fit_k1)
+            b["height_check"] = hc
+            words.append(hc["words"])
+        except Exception as e:    # noqa: BLE001  (a check never stops the setup)
+            words.append("(height cross-check not made: %s)" % e)
     b["checks"] = rows
     b["words"] = b["words"] + words + [
         "Typed measurements used; the tags read %.1f %% %s than printed (fitted%s)." % (
@@ -578,6 +870,26 @@ def full(obs, fit_k1=None, untyped_check=True):
     if all(r["ok"] for r in rows):
         b["words"].append("Every typed measurement agrees with the cameras.")
     return b
+
+
+def height_check(obs, res, fit_k1=None):
+    """The roof tags as the cameras' height cross-check (2026-11-03): the fit without them (the reference tags alone,
+    flat on the table) against the fit with them. A camera looking straight down at a flat table cannot tell its height
+    from its zoom (the focal length's weak prior decides); the roof tags, a known height above the table, can. Each
+    camera's height both ways, and the words."""
+    o2 = dict(obs, tag_groups=[])
+    r2 = solve(o2, use_typed=True, fit_k1=fit_k1, fit_tag_scale=True)
+    out = {}
+    for c, d in res["cameras"].items():
+        h1 = float(d["camera_position_cm"][2])
+        h0 = float(r2["cameras"][c]["camera_position_cm"][2]) if c in r2["cameras"] else float("nan")
+        out[c] = {"with_roofs_cm": round(h1, 1), "refs_alone_cm": round(h0, 1)}
+    words = ("Camera height cross-check: with the robots' roof tags %s; from the flat reference tags alone %s (flat tags "
+             "alone cannot tell height from zoom when a camera looks straight down: the roof tags, %.1f cm up, decide "
+             "it; a big gap with few roof reads: drive the robots about, then Refit)." % (
+                 ", ".join("%s %.0f cm" % (c, v["with_roofs_cm"]) for c, v in out.items()),
+                 ", ".join("%s %.0f cm" % (c, v["refs_alone_cm"]) for c, v in out.items()), float(obs["tag_height_cm"])))
+    return {"cameras": out, "words": words}
 
 
 # ------------------------------------------------------------------------------------------------- inputs
@@ -611,8 +923,11 @@ def groups_from_obs_csv(path, ids_to_robot=None, pair_s=0.07, max_groups=MAX_GRO
 
 # ------------------------------------------------------------------------------------------------- self-test
 def simulate(seed=1, size=(1280, 960), height=200.0, f_err=None, click_sd=1.5, tag_sd=0.3, n_spots=24, typed=True,
-             stickers=10, table=(396.24, 167.64), H=6.0, s=8.0):
-    """Synthetic observations from two true cameras (tag_cam.overhead_pair) and the truth to compare with."""
+             stickers=10, table=(396.24, 167.64), H=6.0, s=8.0, refs=False, corners=True, hide_ref=(), ref_sd=0.2,
+             along=None):
+    """Synthetic observations from two true cameras (tag_cam.overhead_pair) and the truth to compare with.
+    refs: the six reference tags read (ref_tags.py; hide_ref: ids not seen; along: the side tags' true places);
+    corners: the corner clicks (off: the school's way with reference tags)."""
     import tag_cam as CAMS
     rng = np.random.default_rng(seed)
     L, W = table
@@ -633,7 +948,23 @@ def simulate(seed=1, size=(1280, 960), height=200.0, f_err=None, click_sd=1.5, t
             uv = c.project([[x, y, 0]])[0]
             if np.all(np.isfinite(uv)) and 0 <= uv[0] < size[0] and 0 <= uv[1] < size[1]:
                 cc[str(k)] = (uv + rng.normal(0, click_sd, 2)).tolist()
-        obs["corners"][c.name] = cc
+        obs["corners"][c.name] = cc if corners else {}
+    if refs:
+        import ref_tags as RT
+        cfg = RT.default_config()
+        al = along or {"24": L / 2 + 6.0, "25": L / 2 - 9.0}
+        obs["ref_tags"] = {"layout": RT.layout(cfg), "tag_cm": RT.TAG_CM, "z_cm": RT.Z_CM, "offset_cm": RT.OFFSET_CM,
+                           "reads": {}, "truth_along": al}
+        for c in cams:
+            rd = {}
+            for i, (x, y, th) in RT.world_poses(cfg, L, W, along=al).items():
+                if i in [str(h) for h in hide_ref]:
+                    continue
+                uv = c.project(tag_corners_world(x, y, th, RT.Z_CM, RT.TAG_CM))
+                if np.all(np.isfinite(uv)) and np.all((uv[:, 0] > 2) & (uv[:, 0] < size[0] - 2) & (uv[:, 1] > 2)
+                                                      & (uv[:, 1] < size[1] - 2)):
+                    rd[i] = (uv + rng.normal(0, ref_sd, uv.shape)).tolist()
+            obs["ref_tags"]["reads"][c.name] = rd
     st_truth = {}
     for k in range(stickers):
         sx, sy = rng.uniform(15, L - 15), rng.uniform(15, W - 15)

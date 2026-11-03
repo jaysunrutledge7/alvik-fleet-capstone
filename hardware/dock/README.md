@@ -23,9 +23,42 @@ Firmware: `firmware/home_lab/switches.h`, `dock.h` (2026-10-19a; pins A0 / A1 fr
 | `stl/dock_v2.stl` | **dock version 2** (`build_v2.py`): the same funnel for parking, plus a pair of measuring posts molded into each of its three closed sides; no floor stripe |
 | `preview/dock_v2_layout.png` | version 2 from above with a robot parked and one at each post station |
 | `build_attachment_v2.py` | **self-charging** (plan: `docs/build-plans/self-charging-dock.md`, not built yet): `stl/attachment_v2.stl` (the one-piece attachment plus two brass screw-head charging pads in the bar; same outside, same firmware numbers), `stl/dock_v3.stl` (dock v2 plus two spring pins in the back wall, a wiring cavity and a cable channel), `stl/attachment_v2_fit_test.stl` (13 mm slice to try on first), `stl/pogo_gauge.stl`; previews `attachment_v2.png`, `dock_v3.png`, `charging_contact.png`, `nose_bracket_size.png` |
+| `build_ref_tiles.py` | **AprilTag tiles (2026-11-03)**: `stl/ref_corner_20..23.stl` (a 155 mm white tile with a 120 mm tag25h9 tag, raised 0.6 mm in black, and an L-shaped lip underneath that hooks a table corner: the tag's middle sits 77.5 mm in from both edges), `stl/ref_side_24.stl`, `ref_side_25.stl` (a straight lip hooking a long side), `stl/roof_tag_0.stl`, `roof_tag_1.stl` (drop-in roof tiles for Alpha and Bravo: 80 mm tag on a 91 mm tile, one corner cut as a key); previews `ref_corner_tile.png`, `ref_corner_tile_3d.png`, `ref_side_tile.png`, `ref_tile_lip_section.png`, `roof_tag_tile.png`; print sheet page 2 (`hardware/print_sheet_tiles.py`) |
 | `build_dock_v6.py` | **current design (2026-10-25 13:03): dock v6** (plan: `docs/build-plans/self-charging-dock.md`, not built yet): `stl/dock_v6.stl` (v5's U with the crowns under the battery cover's pads, two springs under each contact plate, a 20 mm mouth chamfer catching 13.5 mm off centre), `stl/pad_carrier_v6.stl` (a 2.4 mm carrier taped to the battery cover: two pads of 1/4 in brass strip 19 mm behind the axle, lanes, wire channels); attachment: v5's file; marker: the **printed dock piece E** of `docs/hardware/checker-pieces-letter.pdf` in a 0.6 mm pocket (2026-10-28); previews `dock_v6.png`, `dock_v6_piece.png` (the pocket with the piece, from above and in a cut), `contact_v6.png`, `lift_v6.png`, `carrier_v6.png`, `carrier_on_photo_v6.png` (the carrier drawn on Nick's underside photo) |
 | `build_dock_v5.py` | **superseded by v6** (pads on a sled 8 mm behind the axle, one spring per plate): dock v5, a U the robot backs into (plan: `docs/build-plans/self-charging-dock.md`, not built yet): `stl/dock_v5.stl` (U with bumps inside and three post stations outside, a 10 mm mouth chamfer instead of the funnel, two prongs each carrying a stiff brass contact plate hinged at its front and held up by a small spring at its rear), `stl/pad_sled_v5.stl` (pads 8 mm behind the axle), `stl/attachment_v5.stl` (v3 with the pad-wire holes moved), `stl/marker_strip_v5.stl` (2 x 6 squares of 15 mm, 90 x 30 mm); previews `dock_v5.png`, `docked_v5.png`, `contact_v5.png`, `lift_v5.png`, `sled_v5.png` |
 | `build_attachment_v3.py` | **superseded by v5** (back-mounted, charges from underneath) (plan: `docs/build-plans/self-charging-dock.md`, not built yet): `stl/attachment_v3.stl` (one attachment: bumper switches at the BACK, light plate, cable clips), `stl/pad_sled.stl` (two flush brass pads under the robot's rear), `stl/dock_v4.stl` (funnel, two switch bumps on the back wall, a two-pronged tongue with an upright spring pin in each prong, taller posts), fit tests `clearance_gauge.stl`, `attachment_v3_fit_test.stl`, `pogo_gauge_v.stl`; previews `attachment_v3.png`, `pad_sled.png`, `dock_v4.png`, `docked_v4.png`, `underside_v4.png` |
+
+## AprilTag tiles (2026-11-03): `build_ref_tiles.py`
+
+Nick, 2 Nov (approved): reference AprilTags on the conference table, 3D printed like the check tile, so the cameras
+find the table's corners, its size and the shared frame by themselves (software: `tools/fleet/ref_tags.py`; report
+`docs/build-reports/e02-nov03-risk-fixes-corner-tags.md`). A paper option prints from
+`docs/hardware/reference-tags-letter.pdf`.
+
+- **The part fixes the tag's place.** The lip's inner face goes against the table's edge, the tile's underside on its
+  top. The tag's middle is then **77.5 mm in from each edge the tile hooks** (both edges on a corner tile, the one
+  edge on a side tile). Its black square runs 17.5-137.5 mm in. Corner 1's tile (id 20) is (0, 0).
+- **Corner tiles** (20-23, one per corner, counter-clockwise from corner 1 seen from above): the two lips start 30 mm
+  from the corner, so a table with corners rounded up to a 30 mm radius still meets both lips on its straight edges.
+  **Side tiles** (24: the long side from corner 1 to corner 2; 25: from corner 3 to corner 4) go in the middle where
+  both cameras see them; their place along the edge is measured by the cameras.
+- **Lip:** 3 mm thick, reaching 12 mm down: under the thinnest top assumed (19 mm), so it never meets an apron; it
+  holds on any top from 19 to 38 mm (both drawn in `ref_tile_lip_section.png`). A 0.8 mm groove where the lip meets
+  the tile keeps a print bulge from holding it off the edge. The id and place are cut into the lip's outside face.
+- **Printed face down, no supports:** the lips stand up from the bed. Colour: **black first, filament change (M600)
+  at 0.6 mm, then white** (the black squares are the first 3 layers). Turned over, it is the check tile's build: a
+  1.2 mm white base with 0.6 mm raised black squares. A textured bed plate gives matte black faces (use matte
+  filament if you have it: a shiny tag reflects the ceiling lights). No colour change: print white, colour the raised
+  squares with a black marker.
+- **Roof tiles** print face up like the check tile (white, M600 at 1.2 mm, black). They need a **pocket in the new roof:
+  91.5 x 91.5 mm, 1.2 mm deep, its back-left corner cut 8 mm along each side at 45 deg** (the tile has the same cut,
+  so it goes in only with the tag's top towards the nose), centred over the wheel axle's middle, a 1.75 mm wall round
+  it on the 95 mm roof. The tag's face is then 0.6 mm above the roof's top: measure the roof height to it.
+- Checks (`build_ref_tiles.py` prints them): a reference cell is 17.1 mm (38 lines of a 0.4 mm nozzle; a printed
+  corner rounds by about 0.23 mm, 1.3 % of a cell), a roof cell 11.4 mm (25 lines); every part a valid solid that fits
+  a 180 mm bed. Printed squares, raised walls and a light's shadow read like paper in the simulated school cameras
+  (`tools/fleet/ref_printcheck.py`: every tag read, its middle within 1.4 mm of its true place; a flat paper tag: within 0.7 mm).
+- Build: `python hardware/dock/build_ref_tiles.py` (cadquery), then `python3 hardware/print_sheet_tiles.py`.
 
 ## Dock v6 (self-charging, current): `build_dock_v6.py`
 

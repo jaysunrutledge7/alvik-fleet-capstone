@@ -12,5 +12,10 @@
  "tracking": "tags",
  "tags": {"family": "tag25h9", "tag_cm": 8.0, "roof_cm": 9.5, "height_cm": null,
           "ids": {"Alpha": 0, "Bravo": 1}, "spares": [2, 3, 4, 5]},
- "table": {"length_cm": 396.2, "width_cm": 167.6, "how": "Nick: 66 x 156 in"}
+ "table": {"length_cm": 396.2, "width_cm": 167.6, "how": "Nick: 66 x 156 in"},
+ "_note_2026_11_03": "Reference tags on the table (tools/fleet/ref_tags.py): corners 20-23 (corner 1 = 0,0), sides 24 (edge 1-2) and 25 (edge 3-4), 12 cm, tiles 15.5 cm. corner_clicks: false = the corners come from the tags (set true to click them as before). auto_refit: background (the run's refit runs on its own), wait (the old way) or off (the button only).",
+ "ref_tags": {"use": true, "family": "tag25h9", "tag_cm": 12.0, "offset_cm": 7.75, "z_cm": 0.18,
+              "corners": {"1": 20, "2": 21, "3": 22, "4": 23}, "sides": {"1": 24, "3": 25}},
+ "corner_clicks": false,
+ "auto_refit": "background"
 }

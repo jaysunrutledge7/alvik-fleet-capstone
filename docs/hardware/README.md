@@ -1,3 +1,12 @@
+## Reference tags (2026-11-03): `reference-tags-letter.pdf`
+
+Six AprilTags (tag25h9, ids 20-25, 12 cm) for the conference table: one per corner (20 = corner 1 = (0, 0), then 21,
+22, 23 counter-clockwise seen from above) and one on each long side's middle (24: the side from corner 1 to 2; 25: from
+3 to 4). One tag a page at exact scale with its 15.5 cm cut square, a 10 cm ruler, its id and where it goes; the
+sides marked EDGE go flush along the table's edges. The cameras find them by themselves (no corner clicks). The
+3D-printed version (lips that hook the edge): `hardware/dock/build_ref_tiles.py`. Made by
+`python3 tools/fleet/ref_tags.py pdf`.
+
 # Printouts for the cameras
 
 ## Checker pieces (2026-10-28): `checker-pieces-letter.pdf`

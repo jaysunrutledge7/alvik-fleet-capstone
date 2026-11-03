@@ -323,6 +323,8 @@ class Session:
             out["feel"] = self.feel.status()
         if self.tag:
             out["tag"] = {k: v for k, v in self.tag.d.items()}
+            out["tag"]["corner_clicks_on"] = self.tag.corner_clicks_on()
+            out["tag"]["ref_cfg"] = self.tag.ref_cfg
             try:
                 out["tag"]["refit_live"] = self.tag.refit_live(os.path.dirname(self.last_runs.get("mission") or ""))
             except Exception as e:     # noqa: BLE001  (a status line never breaks the page)
@@ -1193,6 +1195,8 @@ class Handler(BaseHTTPRequestHandler):
                         return self._send(200, clean(T.set_clicks(d)))
                     if path == "/api/tags/typed":
                         return self._send(200, clean(T.set_typed(d)))
+                    if path == "/api/tags/corner_clicks":
+                        return self._send(200, clean(T.set_corner_clicks(bool(d.get("on")))))
                     if path == "/api/tags/checkout":
                         return self._send(200, clean(T.checkout(conn)))
                     if path == "/api/tags/measure":

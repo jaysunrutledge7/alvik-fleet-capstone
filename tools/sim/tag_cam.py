@@ -52,8 +52,10 @@ class TagCamera:
 
     def __init__(self, pos, look_at, size=(1280, 720), hfov_deg=70.0, roll_deg=0.0, blur_px=0.8, noise=3.0,
                  gain=1.0, offset=0.0, jpeg=85, k1=0.0, seed=1, name="cam", table=None, table_grey=120,
-                 floor_grey=60, stickers=None, sticker_cm=2.0, exposure_ms=16.0, fps=15.0):
+                 floor_grey=60, stickers=None, sticker_cm=2.0, exposure_ms=16.0, fps=15.0, refs=None):
         self.name = name
+        self.refs = list(refs or [])      # reference tags lying on the table (2026-11-03): dicts id, x, y, th (deg), z,
+                                          # tag_cm, tile_cm, family; drawn into the empty table's picture
         self.W, self.H = int(size[0]), int(size[1])
         self.f = (self.W / 2.0) / math.tan(math.radians(hfov_deg) / 2.0)
         self.K = np.array([[self.f, 0, self.W / 2.0 - 0.5], [0, self.f, self.H / 2.0 - 0.5], [0, 0, 1.0]])
@@ -117,8 +119,26 @@ class TagCamera:
             a = np.linspace(0, 2 * math.pi, 20, endpoint=False)
             self._poly(img, [(sx + 1.6 * r * math.cos(t), sy + 1.6 * r * math.sin(t), 0.0) for t in a], 235.0)
             self._poly(img, [(sx + r * math.cos(t), sy + r * math.sin(t), 0.0) for t in a], 25.0)
+        for rf in self.refs:
+            # a reference tile: its white square (tile_cm) with the tag in the middle, flat on the table at z (the
+            # printed tile's face: 1.8 mm); the printed top towards th
+            self._draw_roof(img, rf["x"], rf["y"], math.radians(rf["th"]), rf.get("z", 0.18), rf.get("family", "tag25h9"),
+                            int(rf["id"]), rf["tag_cm"], rf["tile_cm"])
         self._bg = img
         return img
+
+    def bump(self, deg=1.0, axis="x", shift_cm=(0.0, 0.0, 0.0)):
+        """The camera knocked (2026-11-03): turned deg about its own axis and moved; the pictures change from now."""
+        a = math.radians(deg)
+        c_, s_ = math.cos(a), math.sin(a)
+        Rb = {"x": np.array([[1, 0, 0], [0, c_, -s_], [0, s_, c_]]), "y": np.array([[c_, 0, s_], [0, 1, 0], [-s_, 0, c_]]),
+              "z": np.array([[c_, -s_, 0], [s_, c_, 0], [0, 0, 1]])}[axis]
+        self.Rw = Rb @ self.Rw
+        self.C = self.C + np.asarray(shift_cm, float)
+        self.rvec = cv2.Rodrigues(self.Rw)[0].ravel()
+        self.tvec = -self.Rw @ self.C
+        self._bg = None
+        self._fast = None
 
     def texture(self, family, tag_id, tag_cm, roof_cm):
         """The roof's top as a picture: the tag (black square tag_cm wide) in the middle of a white roof_cm square."""
@@ -291,18 +311,50 @@ def cams_from_config(cfg):
     k1, roll_deg}], table: [L, W], stickers: {label: [x, y]}})."""
     L, W = cfg["table"]
     out = []
+    refs = ref_list(cfg)
     for k, c in enumerate(cfg["cams"]):
         kw = {key: c[key] for key in ("size", "hfov_deg", "blur_px", "noise", "gain", "offset", "k1", "roll_deg", "jpeg")
               if key in c}
         out.append(TagCamera(c["pos"], c["look_at"], name=c["name"], table=(0, 0, L, W), seed=31 + k,
-                             stickers={str(a): tuple(b) for a, b in (cfg.get("stickers") or {}).items()}, **kw))
+                             stickers={str(a): tuple(b) for a, b in (cfg.get("stickers") or {}).items()}, refs=refs,
+                             **kw))
     return out
 
 
+def ref_list(cfg):
+    """The reference tags a tag-cams config puts on the table: [dict(id, x, y, th, z, tag_cm, tile_cm, family)], the
+    hidden ones left out (cfg["ref_tags"]["hide"]: a hand, a bag, a tile not put down)."""
+    rt = cfg.get("ref_tags") or {}
+    if not rt or not rt.get("poses"):
+        return []
+    hide = {str(h) for h in rt.get("hide") or []}
+    return [dict(id=int(i), x=float(p[0]), y=float(p[1]), th=float(p[2]), z=float(rt.get("z_cm", 0.18)),
+                 tag_cm=float(rt.get("tag_cm", 12.0)), tile_cm=float(rt.get("tile_cm", 15.5)),
+                 family=rt.get("family", "tag25h9"))
+            for i, p in sorted(rt["poses"].items(), key=lambda kv: int(kv[0])) if str(i) not in hide]
+
+
+def ref_config(table, seed=5, along_sd_cm=6.0, hide=(), cfg=None):
+    """The six reference tags on this table, as a tag-cams config holds them: the corner tags where their tiles put
+    them, the side tags near the middle of the long sides (a few cm off, as Nick would put them down), each tile's tag
+    at a quarter turn of 0 (a printed tile can only go on one way)."""
+    import ref_tags as RT
+    rng = np.random.default_rng(seed + 100)
+    L, W = table
+    rc = cfg or RT.default_config()
+    along = {str(i): round(float(L / 2 + rng.normal(0, along_sd_cm)), 2) for i in (rc.get("sides") or {}).values()}
+    poses = RT.world_poses(rc, L, W, along=along)
+    return {"poses": {i: [round(v, 3) for v in p] for i, p in poses.items()}, "along": along,
+            "tag_cm": float(rc.get("tag_cm", RT.TAG_CM)), "tile_cm": 2 * float(rc.get("offset_cm", RT.OFFSET_CM)),
+            "z_cm": float(rc.get("z_cm", RT.Z_CM)), "family": rc.get("family", RT.FAMILY), "hide": [str(h) for h in hide],
+            "config": rc}
+
+
 def default_config(table=(396.24, 167.64), size=(1280, 960), height_cm=200.0, hfov_deg=74.0, seed=5, stickers=12,
-                   tags=None, overlap_cm=40.0):
+                   tags=None, overlap_cm=40.0, refs=True, hide_refs=()):
     """The school setup as the build recommends it: two cameras straight down over each half (a little tilted and
-    turned, as a hand-mounted camera is), numbered stickers scattered on the table."""
+    turned, as a hand-mounted camera is), numbered stickers scattered on the table, and (refs, 2026-11-03) the six
+    reference tags on their tiles (hide_refs: ids left out)."""
     rng = np.random.default_rng(seed)
     L, W = table
     half = L / 2 + overlap_cm / 2
@@ -317,9 +369,12 @@ def default_config(table=(396.24, 167.64), size=(1280, 960), height_cm=200.0, hf
         x, y = rng.uniform(20, L - 20), rng.uniform(20, W - 20)
         if all(math.hypot(x - a, y - b) > 25 for a, b in st.values()) and math.hypot(x - L / 2, y - W / 2) > 30:
             st[str(len(st) + 1)] = [round(float(x), 1), round(float(y), 1)]
-    return {"table": [L, W], "cams": cams, "stickers": st, "fps": 12.0,
-            "tags": tags or {"family": TC.TAG_FAMILY, "tag_cm": 8.0, "roof_cm": 9.5, "height_cm": 6.0,
-                             "ids": {"Alpha": 0, "Bravo": 1}}}
+    out = {"table": [L, W], "cams": cams, "stickers": st, "fps": 12.0,
+           "tags": tags or {"family": TC.TAG_FAMILY, "tag_cm": 8.0, "roof_cm": 9.5, "height_cm": 6.0,
+                            "ids": {"Alpha": 0, "Bravo": 1}}}
+    if refs:
+        out["ref_tags"] = ref_config((L, W), seed=seed, hide=hide_refs, cfg=refs if isinstance(refs, dict) else None)
+    return out
 
 
 def serve_live(sim, cfg, out_dir):
@@ -381,9 +436,19 @@ def serve_live(sim, cfg, out_dir):
     n = 0
     prev = {}
     low = cfg.get("low_res") or {}
+    bumps = [dict(b) for b in (cfg.get("bumps") or [])]     # [{cam, t, deg, axis, shift_cm}]: a camera knocked mid-run
     while not sim.stop.is_set():
         t_cap = _time.time()
         rel = (t_cap - sim.t_plan0) if sim.t_plan0 is not None else -1e9
+        for b in bumps:
+            if not b.get("done") and rel >= float(b["t"]):
+                for c in cams:
+                    if c.name == b["cam"]:
+                        c.bump(float(b.get("deg", 1.0)), b.get("axis", "x"), b.get("shift_cm") or (0, 0, 0))
+                        c.true_model().save(os.path.join(out_dir, "true_%s_bumped.json" % c.name))
+                        sim.log("SIMULATED BUMP: camera %s turned %.2f deg about its %s axis, %.0f s after the plan "
+                                "started" % (c.name, float(b.get("deg", 1.0)), b.get("axis", "x"), rel))
+                b["done"] = True
         covered = set()
         for g in cfg.get("gaps") or []:
             if g["t"] <= rel < g["t"] + g["dur"] and g["robot"] in ids:

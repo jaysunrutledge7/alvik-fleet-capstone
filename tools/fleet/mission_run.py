@@ -72,6 +72,22 @@ def say(s):
     print(time.strftime("%H:%M:%S ") + s, flush=True)
 
 
+def uses_refs(args):
+    """Reference tags on the simulated table (2026-11-03): on unless --no-refs or the site switches them off."""
+    if getattr(args, "no_refs", False):
+        return False
+    rt = (getattr(args, "site_", None) or {}).get("ref_tags")
+    return True if rt is None else bool(rt.get("use", True))
+
+
+def corner_clicks(args):
+    """Corner clicking (a switch per site, 2026-11-03): --corner-clicks on/off, else the site's corner_clicks, else on."""
+    v = getattr(args, "corner_clicks", "auto") or "auto"
+    if v != "auto":
+        return v == "on"
+    return bool((getattr(args, "site_", None) or {}).get("corner_clicks", True))
+
+
 def build(args, out):
     robots = [r.strip() for r in args.robots.split(",") if r.strip()]
     cal = getattr(args, "feel_cal_", None)
@@ -89,12 +105,18 @@ def build(args, out):
         import production as PR
         a_, b_ = (float(v) for v in args.table.lower().split("x"))
         pts = {}
+        import tag_cam as TCAM
+        dcfg = TCAM.default_config(table=(max(a_, b_), min(a_, b_)), seed=args.seed + 4, refs=uses_refs(args))
         if not args.program:
             # no program given (a dry run from the command line): the simulator's stickers as the points
-            import tag_cam as TCAM
-            pts = TCAM.default_config(table=(max(a_, b_), min(a_, b_)), seed=args.seed + 4)["stickers"]
+            pts = dcfg["stickers"]
+        kos = None
+        if dcfg.get("ref_tags"):
+            # the reference tiles (2026-11-03): no robot drives over them (the simulator's tiles where they lie)
+            import ref_tags as RT
+            kos = RT.keepouts(dcfg["ref_tags"]["poses"], dcfg["ref_tags"].get("config"))
         m, _w = PR.site_map((max(a_, b_), min(a_, b_)), robots, points=pts,
-                            outline=(cal or {}).get("outline_used"))
+                            outline=(cal or {}).get("outline_used"), keepouts=kos)
         for w_ in _w:
             say(w_)
     else:
@@ -190,6 +212,35 @@ def space_watch(guard, child, said, stop_evt):
                 "uploaded next. Before the next run: ./run-fleet-pi.sh space" % st["why"])
             child.send_signal(signal.SIGINT)
             return
+
+
+def bridge_watch(events_path, stop_evt, said):
+    """While the run goes (2026-11-03): the tag bridge's camera_moved events (a bumped camera, its reference tags off
+    where the setup saw them) said on this screen (Mission Control shows these lines) and kept for the summary. The
+    run is not stopped by this (Nick decides: the robots' own sensors and the other camera still work)."""
+    pos = 0
+    while not stop_evt.wait(1.0):
+        try:
+            with open(events_path) as f:
+                f.seek(pos)
+                for ln in f:
+                    if not ln.endswith("\n"):
+                        break
+                    pos += len(ln.encode())
+                    try:
+                        ev = json.loads(ln)
+                    except ValueError:
+                        continue
+                    if ev.get("kind") == "camera_moved":
+                        said.append(ev)
+                        say("WARNING: camera %s has MOVED (bumped?): its reference tags are %.1f px, about %.1f cm on "
+                            "the table, from where the setup saw them. Its positions are off by about that much. Stop "
+                            "the run and Measure again (Cameras & table): with the tags it takes a minute." % (
+                                ev.get("cam"), ev.get("median_px", 0), ev.get("about_cm", 0)))
+                    elif ev.get("kind") == "camera_back":
+                        say("camera %s: its reference tags are back where the setup saw them" % ev.get("cam"))
+        except OSError:
+            continue
 
 
 def gap_args(args):
@@ -417,7 +468,15 @@ def run(args):
         if not any(str(a).startswith("--drop-cm") for a in args.sim_arg):
             rp += ["--sim-arg=--drop-cm=%g" % float(drop_)]
         w_, h_ = (int(v) for v in args.cam_size.split("x"))
-        tcfg = TCAM.default_config(table=(L_, W_), size=(w_, h_), tags=args.tags_, seed=args.seed + 4)
+        tcfg = TCAM.default_config(table=(L_, W_), size=(w_, h_), tags=args.tags_, seed=args.seed + 4,
+                                   refs=uses_refs(args), hide_refs=[x for x in args.hide_ref.split(",") if x.strip()])
+        for b_ in args.bump:
+            # a camera knocked mid-run (2026-11-03): CAM@T:DEG[:AXIS], T s after the plan starts
+            c_, _, rest = b_.partition("@")
+            t_, _, rest = rest.partition(":")
+            deg_, _, ax_ = rest.partition(":")
+            tcfg.setdefault("bumps", []).append({"cam": c_, "t": float(t_), "deg": float(deg_ or 1.0),
+                                                 "axis": ax_ or "x"})
         if mmap.get("spots"):
             tcfg["stickers"] = {k: v[:2] for k, v in mmap["spots"].items()}
         for g in args.tag_gap:
@@ -440,7 +499,7 @@ def run(args):
         def _setup():
             try:
                 TSU.sim_setup(os.path.join(sess, "sim"), {"overhead": stream, "side": side_stream}, tcfg, tagcal,
-                              typed=not args.no_typed, say=say)
+                              typed=not args.no_typed, say=say, corner_clicks=corner_clicks(args))
             except Exception as e:     # noqa: BLE001
                 say("SETUP FAILED: %s" % e)
         tag_setup_thread = _th.Thread(target=_setup, daemon=True)
@@ -558,6 +617,10 @@ def run(args):
     import threading
     disk_said, disk_stop = [], threading.Event()
     threading.Thread(target=space_watch, args=(guard, child, disk_said, disk_stop), daemon=True).start()
+    moved_said = []
+    if args.tracking_ == "tags":
+        threading.Thread(target=bridge_watch, args=(os.path.join(out, "bridge", "events.jsonl"), disk_stop,
+                                                    moved_said), daemon=True).start()
     try:
         code = child.wait()
     except KeyboardInterrupt:
@@ -588,6 +651,8 @@ def run(args):
                 pass
     sync_mark(out, "end", args)
     summ = summarise(out, sess, frames, cond)
+    if args.tracking_ == "tags":
+        summ["camera_moved"] = [{k: e.get(k) for k in ("cam", "t", "median_px", "about_cm")} for e in moved_said]
     try:
         import sync_tools as ST
         p_, counts = ST.export_timeline(out)
@@ -774,6 +839,13 @@ def main(argv=None):
     g.add_argument("--cam-low-res", action="append", default=[], metavar="CAM=WxH",
                    help="tags: that camera sends smaller pictures, e.g. side=640x480")
     g.add_argument("--no-typed", action="store_true", help="tags: the simulated setup types no table size")
+    g.add_argument("--no-refs", action="store_true", help="tags: no reference tags on the simulated table")
+    g.add_argument("--hide-ref", default="", metavar="IDS", help="tags: these reference tags not on the simulated "
+                                                                  "table (e.g. 20: corner 1's)")
+    g.add_argument("--bump", action="append", default=[], metavar="CAM@T:DEG[:AXIS]",
+                   help="tags: that simulated camera knocked T s after the plan starts, turned DEG degrees")
+    ap.add_argument("--corner-clicks", choices=["auto", "on", "off"], default="auto",
+                    help="tags: the setup's corner clicks (auto: the site's corner_clicks switch; on without one)")
     g.add_argument("--sim-true-floor", default="", metavar="X0,Y0,X1,Y1",
                    help="tags: the real table when the map's outline is wrong (the feel-out's tests)")
     ap.add_argument("--feel-table", choices=["auto", "always", "skip"], default="",

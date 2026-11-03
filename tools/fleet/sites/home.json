@@ -11,5 +11,6 @@
  "cameras": {"overhead": {"label": "overhead camera"}, "side": {"label": "side camera"}},
  "capture": {"width": 640, "height": 480, "fps": 25},
  "tracking": "lights",
- "table": null
+ "table": null,
+ "corner_clicks": true
 }

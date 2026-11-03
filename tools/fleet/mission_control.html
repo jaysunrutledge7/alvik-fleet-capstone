@@ -639,20 +639,26 @@ function camerasTable() {
   const st = Object.entries((T.typed || {}).stickers || {}).map(([k, v]) => `${k}: ${v[0]}, ${v[1]}`).join("\n");
   const ds = ((T.typed || {}).distances || []).map(d => `${d[0]}-${d[1]}: ${d[2]}`).join("\n");
   const tags = S.site.tags || {};
-  page(`<div><h1>Cameras &amp; table</h1><p class="sub">${esc(S.site.title)}. Check the cameras, click the table's corners and the stickers in each picture, then Measure. The robots stand at their homes near the middle (both cameras see them there).</p></div>
+  const cc = T.corner_clicks_on !== false, rc = T.ref_cfg;
+  if (!cc && tagPick.kind === "corner") tagPick = {kind: "sticker", label: "1"};
+  const refIds = rc ? Object.entries(rc.corners || {}).map(([k, v]) => `${v} = corner ${k}`).concat(Object.entries(rc.sides || {}).map(([k, v]) => `${v} = side ${k}-${+k % 4 + 1}`)).join(", ") : "";
+  page(`<div><h1>Cameras &amp; table</h1><p class="sub">${esc(S.site.title)}. Check the cameras, ${cc ? "click the table's corners and the stickers" : "click the stickers"} in each picture, then Measure. ${rc ? "The reference tags on the table's corners and sides are found by themselves. " : ""}The robots stand at their homes near the middle (both cameras see them there).</p></div>
     ${checkoutCard()}
     <div class="card"><div class="between"><h2>Click in the pictures</h2><button class="b" id="tpics">Take pictures</button></div>
-      <p class="small muted">Corners: 1 is 0,0; 1 to 2 along the table's length (x); 3 opposite 1; 4 along its width from 1 (y), so 1-2-3-4 go round counter-clockwise seen from above. Each camera: click the corners it sees (two is enough). Stickers: type the sticker's number, then click its middle in every picture it is in.</p>
-      <div class="row" style="margin-top:6px"><label class="lbl">Next click is <select id="tkind"><option value="corner" ${tagPick.kind === "corner" ? "selected" : ""}>corner</option><option value="sticker" ${tagPick.kind === "sticker" ? "selected" : ""}>sticker</option></select></label>
-      <label class="lbl">number <input id="tlabel" class="n" value="${esc(tagPick.label)}"></label><span class="small muted">(the number goes up by one after each sticker)</span></div></div>
+      ${rc ? `<p class="small" id="trefnote"><b>Reference tags</b> (orange in the pictures, ${esc(refIds)}): the corners, the table's size and how the two cameras fit together come from them, no clicks. Corner 1's tag is (0, 0).</p>` : ""}
+      <p class="small muted">${cc ? "Corners: 1 is 0,0; 1 to 2 along the table's length (x); 3 opposite 1; 4 along its width from 1 (y), so 1-2-3-4 go round counter-clockwise seen from above. Each camera: click the corners it sees (two is enough). " : ""}Stickers: type the sticker's number, then click its middle in every picture it is in.</p>
+      <div class="row" style="margin-top:6px"><label class="lbl">Next click is <select id="tkind">${cc ? `<option value="corner" ${tagPick.kind === "corner" ? "selected" : ""}>corner</option>` : ""}<option value="sticker" ${tagPick.kind === "sticker" ? "selected" : ""}>sticker</option></select></label>
+      <label class="lbl">number <input id="tlabel" class="n" value="${esc(tagPick.label)}"></label><span class="small muted">(the number goes up by one after each sticker)</span></div>
+      <label class="lbl small" style="margin-top:6px"><input type="checkbox" id="tcc" ${cc ? "checked" : ""}> Click the corners by hand too ${rc ? "(off at this site: the reference tags give them; on adds your clicks as extra evidence)" : ""}</label></div>
     <div class="row" style="align-items:flex-start">${["overhead", "side"].map(c => `<div style="flex:1 1 360px">${tagPicCard(c)}</div>`).join("")}</div>`,
-    `<div class="card"><h2>Measure</h2><p class="small muted">Reads the robots' tags (${esc(tags.family || "")}, ${tags.tag_cm || "?"} cm, roof ${tags.height_cm != null ? tags.height_cm + " cm up" : "<b style='color:var(--red)'>height not measured yet</b>"}), fits both cameras, the table's size and every sticker's spot, and makes the workspace: the table, the stickers as production points, the homes.</p>
+    `<div class="card"><h2>Measure</h2><p class="small muted">Reads ${rc ? "the reference tags on the table and " : ""}the robots' tags (${esc(tags.family || "")}, ${tags.tag_cm || "?"} cm, roof ${tags.height_cm != null ? tags.height_cm + " cm up" : "<b style='color:var(--red)'>height not measured yet</b>"}), fits both cameras, the table's size and every sticker's spot, and makes the workspace: the table, the stickers as production points, the homes${rc ? ", the reference tiles as keep-out areas" : ""}.</p>
       <button class="p" id="tmeasure">Measure</button>
       ${r ? `<div style="margin-top:10px"><div class="kpis"><div class="kpi"><b>${r.size_cm[0].toFixed(1)} x ${r.size_cm[1].toFixed(1)}</b><span>table (cm)</span></div><div class="kpi"><b>${Object.keys(r.stickers || {}).length}</b><span>production points</span></div><div class="kpi"><b>${r.reads}</b><span>tag reads</span></div></div>
         <ul class="small">${(r.words || []).map(w => `<li style="${/WARNING|DISAGREE|NOT/.test(w) ? "color:var(--warn)" : ""}">${esc(w)}</li>`).join("")}</ul>
         ${r.sim_truth ? `<p class="small muted">Simulator truth: floor error median ${esc(Object.entries(r.sim_truth).filter(([k, v]) => typeof v === "object").map(([k, v]) => k + " " + v.median_cm + " cm (worst " + v.worst_cm + ")").join(", "))}; stickers worst ${esc(r.sim_truth.stickers_worst_cm)} cm.</p>` : ""}</div>` : ""}</div>
     <div class="card"><h2>Measurements (checks, optional)</h2><p class="small muted">Typed values are compared with the cameras' own measure, never silently averaged. The site's table size is filled in.</p>
       <div class="row"><label class="lbl">Table length <input id="tl" class="n" value="${esc(tb.length_cm ?? "")}"> cm</label><label class="lbl">width <input id="tw" class="n" value="${esc(tb.width_cm ?? "")}"> cm</label></div>
+      ${rc ? `<div class="row">${Object.entries(rc.sides || {}).map(([k, v]) => `<label class="lbl">Side tag ${v}'s middle, from corner ${k} along the edge <input id="tal_${v}" class="n" value="${esc(((T.typed || {}).along || {})[v] ?? "")}"> cm</label>`).join("")}</div>` : ""}
       <label class="lbl">Sticker coordinates (one a line: <code>3: 120.5, 40.2</code>, cm in the table's frame)</label><textarea id="tst">${esc(st)}</textarea>
       <label class="lbl">Distances between stickers (one a line: <code>1-2: 85.0</code>, cm)</label><textarea id="tds">${esc(ds)}</textarea>
       <button class="b" id="ttyped">Save measurements</button></div>
@@ -676,7 +682,9 @@ function camerasTable() {
     const stk = {}, dist = [];
     for (const ln of $("tst").value.split("\n")) { const m = ln.match(/^\s*(\w+)\s*:\s*([-\d.]+)\s*,\s*([-\d.]+)/); if (m) stk[m[1]] = [+m[2], +m[3]]; }
     for (const ln of $("tds").value.split("\n")) { const m = ln.match(/^\s*(\w+)\s*-\s*(\w+)\s*:\s*([\d.]+)/); if (m) dist.push([m[1], m[2], +m[3]]); }
-    try { S.tag.typed = await api("/api/tags/typed", {table: {length_cm: $("tl").value, width_cm: $("tw").value}, stickers: stk, distances: dist}); flash("Saved"); render(); } catch (e) { flash(e.message, true); } };
+    const along = {}; if (rc) Object.values(rc.sides || {}).forEach(v => { if ($("tal_" + v) && $("tal_" + v).value.trim()) along[v] = +$("tal_" + v).value; });
+    try { S.tag.typed = await api("/api/tags/typed", {table: {length_cm: $("tl").value, width_cm: $("tw").value}, stickers: stk, distances: dist, along}); flash("Saved"); render(); } catch (e) { flash(e.message, true); } };
+  $("tcc").onchange = async () => { try { await api("/api/tags/corner_clicks", {on: $("tcc").checked}); await load(); } catch (e) { flash(e.message, true); } };
   $("tmeasure").onclick = async () => { $("tmeasure").disabled = true; $("tmeasure").textContent = "Measuring (about 10-30 s)..."; try { const r = await api("/api/tags/measure", {conn}); S = r.state; Object.assign(COL, S.site.colours || {}); done.add(7); render(); } catch (e) { flash(e.message, true); render(); } };
   $("trefit").onclick = async () => { try { S.tag.refit = await api("/api/tags/refit", {}); if (S.tag.refit.running) await load(); else render(); } catch (e) { flash(e.message, true); } };
   wireRefit();

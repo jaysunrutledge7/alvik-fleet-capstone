@@ -20,9 +20,14 @@ next read does not confirm it.
     python3 tools/fleet/tag_bridge.py --site school-conference --cal-dir ~/.config/mirlt/sites/school-conference/tagcal
     python3 tools/fleet/tag_bridge.py --tags tags.json --cam overhead=127.0.0.1:8765,cal1.json --cam side=...
 
+Bumped cameras (2026-11-03): with reference tags on the table (ref_tags.py) and their places from the setup
+(site_fit.json beside the camera models), every ref_tags.BUMP_CHECK_S each camera's reference tags are looked for in
+small windows where the setup saw them. When their median shift is over ref_tags.BUMP_PX for BUMP_CONFIRM checks in a
+row, the camera has moved: a WARNING line, a camera_moved event (mission_run says it on the screen), ref_watch.csv.
+
 Writes to --out: track.csv (as cam_bridge's, for line_check.py), tag_poses.csv (every read: camera, robot, pose,
-sigma, size check, picture position), tag_obs.csv (every read's corners: the site fit's input), events.jsonl,
-bridge_summary.json.
+sigma, size check, picture position), tag_obs.csv (every read's corners: the site fit's input), ref_watch.csv,
+events.jsonl, bridge_summary.json.
 """
 import argparse
 import csv
@@ -138,8 +143,84 @@ class CamFeed(threading.Thread):
             pass
 
 
+class RefWatch:
+    """One camera's reference tags against where the setup saw them (a bumped camera). expected {id: corners 4x2}."""
+
+    def __init__(self, cam_name, expected, det, every_s=None, bump_px=None, confirm=None):
+        import ref_tags as RT
+        self.cam = cam_name
+        self.expected = {str(i): np.asarray(v, float) for i, v in expected.items()}
+        self.det = det
+        self.every_s = RT.BUMP_CHECK_S if every_s is None else every_s
+        self.bump_px = RT.BUMP_PX if bump_px is None else bump_px
+        self.confirm = RT.BUMP_CONFIRM if confirm is None else confirm
+        self.t_last = -1e18
+        self.over = 0
+        self.moved = False
+        self.last = None
+
+    def due(self, t):
+        return t - self.t_last >= self.every_s
+
+    def check(self, grey, t):
+        """(shift px median or None, {id: shift px}, verdict 'ok' / 'moved' / 'back' / None)."""
+        self.t_last = t
+        shifts = {}
+        for i, e in self.expected.items():
+            c = e.mean(0)
+            size = float(np.mean([np.linalg.norm(e[k] - e[(k + 1) % 4]) for k in range(4)]))
+            for d in self.det.detect_window(grey, c[0], c[1], 1.2 * size + 3 * self.bump_px, upscale=1.0):
+                if str(d.id) == i:
+                    shifts[i] = float(np.median(np.linalg.norm(d.corners - e, axis=1)))
+                    break
+        if not shifts:
+            self.last = (None, shifts)
+            return None, shifts, None
+        med = float(np.median(list(shifts.values())))
+        self.last = (med, shifts)
+        verdict = "ok"
+        if med > self.bump_px:
+            self.over += 1
+            verdict = "still moved" if self.moved else "over"
+            if self.over >= self.confirm and not self.moved:
+                self.moved = True
+                verdict = "moved"
+        else:
+            self.over = 0
+            if self.moved:
+                self.moved = False
+                verdict = "back"
+        return med, shifts, verdict
+
+
+def ref_expected(models, site_fit_path, cfg=None):
+    """{camera: {id: expected corners}} from the setup's reference tag places (site_fit.json) and the camera models;
+    {} when the setup had no reference tags."""
+    try:
+        with open(site_fit_path) as f:
+            rt = (json.load(f) or {}).get("ref_tags") or {}
+    except (OSError, ValueError):
+        return {}
+    poses = rt.get("poses") or {}
+    if not poses:
+        return {}
+    import site_fit as SF
+    s, z = float(rt.get("tag_cm", 12.0)), float(rt.get("z_cm", 0.18))
+    out = {}
+    for c, m in models.items():
+        seen = set((rt.get("seen") or {}).get(c) or poses)
+        for i, (x, y, th) in poses.items():
+            if str(i) not in seen:
+                continue
+            u, v = m.project(SF.tag_corners_world(x, y, th, z, s))
+            uv = np.column_stack([u, v])
+            if np.all(np.isfinite(uv)) and np.all(m.in_image(uv[:, 0], uv[:, 1], margin=2)):
+                out.setdefault(c, {})[str(i)] = uv
+    return out
+
+
 class Bridge:
-    def __init__(self, tags, cams, send, out, observe=False, robots=None, say=None):
+    def __init__(self, tags, cams, send, out, observe=False, robots=None, say=None, ref_expected=None, ref_cfg=None):
         """tags: load_tags(); cams: {name: CameraModel}; send(msg)."""
         self.tags = tags
         self.ids = {int(i): n for n, i in tags["ids"].items() if robots is None or n in robots}
@@ -180,6 +261,17 @@ class Bridge:
         self.obs_w.writerow(["t", "cam", "id", "u0", "v0", "u1", "v1", "u2", "v2", "u3", "v3"])
         self.ev_f = open(os.path.join(out, "events.jsonl"), "a")
         self.event("start", tags=tags, cams=list(cams), robots=self.ids)
+        # the reference tags' watch (2026-11-03): a bumped camera
+        self.refw = {}
+        if ref_expected:
+            import ref_tags as RT
+            for c, exp in ref_expected.items():
+                if c in cams and exp:
+                    self.refw[c] = RefWatch(c, exp, RT.detector(ref_cfg))
+            self.refw_f = open(os.path.join(out, "ref_watch.csv"), "w", newline="")
+            self.refw_w = csv.writer(self.refw_f)
+            self.refw_w.writerow(["t", "cam", "tags_found", "median_shift_px", "max_shift_px", "verdict"])
+            self.event("ref_watch", cams={c: sorted(w.expected, key=int) for c, w in self.refw.items()})
 
     def event(self, kind, **kw):
         kw.update(kind=kind, t=round(time.time(), 3))
@@ -213,9 +305,41 @@ class Bridge:
             return (u, v, max(8.0, 2.0 * r))
         return f
 
+    def ref_check(self, cam_name, grey, t):
+        w = self.refw.get(cam_name)
+        if w is None or not w.due(t):
+            return None
+        med, shifts, verdict = w.check(grey, t)
+        self.refw_w.writerow(["%.3f" % t, cam_name, " ".join(sorted(shifts, key=int)),
+                              "" if med is None else "%.2f" % med,
+                              "" if not shifts else "%.2f" % max(shifts.values()), verdict or "unseen"])
+        self.refw_f.flush()
+        if verdict == "moved":
+            from ref_tags import TAG_CM as RT_TAG_CM
+            try:
+                pxcm = float(np.median([np.mean([np.linalg.norm(e[k] - e[(k + 1) % 4]) for k in range(4)])
+                                        for e in w.expected.values()])) / RT_TAG_CM
+            except Exception:      # noqa: BLE001
+                pxcm = 5.0
+            cm = med / max(pxcm, 0.1)
+            self.event("camera_moved", cam=cam_name, median_px=round(med, 2), about_cm=round(cm, 1),
+                       shifts={k: round(v, 2) for k, v in shifts.items()})
+            self.say("WARNING: camera %s has MOVED (bumped?): its reference tags are %.1f px (about %.1f cm on the "
+                     "table) from where the setup saw them. Positions from this camera are off by about that much. "
+                     "Stop the run and Measure again (Cameras & table): the tags make it quick." % (cam_name, med, cm))
+        elif verdict == "back":
+            self.event("camera_back", cam=cam_name, median_px=round(med, 2))
+            self.say("camera %s: its reference tags are back where the setup saw them (%.1f px)" % (cam_name, med))
+        return verdict
+
     def on_picture(self, cam_name, grey, t):
         """One camera's picture (t: when it was taken, Pi clock)."""
         self.frames[cam_name] += 1
+        if self.refw:
+            try:
+                self.ref_check(cam_name, grey, t)
+            except Exception as e:      # noqa: BLE001  (the watch never stops the fixes)
+                self.event("ref_watch_error", cam=cam_name, why=str(e))
         t0 = time.perf_counter()
         found = self.trk[cam_name].step(grey, t, cam=cam_name, predict=self.predict(cam_name, t))
         self.ms[cam_name].append((time.perf_counter() - t0) * 1000.0)
@@ -327,13 +451,18 @@ class Bridge:
                                if self.spread else None),
              "windows": {c: self.trk[c].windows for c in self.cams}, "full_searches": {c: self.trk[c].fulls
                                                                                        for c in self.cams},
-             "tags": {k: v for k, v in self.tags.items() if k != "ids"}}
+             "tags": {k: v for k, v in self.tags.items() if k != "ids"},
+             "ref_watch": {c: {"moved": w.moved, "last_median_px": None if not w.last or w.last[0] is None
+                               else round(w.last[0], 2), "tags": sorted(w.expected, key=int)}
+                           for c, w in self.refw.items()}}
         with open(os.path.join(self.out, "bridge_summary.json"), "w") as f:
             json.dump(s, f, indent=1, default=str)
         return s
 
     def close(self):
-        for fh in (self.track_f, self.pose_f, self.obs_f, self.fix_f, self.ev_f):
+        for fh in (self.track_f, self.pose_f, self.obs_f, self.fix_f, self.ev_f, getattr(self, "refw_f", None)):
+            if fh is None:
+                continue
             try:
                 fh.close()
             except OSError:
@@ -371,6 +500,8 @@ def main(argv=None):
     ap.add_argument("--out", help="log folder (default logs/<date-time>-tagbridge)")
     ap.add_argument("--max-s", type=float, default=0)
     ap.add_argument("--wait-calib-s", type=float, default=20.0)
+    ap.add_argument("--no-ref-watch", action="store_true", help="do not watch the reference tags (a bumped camera)")
+    ap.add_argument("--ref-fit", default="", help="the setup's site_fit.json (default: beside the first camera model)")
     a = ap.parse_args(argv)
     tags = load_tags(a.tags, a.site)
     if tags.get("height_note"):
@@ -399,7 +530,18 @@ def main(argv=None):
             time.sleep(1.0)
     rx.setblocking(False)
     robots = [r.strip() for r in a.robots.split(",") if r.strip()] or None
-    br = Bridge(tags, models, send, out, observe=a.observe, robots=robots)
+    rexp = {}
+    if not a.no_ref_watch:
+        fitp = a.ref_fit or os.path.join(os.path.dirname(a.cam[0].partition("=")[2].partition(",")[2]), "site_fit.json")
+        for _ in range(50):              # the setup writes the camera models first, then site_fit.json
+            if os.path.exists(fitp):
+                break
+            time.sleep(0.1)
+        rexp = ref_expected(models, fitp)
+        if rexp:
+            print("Reference tags watched (a bumped camera): %s" % "; ".join(
+                "%s %s" % (c, ", ".join(sorted(v, key=int))) for c, v in rexp.items()), flush=True)
+    br = Bridge(tags, models, send, out, observe=a.observe, robots=robots, ref_expected=rexp)
     print("Tag bridge: %s tags (%s cm, %s cm up) on %s; cameras %s; fixes to %s%s. Logs: %s" % (
         tags.get("family"), tags.get("tag_cm"), tags.get("height_cm"),
         ", ".join("%s=%d" % kv for kv in tags["ids"].items()), ", ".join(models), a.to,

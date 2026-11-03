@@ -20,6 +20,8 @@ import math
 import os
 import sys
 
+import numpy as np
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 if HERE not in sys.path:
     sys.path.insert(0, HERE)
@@ -66,10 +68,60 @@ def clamp_points(points, L, W, room_cm=EDGE_IN_CM, x0=0.0, y0=0.0):
     return out, words
 
 
-def site_map(table, names, points=None, gap_cm=HOME_GAP_CM, outline=None):
+BODY_R_CM = 6.8           # the robot's half diagonal (9.5 cm square): a point's robot stays this far off a keep-out
+
+
+def _nearest_on_poly(p, poly):
+    """(nearest point on the polygon's boundary, inside?) for a convex polygon."""
+    P = [np.asarray(v, float) for v in poly]
+    best, bd = None, 1e18
+    inside = True
+    sgn = None
+    for k in range(len(P)):
+        a, b = P[k], P[(k + 1) % len(P)]
+        ab = b - a
+        t = max(0.0, min(1.0, float(np.dot(p - a, ab) / max(1e-12, np.dot(ab, ab)))))
+        q = a + t * ab
+        d = float(np.linalg.norm(p - q))
+        if d < bd:
+            best, bd = q, d
+        cr = ab[0] * (p - a)[1] - ab[1] * (p - a)[0]
+        if sgn is None:
+            sgn = cr >= 0
+        elif (cr >= 0) != sgn:
+            inside = False
+    return best, inside
+
+
+def clear_keepouts(points, keepouts, r=BODY_R_CM):
+    """Points whose robot would overlap a keep-out moved just clear of it. Returns (points, words)."""
+    out, words = {}, []
+    for lab, xy in points.items():
+        p = np.array(xy[:2], float)
+        moved = False
+        for _ in range(3):
+            for k in keepouts or []:
+                q, inside = _nearest_on_poly(p, k["polygon"])
+                d = float(np.linalg.norm(p - q))
+                if inside or d < r:
+                    v = (p - q) / d if d > 1e-9 else np.array([0.0, 1.0])
+                    if inside:
+                        c = np.mean(np.asarray(k["polygon"], float), axis=0)
+                        v = (q - c) / max(1e-9, np.linalg.norm(q - c))
+                    p = q + v * (r + 0.5)
+                    moved = True
+        if moved:
+            words.append("WARNING: point %s at (%.1f, %.1f) was on or beside a reference tile: the robot goes to "
+                         "(%.1f, %.1f) instead" % (lab, xy[0], xy[1], p[0], p[1]))
+        out[lab] = [round(float(p[0]), 2), round(float(p[1]), 2)]
+    return out, words
+
+
+def site_map(table, names, points=None, gap_cm=HOME_GAP_CM, outline=None, keepouts=None):
     """The workspace map of a site's table: the measured rectangle, every side an open edge (a conference table has no
     walls), the production points as spots, each robot's start and park at its home. outline [x0, y0, x1, y1]: the
-    table's outline when it is not (0, 0, L, W) (the feel-out moved a side: feel_table.py); table is then ignored."""
+    table's outline when it is not (0, 0, L, W) (the feel-out moved a side: feel_table.py); table is then ignored.
+    keepouts: areas no robot drives over (the reference tags' tiles, 2026-11-03: ref_tags.keepouts)."""
     if outline:
         x0, y0, x1, y1 = (float(v) for v in outline)
     else:
@@ -81,7 +133,12 @@ def site_map(table, names, points=None, gap_cm=HOME_GAP_CM, outline=None):
         m = WS.set_side(m, k, "open", source="conference table (Nick: no walls)")
     pts, words = clamp_points(points or {}, L, W, x0=x0, y0=y0)
     m = copy.deepcopy(m)
+    if keepouts:
+        pts, w2 = clear_keepouts(pts, keepouts)
+        words = words + w2
     m["spots"] = pts
+    if keepouts:
+        m["keepouts"] = list(m.get("keepouts") or []) + [dict(k) for k in keepouts]
     m["notes"] = ["production points from the site fit"] + words
     m.setdefault("homes", hs)
     return FM.normalize(m), words

@@ -174,6 +174,15 @@ def _check(d, name):
         if i in seen_ids.values():
             probs.append("tag id %s used twice" % i)
         seen_ids[n] = i
+    rt = d.get("ref_tags") or {}
+    if rt:
+        rids = [int(v) for v in list((rt.get("corners") or {}).values()) + list((rt.get("sides") or {}).values())]
+        robot_ids = set(int(v) for v in (tags.get("ids") or {}).values()) | set(int(v) for v in tags.get("spares") or [])
+        if len(set(rids)) != len(rids):
+            probs.append("a reference tag id is used twice (ref_tags)")
+        if set(rids) & robot_ids:
+            probs.append("reference tag id(s) %s are also robot tags or spares (tags.ids / tags.spares)"
+                         % ", ".join(str(i) for i in sorted(set(rids) & robot_ids)))
     if d.get("tracking") == "tags":
         for r in d.get("robots", []):
             if r.get("name") not in (tags.get("ids") or {}):
