@@ -50,28 +50,36 @@ def homes(L, W, names, gap_cm=HOME_GAP_CM, x0=0.0, y0=0.0):
     return out
 
 
-def clamp_points(points, L, W, room_cm=EDGE_IN_CM):
-    """Points too near an edge moved in to room_cm. Returns ({label: [x, y]}, [words for each moved])."""
+def clamp_points(points, L, W, room_cm=EDGE_IN_CM, x0=0.0, y0=0.0):
+    """Points too near an edge moved in to room_cm. Returns ({label: [x, y]}, [words for each moved]). The table runs
+    from (x0, y0) to (x0 + L, y0 + W) (an outline the feel-out moved: feel_table.py)."""
     out, words = {}, []
     for lab, xy in points.items():
         x, y = float(xy[0]), float(xy[1])
-        nx, ny = min(max(x, room_cm), L - room_cm), min(max(y, room_cm), W - room_cm)
+        nx = min(max(x, x0 + room_cm), x0 + L - room_cm)
+        ny = min(max(y, y0 + room_cm), y0 + W - room_cm)
         if abs(nx - x) > 1e-6 or abs(ny - y) > 1e-6:
             words.append("WARNING: point %s at (%.1f, %.1f) is %.1f cm from an open edge: the robot goes to (%.1f, %.1f) "
-                         "instead (its centre stays %.0f cm in)" % (lab, x, y, min(x, y, L - x, W - y), nx, ny, room_cm))
+                         "instead (its centre stays %.0f cm in)" % (lab, x, y, min(x - x0, y - y0, x0 + L - x, y0 + W - y),
+                                                                    nx, ny, room_cm))
         out[str(lab).upper()] = [round(nx, 2), round(ny, 2)]
     return out, words
 
 
-def site_map(table, names, points=None, gap_cm=HOME_GAP_CM):
+def site_map(table, names, points=None, gap_cm=HOME_GAP_CM, outline=None):
     """The workspace map of a site's table: the measured rectangle, every side an open edge (a conference table has no
-    walls), the production points as spots, each robot's start and park at its home."""
-    L, W = table
-    hs = homes(L, W, names, gap_cm)
-    m = WS.blank_map((0, 0, L, W), [(n, hs[n]) for n in names])
+    walls), the production points as spots, each robot's start and park at its home. outline [x0, y0, x1, y1]: the
+    table's outline when it is not (0, 0, L, W) (the feel-out moved a side: feel_table.py); table is then ignored."""
+    if outline:
+        x0, y0, x1, y1 = (float(v) for v in outline)
+    else:
+        x0, y0, x1, y1 = 0.0, 0.0, float(table[0]), float(table[1])
+    L, W = x1 - x0, y1 - y0
+    hs = homes(L, W, names, gap_cm, x0=x0, y0=y0)
+    m = WS.blank_map((x0, y0, x1, y1), [(n, hs[n]) for n in names])
     for k in FM.SIDES:
         m = WS.set_side(m, k, "open", source="conference table (Nick: no walls)")
-    pts, words = clamp_points(points or {}, L, W)
+    pts, words = clamp_points(points or {}, L, W, x0=x0, y0=y0)
     m = copy.deepcopy(m)
     m["spots"] = pts
     m["notes"] = ["production points from the site fit"] + words

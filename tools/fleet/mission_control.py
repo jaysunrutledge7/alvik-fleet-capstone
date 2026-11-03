@@ -64,6 +64,8 @@ RUN_DEFAULTS = {
     "sim_washout": False,             # simulator through the cameras: the overhead's board washed out (27 Oct 11:20)
     "sim_drop_pct": 0.0,              # simulator through the cameras: lost packets, % each way
     "sim_dead": "",                   # simulator through the cameras: "Right@60": that robot dies 60 s in
+    "sim_true_floor": "",             # simulator through the cameras, tags: the real table "x0,y0,x1,y1" when the map's
+                                      # outline is wrong (feel out the table's tests); "" = the map's
     "farm": False,                    # robots: each camera tracked in its own process (trackfarm.py)
     "upload": False,                  # robots: upload the run's logs (a release with a tag of its own)
     "turn_pause": True,               # after each turn on the spot, stand until the cameras agree with the robot's own
@@ -246,9 +248,14 @@ class Session:
             self.site = SI.load(getattr(self, "site_name", None))
         except (SystemExit, ValueError, OSError) as e:
             print("site not read (%s): home's ways" % e, flush=True)
+        self.feel = None             # Feel out the table (2026-11-02): feel_job.py, a tag site's first run on a table
+        self.last_production = None  # the Production screen's last orders (planned again on a felt outline)
         if self.site and self.site.get("tracking") == "tags":
             import tag_job as TJ
+            import feel_job as FJ
             self.tag = TJ.TagJob(self, self.site)
+            if self.site.get("feel_out", True):
+                self.feel = FJ.FeelJob(self)      # a site may switch it off: "feel_out": false in its profile
             if not map_path and not os.path.exists(os.path.join(self.dir, "map.json.tagsite")):
                 # a new tag site's folder: the site's table with its homes (Measure remakes it from the cameras)
                 import production as PR
@@ -310,6 +317,8 @@ class Session:
                            "colours": {r["name"]: r["colour"] for r in st["robots"]},
                            "cameras": {k: v.get("label", k) for k, v in st["cameras"].items()},
                            "capture": st["capture"], "tags": st.get("tags"), "table": st.get("table")}
+        if self.feel is not None:
+            out["feel"] = self.feel.status()
         if self.tag:
             out["tag"] = {k: v for k, v in self.tag.d.items()}
             out["tag"]["room"] = bool(self.tag.room is not None and self.tag.room.poll() is None)
@@ -459,6 +468,24 @@ class Session:
         kind = d.get("kind", "mission")
         dry = bool(d.get("dry", True))
         conn = d.get("conn") or ("sim" if dry else "robots")
+        if self.feel is not None and kind == "mission" and conn in ("sim-cameras", "robots"):
+            # Feel out the table (Nick, 2 Nov 18:33): the first production run on a table (this camera setup) feels its
+            # edges first, then starts by itself on the felt outline; later runs use the saved outline
+            need, cal, why = self.feel.use_saved(conn)
+            skip = bool(d.get("skip_feel")) or self.feel.skip_once
+            self.feel.skip_once = False
+            if need and not skip:
+                if conn == "robots":
+                    busy = self.others_driving()
+                    if busy:
+                        raise ValueError("%s is driving the robots on this Pi: a robot run can start when it has ended "
+                                         "(the Live lab tab shows it and stops it)." % busy)
+                st = self.feel.start(conn, chain=dict(d, conn=conn))
+                return dict(self.run.status() if self.run else {}, feel=st)
+            if need and skip:
+                self.feel.words = ["Skipped this time (you chose it): the production run uses the cameras' outline "
+                                   "as it is. %s" % why]
+                self.feel.phase = "skipped"
         if conn in ("sim-cameras", "robots"):
             return self.start_cam_run(kind, conn, d)
         rs = dict(self.settings["run"])
@@ -516,8 +543,22 @@ class Session:
             # the run reads the roof tags, writes the sync marks with the session id, and refits the cameras after
             self.tag.stop_room()
             cmd += ["--tracking", "tags", "--site", self.site["name"], "--session-id",
-                    self.tag.sync_state()["session_id"], "--refit"]
-        if kind == "warmup":
+                    self.tag.sync_state()["session_id"]]
+            if kind != "feel":
+                cmd += ["--refit", "--feel-table", "skip"]     # Mission Control felt the table first (feel_job.py)
+            if conn == "sim-cameras" and rs.get("sim_true_floor"):
+                cmd += ["--sim-true-floor", str(rs["sim_true_floor"])]
+        if kind == "feel":
+            # Feel out the table (feel_job.py): the feels as a made mission; every robot calibrated first; the robots'
+            # own border off (the crawls go to the edge on purpose; the edge guard stays on); no turn pauses
+            import feel_table as FTB
+            fmp, fpp = self.feel_paths
+            folder = d.get("folder") or folder
+            cmd[cmd.index("--session") + 1] = folder
+            cmd += ["--mission", fmp, "--plan", fpp, "--border-cm", "0", "--feel-table", "skip"]
+            if d.get("calibrate"):
+                cmd += FTB.CALIBRATE_ARGS          # the surface check's run: every robot fully calibrated first
+        elif kind == "warmup":
             if not self.warm_map:
                 self.warmup_plan()
             cmd += ["--mission", os.path.join(self.dir, "warm_map.json"), "--plan", os.path.join(self.dir, "warm_plan.json"),
@@ -529,7 +570,7 @@ class Session:
             with open(pp, "w") as f:
                 json.dump(self.program, f, indent=1)
             cmd += ["--map", self.map_path, "--program", pp, "--robots", ",".join(self.program.get("robots", []))]
-        if not rs.get("turn_pause", True) or kind == "warmup":
+        if not rs.get("turn_pause", True) or kind in ("warmup", "feel"):
             cmd += ["--no-turn-pause"]
         if not rs.get("straighten", True):
             # the warm-up straightens too (Nick, 2026-10-30 09:50: "they should be able to self-correct"): its facing
@@ -566,7 +607,17 @@ class Session:
         prog = self.tag.production_program(d)
         out = self.make_mission({"mode": "program", "program": prog})
         out["program"] = prog
+        self.last_production = dict(d)
         return out
+
+    def replan_production(self):
+        """The production mission planned again on the map as it is now (the feel-out moved the outline: homes and
+        points follow it). Nick's last orders; else the program in use."""
+        if self.last_production:
+            return self.production(self.last_production)
+        if self.program is not None:
+            return self.make_mission({"mode": "program", "program": self.program})
+        return None
 
     def others_driving(self):
         """What else drives the robots on this Pi (an E02 session, the DOE loop, Monday's mission from a terminal, the
@@ -1054,6 +1105,12 @@ class Handler(BaseHTTPRequestHandler):
                     with open(f, "rb") as fh:
                         return self._send(200, fh.read(), "image/png")
                 return self._send(404, {"error": "no chart"})
+            if path == "/api/feel":
+                if not S.feel:
+                    raise ValueError("this site does not use tags (sites.py: tracking)")
+                from urllib.parse import parse_qs
+                return self._send(200, clean(S.feel.status((parse_qs(urlparse(self.path).query).get("conn") or
+                                                            [None])[0])))
             if path == "/api/sync":
                 return self._send(200, clean(S.tag.sync_state()) if S.tag else {})
             if path == "/api/setup/picture":
@@ -1162,6 +1219,20 @@ class Handler(BaseHTTPRequestHandler):
                         r = ME.run(folder, th, cfg, refs_csv=rf, out=cdir)
                         r["chart"] = os.path.join(cdir, "compare.png")
                         return self._send(200, clean(r))
+                if path.startswith("/api/feel/"):
+                    if not S.feel:
+                        raise ValueError("this site does not use tags (sites.py: tracking)")
+                    conn = d.get("conn") or "sim-cameras"
+                    if path == "/api/feel/start":
+                        if S.run and S.run.alive():
+                            raise ValueError("a run is going: stop it first")
+                        return self._send(200, clean(S.feel.start(conn, chain=None)))
+                    if path == "/api/feel/skip":
+                        S.feel.skip_once = bool(d.get("on", True))
+                        return self._send(200, clean(S.feel.status(conn)))
+                    if path == "/api/feel/again":
+                        S.feel.force_next = bool(d.get("on", True))
+                        return self._send(200, clean(S.feel.status(conn)))
                 if path == "/api/run/pause":
                     return self._send(200, S.pause(bool(d.get("on", True))))
                 if path == "/api/run/stop":

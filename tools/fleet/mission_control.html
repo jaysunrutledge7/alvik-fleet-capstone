@@ -95,7 +95,9 @@ async function api(path, body) {
   return j;
 }
 async function load() { S = await api("/api/state"); if (S.site && S.site.colours) Object.assign(COL, S.site.colours);
-  if (!connPicked && S.conn_default) conn = S.conn_default.mode; if (isTags() && conn === "sim" && !connPicked) conn = "sim-cameras"; render(); }
+  if (!connPicked && S.conn_default) conn = S.conn_default.mode; if (isTags() && conn === "sim" && !connPicked) conn = "sim-cameras";
+  if (isTags() && S.feel && S.feel.conn !== conn) { try { S.feel = await api("/api/feel?conn=" + encodeURIComponent(conn)); } catch (e) {} }
+  render(); }
 
 // ---------------------------------------------------------------- the table picture
 function tableSVG(opt) {
@@ -538,7 +540,8 @@ function mirrorCard(run) {
 
 function runScreen() {
   const run = S.run && S.run.kind !== "warmup" ? S.run : null, pv = S.preview && S.preview.title !== "Warm-up" ? S.preview : null;
-  page(`<div class="between"><div><h1>${pv ? esc(MODES.find(m => m[0] === String(pv.title).toLowerCase())?.[1] || pv.title) : "Run"}</h1><p class="sub">${run ? `${fmt(run.elapsed_s)} in${pv ? " · planned " + fmt(pv.makespan_s) : ""}` : "Not started"}</p></div>
+  const feelRun = run && run.kind === "feel" && run.running;
+  page(`<div class="between"><div><h1>${feelRun ? "Feel out the table (the production run starts after it)" : pv ? esc(MODES.find(m => m[0] === String(pv.title).toLowerCase())?.[1] || pv.title) : "Run"}</h1><p class="sub">${run ? `${fmt(run.elapsed_s)} in${pv ? " · planned " + fmt(pv.makespan_s) : ""}` : "Not started"}</p></div>
       <div class="row"><button class="p" id="start" ${run && run.running ? "disabled" : ""}>Run (${conn === "robots" ? "robots" : "simulator"})</button>
       <button class="b" id="pause" ${run && run.running ? "" : "disabled"}>${run && run.paused ? "Resume" : "Pause"}</button><button class="p stop" id="stop" ${run && run.running ? "" : "disabled"}>Stop</button></div></div>
     <div class="card">${tableSVG({paths: pv ? pv.paths : {}, pathOp: .25, robots: run ? run.robots : {}, obstacles: (pv ? pv.obstacles : []).concat((run && run.live && run.live.obstacles) || [])})}
@@ -547,7 +550,7 @@ function runScreen() {
       <figure style="margin:0;flex:1 1 300px"><img id="camo" alt="The overhead camera's picture with each robot ringed" src="/api/frame?cam=overhead&t=${Date.now()}" style="width:100%;border-radius:8px"><figcaption class="small muted">${isTags() ? esc(S.site.cameras.overhead) : "Overhead camera"} (${run.mode === "robots" ? "the Pi's" : "simulated"}): each robot ringed in its colour where the camera bridge has it, planned routes as thin lines.</figcaption></figure>
       <figure style="margin:0;flex:1 1 300px"><img id="cams" alt="The side camera's picture with each robot ringed" src="/api/frame?cam=side&t=${Date.now()}" style="width:100%;border-radius:8px" onerror="this.parentElement.style.display='none'"><figcaption class="small muted">${isTags() ? esc(S.site.cameras.side) : "Side camera"}, the same rings.</figcaption></figure></div></div>
       <div class="card eng"><h3>How the robots mapped the table</h3><div id="mapv">Loading...</div><p class="small muted">Each robot's path as the camera bridge saw it this run, in its colour (mapview.py).</p></div>` : ""}`,
-    `${run && run.running || isTags() ? "" : lightingCard()}${(pv ? Object.keys(pv.frames) : S.map.robots.map(r => r.name)).map(n => { const lv = run && run.live && run.live.robots ? run.live.robots[n] : null;
+    `${run && run.running || isTags() ? "" : lightingCard()}${isTags() ? feelCard() : ""}${(pv ? Object.keys(pv.frames) : S.map.robots.map(r => r.name)).map(n => { const lv = run && run.live && run.live.robots ? run.live.robots[n] : null;
       return `<div class="card"><div class="between"><b><span class="dot" style="background:${COL[n]}"></span>${esc(n)}</b><span class="small muted">${run && run.robots[n] ? `(${run.robots[n][0].toFixed(0)}, ${run.robots[n][1].toFixed(0)})` : ""}</span></div>
       <span class="small muted">${esc(lv && lv.out ? (lv.held ? "HELD (rejoins when heard again): " : "OUT: ") + lv.out : (lv && lv.doing) || (run && run.doing && run.doing[n]) || (run && run.running ? "driving" : "waiting"))}</span>
       ${lv ? `<div class="row small" style="margin-top:6px;gap:14px"><span>Battery <b>${lv.battery ?? "-"} %</b></span><span>Edge <b>${lv.edge_cm ?? "-"} cm</b></span><span>Steps <b>${lv.done}/${lv.steps}</b></span>${lv.stop_cm != null ? `<span title="Its distance sensor stops it for anything in its path nearer than this (floor check at start-up)">Stops at <b>${lv.stop_cm} cm</b></span>` : ""}</div><div class="small muted">${esc(lv.last || "")}</div>` : ""}</div>`; }).join("")}
@@ -556,15 +559,18 @@ function runScreen() {
      <div class="card">${more("More", settingsTable("run"))}</div>
      <button class="p" id="go" ${run && !run.running ? "" : "disabled"}>Review</button>`);
   wireLighting();
-  $("start").onclick = async () => { try { await api("/api/run/start", {kind: "mission", dry: conn !== "robots", conn}); startPoll(); await load(); } catch (e) { flash(e.message, true); } };
+  $("start").onclick = async () => { try { const r = await api("/api/run/start", {kind: "mission", dry: conn !== "robots", conn}); if (r.feel) flash("Feeling out the table first; the production run starts by itself after it"); startPoll(); await load(); } catch (e) { flash(e.message, true); } };
   $("pause").onclick = async () => { try { await api("/api/run/pause", {on: !(run && run.paused)}); await load(); } catch (e) { flash(e.message, true); } };
   $("stop").onclick = async () => { try { await api("/api/run/stop", {}); await load(); } catch (e) { flash(e.message, true); } };
   $("go").onclick = () => { done.add(5); screen = 6; render(); };
-  if (isTags()) wireSync();
+  if (isTags()) { wireSync(); wireFeel(); }
   const lg = $("log"); if (lg) lg.scrollTop = lg.scrollHeight;
   if ($("mapv")) api("/api/mapping").then(r => { $("mapv").innerHTML = r.svg; }).catch(() => {});
 }
-function startPoll() { clearInterval(pollT); pollT = setInterval(async () => { const r = await api("/api/run"); S.run = r; if (screen === 5 || screen === 3) render(); if (!r.running) { clearInterval(pollT); load(); } }, 1000); }
+function startPoll() { clearInterval(pollT); pollT = setInterval(async () => { const r = await api("/api/run"); S.run = r;
+  if (isTags()) { try { S.feel = await api("/api/feel?conn=" + encodeURIComponent(conn)); } catch (e) {} }
+  const feeling = S.feel && ["surface", "feeling", "analyzing"].includes(S.feel.phase);
+  if (screen === 5 || screen === 3 || screen === 8) render(); if (!r.running && !feeling) { clearInterval(pollT); load(); } }, 1000); }
 
 async function review() {
   page(`<div><h1>Review</h1><p class="sub">The last run: what happened against the plan.</p></div><div id="rv" class="card">Loading...</div>`,
@@ -680,7 +686,7 @@ function production() {
       <label class="lbl"><input type="checkbox" id="pspin"> a sync spin at the start (each robot turns once on the spot: a moment the external recorder sees too)</label>
       <div class="row" style="margin-top:8px"><button class="p" id="pplan">Plan</button></div>
       ${pv ? `<p class="small" style="margin:8px 0 0">Planned: everyone done in <b>${fmt(pv.makespan_s)}</b>, in ${pv.planning_time_s != null ? pv.planning_time_s.toFixed(1) : "?"} s of planning; the plan keeps the robots 8 cm apart or more (the net).${(pv.warnings || []).length ? " " + esc(pv.warnings.join("; ")) : ""}</p>` : ""}</div>
-    ${syncCard(null)}
+    ${feelCard()}${syncCard(null)}
     <button class="p" id="pnext" ${pv ? "" : "disabled"}>Continue to run</button>`);
   document.querySelectorAll("[name=prob]").forEach(r => r.onchange = () => { prodRobot = r.value; });
   robots.forEach(n => { $("po_" + n).onchange = () => { prodOrders[n] = $("po_" + n).value.split(/[ ,;]+/).filter(Boolean); render(); }; });
@@ -691,7 +697,57 @@ function production() {
     robots.forEach(n => { prodOrders[n] = $("po_" + n).value.split(/[ ,;]+/).filter(Boolean); });
     try { await api("/api/production", {orders: prodOrders, dwell_s: +$("pdwell").value, home: $("phome").checked, sync_spin: $("pspin").checked}); await load(); flash("Planned"); } catch (e) { flash(e.message, true); render(); } };
   $("pnext").onclick = () => { done.add(8); screen = 5; render(); };
-  wireSync();
+  wireSync(); wireFeel();
+}
+// Feel out the table (Nick, 2 Nov 18:33; tools/fleet/feel_job.py): before the first production run on a table, each
+// robot is calibrated, then crawls to spots on the edges until its edge sensors feel the drop; where they felt each edge
+// is compared with the cameras' outline, a side felt more than 2 cm further in is moved in (at most 10 cm), and it is saved for
+// this table and camera setup, so later runs skip it.
+const SIDE_NAME = {x_min: "Corner-1 end", x_max: "Far end", y_min: "Near long side", y_max: "Far long side"};
+function feelSVG(F) {
+  const sv = F.saved; if (!sv || !sv.outline_camera) return "";
+  const oc = sv.outline_camera, ou = sv.outline_used || oc, pad = 14;
+  const x0 = Math.min(oc[0], ou[0]) - pad, y0 = Math.min(oc[1], ou[1]) - pad, x1 = Math.max(oc[2], ou[2]) + pad, y1 = Math.max(oc[3], ou[3]) + pad;
+  const W = 560, k = W / (x1 - x0), H = (y1 - y0) * k, X = x => (x - x0) * k, Y = y => H - (y - y0) * k;
+  const rect = (r, st) => `<rect x="${X(r[0]).toFixed(1)}" y="${Y(r[3]).toFixed(1)}" width="${((r[2] - r[0]) * k).toFixed(1)}" height="${((r[3] - r[1]) * k).toFixed(1)}" ${st}/>`;
+  const pts = (sv.feels || []).map(f => { const c = COL[f.robot] || "#5B6474";
+    if (f.felt_xy) return `<circle cx="${X(f.felt_xy[0]).toFixed(1)}" cy="${Y(f.felt_xy[1]).toFixed(1)}" r="4.5" fill="${c}"><title>${esc(f.robot)} felt the drop at ${esc(f.id)} (${f.offset_cm > 0 ? "+" : ""}${f.offset_cm} cm from the camera's line)</title></circle>`;
+    const p = f.place || [null, null]; return p[0] == null ? "" : `<circle cx="${X(p[0]).toFixed(1)}" cy="${Y(p[1]).toFixed(1)}" r="4.5" fill="none" stroke="${c}" stroke-width="2"><title>${esc(f.robot)} at ${esc(f.id)}: ${esc(f.kind)}</title></circle>`; }).join("");
+  return `<svg class="table" viewBox="0 0 ${W} ${H.toFixed(0)}" role="img" aria-label="The table from above: the cameras' outline dashed, the outline in use solid, the edges the robots felt as dots">
+    ${rect(oc, 'fill="var(--table)" stroke="#98A2B3" stroke-width="1.5" stroke-dasharray="6 4"')}${rect(ou, 'fill="none" stroke="var(--ink)" stroke-width="2"')}${pts}</svg>
+    <p class="small muted" style="margin:6px 0 0">The table from above (corner 1 bottom left): dashed, the cameras' outline; solid, the outline the runs use; dots, where each robot (its colour) felt the drop; rings, crawls that felt nothing.</p>`;
+}
+function feelCard() {
+  const F = S.feel; if (!F) return "";
+  const running = F.phase === "surface" || F.phase === "feeling" || F.phase === "analyzing";
+  const sv = F.saved;
+  const on = (F.needed && !F.skip_once) || F.force_next;
+  const head = running ? ({surface: "1 of 2: surface check", feeling: "2 of 2: crawling", analyzing: "Comparing"})[F.phase] : F.phase === "held" ? "Waiting for you"
+    : F.phase === "failed" ? "Did not finish" : F.phase === "no crawls" ? "Surface check failed: no crawls"
+    : on ? "Runs before the next production run" : F.needed ? "Off for this run (you chose it)" : sv ? "Saved: skipped" : "";
+  const surfBad = F.surface && F.surface.ok === false;
+  const warn = surfBad || F.phase === "held" || F.phase === "failed" || (sv && sv.hold) || (sv && sv.adjusted && Object.keys(sv.adjusted).length)
+    || (sv && sv.sides && Object.values(sv.sides).some(d => d.verdict === "further out" || d.verdict === "suspect"));
+  const prog = F.progress ? Object.entries(F.progress).map(([n, p]) => `<div style="margin:6px 0"><div class="between small"><b><span class="dot" style="background:${COL[n] || "#5B6474"}"></span>${esc(n)}</b><span>${p.done} of ${p.total} spots · ${p.felt} felt</span></div>
+      <div style="height:6px;background:var(--ground);border-radius:4px;margin-top:4px"><div style="height:6px;width:${Math.round(100 * p.done / Math.max(1, p.total))}%;background:${COL[n] || "var(--accent)"};border-radius:4px"></div></div>
+      <div class="small muted">${esc(p.now || (p.done ? "" : "calibrating, then on its way"))}</div></div>`).join("") : "";
+  const sides = sv && sv.sides ? `<table class="kv" style="margin-top:8px"><tr><td>Side</td><td>Felt vs camera</td><td>Change</td></tr>${Object.entries(SIDE_NAME).map(([k, nm]) => { const d = sv.sides[k] || {};
+      return `<tr><td>${nm}</td><td>${d.offset_cm == null ? "not felt" : (d.offset_cm > 0 ? "+" : "") + d.offset_cm.toFixed(1) + " cm" + (d.n ? ` (${d.n})` : "")}</td><td>${d.verdict === "adjusted" ? `<b>moved in ${Math.abs(d.move_cm).toFixed(1)} cm</b>` : d.verdict === "suspect" ? "<b>too far off: not moved</b>" : d.verdict === "further out" ? "none (camera's line kept)" : d.verdict === "agree" ? "none (agrees)" : "none"}</td></tr>`; }).join("")}</table>
+      <p class="small muted" style="margin:4px 0 0">Felt vs camera: + the edge is further out than the cameras' outline, - further in (cm; the number of feels in brackets). A side felt more than 2 cm further in is moved in (at most 10 cm); further out, the camera's line is kept.</p>` : "";
+  const words = (running || F.phase !== "idle" ? F.words : (sv && sv.words) || []) || [];
+  return `<div class="card ${warn ? "warnc" : ""}" id="feelc"><div class="between"><h2>Feel out the table</h2><span class="small" style="color:${warn ? "var(--warn)" : "var(--muted)"}">${esc(head)}</span></div>
+    <p class="small muted" style="margin:4px 0 8px">${esc(F.why || "")}</p>
+    ${running ? `<p class="small" style="margin:0 0 6px">${F.elapsed_s != null ? fmt(F.elapsed_s) + " in" : ""}${F.planned_s ? " · the crawls take about " + fmt(F.planned_s) + " after the calibration (about 1:05)" : ""}</p>${prog}` : ""}
+    ${feelSVG(F)}${sides}
+    ${words.length ? `<ul class="small" style="margin:8px 0 0;padding-left:18px">${words.map(w => `<li>${esc(w)}</li>`).join("")}</ul>` : ""}
+    <div class="row" style="margin-top:10px"><label class="lbl" style="color:var(--ink)"><input type="checkbox" id="feelbox" ${on ? "checked" : ""} ${running ? "disabled" : ""}> Feel out the table before this run</label>
+      <button class="b" id="feelnow" ${running || (S.run && S.run.running) ? "disabled" : ""}>Feel out now</button></div></div>`;
+}
+function wireFeel() {
+  if ($("feelnow")) $("feelnow").onclick = async () => { try { S.feel = await api("/api/feel/start", {conn}); startPoll(); await load(); } catch (e) { flash(e.message, true); } };
+  // one tick-box (risk review): needed -> unticking skips it this time; not needed -> ticking runs it again
+  if ($("feelbox")) $("feelbox").onchange = async () => { const c = $("feelbox").checked; try {
+    S.feel = S.feel.needed ? await api("/api/feel/skip", {conn, on: !c}) : await api("/api/feel/again", {conn, on: c}); render(); } catch (e) { flash(e.message, true); } };
 }
 function syncCard(run) {
   const Y = S.sync || {}, c = Y.clock || {};

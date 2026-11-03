@@ -101,6 +101,11 @@ DEFAULT_SETTINGS = {
     "arc_piece_deg": 30.0,      # chosen: an arc step is at most this many degrees (6-8 cm at r 12-15: about one
                                 # drive chunk). Two robots circling 180 deg apart at r 15 keep pieces two apart clear of
                                 # each other, so they can run together. No DOE: geometry (it only sets step size)
+    "probe_back_straight": True,  # the straight back-off above (2026-11-02); False: the old way (a free re-plan from
+                                # the stop: it may turn there), kept behind this switch (Nick's rule: keep features)
+    "probe_back_cms": 3.0,      # a side feel's back-off after the edge guard or front sensor ended it: straight back the
+                                # way it came at the crawl's own speed (feel out the table, 2026-11-02: the risk review
+                                # asked for a slow, straight back-off). No DOE: the same speed as the crawl
     "probe_cms": 3.0,           # warm-up side feel: creep speed (chosen: the approach speed, approach_cms, which the
                                 # front sensor's 15 Hz and the edge guard's 3 checks were set for; DOE note: 2 / 3 / 5 cm/s
                                 # against the stop distance past the edge on the school table; docs/doe-backlog.md)
@@ -2226,6 +2231,13 @@ def obstacle_replan(dec):
         off = old.get("task_offset", 0)
         lead = []
         if nxt["phase"] == "probe_back" or (nxt["phase"] == "probe" and st.get("ended")):
+            # back off STRAIGHT the way it came, slowly, before anything else (feel out the table, 2026-11-02, the
+            # risk review: no turn where it stopped at the edge): a reverse drive to the feel's start, at probe_back_cms
+            backs = [x for x in later if x["phase"] == "probe_back" and x.get("task") == nxt.get("task")] \
+                if s.get("probe_back_straight", True) else []      # off: re-planned freely from the stop, as before
+            if backs and math.hypot(backs[-1]["to"][0] - hold[0], backs[-1]["to"][1] - hold[1]) > 0.5:
+                lead = drive_prims(hold, list(backs[-1]["to"][:2]), s, speed=s.probe_back_cms, reverse=True,
+                                   phase="probe_back", task=nxt.get("task"))
             task_i += 1         # a side feel that ended by itself (edge guard, front sensor) has its answer: not again.
             #                     One halted for someone else's re-plan is tried again
         if nxt.get("board") and nxt["phase"] in ("approach", "dwell", "backout"):

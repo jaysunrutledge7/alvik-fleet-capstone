@@ -511,6 +511,22 @@ with a random sign (Nick's brief), gyro errors 6.5-8.5 % round Nick's 7.5 % with
 | Summary line while robots stay silent (SILENT_SUMMARY_S) | 5 min | not worth one: a log size | - | ruled out |
 | Motor board "not answering" (params.h stm_stale_ms) | 2000 ms | logs only: the longest gap between changed sensor readings in RAW rows over a day of normal running (the IMU comes every ~10 ms); the limit must clear it several times over | Logs (firmware 2026-10-29b) | open |
 
+## Feel out the table (2026-11-02, built; docs/build-reports/e02-nov02-feel-out-table.md)
+
+| Number (where) | Value now | Experiment that would set it | Needs | Status |
+|---|---|---|---|---|
+| Felt vs camera: agrees within (feel_table.py AGREE_CM) | 2.0 cm (a 3 cm error must be caught; the simulator's feels land within 0.4 cm of the truth) | yes: 5 feel-outs on the school table with its outline tape-measured: the spread of (felt - true) per cue; the line about 3 x that spread, and never over 3 cm | Board (school table, about 20 min each) | open |
+| Largest side move (MAX_ADJUST_CM) | 10 cm | not worth one: a limit; past it the camera setup is redone | - | ruled out |
+| Two feels on one side apart (SPREAD_CM) | 3.0 cm | the same runs: spread of the two feels on one side | Board (same runs) | open |
+| Crawl start in from the cameras' line (START_IN_CM) | 22 cm | not worth one: geometry (the look-ahead 9-11 cm plus the largest move) | - | ruled out |
+| Crawl's planned end in from the cameras' line (END_IN_CM) | 3.0 cm | not a DOE: MEASURE the real robot's centre of mass ahead of the axle (balance it on a ruler's edge); END_IN = that + 1.5 cm | Bench, 5 min | to measure |
+| Surface check: line sensors' standing swing (LINE_NOISE_SHARE) | half of edge_thr (75 of 150; the cue needs 150 three times in a row; the simulator's plywood swings 44-50) | yes: standing swing on the school tabletop and on plywood, against false trips while crawling 30 cm on the tabletop away from any edge | Board (school table) | open |
+| Surface check: look-ahead under its limit (BOT_MARGIN_CM) | 1.5 cm | the same runs: the bottom zone's highest standing reading on the glossy top | Board (same runs) | open |
+| Look-ahead reach (REACH_DEFAULT bottom, learned per feel-out) | 9.0 cm prior; the simulator's geometry gives 10.8-10.9 | the feel-outs themselves (reach.json); compare with the camera at each stop against a tape-measured edge | Board (same runs) | open (data each run) |
+| Spots per side (SPOTS_LONG, SPOTS_END) | 2 and 2 (8 in all; Nick: 6-8) | not worth one: coverage | - | ruled out |
+| Back-off speed (planner probe_back_cms) | 3 cm/s (the crawl's) | not worth one | - | ruled out |
+| Conference table's drop in the simulator (mission_run DROP_CM) | 74 cm | not a DOE: measure the school table's height | School, 1 min | to measure |
+
 ## Already set by data
 
 - **Line edge cue edge_thr 150** (e02.py SAFETY_SETTINGS): plywood reads 52-84 in every E02 session, the two real

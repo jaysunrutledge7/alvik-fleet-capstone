@@ -55,6 +55,8 @@ PY = sys.executable
 EDGE_GUARD = ["set safe_edge 3", "set edge_dir 0", "set edge_thr 150", "set edge_n 3", "set edge_bot_cm 11",
               "set bumper_cm 0"]    # the robots' edge guard, as run-fleet-pi.sh / ladder.SAFE (lost at every power-off)
 PLAN_LIMIT_S = 60.0     # planning time allowed for the mission (Monday plans in 4-5 s here). No DOE: a limit
+DROP_CM = 74.0          # the simulator's conference table: the floor this far below the top past an open edge (a
+                        # typical conference table's height; the site's table.drop_cm when given). No DOE: a model
 BRIDGE_START_S = 5.0    # the camera bridge learns the empty floor round the robots before run_plan starts (as
                         # run-fleet-pi.sh). No DOE: the bridge needs 5 pictures
 
@@ -72,9 +74,16 @@ def say(s):
 
 def build(args, out):
     robots = [r.strip() for r in args.robots.split(",") if r.strip()]
+    cal = getattr(args, "feel_cal_", None)
     if args.map:
         m = FM.load(args.map)
         m["tasks"] = {}
+        if cal and getattr(args, "tracking_", "lights") == "tags":
+            # the table's calibration from feeling it out (2026-11-02): the outline the robots felt
+            import feel_table as FTB
+            m, _w = FTB.apply_to_map(m, cal)
+            for w_ in _w:
+                say(w_)
     elif getattr(args, "tracking_", "lights") == "tags":
         # the AprilTag site (2026-11-02): the table with its production points and the homes near the middle
         import production as PR
@@ -84,7 +93,8 @@ def build(args, out):
             # no program given (a dry run from the command line): the simulator's stickers as the points
             import tag_cam as TCAM
             pts = TCAM.default_config(table=(max(a_, b_), min(a_, b_)), seed=args.seed + 4)["stickers"]
-        m, _w = PR.site_map((max(a_, b_), min(a_, b_)), robots, points=pts)
+        m, _w = PR.site_map((max(a_, b_), min(a_, b_)), robots, points=pts,
+                            outline=(cal or {}).get("outline_used"))
         for w_ in _w:
             say(w_)
     else:
@@ -238,6 +248,97 @@ def sync_mark(out, what, args, extra=None):
         say("(sync mark %s not written: %s)" % (what, e))
 
 
+def feel_conf_dir(args, out):
+    """Where the table calibrations live: --feel-conf-dir, else the site's folder (robots), else the session's own
+    (a dry run: nothing kept unless a folder is given)."""
+    if args.feel_conf_dir:
+        return os.path.abspath(os.path.expanduser(args.feel_conf_dir))
+    if not args.dry and args.site_:
+        return args.site_["conf_dir"]
+    return os.path.join(out, "feel_conf")
+
+
+def feel_first(args, out):
+    """Feel out the table first (Nick, 2 Nov 18:33): on the first run on a table (per site, per table, per camera
+    setup), before the production run: a run of its own (calibration, the crawls), then the comparison, saved as the
+    table's calibration; later runs use the saved one. --feel-table: auto (default for the robots), always, skip
+    (default for a dry run). Returns an exit code to stop with, or 0 to go on to the production run."""
+    import feel_table as FTB
+    import production as PR
+    mode = args.feel_table or ("skip" if args.dry or (args.site_ or {}).get("feel_out", True) is False else "auto")
+    args.feel_cal_ = None
+    if mode == "skip":
+        return 0
+    robots = [r.strip() for r in args.robots.split(",") if r.strip()]
+    if args.map:
+        m = FM.load(args.map)
+        m["tasks"] = {}
+    else:
+        a_, b_ = (float(v) for v in args.table.lower().split("x"))
+        m, _ = PR.site_map((max(a_, b_), min(a_, b_)), robots)
+    conf = feel_conf_dir(args, out)
+    tb_ = (args.site_ or {}).get("table") or {}
+    # the table's name: the site's typed size when it has one (a refit or a moved side never renames it)
+    key = FTB.table_key(table=(tb_["length_cm"], tb_["width_cm"])) if tb_.get("length_cm") and tb_.get("width_cm") \
+        else FTB.table_key(m)
+    sid = "simulator" if args.dry else FTB.setup_id(os.path.join(conf, "tagcal"))
+    need, cal, why = FTB.needed(conf, key, sid, force=(mode == "always"))
+    say("FEEL OUT THE TABLE: %s" % why)
+    if not need:
+        args.feel_cal_ = cal
+        for w in (cal or {}).get("adjusted") and cal.get("words") or []:
+            say("  (saved) " + w)
+        return 0
+    fdir = os.path.join(out, "feel")
+    extra = ["--robots", ",".join(robots), "--seed", str(args.seed), "--timeout-s", str(args.timeout_s)]
+    if args.dry and args.sim_true_floor:
+        extra += ["--sim-true-floor", args.sim_true_floor]
+    for a in args.sim_arg:
+        extra += ["--sim-arg=%s" % a]
+    for ip in args.robot:
+        extra += ["--robot", ip]
+    if args.no_frames:
+        extra += ["--no-frames"]
+    site_name = (args.site_ or {}).get("name")
+    # 1. the calibration, then each robot standing still at home: the surface check (the risk review, 2 Nov)
+    sdir = os.path.join(out, "surface")
+    smp, spp = FTB.prepare_surface(m, sdir)
+    say("feel-out, 1 of 2: each robot calibrated, then standing still %.0f s: is the tabletop clearly apart from the "
+        "edge sensors' thresholds?" % FTB.SURFACE_HOLD_S)
+    code = subprocess.call([PY] + FTB.mission_run_args(smp, spp, sdir, site=site_name, dry=args.dry, extra=extra,
+                                                       calibrate=True), cwd=REPO)
+    if code:
+        say("THE SURFACE CHECK DID NOT FINISH (exit %s): the production run is not started. Look at %s" % (code, sdir))
+        return code or 1
+    surf = FTB.surface_check(os.path.join(sdir, "run"))
+    for w in surf["words"]:
+        say("  " + w)
+    if not surf["ok"]:
+        cal = FTB.surface_cal(conf, key, sid, FTB.rect(FM.normalize(m)), surf, site=site_name)
+        say("WARNING: no crawls: the production run uses the camera's outline as it is (saved: %s)"
+            % FTB.cal_path(conf, key))
+        args.feel_cal_ = cal
+        return 0
+    # 2. the crawls (the calibration is kept: same power-on)
+    mp, pp, sp, mk = FTB.prepare(m, fdir)
+    say("feel-out, 2 of 2: %d spots (%s), about %.0f s" % (
+        len(sp), ", ".join("%s %d" % (n, len([s for s in sp if s["robot"] == n])) for n in robots), mk))
+    cmd = [PY] + FTB.mission_run_args(mp, pp, fdir, site=site_name, dry=args.dry, extra=extra)
+    code = subprocess.call(cmd, cwd=REPO)
+    if code:
+        say("THE FEEL-OUT DID NOT FINISH (exit %s): the production run is not started. Look at %s" % (code, fdir))
+        return code or 1
+    res, cal = FTB.finish(FM.load(mp), os.path.join(fdir, "run"), sp, conf, key, sid, site=site_name, surface=surf)
+    for w in res["words"]:
+        say("  " + w)
+    say("saved as this table's calibration: %s" % FTB.cal_path(conf, key))
+    if res.get("hold"):
+        say("NOT STARTED: the production run waits (the outline is too far off). Do the camera setup again.")
+        return 4
+    args.feel_cal_ = cal
+    return 0
+
+
 def run(args):
     gap_args(args)
     resolve_site(args)
@@ -264,6 +365,10 @@ def run(args):
     with open(os.path.join(out, "mission_cmd.json"), "w") as f:
         json.dump({"argv": sys.argv, "args": {k: v for k, v in vars(args).items() if k != "site_"}}, f, indent=1,
                   default=str)
+    if args.tracking_ == "tags" and not args.mission and not args.plan_only:
+        code_ = feel_first(args, out)
+        if code_ or args.feel_only:
+            return code_
     if args.mission:
         # a mission made elsewhere (Mission Control's warm-up): its map and plan as they are
         mp, pp = os.path.abspath(args.mission), os.path.abspath(args.plan)
@@ -299,6 +404,16 @@ def run(args):
         mmap = FM.load(mp)
         fl = mmap["floor"]
         L_, W_ = fl["x_max"] - fl["x_min"], fl["y_max"] - fl["y_min"]
+        if args.sim_true_floor:
+            # the real table where the map's outline is wrong (feel out the table, 2026-11-02): the tag cameras draw it
+            # and the edge sensors meet it; the planner keeps the map's outline
+            tf_ = [float(v) for v in args.sim_true_floor.split(",")]
+            L_, W_ = tf_[2] - tf_[0], tf_[3] - tf_[1]
+            rp += ["--sim-arg=--true-floor=%s" % args.sim_true_floor]
+        # the conference table's drop (2026-11-02): past an open edge the floor is far below, not home's plywood step
+        drop_ = (((args.site_ or {}).get("table") or {}).get("drop_cm") or DROP_CM)
+        if not any(str(a).startswith("--drop-cm") for a in args.sim_arg):
+            rp += ["--sim-arg=--drop-cm=%g" % float(drop_)]
         w_, h_ = (int(v) for v in args.cam_size.split("x"))
         tcfg = TCAM.default_config(table=(L_, W_), size=(w_, h_), tags=args.tags_, seed=args.seed + 4)
         if mmap.get("spots"):
@@ -643,6 +758,16 @@ def main(argv=None):
     g.add_argument("--cam-low-res", action="append", default=[], metavar="CAM=WxH",
                    help="tags: that camera sends smaller pictures, e.g. side=640x480")
     g.add_argument("--no-typed", action="store_true", help="tags: the simulated setup types no table size")
+    g.add_argument("--sim-true-floor", default="", metavar="X0,Y0,X1,Y1",
+                   help="tags: the real table when the map's outline is wrong (the feel-out's tests)")
+    ap.add_argument("--feel-table", choices=["auto", "always", "skip"], default="",
+                    help="tags: feel out the table first (its edges felt by the robots against the cameras' outline): "
+                         "auto = when this table has no saved calibration for this camera setup (default for the "
+                         "robots), always, skip (default for --dry)")
+    ap.add_argument("--feel-only", action="store_true", help="tags: feel out the table (with --feel-table) and stop: "
+                                                               "no production run")
+    ap.add_argument("--feel-conf-dir", default="", help="where table calibrations are saved (default: the site's folder; "
+                                                         "--dry: the session's)")
     ap.add_argument("--points-each", type=int, default=3, help="tags, no --program: points per robot")
     ap.add_argument("--dwell-s", type=float, default=3.0, help="tags, no --program: seconds at each point")
     ap.add_argument("--no-mirror", action="store_true",

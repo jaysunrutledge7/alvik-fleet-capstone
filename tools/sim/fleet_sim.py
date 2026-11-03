@@ -277,6 +277,7 @@ class FleetSim:
         self.min_gap = (math.inf, None)
         self.min_static = (math.inf, None)
         self.min_open = (math.inf, None)     # closest a body came to an open part of the edge (school workspace)
+        self.min_com = {}                    # robot -> (closest its centre of mass came to an open edge, t)
         self.hung = []
         self.followed = set()
         self.log_lines = []
@@ -304,6 +305,16 @@ class FleetSim:
             f = mt["floor"]
             short = {"x_min": "x0", "x_max": "x1", "y_min": "y0", "y_max": "y1"}
             self.cfg.session.board_cm = [f["x_min"], f["y_min"], f["x_max"], f["y_max"]]
+            tf = getattr(args, "true_floor", None)
+            if tf:
+                # --true-floor (feel out the table, 2026-11-02): the real table where the map's outline (the cameras'
+                # fit) is wrong; the edge sensors and the hang model use the real one, the planner the map's
+                f = {"x_min": tf[0], "y_min": tf[1], "x_max": tf[2], "y_max": tf[3]}
+                self.cfg.session.board_cm = list(tf)
+            if getattr(args, "drop_cm", None):
+                # --drop-cm: how far the floor is below the table top past an open edge (a conference table: about
+                # 74 cm; home's plywood: 1.9 cm). The bottom zone then reads the room's floor, far below
+                self.cfg.session.board_thick_cm = float(args.drop_cm)
             # the distance sensor's far walls (config.py arena_x / arena_y: a room round the home board) moved out round
             # a table bigger than that room (the 396 cm conference table, 2026-11-02: a robot at x = 213 saw a wall
             # at 220 cm and stopped at every turn)
@@ -379,6 +390,13 @@ class FleetSim:
                 n_, _, k_ = spec.partition(":")
                 if n_ == name:
                     rb.calib_fail = int(k_ or 1)
+            for spec in getattr(args, "edge_miss", None) or []:
+                # --edge-miss NAME[:N[:CUE]]: its edge guard misses the drop on its first N approaches (CUE line,
+                # bottom or both; default both): that cue stays quiet until the wheels next stop
+                q = spec.split(":")
+                if q[0] == name:
+                    rb.edge_miss = {"n": int(q[1]) if len(q) > 1 and q[1] else 1,
+                                    "cue": q[2] if len(q) > 2 and q[2] else "both", "blind": False, "missed": []}
             for spec in getattr(args, "silent", None) or []:
                 # --silent NAME@T:DUR: no WiFi either way from T s after the simulator starts, for DUR s
                 n_, _, rest = spec.partition("@")
@@ -775,6 +793,12 @@ class FleetSim:
                     g = max(r.past_open_edge(float(px), float(py)) for px, py in c)
                     if -g < self.min_open[0]:
                         self.min_open = (-g, [n, round(now - self.t_plan0, 2)])
+                    # the centre of mass (hang model) to the real edge: what decides a fall (feel out the table)
+                    cx = r.x + r.HANG_COM_AHEAD_CM * math.cos(r.th)
+                    cy = r.y + r.HANG_COM_AHEAD_CM * math.sin(r.th)
+                    gc = -r.past_open_edge(cx, cy)
+                    if gc < self.min_com.get(n, (math.inf,))[0]:
+                        self.min_com[n] = (gc, round(now - self.t_plan0, 2))
                     if getattr(r, "hung", False) and n not in self.hung:
                         self.hung.append(n)
                         self.event(dict(kind="hung", robot=n, t=round(now - self.t_plan0, 2)))
@@ -815,6 +839,19 @@ class FleetSim:
             rep["min_open_edge_cm"] = None if not math.isfinite(self.min_open[0]) else round(self.min_open[0], 2)
             rep["min_open_edge_at"] = self.min_open[1]
             rep["hung"] = list(self.hung)
+            # every edge-guard trip and simulated miss, with how far inside the real edge the axle was (feel out the
+            # table, 2026-11-02), and each robot's closest centre of mass to an open edge
+            rep["min_com_open_edge_cm"] = {n: round(v[0], 2) for n, v in self.min_com.items() if math.isfinite(v[0])}
+            rep["edge_trips"] = {n: [dict(t=round(rb.t_at(ms) - (self.t_plan0 or 0), 2), cue=cue,
+                                          axle_in_cm=round(-rb.past_open_edge(p[0], p[1]), 2),
+                                          pose=[round(p[0], 2), round(p[1], 2), round(math.degrees(p[2]), 1)])
+                                     for ms, cue, p in getattr(rb, "edge_trips", [])] for n, rb in self.robots.items()}
+            rep["edge_misses"] = {n: [dict(t=round(rb.t_at(ms) - (self.t_plan0 or 0), 2), cue=cue,
+                                           axle_in_cm=round(-rb.past_open_edge(p[0], p[1]), 2))
+                                      for ms, cue, p in (getattr(rb, "edge_miss", None) or {}).get("missed", [])]
+                                  for n, rb in self.robots.items()}
+            rep["board_cm"] = list(self.cfg.session.board_cm or [])
+            rep["drop_cm"] = self.cfg.session.board_thick_cm
         if out:
             ge = [abs(d["gap_error_cm"]) for d in out]
             rep["dock_gap_error_cm_max"] = max(ge)
@@ -931,6 +968,13 @@ def main(argv=None):
                     help="the camera loses that robot for DUR s from T s after the plan starts (repeatable)")
     ap.add_argument("--true-sides", help="the table's real side kinds (default: the map's), e.g. "
                                          "x_min=open,x_max=barrier,y_min=partial:0-60,y_max=open")
+    ap.add_argument("--true-floor", type=lambda v: [float(q) for q in v.split(",")], metavar="X0,Y0,X1,Y1",
+                    help="the real table where the map's outline is wrong (the edge sensors use it; the planner the "
+                         "map's)")
+    ap.add_argument("--drop-cm", type=float, default=0.0,
+                    help="the drop past an open edge (default: home's plywood, 1.9 cm; a conference table about 74)")
+    ap.add_argument("--edge-miss", action="append", default=[], metavar="NAME[:N[:CUE]]",
+                    help="that robot's edge guard misses the drop on its first N approaches (CUE line, bottom, both)")
     ap.add_argument("--true-object", dest="true_objects", type=parse_object, action="append", default=[],
                     help="x,y,w,h[,angle]: a box on the table the map does not know (repeatable)")
     ap.add_argument("--brick", type=parse_brick, help="auto@T or x,y[,angle]@T (s after the first step)")

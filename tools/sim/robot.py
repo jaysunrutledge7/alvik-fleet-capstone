@@ -1026,9 +1026,12 @@ class Robot(FollowMixin, DockMixin, E02Mixin):
                 self.edge_braking = False
             else:
                 return False
+        em = getattr(self, "edge_miss", None)       # fleet_sim --edge-miss: a missed drop (feel out the table, 2026-11-02)
         if not forward:
             self.edge_count = 0
             self.edge_bot_since = 0
+            if em and em["blind"] and still:
+                em["blind"] = False                  # the miss lasts for one approach: until the wheels stop
             return False
         if (mode & 1) and getattr(self, "edge_no_floor", False) and not self.edge_line_off:
             self.edge_record("trip", L, C, R, self.bottom(er), "no plywood under the line sensors at the start")
@@ -1040,7 +1043,9 @@ class Robot(FollowMixin, DockMixin, E02Mixin):
                 self.edge_count += 1
             else:
                 self.edge_count = 0
-            if self.edge_count >= max(1, int(self.P("edge_n"))):
+            if self.edge_count >= max(1, int(self.P("edge_n"))) and self._edge_missed("line"):
+                self.edge_count = 0
+            elif self.edge_count >= max(1, int(self.P("edge_n"))):
                 self.edge_record("trip", L, C, R, self.bottom(er), "line sensors")
                 self.edge_trips.append((self.ms, "line", (self.x, self.y, self.th)))
                 self.edge_braking, self.edge_count, self.edge_last_cue = True, 0, "line"
@@ -1051,7 +1056,9 @@ class Robot(FollowMixin, DockMixin, E02Mixin):
             if d > lim:
                 if not self.edge_bot_since:
                     self.edge_bot_since = self.millis() | 1
-                if self.millis() - self.edge_bot_since >= self.P("edge_bot_ms"):
+                if self.millis() - self.edge_bot_since >= self.P("edge_bot_ms") and self._edge_missed("bottom"):
+                    pass
+                elif self.millis() - self.edge_bot_since >= self.P("edge_bot_ms"):
                     self.edge_record("trip", L, C, R, d, "bottom zone")
                     self.edge_trips.append((self.ms, "bottom", (self.x, self.y, self.th)))
                     self.edge_braking, self.edge_bot_since, self.edge_last_cue = True, 0, "bottom"
@@ -1059,6 +1066,23 @@ class Robot(FollowMixin, DockMixin, E02Mixin):
             else:
                 self.edge_bot_since = 0
         return False
+
+    def _edge_missed(self, cue):
+        """fleet_sim --edge-miss: True while this cue misses the drop on this approach (it would have tripped). A miss
+        starts at the first would-be trip of an approach and lasts until the wheels next stop; "both" blinds both
+        cues for that approach. The true pose of each miss is kept for the tests."""
+        em = getattr(self, "edge_miss", None)
+        if not em or em["cue"] not in (cue, "both"):
+            return False
+        if em["blind"]:
+            return True
+        if em["n"] <= 0:
+            return False
+        em["n"] -= 1
+        em["blind"] = True
+        em["missed"].append((self.ms, cue, (self.x, self.y, self.th)))
+        self.edge_record("miss", 0, 0, 0, 0.0, "simulated miss (%s)" % cue)
+        return True
 
     def wait_ms(self, ms):
         t0 = self.millis()
