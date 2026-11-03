@@ -353,6 +353,8 @@ case "$WHAT" in
     python3 tools/fleet/mission_control.py --dir "${MIRLT_MC_DIR:-logs/mission-control}" --listen 0.0.0.0 $HOSTS ;;
   site)            # (2026-11-02) which site: ./run-fleet-pi.sh site (shows it), ./run-fleet-pi.sh site school-conference
     if [ -n "${1:-}" ]; then python3 tools/fleet/sites.py use "$1"; else python3 tools/fleet/sites.py; python3 tools/fleet/sites.py list; fi ;;
+  jay-bundle)      # (2026-11-03) one run's raw files for Jay-Sun (camera track, raw odometry, logs; nothing RFID): a zip in the run's folder
+    python3 tools/fleet/run_exports.py "${1:-latest}" --bundle ;;
   camcheck)        # (2026-11-02) the camera check-out in the terminal (the recorder must be running: ./run-fleet-pi.sh rec)
     python3 tools/fleet/camera_checkout.py ;;
   mc-stop)

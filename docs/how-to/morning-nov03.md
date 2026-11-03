@@ -252,7 +252,9 @@ laptop. You may close the PowerShell window: Mission Control keeps running.
    `Production points: the 40 typed stickers (school-conference-points.csv); their spots are not clicked`, and `Every
    typed measurement agrees`. A tile not seen: its line says which; move it so a camera sees it, Measure again. A
    line starting `CHECK: sticker` means the cameras saw that sticker somewhere else: tell me its number.
-6. **Production**: Alpha's and Bravo's lists are already filled in (Alpha starts `P11, P20, P19, ...`, Bravo
+6. **Tonight (3 Nov, with Jay-Sun): use [school-experiments.md](school-experiments.md) for this step and B8** (the
+   Experiment card: shakedown, experiments 1-4, swap halves, sync wiggle; and the raw files for Jay-Sun).
+   **Production**: Alpha's and Bravo's lists are already filled in (Alpha starts `P11, P20, P19, ...`, Bravo
    `P22, P21, P28, ...`). You may change them (type, or click points on the table). Press **Plan**. You should see
    `Planned: everyone done in about 3 min` and two lines about P12 and P21 moved just clear of the raised box. Press
    **Continue to run**.

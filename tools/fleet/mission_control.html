@@ -653,6 +653,7 @@ async function review() {
 // Measure (tools/fleet/tag_job.py). Production: each robot's points in order, then home. The sync card: the session id
 // both teams write down, the Pi's clock, Start / End marks, the pose timeline and the comparison with an external CSV.
 let tagPick = {kind: "corner", label: "1"}, tagStamp = 0, prodRobot = null, prodOrders = null;
+let expPick = null, expSwap = null, expPv = null, expWiggle = null;   // the Experiment picker (Jay-Sun's runs, 3 Nov)
 const VCOL = {PASS: "var(--green)", WARN: "var(--warn)", FAIL: "var(--red)"};
 function tagState() { return S.tag || {clicks: {}, typed: {}}; }
 function checkoutCard() {
@@ -756,13 +757,15 @@ function production() {
     robots.forEach((n, k) => prodOrders[n] = labs.filter((_, i) => i % robots.length === k).slice(0, 3)); }
   if (!prodRobot) prodRobot = robots[0];
   const pv = S.preview;
+  if (expPick === null) { const pc = S.production_choice || {}; expPick = pc.experiment || "custom"; expSwap = pc.swap_halves || "auto"; }
+  if (!expPv) { api("/api/production/experiment", {experiment: expPick, swap_halves: expSwap}).then(r => { expPv = r; if (expWiggle === null) expWiggle = !!r.wiggle; render(); }).catch(() => {}); }
   const homes = Object.fromEntries(S.map.robots.map(r => [r.name, r.start]));
   const paths = {};
   robots.forEach(n => { paths[n] = [homes[n] || [0, 0]].concat((prodOrders[n] || []).filter(l => spots[l]).map(l => spots[l])).concat([homes[n] || [0, 0]]); });
   page(`<div><h1>Production run</h1><p class="sub">Each robot: its start-up (calibrated on this power-on? if not, it calibrates; a calibration from earlier today on the same power-on is kept), its points in the order below, ${"a stop of a few seconds at each"}, then home. Click a point on the table to add it to the chosen robot's list.</p></div>
     <div class="card">${tableSVG({id: "ptab", paths: pv ? pv.paths : paths, pathOp: .55, pathW: 2, robots: homes})}
       <p class="small muted" style="margin:8px 0 0">The table from above (corner 1 bottom left). Numbered circles: the production points (${S.site && S.site.points_typed ? "typed from the sticker sheet" : "from Measure"}); dots: each robot at its home; shaded red: keep-out areas (the raised box, reference tiles); lines: ${pv ? "the planned routes" : "each robot's points in order (straight lines; Plan makes the real routes)"}.</p></div>`,
-    `<div class="card"><h2>Orders</h2>${robots.map(n => `<div style="padding:8px 0;border-bottom:1px solid #F0F1F3"><label class="row"><input type="radio" name="prob" value="${esc(n)}" ${n === prodRobot ? "checked" : ""}><b><span class="dot" style="background:${COL[n] || "#5B6474"}"></span>${esc(n)}</b><span class="small muted">clicks add here</span></label>
+    `${expCard()}<div class="card"><h2>Orders</h2>${robots.map(n => `<div style="padding:8px 0;border-bottom:1px solid #F0F1F3"><label class="row"><input type="radio" name="prob" value="${esc(n)}" ${n === prodRobot ? "checked" : ""}><b><span class="dot" style="background:${COL[n] || "#5B6474"}"></span>${esc(n)}</b><span class="small muted">clicks add here</span></label>
       <input id="po_${esc(n)}" value="${esc((prodOrders[n] || []).join(", "))}" style="width:100%;margin-top:6px" aria-label="${esc(n)}'s points in order"></div>`).join("")}
       <div class="row" style="margin-top:8px"><label class="lbl">Stop at each point <input id="pdwell" class="n" value="3"> s</label><label class="lbl"><input type="checkbox" id="phome" checked> then home</label></div>
       <label class="lbl"><input type="checkbox" id="pspin"> a sync spin at the start (each robot turns once on the spot: a moment the external recorder sees too)</label>
@@ -771,15 +774,35 @@ function production() {
     ${feelCard()}${syncCard(null)}
     <button class="p" id="pnext" ${pv ? "" : "disabled"}>Continue to run</button>`);
   document.querySelectorAll("[name=prob]").forEach(r => r.onchange = () => { prodRobot = r.value; });
-  robots.forEach(n => { $("po_" + n).onchange = () => { prodOrders[n] = $("po_" + n).value.split(/[ ,;]+/).filter(Boolean); render(); }; });
+  robots.forEach(n => { $("po_" + n).onchange = () => { prodOrders[n] = $("po_" + n).value.split(/[ ,;]+/).filter(Boolean); if (expPick !== "custom") { expPick = "custom"; expPv = null; } render(); }; });   // typed lists: Custom
   $("ptab").onclick = ev => { const p = svgToFloor($("ptab"), ev); let best = null, bd = 1e9;
     for (const [k, v] of Object.entries(spots)) { const d = Math.hypot(v[0] - p[0], v[1] - p[1]); if (d < bd) { bd = d; best = k; } }
-    if (best && bd < 15) { prodOrders[prodRobot] = (prodOrders[prodRobot] || []).concat([best]); S.preview = null; render(); } };
+    if (best && bd < 15) { prodOrders[prodRobot] = (prodOrders[prodRobot] || []).concat([best]); if (expPick !== "custom") { expPick = "custom"; expPv = null; } S.preview = null; render(); } };
   $("pplan").onclick = async () => { $("pplan").disabled = true; $("pplan").textContent = "Planning...";
     robots.forEach(n => { prodOrders[n] = $("po_" + n).value.split(/[ ,;]+/).filter(Boolean); });
-    try { await api("/api/production", {orders: prodOrders, dwell_s: +$("pdwell").value, home: $("phome").checked, sync_spin: $("pspin").checked}); await load(); flash("Planned"); } catch (e) { flash(e.message, true); render(); } };
+    try { const r = await api("/api/production", {orders: prodOrders, dwell_s: +$("pdwell").value, home: $("phome").checked, sync_spin: $("pspin").checked, experiment: expPick, swap_halves: expSwap, sync_wiggle: expWiggle}); await load(); flash(r.words || "Planned"); } catch (e) { flash(e.message, true); render(); } };
   $("pnext").onclick = () => { done.add(8); screen = 5; render(); };
+  wireExp();
   wireSync(); wireFeel();
+}
+// The Experiment picker (Jay-Sun 3 Nov; tools/fleet/experiments.py): shakedown (no camera, default orders), 1 in order,
+// 2 reversed, 3 zig-zag, 4 shuffled, the default orders, or custom (the lists typed below). Picking one fills the lists.
+function expCard() {
+  const v = expPv, ch = (v && v.choices) || [{id: "custom", name: "Custom: the orders typed below"}];
+  const planned = S.experiment_planned;
+  const cross = v && v.crossings ? Object.entries(v.crossings).map(([n, c]) => `${esc(n)} ${c}`).join(", ") : "";
+  return `<div class="card" id="expcard"><h2>Experiment</h2>
+    <div class="row"><label class="lbl">Run <select id="expsel" aria-label="Experiment">${ch.map(c => `<option value="${esc(c.id)}" ${c.id === expPick ? "selected" : ""}>${esc(c.name)}</option>`).join("")}</select></label></div>
+    <div class="row" style="margin-top:6px"><label class="lbl">Swap halves <select id="expswap" aria-label="Swap halves" ${expPick === "shakedown" || expPick === "custom" ? "disabled" : ""}>${["auto", "on", "off"].map(k => `<option value="${k}" ${k === expSwap ? "selected" : ""}>${{auto: "every other run (auto)", on: "swapped", off: "not swapped"}[k]}</option>`).join("")}</select></label>
+      <label class="lbl"><input type="checkbox" id="expwig" ${expWiggle ? "checked" : ""}> sync wiggle at the start (both robots a quarter turn and back at home)</label></div>
+    ${v ? `<p class="small" style="margin:8px 0 0" id="expwords"><b>${v.swapped ? "Halves SWAPPED" : "Halves as usual"}</b>: ${esc(v.swap_words || "")}. Runs counted at this site: ${v.runs_so_far}.${cross ? " Legs over the middle (x = 78 in): " + cross + "." : ""} Speed: drive ${v.speed.cruise_cms} cm/s, turn ${v.speed.turn_dps} deg/s, final approach ${v.speed.confirm_cms} cm/s (the same in every experiment).${expPick === "shakedown" ? " The shakedown runs with no camera: Plan sets Tracking to No camera." : ""}${v.meta && v.meta.order_kind === "shuffled" ? " Shuffle seed " + v.meta.seed + " (recorded)." : ""}</p>` : `<p class="small muted">Loading...</p>`}
+    ${planned ? `<p class="small muted" style="margin:6px 0 0">Planned now: ${esc(planned.name)}, ${planned.swap_halves ? "halves swapped" : "halves as usual"}.</p>` : ""}</div>`;
+}
+function wireExp() {
+  const go = async () => { try { expPv = await api("/api/production/experiment", {experiment: expPick, swap_halves: expSwap}); if (expPv.orders) prodOrders = JSON.parse(JSON.stringify(expPv.orders)); S.preview = null; render(); } catch (e) { flash(e.message, true); } };
+  if ($("expsel")) $("expsel").onchange = () => { expPick = $("expsel").value; go(); };
+  if ($("expswap")) $("expswap").onchange = () => { expSwap = $("expswap").value; go(); };
+  if ($("expwig")) $("expwig").onchange = () => { expWiggle = $("expwig").checked; };
 }
 // Feel out the table (Nick, 2 Nov 18:33; tools/fleet/feel_job.py): before the first production run on a table, each
 // robot is calibrated, then crawls to spots on the edges until its edge sensors feel the drop; where they felt each edge

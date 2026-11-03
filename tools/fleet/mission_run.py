@@ -109,7 +109,10 @@ def build(args, out):
         # a site with typed production points (2026-11-03, Jay's sticker sheet): its points, homes, raised box and
         # default orders, in every tracking mode
         import production as PR
-        m, _w, sprog, _o = PR.site_production(args.site_, robots, outline=(cal or {}).get("outline_used"))
+        m, _w, sprog, _o = PR.site_production(args.site_, robots, outline=(cal or {}).get("outline_used"),
+                                              experiment=getattr(args, "experiment_", None) or None,
+                                              swap=getattr(args, "swap_", False),
+                                              wiggle={"on": True, "off": False}.get(getattr(args, "sync_wiggle", "auto")))
         args.site_program_ = sprog
         for w_ in _w:
             say(w_)
@@ -172,6 +175,15 @@ def build(args, out):
     mm = MS.build(m, prog, s=sets or None)
     over = {"separation_cm": max(float(((mm.get("mission") or {}).get("planner") or {}).get("separation_cm", 8.0)),
                                  args.min_gap_cm)}
+    if typed_site(args):
+        # same speed in every experiment (Jay-Sun, 3 Nov): the site's production speeds pinned in the planner (re-plans
+        # keep the plan's settings), recorded in the summary
+        import experiments as EX
+        sp = dict(((prog.get("production") or {}).get("experiment") or {}).get("speed") or EX.conf(args.site_)["speed"])
+        over.update(sp)
+        args.speed_ = sp
+        say("speeds pinned for this site: drive %.0f cm/s, turn %.0f deg/s, final approach %.0f cm/s" % (
+            sp["cruise_cms"], sp["turn_dps"], sp["confirm_cms"]))
     t0 = time.time()
     if getattr(args, "on_problem_", "stop") == "keep_going":
         over["skip_unreachable"] = True     # keep going (2026-11-03): a point no route reaches is skipped and listed,
@@ -453,9 +465,30 @@ def feel_first(args, out):
     return 0
 
 
+def resolve_experiment(args):
+    """--experiment / --swap-halves (2026-11-03): args.experiment_, args.swap_, args.swap_words_. The shakedown is the
+    no-camera run unless a tracking was chosen."""
+    args.experiment_, args.swap_, args.swap_words_ = None, False, ""
+    if not args.experiment:
+        return
+    if not typed_site(args):
+        raise SystemExit("--experiment needs a site with typed production points (school-conference). Nothing moved.")
+    import experiments as EX
+    args.experiment_ = args.experiment
+    if args.experiment == "shakedown":
+        args.swap_, args.swap_words_ = False, "shakedown: halves as usual"
+        if args.tracking == "auto":
+            args.tracking_ = "none"
+            say("SHAKEDOWN: tracking none (odometry only), the site's default orders")
+    else:
+        args.swap_, args.swap_words_ = EX.swap_for(args.site_, args.swap_halves)
+    say("EXPERIMENT %s: %s; %s" % (args.experiment, EX.KINDS[args.experiment]["name"], args.swap_words_))
+
+
 def run(args):
     gap_args(args)
     resolve_site(args)
+    resolve_experiment(args)
     tag = "mission" + ("-dry" if args.dry else "")
     out = os.path.abspath(args.session or os.path.join(REPO, "logs", dt.datetime.now().strftime("%Y%m%d-%H%M%S") +
                                                        "-" + tag))
@@ -709,6 +742,19 @@ def run(args):
     if tag_setup_thread is not None:
         tag_setup_thread.start()
     sync_mark(out, "start", args)
+    exp_meta = None
+    try:
+        with open(os.path.join(out, "program.json")) as f:
+            exp_meta = ((json.load(f).get("production") or {}).get("experiment"))
+    except (OSError, ValueError):
+        pass
+    if exp_meta and not args.dry and args.site_:
+        # the run counter (swap halves every other run): one more production run with an experiment on the robots
+        import experiments as EX
+        d_ = EX.counter_add(args.site_, {"experiment": exp_meta.get("id"), "swap_halves": exp_meta.get("swap_halves"),
+                                         "session": os.path.basename(out), "session_id": args.session_id})
+        say("run counter at this site: %d (next run's halves: %s)" % (d_["runs"], "swapped" if d_["runs"] % 2 else
+                                                                        "as usual"))
     import threading
     disk_said, disk_stop = [], threading.Event()
     threading.Thread(target=space_watch, args=(guard, child, disk_said, disk_stop), daemon=True).start()
@@ -746,6 +792,30 @@ def run(args):
                 pass
     sync_mark(out, "end", args)
     summ = summarise(out, sess, frames, cond)
+    try:
+        # the experiment (2026-11-03): id, orders, swap, seed, pinned speeds; the sync wiggle's times per robot
+        import experiments as EX
+        if exp_meta:
+            summ["experiment"] = dict(exp_meta, swap_words=getattr(args, "swap_words_", ""),
+                                      tracking=args.tracking_)
+        if getattr(args, "speed_", None):
+            summ["speed_pinned"] = args.speed_
+        wg = EX.wiggle_events(os.path.join(sess, "coordinator.jsonl"))
+        if wg:
+            summ["sync_wiggle"] = wg
+            for n_, w_ in sorted(wg.items()):
+                say("SYNC WIGGLE %s: %.3f -> %.3f (Pi clock, %.1f s)" % (n_, w_["start"], w_["end"],
+                                                                         w_["end"] - w_["start"]))
+        with open(os.path.join(sess, "experiment.json"), "w") as f:
+            json.dump({"experiment": exp_meta, "speed_pinned": getattr(args, "speed_", None), "sync_wiggle": wg,
+                       "tracking": args.tracking_}, f, indent=1)
+        if not args.no_run_exports:
+            import run_exports as RX
+            summ["exports"] = RX.export_all(out, say=say)
+    except Exception as e:     # noqa: BLE001  (an export never stops the run's end)
+        say("(experiment record / exports not made: %s)" % e)
+    with open(os.path.join(out, "mission_summary.json"), "w") as f:
+        json.dump(summ, f, indent=1, default=str)
     if args.tracking_ == "tags":
         summ["camera_moved"] = [{k: e.get(k) for k in ("cam", "t", "median_px", "about_cm")} for e in moved_said]
     try:
@@ -1011,6 +1081,18 @@ def main(argv=None):
                     help="tags, feel-out: camera = a felt-vs-camera difference is reported and logged, the cameras' "
                          "outline stands and nothing waits; sensor = a side moved in up to 10 cm, held past 10 (as "
                          "built 2 Nov); auto = the site's feel_out_trust")
+    ap.add_argument("--experiment", default="", choices=["", "shakedown", "e1", "e2", "e3", "e4", "default"],
+                    help="a typed site's experiment routes (experiments.py, Jay-Sun 3 Nov): shakedown (no camera, default "
+                         "orders), e1 in order, e2 reversed, e3 zig-zag, e4 shuffled, default; none = the site's default "
+                         "orders as before")
+    ap.add_argument("--swap-halves", default="auto", choices=["on", "off", "auto"],
+                    help="with --experiment: the robots' halves exchanged; auto = every other run (the site's run "
+                         "counter; simulator runs read it but never count)")
+    ap.add_argument("--sync-wiggle", default="auto", choices=["on", "off", "auto"],
+                    help="the sync wiggle at the start (both robots a quarter turn and back at their homes); auto = the "
+                         "site's experiments.sync_wiggle.use (school on, home off)")
+    ap.add_argument("--no-run-exports", action="store_true",
+                    help="no camera_track.csv / odometry_raw.csv in the run folder at the end")
     ap.add_argument("--points-each", type=int, default=3, help="tags, no --program: points per robot")
     ap.add_argument("--dwell-s", type=float, default=3.0, help="tags, no --program: seconds at each point")
     ap.add_argument("--no-mirror", action="store_true",

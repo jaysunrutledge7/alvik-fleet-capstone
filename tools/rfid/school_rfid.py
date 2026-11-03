@@ -46,7 +46,7 @@ for p in (HERE, os.path.join(TOOLS, "fleet")):
     if p not in sys.path:
         sys.path.insert(0, p)
 
-VERSION = "2026-11-03a"
+VERSION = "2026-11-03b"   # b: the sync wiggle as the clock's primary anchor
 IN_CM = 2.54
 ENV_BLOCK_S = 30.0       # lower envelope: the minimum of host - reader in each 30 s block, then their median. No DOE:
                          # a robust-statistics choice (one late NTP step or a stalled block cannot move the median)
@@ -445,6 +445,94 @@ def motion_check(cap, tracks, mapping, env_off, center_s, half_s=SEARCH_S, step_
     return lags, tot, float(lags[int(np.argmax(tot))])
 
 
+# ---------------------------------------------------------------- 2b. the sync wiggle (2026-11-03b)
+WIGGLE_PRE_S = 6.0       # the wiggle's window: from this long before its start (the robots stand still at home) ...
+WIGGLE_POST_S = 0.5      # ... to this long after its end (the experiments drive off at once). Chosen; DOE note: 3 / 6 /
+                         # 10 s against the offset error on fakes
+WIGGLE_STEP_S = 0.02
+WIGGLE_FLOOR_S = 0.1     # smallest stated half-range of the wiggle's clock shift (s): from the fakes (build report
+                         # e02-nov03-experiments-routes-data); DOE note: real wiggle vs the reader's own clock
+
+
+def load_wiggle(session):
+    """{robot: {"start": t, "end": t}} (Pi clock) from the run's summary (mission_run's sync_wiggle), else {}."""
+    for p in (os.path.join(session, "mission_summary.json"), os.path.join(session, "run", "experiment.json")):
+        try:
+            with open(p) as f:
+                w = json.load(f).get("sync_wiggle") or {}
+        except (OSError, ValueError):
+            continue
+        w = {r: v for r, v in w.items() if isinstance(v, dict) and "start" in v and "end" in v}
+        if w:
+            return w
+    return {}
+
+
+def wiggle_anchor(cap, tracks, mapping, env_off, wiggle, center_s=0.0, half_s=SEARCH_S, step_s=WIGGLE_STEP_S):
+    """The laptop -> Pi shift from the sync wiggle: both robots turn a quarter turn and back on the spot at a known
+    Pi time, so each tag's signal (de-channelled RSSI) changes with the heading only. For each shift, per antenna,
+    RSSI ~ 1 + cos 2h + sin 2h (the tag's own pattern; h = the robot's heading from our track) fitted over the rows
+    whose shifted time falls in the wiggle's window; score = the share of the rows' variance explained (both robots
+    pooled). Returns {"shift_s", "lags", "score", "per_robot": {robot: shift}, "ci_s"} or None."""
+    lags = center_s + np.arange(-half_s, half_s + 1e-9, step_s)
+    num = np.zeros(len(lags))
+    den = np.zeros(len(lags))
+    per = {}
+    for e, r in mapping.items():
+        w = wiggle.get(r)
+        if not w or r not in tracks:
+            continue
+        s, v = tag_signal(cap, e)
+        t = cap["r_mid"][s] + env_off
+        a = cap["ant"][s]
+        pa = PoseAt(tracks[r])
+        tr_ = [a_ for a_ in (tracks[r]["cam"], tracks[r]["own"]) if len(a_)]
+        first = None
+        if tr_:
+            t_first = min(a_[0, 0] for a_ in tr_)
+            h_first = pa(np.array([t_first + 1e-3]))[4][0]
+            first = (t_first, h_first) if np.isfinite(h_first) else None
+        w0, w1 = float(w["start"]) - WIGGLE_PRE_S, float(w["end"]) + WIGGLE_POST_S
+        rn, rd = np.zeros(len(lags)), np.zeros(len(lags))
+        for k, L in enumerate(lags):
+            tt = t + L
+            sel = (tt >= w0) & (tt <= w1) & np.isfinite(v)
+            if sel.sum() < 12:
+                continue
+            _, _, _, _, h = pa(tt[sel])
+            if first is not None:
+                # before the robot's first pose of the run it stands at home, as it starts the wiggle (no camera:
+                # the own pose starts just before the wiggle)
+                h = np.where(~np.isfinite(h) & (tt[sel] < first[0]), first[1], h)
+            fin = np.isfinite(h)
+            if fin.sum() < 12:
+                continue
+            hr = np.radians(h[fin])
+            vv, aa = v[sel][fin], a[sel][fin]
+            for an in np.unique(aa):
+                q = aa == an
+                if q.sum() < 4:
+                    continue
+                D = np.c_[np.ones(q.sum()), np.cos(2 * hr[q]), np.sin(2 * hr[q])]
+                coef, *_ = np.linalg.lstsq(D, vv[q], rcond=None)
+                res = vv[q] - D @ coef
+                rn[k] += float(np.sum(res ** 2))
+                rd[k] += float(np.sum((vv[q] - vv[q].mean()) ** 2))
+        ok = rd > 0
+        if ok.any():
+            sc = np.where(ok, 1.0 - rn / np.maximum(rd, 1e-12), -np.inf)
+            per[r] = float(lags[int(np.argmax(sc))])
+        num += rn
+        den += rd
+    if not per or not (den > 0).any():
+        return None
+    score = np.where(den > 0, 1.0 - num / np.maximum(den, 1e-12), np.nan)
+    best = float(lags[int(np.nanargmax(score))])
+    spread = max(abs(v - best) for v in per.values())
+    return {"shift_s": best, "lags": lags, "score": score, "per_robot": per,
+            "ci_s": max(WIGGLE_FLOOR_S, spread, 2 * step_s)}
+
+
 # ---------------------------------------------------------------- 4. labels
 def label_rows(cap, mapping, tracks, stands, to_pi, ci_s):
     """One labelled row per reading of our two tags: Pi times, pose, ± (95 %), source, state."""
@@ -579,7 +667,7 @@ def latest_run(site="school-conference"):
 
 
 def run(session, capture, out=None, stickers=None, sticker_units="in", search_s=None, windows=(1.0, 3.0),
-        charts=True, log=print, doe=True, site="school-conference"):
+        charts=True, log=print, doe=True, site="school-conference", use_wiggle=True):
     if session == "latest":
         session = latest_run(site)
         log("our session: %s (the newest run)" % session)
@@ -607,6 +695,25 @@ def run(session, capture, out=None, stickers=None, sticker_units="in", search_s=
            ntp_words, search_s))
     al = align(cap, tracks, env["offset_s"], search_s=search_s, log=log)
     to_pi = env["offset_s"] + al["shift_s"]
+    # the sync wiggle (2026-11-03b): when the run has one, it is the clock's primary anchor; the route fit above is
+    # the cross-check (its EPC -> robot mapping is used either way)
+    wig = load_wiggle(session) if use_wiggle else {}
+    wa = None
+    if wig:
+        wa = wiggle_anchor(cap, tracks, al["mapping"], env["offset_s"], wig,
+                           center_s=0.0 if search_s <= MOTION_HALF_S else al["shift_s"],
+                           half_s=min(search_s, MOTION_HALF_S))
+    route_shift, route_ci = al["shift_s"], al["shift_ci_s"]
+    if wa is not None:
+        w_agree = abs(wa["shift_s"] - route_shift) <= max(0.3, 2 * max(route_ci, wa["ci_s"]))
+        log("  sync wiggle: laptop -> Pi shift %+.2f s (+- %.2f; per robot %s); the route fit %s (%+.2f s)" % (
+            wa["shift_s"], wa["ci_s"], ", ".join("%s %+.2f" % kv for kv in sorted(wa["per_robot"].items())),
+            "agrees" if w_agree else "DISAGREES", route_shift))
+        al["shift_s"], al["shift_ci_s"] = wa["shift_s"], wa["ci_s"]
+        al["shift_lo_s"], al["shift_hi_s"] = wa["shift_s"] - wa["ci_s"], wa["shift_s"] + wa["ci_s"]
+        to_pi = env["offset_s"] + al["shift_s"]
+    else:
+        log("  sync wiggle: %s; the route fit is the clock" % ("none in this run" if not wig else "not usable"))
     # the motion check: on its own over +- 10 s round zero when the clocks are near (NTP); with a wider search it
     # looks +- 10 s round the position fit's answer (on the simulator it found false peaks over +- 180 s)
     mc0 = 0.0 if search_s <= MOTION_HALF_S else al["shift_s"]
@@ -634,6 +741,12 @@ def run(session, capture, out=None, stickers=None, sticker_units="in", search_s=
         "reader_to_laptop": env, "pi_ntp": ntp, "pi_ntp_words": ntp_words, "search_s": search_s,
         "laptop_to_pi_shift_s": al["shift_s"], "shift_95_s": [al["shift_lo_s"], al["shift_hi_s"]],
         "reader_to_pi_s": to_pi, "motion_check_shift_s": mshift, "motion_check_independent": mc0 == 0.0, "motion_check_agrees": bool(agree),
+        "clock_anchor": "sync wiggle" if wa is not None else "route fit",
+        "route_fit_shift_s": route_shift, "route_fit_ci_s": route_ci,
+        "wiggle_shift_s": wa["shift_s"] if wa else None, "wiggle_ci_s": wa["ci_s"] if wa else None,
+        "wiggle_per_robot_s": wa["per_robot"] if wa else None,
+        "wiggle_agrees_with_route_fit": (abs(wa["shift_s"] - route_shift) <= max(0.3, 2 * max(route_ci, wa["ci_s"])))
+        if wa else None,
         "epc_to_robot": al["mapping"], "tag_scores": al["margins"], "shift_at_search_edge": al["at_edge"],
         "their_robot_id": {e: sorted(set(cap["rid"][cap["epc"] == e]) - {""}) for e in al["mapping"]},
         "candidates": len(al["candidates"]), "labelled_rows": len(rows),
@@ -664,9 +777,11 @@ def main(argv=None):
     ap.add_argument("--windows", default="1,3", help="window lengths in s (default 1,3)")
     ap.add_argument("--no-doe", action="store_true", help="skip the window/feature/k sweep")
     ap.add_argument("--no-charts", action="store_true")
+    ap.add_argument("--no-wiggle", action="store_true", help="ignore the run's sync wiggle: the route fit is the clock "
+                                                             "(the way before 3 Nov)")
     a = ap.parse_args(argv)
     run(a.session, a.capture, a.out, a.stickers, a.sticker_units, a.search_s,
-        tuple(float(v) for v in a.windows.split(",")), not a.no_charts, doe=not a.no_doe)
+        tuple(float(v) for v in a.windows.split(",")), not a.no_charts, doe=not a.no_doe, use_wiggle=not a.no_wiggle)
     return 0
 
 

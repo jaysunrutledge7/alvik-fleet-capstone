@@ -1318,6 +1318,14 @@ class Coordinator:
         self.outs = getattr(self, "outs", []) + [dict(robot=b.name, why=why, t_run=round(now() - self.t_run, 2)
                                                       if self.t_run_started() else None)]
         if not self.names:
+            if self.rejoinable(b) and self.all_held_capped():
+                self.abort = ("every robot held %d times (first %.0f s ago): the run ends here, the points not done "
+                              "are listed (keep-going cap: --all-held-max %d, --all-held-max-s %.0f)" % (
+                                  self.all_held_n, now() - self.all_held_t0, self.all_held_max(),
+                                  self.all_held_max_s()))
+                self.log("all_held_cap", n=self.all_held_n, since_s=round(now() - self.all_held_t0, 1))
+                self.say(self.abort)
+                return
             if self.rejoinable(b):
                 self.say("every robot is held: waiting up to %.0f s for %s to be heard again" % (self.REJOIN_WAIT_S,
                                                                                                b.name))
@@ -1483,6 +1491,29 @@ class Coordinator:
 
     def rejoin_on(self):
         return not getattr(self.args, "no_rejoin", False)
+
+    # The both-held loop (3 Nov, robot-gap report: keep going ground on ~10 min with both robots held and re-held).
+    ALL_HELD_MAX = 3        # chosen: the 3rd time every robot is held at once ends the run (points not done listed).
+    ALL_HELD_MAX_S = 180.0  # chosen: or every robot held again more than this long after the first time. DOE note:
+                            # 2 / 3 / 5 times and 120 / 180 / 300 s against points done and minutes lost in the seed-2
+                            # stress case (simulator) and at school; 0 = off (the old way)
+
+    def all_held_max(self):
+        v = getattr(self.args, "all_held_max", None)
+        return self.ALL_HELD_MAX if v is None else int(v)
+
+    def all_held_max_s(self):
+        v = getattr(self.args, "all_held_max_s", None)
+        return self.ALL_HELD_MAX_S if v is None else float(v)
+
+    def all_held_capped(self):
+        """Count this time every robot is held; True when the cap is reached (either limit; 0 switches one off)."""
+        self.all_held_n = getattr(self, "all_held_n", 0) + 1
+        if getattr(self, "all_held_t0", None) is None:
+            self.all_held_t0 = now()
+        n_max, s_max = self.all_held_max(), self.all_held_max_s()
+        return bool((n_max > 0 and self.all_held_n >= n_max) or
+                    (s_max > 0 and self.all_held_n > 1 and now() - self.all_held_t0 > s_max))
 
     RETRY_BASE_S = 10.0    # a held robot whose re-check failed is checked again after 10, 20, 40, 60, 60 ... s (Nick
                            # 30 Oct 10:08: no robot sits out for good). Chosen; no DOE (a patience against the others'
@@ -2302,11 +2333,36 @@ class Coordinator:
                       "running: %s (points %s)" % (b.name, "held" if self.rejoinable(b) else "out", why,
                                                    ", ".join(sorted(got)), words))
 
+    def dedupe_on(self):
+        """--dedupe-points on (default, 3 Nov): a point is done once; a handed-over point is never listed twice."""
+        return getattr(self.args, "dedupe_points", "on") != "off"
+
+    def listed_labels(self, n):
+        """The production point labels in robot n's plan (its visit order and its pending work)."""
+        entry = self.plan["robots"].get(n) or {}
+        return {str(v.get("label")) for v in (entry.get("visit_order") or []) + list((entry.get("pending") or {})
+                                                                                   .get("visits") or [])
+                if isinstance(v, dict) and str(v.get("label", "")).startswith("point ")}
+
     def insert_visits(self, n, items):
         """Production items into robot n's list, before its trip home (a finished robot gets them as pending work)."""
         import copy
         entry = self.plan["robots"][n]
         items = copy.deepcopy(items)
+        if self.dedupe_on():
+            # a point is done once (3 Nov): a point already done, or already in this robot's list, is not added again
+            # (its "at point" stand goes with it)
+            done = set(self.__dict__.get("done_labels", set()))
+            have = self.listed_labels(n)
+            drop = {str(v.get("label")) for v in items if isinstance(v, dict) and
+                    str(v.get("label", "")).startswith("point ") and
+                    (str(v.get("label")) in have or ("at " + str(v.get("label"))) in done)}
+            if drop:
+                self.log("duplicate_points_dropped", robot=n, points=sorted(drop))
+            items = [v for v in items if not (isinstance(v, dict) and (str(v.get("label")) in drop or
+                                                                       str(v.get("label", ""))[3:] in drop))]
+            if not items:
+                return
         b = self.bots[n]
         finished = bool(b.stat) and all(st["status"] == "done" for st in b.stat) or not entry.get("steps")
         vo = entry.setdefault("visit_order", [])
@@ -2330,9 +2386,20 @@ class Coordinator:
         missing = False
         done = set(self.__dict__.get("done_labels", set()))
         skipped = {x["point"] for x in self.__dict__.get("skipped", [])}
-        for r in self.__dict__.get("reassigned", []):
+        recs = list(self.__dict__.get("reassigned", []))
+        if self.dedupe_on():
+            # duplicated points (3 Nov, robot-gap report): a point handed back and forth left an old record ("P05 to
+            # Bravo") that put it back in Bravo's list after it had gone to Alpha: P05-P10 three times. Only the newest
+            # hand-over of each point counts, and a point already in any running robot's list is not put in again
+            last = {}
+            for r in recs:
+                last[r["point"]] = r
+            recs = list(last.values())
+        for r in recs:
             n, pt = r["to"], r["point"]
             if n not in self.names or n not in self.plan["robots"] or ("at " + pt) in done or pt in skipped:
+                continue
+            if self.dedupe_on() and any(pt in self.listed_labels(m) for m in self.names if m in self.plan["robots"]):
                 continue
             entry = self.plan["robots"][n]
             labs = {str(v.get("label")) for v in (entry.get("visit_order") or []) + list((entry.get("pending") or {})
@@ -4625,6 +4692,14 @@ def main(argv=None):
     ap.add_argument("--improve-after-s", type=float, default=1.0)
     ap.add_argument("--improve-budget-s", type=float, default=6.0)
     ap.add_argument("--max-replans", type=int, default=30, help="give up (stop everyone) after this many re-plans")
+    ap.add_argument("--dedupe-points", choices=("on", "off"), default="on",
+                    help="duplicated points fix (3 Nov): a point is done once; a handed-over point is never listed "
+                         "twice (only the newest hand-over counts). off: the old way")
+    ap.add_argument("--all-held-max", type=int, default=None,
+                    help="keep going: the run ends the Nth time every robot is held at once (default 3; 0 = no cap)")
+    ap.add_argument("--all-held-max-s", type=float, default=None,
+                    help="keep going: or when every robot is held again this many s after the first time (default "
+                         "180; 0 = no cap)")
     ap.add_argument("--gap-fix", choices=("on", "off"), default="on",
                     help="robot gap fix (3 Nov): on (default): a re-plan checks the robots' carried-on steps against "
                          "every obstacle the plan in force was not made with, and a robot held while every robot is "

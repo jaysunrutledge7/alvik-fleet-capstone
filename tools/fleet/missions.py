@@ -848,7 +848,7 @@ def _monday(m, s=None, seed=1, k_user=1.0):
 # track of where each robot ends, so the next block starts from there.
 
 BLOCKS = ("mow-region", "go-to-spot", "meet", "circle", "chicken", "spread-out", "dance", "wait", "go-home",
-          "sync-spin")
+          "sync-spin", "sync-wiggle")
 
 CIRCLE_R_CM = 15.0       # chosen: the circle's radius: two robots 180 deg apart on it are 30 cm centre to centre (bodies
                          # ~20 cm), and pieces two apart (60 deg) stay clear, so both drive it together without waits.
@@ -1197,6 +1197,17 @@ def build(m, program, s=None):
             n = who[0]
             x, y, h = _pose_after(n)
             advance(n, [_g(x, y, (h + 180.0) % 360.0, label="sync spin"), _g(x, y, h % 360.0, label="sync spin")])
+        elif kind == "sync-wiggle":
+            # (2026-11-03, Nick: a sync wiggle at the start of each run) every robot of the block, where it stands: a
+            # quarter turn one way, stop, a quarter turn back, stop; all at the plan's start, so at the same moment.
+            # Labelled "sync wiggle ..." (experiments.wiggle_events reads each part's start and end from the step log)
+            deg, ps = float(bl.get("deg", 90.0)), float(bl.get("pause_s", 1.0))
+            for n in who:
+                x, y, h = _pose_after(n)
+                advance(n, [_g(x, y, (h + deg) % 360.0, label="sync wiggle 1 turn"),
+                            {"wait_s": ps, "label": "sync wiggle 2 stop"},
+                            _g(x, y, h % 360.0, label="sync wiggle 3 turn back"),
+                            {"wait_s": ps, "label": "sync wiggle 4 stop"}])
         elif kind == "go-home":
             # (conference-table build, 2026-11-02) back to the robot's start pose: its home, facing its start heading
             n = who[0]

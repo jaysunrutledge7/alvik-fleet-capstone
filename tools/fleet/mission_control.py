@@ -287,7 +287,7 @@ class Session:
         import production as PR
         with open(SP.points_file(self.site), "rb") as f:
             fp = hashlib.sha1(f.read() + json.dumps({k: self.site.get(k) for k in (
-                "points", "edge_in_cm", "homes", "keepouts", "production", "table")}, sort_keys=True,
+                "points", "edge_in_cm", "homes", "keepouts", "production", "table", "experiments")}, sort_keys=True,
                 default=str).encode()).hexdigest()[:12]
         mark = os.path.join(self.dir, "map.json.typed-" + fp)
         if os.path.exists(mark) and not force and self.program is not None:
@@ -374,6 +374,10 @@ class Session:
             out["typed_words"] = list(getattr(self, "typed_words", []) or [])
             if self.last_production:
                 out["production_orders"] = self.last_production.get("orders")
+                out["production_choice"] = {k: self.last_production.get(k) for k in (
+                    "experiment", "swap_halves", "sync_wiggle")}
+            if self.program is not None and (self.program.get("production") or {}).get("experiment"):
+                out["experiment_planned"] = self.program["production"]["experiment"]
         if self.feel is not None:
             out["feel"] = self.feel.status()
         if self.tag:
@@ -661,6 +665,10 @@ class Session:
         else:
             if self.program is None:
                 self.program = MS.monday_program()
+            if self.tag and conn == "robots":
+                w_ = self.experiment_auto_swap()
+                if w_:
+                    print(w_, flush=True)
             pp = os.path.join(self.dir, "program.json")
             with open(pp, "w") as f:
                 json.dump(self.program, f, indent=1)
@@ -704,7 +712,32 @@ class Session:
         out = self.make_mission({"mode": "program", "program": prog})
         out["program"] = prog
         self.last_production = dict(d)
+        ex = (prog.get("production") or {}).get("experiment")
+        if ex:
+            # the shakedown is the no-camera run (Jay-Sun, 3 Nov); an experiment after it goes back to the site's tracking
+            rs = self.settings.setdefault("run", {})
+            if ex["id"] == "shakedown" and rs.get("tracking") != "none":
+                rs["tracking"] = "none"
+                out["words"] = "Shakedown: tracking set to No camera (odometry only) on the Run screen"
+            elif ex["id"] != "shakedown" and rs.get("tracking") == "none" and d.get("experiment") != "custom":
+                rs["tracking"] = ""
+                out["words"] = "Tracking back to the site's (%s) on the Run screen" % self.run_tracking()
+            self.save_settings() if hasattr(self, "save_settings") else None
         return out
+
+    def experiment_auto_swap(self):
+        """Before a production run (2026-11-03): an experiment planned with swap auto is planned again if the run
+        counter now says the other way (the counter counts each run started on the robots). Returns words or None."""
+        lp = self.last_production or {}
+        ex = ((self.program or {}).get("production") or {}).get("experiment")
+        if not ex or str(lp.get("swap_halves") or "auto") != "auto" or ex.get("id") == "shakedown":
+            return None
+        import experiments as EX
+        sw, words = EX.swap_for(self.site, "auto")
+        if bool(sw) == bool(ex.get("swap_halves")):
+            return None
+        self.production(lp)
+        return "Planned again for this run: %s" % words
 
     def replan_production(self):
         """The production mission planned again on the map as it is now (the feel-out moved the outline: homes and
@@ -1265,7 +1298,8 @@ class Handler(BaseHTTPRequestHandler):
                     return self._send(200, S.setup_start(d))
                 if path == "/api/setup/board_away":
                     return self._send(200, S.setup_board_away())
-                if path.startswith("/api/tags/") or path.startswith("/api/sync") or path == "/api/production":
+                if path.startswith("/api/tags/") or path.startswith("/api/sync") or path in ("/api/production",
+                                                                                         "/api/production/experiment"):
                     if not S.tag:
                         raise ValueError("this site does not use tags (sites.py: tracking)")
                     T = S.tag
@@ -1291,6 +1325,8 @@ class Handler(BaseHTTPRequestHandler):
                         return self._send(200, {"room": False})
                     if path == "/api/production":
                         return self._send(200, clean(S.production(d)))
+                    if path == "/api/production/experiment":
+                        return self._send(200, clean(S.tag.experiment_preview(d)))
                     if path == "/api/sync/mark":
                         return self._send(200, clean(T.mark(d.get("what") or "mark")))
                     if path == "/api/sync/new_id":

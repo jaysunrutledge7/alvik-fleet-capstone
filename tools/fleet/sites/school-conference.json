@@ -168,5 +168,22 @@
   "outlets": null,
   "seams": null,
   "table_height_in": 33
+ },
+ "_note_experiments": "Jay-Sun 3 Nov (tools/fleet/experiments.py): experiment routes shakedown (no camera, default orders), e1 in order, e2 reversed, e3 zig-zag, e4 shuffled (seed recorded). Halves = production.zones; swap_halves auto = every other run (counter in the site's folder), on / off to choose. cross_points: points of the other half each robot takes in e2-e4 (legs over x = middle_in). speed: pinned in the planner for every experiment. sync_wiggle.use: both robots a quarter turn (deg) and back at their homes at the start, pause_s stops (on at school; home has no block = off).",
+ "experiments": {
+  "middle_in": 78.0,
+  "cross_points": 3,
+  "seed": 20261103,
+  "swap_halves": "auto",
+  "speed": {
+   "cruise_cms": 10.0,
+   "turn_dps": 60.0,
+   "confirm_cms": 5.0
+  },
+  "sync_wiggle": {
+   "use": true,
+   "deg": 90.0,
+   "pause_s": 1.0
+  }
  }
 }

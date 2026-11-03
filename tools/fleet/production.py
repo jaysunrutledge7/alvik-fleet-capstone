@@ -313,10 +313,15 @@ def site_orders(site, points, zones, home_xy):
     return out
 
 
-def site_production(site, names=None, table=None, outline=None, keepouts=None, seen=None):
+def site_production(site, names=None, table=None, outline=None, keepouts=None, seen=None, experiment=None, swap=False,
+                    wiggle=None):
     """A site with typed points (sticker_points.py): (map, words, program, orders). table: (L, W) measured (else the
     site's typed size); keepouts: more keep-outs (the reference tiles); seen: {label: [x, y]} stickers the cameras
-    fitted (the old click way): any far from its typed spot is flagged, never moved."""
+    fitted (the old click way): any far from its typed spot is flagged, never moved.
+    experiment (2026-11-03, Jay-Sun's training runs; experiments.py): shakedown / e1-e4 / default: that experiment's
+    orders (swap: the robots' halves exchanged), recorded in program["production"]["experiment"] with the pinned
+    speeds; None = the site's default orders as before. wiggle: True / False / None (the site's sync_wiggle.use): the
+    sync wiggle block at the start."""
     import sticker_points as SP
     names = names or [r["name"] for r in site["robots"]]
     pts, zones, words = SP.points_cm(site)
@@ -329,10 +334,21 @@ def site_production(site, names=None, table=None, outline=None, keepouts=None, s
     words = list(words) + list(w2) + SP.flag_seen(pts, seen)
     m["notes"] = ["production points typed (%s)" % os.path.basename(SP.points_file(site))] + words
     homes_ = {r["name"]: r["start"] for r in m["robots"]}
-    orders = site_orders(site, m["spots"], zones, homes_)
+    meta = None
+    if experiment and experiment != "custom":
+        import experiments as EX
+        orders, meta = EX.experiment_orders(site, m["spots"], zones, homes_, experiment, swap=swap)
+    else:
+        orders = site_orders(site, m["spots"], zones, homes_)
     orders = {n: v for n, v in orders.items() if n in names}
     pr = site.get("production") or {}
     prog = program(orders, dwell_s=float(pr.get("dwell_s", DWELL_S)), at_home=site_home_points(site))
+    if meta is not None:
+        prog["production"]["experiment"] = meta
+        prog["name"] = "production %s%s" % (experiment, " (halves swapped)" if swap else "")
+    import experiments as EX
+    if EX.wiggle_on(site, {True: "on", False: "off"}.get(wiggle)):
+        prog = EX.add_wiggle(prog, site)
     return m, words, prog, orders
 
 

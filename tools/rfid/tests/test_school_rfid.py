@@ -45,16 +45,24 @@ POINTS = {"Alpha": [(40, 30), (90, 120), (60, 60), (150, 40), (30, 140), (120, 9
 T0 = 1793700000.0
 
 
-def make_session(folder, speed=12.0, dwell=3.0, seed=0):
+def make_session(folder, speed=12.0, dwell=3.0, seed=0, wiggle=False):
     """A session folder as mission_run leaves it (the parts the pipeline reads): pose_timeline.csv (camera poses
     with a little noise, 10 a second), run/coordinator.jsonl (point_confidence at each 3 s stop), run/sim/truth.csv."""
     rng = np.random.default_rng(seed)
     os.makedirs(os.path.join(folder, "run", "sim"), exist_ok=True)
     truth, tl, ev = [], [], []
+    wig = {}
     for rob, pts in POINTS.items():
         t, (x, y) = T0, (198.0 + (-15 if rob == "Alpha" else 15), 84.0)
         h = 90.0
         seq = [(t, x, y, h)]
+        if wiggle:
+            # the sync wiggle (3 Nov): 8 s still at home, quarter turn (1.5 s), 1 s stop, back, 1 s stop
+            w0 = t + 8.0
+            seq += [(w0, x, y, h), (w0 + 1.5, x, y, h + 90), (w0 + 2.5, x, y, h + 90), (w0 + 4.0, x, y, h),
+                    (w0 + 5.0, x, y, h)]
+            wig[rob] = {"start": w0, "end": w0 + 5.0}
+            t = w0 + 5.0
         for k, (px, py) in enumerate(pts):
             d = math.hypot(px - x, py - y)
             h = math.degrees(math.atan2(py - y, px - x))
@@ -89,6 +97,9 @@ def make_session(folder, speed=12.0, dwell=3.0, seed=0):
             f.write(json.dumps(e) + "\n")
     with open(os.path.join(folder, "sync_marks.jsonl"), "w") as f:
         f.write(json.dumps({"kind": "sync_mark", "what": "start", "t_unix": T0, "clock": {"ntp_synced": True}}) + "\n")
+    if wig:
+        with open(os.path.join(folder, "mission_summary.json"), "w") as f:
+            json.dump({"sync_wiggle": wig}, f)
     with open(os.path.join(folder, "stickers.csv"), "w", newline="") as f:
         w = csv.writer(f)
         w.writerow(["id", "x_in", "y_in"])
@@ -236,3 +247,24 @@ def test_latest_picks_newest_run_with_a_log(tmp_path, monkeypatch):
         os.utime(str(base / name), (1e9 + len(name) + int(name[9:13]), 1e9 + int(name[9:13])))
     monkeypatch.setattr(R, "REPO", str(tmp_path))
     assert os.path.basename(R.latest_run()) == "20261103-1100-production"
+
+
+# ------------------------------------------------------------------ the sync wiggle as the clock (3 Nov)
+def test_wiggle_anchor_recovers_the_clock_at_least_as_well(tmp_path):
+    ses = make_session(str(tmp_path / "session"), wiggle=True)
+    errs = {"wiggle": [], "route": []}
+    for seed, mac in ((11, 1.37), (12, -2.4), (13, 0.6)):
+        cap = str(tmp_path / ("capture%d.csv" % seed))
+        key = G.simulate(G.read_truth(ses), cap, mac_off_s=mac, seed=seed, n_still=6)
+        s = R.run(ses, cap, out=str(tmp_path / ("w%d" % seed)), search_s=10.0, doe=False, charts=False,
+                  log=lambda *a: None)
+        assert s["clock_anchor"] == "sync wiggle" and set(s["wiggle_per_robot_s"]) == {"Alpha", "Bravo"}
+        errs["wiggle"].append(abs(s["reader_to_pi_s"] - key["reader_to_pi_s"]))
+        s2 = R.run(ses, cap, out=str(tmp_path / ("r%d" % seed)), search_s=10.0, doe=False, charts=False,
+                   log=lambda *a: None, use_wiggle=False)
+        assert s2["clock_anchor"] == "route fit"
+        errs["route"].append(abs(s2["reader_to_pi_s"] - key["reader_to_pi_s"]))
+        lo, hi = s["shift_95_s"]
+        true_shift = key["reader_to_pi_s"] - s["reader_to_laptop"]["offset_s"]
+        assert lo - 0.05 <= true_shift <= hi + 0.05
+    assert max(errs["wiggle"]) <= max(max(errs["route"]), 0.15), errs

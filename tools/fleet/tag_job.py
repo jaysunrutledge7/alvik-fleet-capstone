@@ -387,8 +387,40 @@ class TagJob:
         return self.d["refit"]
 
     # -- production -------------------------------------------------------------------------------------------
+    def experiment_preview(self, d):
+        """The Experiment picker (2026-11-03, Jay-Sun's training runs): the chosen experiment's orders on the map in use,
+        whether the halves are swapped (auto: the site's run counter), crossings of the middle, pinned speeds."""
+        import experiments as EX
+        import sticker_points as SP
+        exp = str(d.get("experiment") or "custom")
+        mode = str(d.get("swap_halves") or self.site.get("experiments", {}).get("swap_halves") or "auto")
+        sw, words = EX.swap_for(self.site, mode) if exp not in ("custom", "shakedown") else (
+            False, "halves as usual" + (" (shakedown)" if exp == "shakedown" else " (your own orders)"))
+        out = {"experiment": exp, "swap_mode": mode, "swapped": sw, "swap_words": words,
+               "choices": [{"id": k, "name": v["name"]} for k, v in EX.KINDS.items()] +
+               [{"id": "custom", "name": "Custom: the orders typed below"}],
+               "wiggle": EX.wiggle_on(self.site), "speed": EX.conf(self.site)["speed"],
+               "runs_so_far": EX.counter_read(self.site)["runs"]}
+        if exp == "custom" or not SP.typed_on(self.site):
+            return out
+        spots = self.s.map.get("spots") or {}
+        _p, zones, _w = SP.points_cm(self.site)
+        homes = {r["name"]: r["start"] for r in self.s.map.get("robots", [])}
+        orders, meta = EX.experiment_orders(self.site, spots, zones, homes, exp, swap=sw)
+        meta["swap_mode"], meta["swap_words"] = mode, words
+        out.update(orders=orders, meta=meta, crossings=meta["crossings"])
+        return out
+
     def production_program(self, d):
         import production as PR
+        exp = str(d.get("experiment") or "custom")
+        meta = None
+        if exp != "custom":
+            # an experiment picked (2026-11-03): its orders replace the typed lists (the custom orders stay behind it)
+            pv = self.experiment_preview(d)
+            if pv.get("orders"):
+                d = dict(d, orders=pv["orders"])
+                meta = pv["meta"]
         orders = {n: [str(x).strip().upper() for x in v if str(x).strip()] for n, v in (d.get("orders") or {}).items()}
         orders = {n: v for n, v in orders.items() if v or d.get("home", True)}
         bad = PR.check_orders(orders, self.s.map.get("spots") or {})
@@ -399,6 +431,12 @@ class TagJob:
                           at_home=PR.site_home_points(self.site))
         if d.get("sync_spin"):
             prog = add_sync_spin(prog)
+        if meta is not None:
+            prog["production"]["experiment"] = meta
+            prog["name"] = "production %s%s" % (exp, " (halves swapped)" if meta.get("swap_halves") else "")
+        import experiments as EX
+        if EX.wiggle_on(self.site, {True: "on", False: "off"}.get(d.get("sync_wiggle"))):
+            prog = EX.add_wiggle(prog, self.site)        # the sync wiggle (Nick, 3 Nov): the site's switch, or the box
         return prog
 
     # -- sync -------------------------------------------------------------------------------------------------
