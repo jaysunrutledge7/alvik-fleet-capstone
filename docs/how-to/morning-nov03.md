@@ -265,7 +265,7 @@ The Run screen's first card on the right has three choices. Pick one **before** 
 | Choice | Needs | What you do differently |
 |---|---|---|
 | **Roof tags** (the site's setting) | roof tags on Alpha and Bravo; corner tiles (or corner clicks) | B7-B8 as written |
-| **Robots' lights** | no tags at all; the robots' lights must be visible to the cameras (Jay's RFID tag on top may cover them: check in the camera pictures) | a **Setup** step appears in the top bar: click the table's 4 corners in each camera picture there, press its Measure. No feel-out, no refit |
+| **Robots' lights** | no tags at all; the robots' lights must be visible to the cameras (Jay's RFID tag on top may cover them: check in the camera pictures) | a **Setup** step appears in the top bar: click the table's 4 corners in each camera picture there, press its Measure. The two cameras must see **the whole table** between them: a robot the cameras lose is stopped and held after 40 cm. No feel-out, no refit |
 | **No camera (odometry only)** | nothing: cameras may be off | Put **Alpha exactly on sticker P11** and **Bravo exactly on P22**, each robot's middle over its sticker, nose pointing at the whiteboard (away from the A3-A4 edge), square to the table's edge. You may skip B4 and B7 steps 2-5 (cameras, Measure): the points are typed. No feel-out, no refit |
 
 With **no camera**: each point's ± grows with distance driven (about ±5 cm after the first 40 cm, ±60 cm by the end

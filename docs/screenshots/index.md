@@ -390,6 +390,13 @@ One line per picture: what it shows (feature or problem), and where it comes fro
 - `2026-11-02/keep-going-feature-terminal-feel8-summary-sim.png`: **feature.** Terminal: feel-out with the table 8 cm smaller than the cameras' outline: NOTE per side, camera kept, no hold, production runs. Report e02-nov03-keep-going-confidence.
 - `2026-11-02/keep-going-problem-terminal-bump-first-version-point-4-outside-its-plus-minus-sim.png`: **problem.** Terminal: the first version's bump run: point 4 said ±1.2 cm but was 3.1 cm off (the bump was noticed after the stand); fixed. Report e02-nov03-keep-going-confidence.
 
+## 2026-11-03 (build: Jay's sticker points and runs with or without tags; report e02-nov03-sticker-points-no-tags)
+- `2026-11-03/sticker-points-feature-mc-production-40-typed-points-homes-box-default-orders-sim.png`: **feature.** Mission Control's Production screen as it opens: the 40 typed stickers, Alpha's home on P11 and Bravo's on P22, the raised box kept out, the default orders (Alpha zones 1-2, Bravo zones 3-4) planned at 3:04. Report e02-nov03-sticker-points-no-tags.
+- `2026-11-03/sticker-points-feature-mc-run-tracking-selector-roof-tags-sim.png`: **feature.** Run screen, card "Tracking during the run": roof tags (the site's setting). Report e02-nov03-sticker-points-no-tags.
+- `2026-11-03/sticker-points-feature-mc-run-tracking-selector-lights-sim.png`: **feature.** The same card set to the robots' lights: the Setup step (corner clicking) comes back in the top bar; feel-out and refit off. Report e02-nov03-sticker-points-no-tags.
+- `2026-11-03/sticker-points-feature-mc-run-tracking-selector-no-camera-sim.png`: **feature.** The same card set to no camera (odometry only), with the instruction to place Alpha on P11 and Bravo on P22. Report e02-nov03-sticker-points-no-tags.
+- `2026-11-03/sticker-points-problem-terminal-first-plan-skipped-p12-p21-beside-box-fixed.png`: **problem.** Terminal: the first plan skipped P12 and P21 beside the 12 x 12 in box (no room to turn); after the fix both are moved just clear and reached. Report e02-nov03-sticker-points-no-tags.
+
 ## 2026-11-03 (build: RFID pipeline for the school sessions, analysis only; report e02-nov03-rfid-pipeline)
 
 - `2026-11-03/rfid-pipeline-feature-clock-recovered-10-fakes-sim.png`: **feature.** Clock shift found minus injected on 10 fake RFID captures (one 40-point school dry run), with the stated ranges and the motion check. Report e02-nov03-rfid-pipeline.
@@ -400,3 +407,6 @@ One line per picture: what it shows (feature or problem), and where it comes fro
 - `2026-11-03/rfid-pipeline-feature-model-answer-at-each-stop-sim.png`: **feature.** Map: where each robot stood and where the model put it, that point held out (fakes). Report e02-nov03-rfid-pipeline.
 - `2026-11-03/rfid-pipeline-problem-stickers-p09-p10-typed-vs-stood-sim.png`: **problem.** Typed stickers vs where the robots stood: P09 (51 cm) and P10 (25 cm) are the site's overrides of the typed sheet. Report e02-nov03-rfid-pipeline.
 - `2026-11-03/rfid-pipeline-feature-terminal-end-to-end-run-sim.png`: **feature.** Terminal: one end-to-end run of tools/rfid/school_rfid.py on a fake capture. Report e02-nov03-rfid-pipeline.
+- `2026-11-03/sticker-points-feature-terminal-no-camera-run-40-points-plus-minus-grows-sim.png`: **feature.** Terminal: the no-camera (odometry only) simulator run: all 40 points, the ± growing with distance from the start, the truth inside every point. Report e02-nov03-sticker-points-no-tags.
+- `2026-11-03/sticker-points-problem-terminal-lights-home-camera-layout-loses-robots-sim.png`: **problem.** Terminal: lights mode in the simulator with home's camera layout (273 cm seen of a 396 cm table): robots lost and held, 13 of 40 points. With one camera over the whole table: 40 of 40. Report e02-nov03-sticker-points-no-tags.
+- `2026-11-03/sticker-points-feature-chart-plus-minus-vs-true-error-4-modes-sim.png`: **feature.** Chart: the ± said at each of the 40 points against the simulator's true error, in the four tracking modes (final code, with the frame term). Report e02-nov03-sticker-points-no-tags.
