@@ -14,8 +14,11 @@
   }
  ],
  "pi": {
-  "address": "",
-  "hostname": ""
+  "address": "100.72.183.28",
+  "hostname": "rfidthesis",
+  "tailnet": "capstone (joincapstonedb)",
+  "user": "nick",
+  "on_campus": "rfidthesis.local on AGV_SWARM"
  },
  "cameras": {
   "overhead": {
@@ -45,7 +48,12 @@
    3,
    4,
    5
-  ]
+  ],
+  "heights_cm": {
+   "Alpha": 6.19,
+   "Bravo": 6.19
+  },
+  "_note_heights": "Jay-Sun 3 Nov: roof AprilTag 2 7/16 in (6.19 cm) above the table, on a level platform centred over the axle. Typed because one camera over the whole table cannot measure it."
  },
  "table": {
   "length_cm": 396.2,
@@ -87,14 +95,14 @@
     "id": "P09",
     "x_in": 17,
     "y_in": 57.5,
-    "status": "assumed, to confirm",
+    "status": "confirmed by Jay-Sun 3 Nov (spreadsheet correct)",
     "why": "the sheet says y 37.5 in; Jay's drawing (as marked) says 57.5. The sheet's 37.5 equals the drawing's P10 y (a shifted value) and puts P09 7 in from P06 (one of only two such close pairs)"
    },
    {
     "id": "P10",
     "x_in": 33,
     "y_in": 37.5,
-    "status": "assumed, to confirm",
+    "status": "confirmed by Jay-Sun 3 Nov (spreadsheet correct)",
     "why": "the sheet says y 27.5 in; Jay's drawing (as marked) says 37.5. The sheet's value puts P10 7 in from P02 (the other close pair)"
    }
   ]
@@ -108,7 +116,7 @@
   "Bravo": "P22",
   "face_deg": 90.0
  },
- "_note_keepouts": "The raised box in the table's middle: believed centred on the table and no larger than 4 x 12 in, its turn unknown, so a 12 x 12 in square centred at (78, 33) in is kept out; the planner adds the robot body's clearance. NICK TO MEASURE (its edges, from corner 1) and replace this; use: false switches it off.",
+ "_note_keepouts": "Jay-Sun 3 Nov: three outlets on the table's centre line, all kept out (the planner adds the robot body's clearance). The old assumed 12 x 12 in box is kept with use: false. Nearest stickers: P12 16.0 cm from the middle box, P10 16.9 cm from the zone 1 plate, P32 19.1 cm from the zone 4 plate.",
  "keepouts": [
   {
    "name": "raised box",
@@ -121,8 +129,50 @@
     12
    ],
    "solid": true,
+   "use": false,
+   "note": "replaced by Jay-Sun's measurements (3 Nov); kept switched off"
+  },
+  {
+   "name": "middle outlet box",
+   "centre_in": [
+    78.03,
+    32.97
+   ],
+   "size_in": [
+    6.44,
+    6.94
+   ],
+   "solid": true,
    "use": true,
-   "note": "Nick to measure: assumed 12 x 12 in square centred on the table"
+   "note": "Jay-Sun 3 Nov: x 74.81-81.25, y 29.50-36.44 in from corner 1, 1/8 in tall; avoid"
+  },
+  {
+   "name": "zone 1 outlet plate",
+   "centre_in": [
+    25.22,
+    33.0
+   ],
+   "size_in": [
+    2.44,
+    6.62
+   ],
+   "solid": true,
+   "use": true,
+   "note": "Jay-Sun 3 Nov: x 24.00-26.44, y 29.69-36.31 in from corner 1, 1/16 in tall; avoid"
+  },
+  {
+   "name": "zone 4 outlet plate",
+   "centre_in": [
+    130.625,
+    33.0
+   ],
+   "size_in": [
+    2.25,
+    6.62
+   ],
+   "solid": true,
+   "use": true,
+   "note": "Jay-Sun 3 Nov: x 129.50-131.75, y 29.69-36.31 in from corner 1, 1/16 in tall; avoid"
   }
  ],
  "_note_production": "The default production mission Mission Control loads: Alpha zones 1-2, Bravo zones 3-4 (the cameras' split at x = 78 in), each in a short order (nearest neighbour then 2-opt) from its home and back, its home point first. To fix an order by hand: \"orders\": {\"Alpha\": [\"P11\", ...], \"Bravo\": [...]} (used instead of the zones).",
@@ -144,24 +194,24 @@
  },
  "_note_run_tracking": "run_tracking: how the robots are followed during a run. tags = roof AprilTags (tag bridge); lights = the robots' lights and outlines (home's camera bridge; the table's frame from corner clicking, Setup screen); none = no camera at all: each robot starts on its home sticker by hand and drives on its wheels and gyro; the +- grows 0.07 cm per cm driven. Mission Control's Run screen has the same choice. Corner tags: ref_tags.use false switches them off (corner_clicks then needed for lights).",
  "run_tracking": "tags",
- "_guesses": "GUESSES, not used by the robots (Nick allowed them, 3 Nov): antennas ~6 in diagonally outside each table corner, from Jay's drawing; height unknown. Outlet strips (TV and door ends) and table seams: unknown.",
+ "_guesses": "GUESSES, not used by the robots: antennas about 35 in out from each table corner, aimed diagonally in (Jay-Sun 3 Nov; taken as 35 in along the diagonal = 24.7 in each way). Jay-Sun measures exact positions, heights and tilts 4 Nov.",
  "guesses": {
   "antennas_in": {
    "A1": [
-    -6,
-    72
+    -24.7,
+    90.7
    ],
    "A2": [
-    162,
-    72
+    180.7,
+    90.7
    ],
    "A3": [
-    -6,
-    -6
+    -24.7,
+    -24.7
    ],
    "A4": [
-    162,
-    -6
+    180.7,
+    -24.7
    ]
   },
   "antenna_height_in": null,
@@ -187,5 +237,13 @@
   }
  },
  "_note_frames_part_s": "frames_part_s: the tracking-rate pictures are cut into .avi parts this long (s); each part is held in memory until written (300 s parts: 1.2 GB, 3 GB while writing, in the simulator's longest experiment). 60 s at school (Claude's choice, 3 Nov); delete the line for the old 300 s.",
- "frames_part_s": 60.0
+ "frames_part_s": 60.0,
+ "camera_hw": {
+  "model": "Logitech C920e",
+  "device": "/dev/video0",
+  "where": "tripod at the TV end (corner 1 / A3 end), looking down the table's length; all four corners in frame",
+  "focus": "autofocus off, focus_absolute 0 (resets if unplugged or the Pi restarts)",
+  "second": "EMEET C950 available for the door end",
+  "from": "Jay-Sun email 3 Nov"
+ }
 }

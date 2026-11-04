@@ -40,7 +40,7 @@ def test_overrides_applied_and_said(school):
     pts, zones, words = SP.points_cm(school)
     assert pts["P09"] == [round(17 * IN, 2), round(57.5 * IN, 2)]
     assert pts["P10"] == [round(33 * IN, 2), round(37.5 * IN, 2)]
-    assert len(words) == 2 and all("assumed, to confirm" in w for w in words)
+    assert len(words) == 2 and all("confirmed by Jay-Sun" in w for w in words)   # status updated 3 Nov (was "assumed, to confirm")
     # every zone matches its x (zone lines 39 / 78 / 117 in)
     assert all(SP.zone_of(xy[0]) == zones[k] for k, xy in pts.items())
 
@@ -105,19 +105,25 @@ def test_typed_orders_override_zones(school):
 
 
 def test_raised_box_kept_out_and_homes_clear(school):
+    # Jay-Sun 3 Nov: three measured outlets replace the assumed 12 x 12 in box (kept, switched off)
     ko = PR.site_keepouts(school)
-    assert len(ko) == 1 and ko[0]["solid"]
+    assert [k["name"] for k in ko] == ["middle outlet box", "zone 1 outlet plate", "zone 4 outlet plate"]
+    assert all(k["solid"] for k in ko)
     xs = [p[0] for p in ko[0]["polygon"]]
-    assert abs(min(xs) - 72 * IN) < 0.01 and abs(max(xs) - 84 * IN) < 0.01
+    assert abs(min(xs) - 74.81 * IN) < 0.01 and abs(max(xs) - 81.25 * IN) < 0.01
     m, words, prog, orders = PR.site_production(school)
-    assert any(k["name"] == "raised box" for k in m["keepouts"])
-    # homes well clear of the box; points beside it moved just clear (said)
+    assert any(k["name"] == "middle outlet box" for k in m["keepouts"])
+    # homes well clear of every outlet; no sticker needs moving (nearest: P12, 16.0 cm from the middle box)
     for r in m["robots"]:
-        q, inside = PR._nearest_on_poly(__import__("numpy").array(r["start"][:2]), ko[0]["polygon"])
-        assert not inside and math.hypot(r["start"][0] - q[0], r["start"][1] - q[1]) > 25
-    assert any("P12" in w and "raised box" in w for w in words)
+        for k in ko:
+            q, inside = PR._nearest_on_poly(__import__("numpy").array(r["start"][:2]), k["polygon"])
+            assert not inside and math.hypot(r["start"][0] - q[0], r["start"][1] - q[1]) > 25
+    assert not any("outlet" in w for w in words)
     s = json.loads(json.dumps(school))
-    s["keepouts"][0]["use"] = False                               # the switch
+    s["keepouts"][0]["use"] = True                                # the old assumed box, switched back on
+    assert any(k["name"] == "raised box" for k in PR.site_keepouts(s))
+    for k in s["keepouts"]:
+        k["use"] = False                                          # the switch
     assert PR.site_keepouts(s) == []
 
 
