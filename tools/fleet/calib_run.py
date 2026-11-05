@@ -377,6 +377,12 @@ class Link:
 
     def close(self):
         self.stop_.set()
+        time.sleep(0.3)               # the receiving thread sees stop (its socket waits 0.2 s at most)
+        for so in ("rx", "tx"):
+            try:
+                getattr(self, so).close()   # (5 Nov) the port is free at once: mission_run's run_plan binds it next
+            except (OSError, AttributeError):
+                pass
         try:
             self.f.close()
         except OSError:
@@ -564,6 +570,12 @@ class Eye:
 
     def close(self):
         self.stop_.set()
+        time.sleep(0.3)               # the receiving thread sees stop (its socket waits 0.2 s at most)
+        for so in ("rx", "tx"):
+            try:
+                getattr(self, so).close()   # (5 Nov) the port is free at once: mission_run's run_plan binds it next
+            except (OSError, AttributeError):
+                pass
         try:
             self.f.close()
         except OSError:
