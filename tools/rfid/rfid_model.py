@@ -164,6 +164,8 @@ def stats(err):
 
 
 def evaluate(rows, stands, windows=(1.0, 3.0), doe=True, log=print):
+    import rfid_gate
+    rfid_gate.require("rfid_model.evaluate (a model on RFID data)")
     """Windows, both tests, all methods. Returns {"summary": ..., "detail": {L: {...}}, "doe": [...]}."""
     summ, detail = {}, {}
     for L in windows:

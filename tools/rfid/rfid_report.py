@@ -233,6 +233,8 @@ def _f(v, fmt="%.1f"):
 
 
 def write(out, summ, al, motion, rows, stands, res, st_rows, tracks, cap):
+    import rfid_gate
+    rfid_gate.require("rfid_report.write (a report on RFID data)")
     """report.md + charts + windows_<L>s.csv into out."""
     src_cap = "Source: their RFID capture (%s), our run log and camera poses (%s)." % (
         os.path.basename(summ["capture"]), os.path.basename(summ["session"]))

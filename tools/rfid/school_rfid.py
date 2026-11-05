@@ -669,6 +669,8 @@ def latest_run(site="school-conference"):
 
 def run(session, capture, out=None, stickers=None, sticker_units="in", search_s=None, windows=(1.0, 3.0),
         charts=True, log=print, doe=True, site="school-conference", use_wiggle=True):
+    import rfid_gate
+    rfid_gate.require("school_rfid.run (RFID alignment and model)")
     if session == "latest":
         session = latest_run(site)
         log("our session: %s (the newest run)" % session)
@@ -766,6 +768,9 @@ def run(session, capture, out=None, stickers=None, sticker_units="in", search_s=
 
 
 def main(argv=None):
+    import rfid_gate
+    argv = rfid_gate.enable_from_argv(sys.argv[1:] if argv is None else argv)
+    rfid_gate.require("school_rfid.py")
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("session", help="our session (mission or Mission Control run) folder, or 'latest' for the newest "
                                     "school run")

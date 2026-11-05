@@ -180,6 +180,9 @@ def simulate(truth, out_csv, mac_off_s=1.7, seed=1, n_still=8, wander=True, ants
 
 
 def main(argv=None):
+    import rfid_gate
+    argv = rfid_gate.enable_from_argv(sys.argv[1:] if argv is None else argv)
+    rfid_gate.require("simulate_jay_csv.py")
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("session", help="our simulator session folder (with run/sim/truth.csv)")
     ap.add_argument("--out", required=True, help="the fake capture CSV to write")

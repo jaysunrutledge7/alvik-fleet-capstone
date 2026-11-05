@@ -12,7 +12,7 @@ What is new tonight (build report: [e02-nov03-experiments-routes-data](../build-
 - **Swap halves**: every other run, Alpha does Bravo's half and Bravo does Alpha's. The robots still start and end on
   their own home stickers (Alpha P11, Bravo P22). On a swapped run they cross the middle at the start and at the end.
 - A **sync wiggle** at the start of every run. Both robots turn a quarter turn, stop, turn back and stop, at the same
-  moment, at their homes. Jay-Sun's RFID software uses it to line up the clocks.
+  moment, at their homes (a moment every recording can be lined up on).
 - **Same speed** in every run: drive 10 cm/s, turn 60 deg/s, final approach 5 cm/s.
 - At the end of each run there are two new files in the run's folder: **camera_track.csv** (every camera fix) and
   **odometry_raw.csv** (wheels and gyro only, never corrected by a camera). There is also a command that zips one
