@@ -61,7 +61,7 @@ for p in (HERE, TOOLS, os.path.join(TOOLS, "sim"), os.path.join(TOOLS, "recognit
 
 import numpy as np   # noqa: E402
 
-VERSION = "2026-11-05c"     # 11-05c: lost-tag recovery (Nick 16:30); arc phase for curves (16:06)
+VERSION = "2026-11-05d"     # 11-05d: recovery jump used the camera time as a position; hold again until a pose (school 18:33 crash). 11-05c: lost-tag recovery; arc phase
 PY = sys.executable
 LOG_PORT, CMD_PORT = 5005, 5006
 FIX_PORT = 5013          # the tag bridge's (or the simulator's) camera reads come here (run_plan uses 5010)
@@ -1250,7 +1250,10 @@ class CalibRun:
         if self.stop_flag.is_set():
             raise RunEnd("stopped (Ctrl+C or Mission Control's Stop)")
         if seen():
-            cam = self.cam_pose(0.6) or self.eye.last(self.tag)
+            cam = self.cam_pose(0.6)
+            if cam is None:     # (11-05d) eye.last is (t, x, y, th) and raw: never its time as a position
+                l = self.eye.last(self.tag)
+                cam = (l[1], l[2], l[3]) if l else None
             jump = math.dist(cam[:2], (x, y)) if cam else float("nan")
             rec.update(outcome="seen again", jump_cm=round(jump, 2), bubble_cm=round(bub_now(), 2),
                        blind_cm=round(blind_cm, 1), within=bool(jump <= bub_now()),
@@ -1312,9 +1315,18 @@ class CalibRun:
             interrupted = self._lost_stop = True
             held += self.recover(est, bc, bd, "the tag gone after the %s %.0f %s leg" % (kind, value, label))
             cam1 = self.cam_pose()
-        if cam1 is None:
+        tries = 0
+        while cam1 is None:
+            # (11-05d, school 18:33) one read ends the hold but the pose needs 3 in MEASURE_S: hold again (bounded)
+            tries += 1
+            if tries > 6:
+                raise RunEnd("the camera reads the roof tag only now and then after the %s %.0f leg: the robot "
+                             "stopped where it is (more light on the table helps)" % (kind, value))
             held += self.hold_until_seen()
             cam1 = self.cam_pose()
+        if cam0 is None:
+            interrupted = True          # (11-05d) no start pose: the leg cannot be measured, kept out of the fit
+            cam0 = cam1
         t1 = time.time()
         row = self.leg_row(phase, tour, kind, label, value, r, cam0, cam1, t0, t1, corrected, held)
         if interrupted:
