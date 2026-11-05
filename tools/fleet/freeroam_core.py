@@ -659,7 +659,13 @@ class Controller:
                                x1=round(mv["end"][0], 1), y1=round(mv["end"][1], 1),
                                est_s=round(turn_s(mv["turn"]) + (drive_s(mv["L"], mv["v"]) if mv["L"] else 0), 2),
                                dur_s=round(self.t - mv["t0"], 2), result=result,
-                               end_err_cm=round(end_err, 2) if end_err != "" else ""))
+                               end_err_cm=round(end_err, 2) if end_err != "" else "",
+                               # (CLAUDE.md, 5 Nov: surface features found from the robots' own data) the robot's own
+                               # pose against the camera where the move ended, with the camera's position: later tools
+                               # can map where odometry disagrees (seams, bumps, slippery patches); no map is made here
+                               own_vs_cam_cm=round(math.dist((r.own[1], r.own[2]), (r.cam[1], r.cam[2])), 2)
+                               if (r.own and r.cam and r.lost is None) else "",
+                               cam_x=round(r.cam[1], 1) if r.cam else "", cam_y=round(r.cam[2], 1) if r.cam else ""))
         if state != "done":
             if "obstacle" in info:
                 self.event(r, "front stop", "its own front sensor stopped the step: %s" % info)
