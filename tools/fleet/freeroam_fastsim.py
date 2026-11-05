@@ -16,6 +16,11 @@ What it models (each switchable, all on by default; numbers below, all CHOSEN to
   battery    100 % at the start, 24 %/h moving, 6 %/h standing (the 2 Nov low-battery run: about 14 %/h idle with the
              lights on; CHOSEN, the real curve is one of the run's outputs)
 Truth it measures: the gap between the two square bodies (exact polygon distance) every step; contact = overlap.
+(11-05c, after the first real run) options: --cam-delay (the fixes' delay, the real Pi ~0.45 s; 1.0 s rehearsed) and
+--cam-clock (the camera's stamps on a clock this far ahead); --wall-in (a real wall this far inside the believed board's
+x_min edge: bodies stop at it, the front sensor sees it); --trap (Right starts 7 cm from an edge facing out); --fw
+2026-10-28a (no fspd / fsteer / watchdog; reverse drives yes, as every firmware since 2026-10-18b). The robots' turn steps
+fail when something is within safe_front_cm (7) of the front (firmware frontLimit for T), as on the real robots.
 
     python3 tools/fleet/freeroam_fastsim.py --hours 4 --seeds 1-8 --out logs/freeroam-stress
     python3 tools/fleet/freeroam_fastsim.py --hours 0.5 --seeds 1 --old-fw          # the halt + resend method
@@ -103,7 +108,7 @@ class Net:
 
 
 class Bot:
-    def __init__(self, name, x, y, th, rng, new_fw):
+    def __init__(self, name, x, y, th, rng, new_fw, fw=None):
         self.name, self.rng = name, rng
         self.x, self.y, self.th = x, y, th          # truth
         self.ox, self.oy, self.oth = x, y, th       # own pose
@@ -117,11 +122,19 @@ class Bot:
         self.dead = False
         self.last_rx = 0.0
         self.new_fw = new_fw
+        self.fw = fw or ("2026-11-05b" if new_fw else "2026-10-29b")
+        self.hist = []                              # (t, ox, oy): the firmware fuses a fix against its pose THEN
         self.turn_target = None
         self.started = False
         self.following = True
 
     def report(self, sim, sid, st, info=""):
+        if st == "done" and sid:
+            sim.fs_run[self.name] = 0
+        elif st == "failed" and "obstacle" in info:
+            sim.fs_run[self.name] += 1
+            if sim.fs_run[self.name] == 3:          # a front-stop loop: 3 in a row with nothing finished between
+                sim.stats["front_loops"] += 1
         if st == "done":
             self.last_done = sid
         elif st == "failed" and sid:
@@ -131,7 +144,8 @@ class Bot:
 
 class Sim:
     def __init__(self, seed, hours, new_fw=True, dead_robot=True, pi_freeze=True, dropouts=True, loss=PACKET_LOSS,
-                 lost_mode="reckon", out_dir=None, names=("Left", "Center", "Right"), lat_max=0.04, drill=0.0):
+                 lost_mode="reckon", out_dir=None, names=("Left", "Center", "Right"), lat_max=0.04, drill=0.0,
+                 cam_delay=None, cam_clock=0.0, wall_in=0.0, trap=False, fw=None, starts=None):
         self.rng = random.Random(seed * 7919 + 13)
         self.seed, self.hours = seed, hours
         self.t = 0.0
@@ -146,8 +160,25 @@ class Sim:
             pts = [(self.rng.uniform(30, 92), self.rng.uniform(30, 92)) for _ in names]
             if all(math.dist(pts[i], pts[j]) >= 40 for i in range(3) for j in range(i + 1, 3)):
                 break
-        self.bots = {n: Bot(n, p[0], p[1], self.rng.uniform(-180, 180), random.Random(seed * 101 + k), new_fw)
+        if fw:
+            new_fw = fw >= FC.FRESH_FW
+        self.bots = {n: Bot(n, p[0], p[1], self.rng.uniform(-180, 180), random.Random(seed * 101 + k), new_fw, fw)
                      for k, (n, p) in enumerate(zip(names, pts))}
+        self.cam_delay, self.cam_clock = cam_delay, cam_clock
+        # the real walls: the believed board, its x_min side wall_in cm further in (the planner is not told)
+        self.walls = (BOARD[0] + wall_in, BOARD[1], BOARD[2], BOARD[3])
+        if trap:            # Right: 7 cm from the y_max edge, facing out (Right, 5 Nov: stood 3 min 6.6 cm in)
+            b = self.bots[names[-1]]
+            b.x, b.y, b.th = 60.0, BOARD[3] - 7.0, 88.0
+            b.ox, b.oy, b.oth = b.x, b.y, b.th
+            for o in self.bots.values():
+                if o is not b and math.dist((o.x, o.y), (b.x, b.y)) < 40:
+                    o.y = max(30.0, o.y - 40.0)
+                    o.ox, o.oy = o.x, o.y
+        for n, st in (starts or {}).items():
+            b = self.bots[n]
+            b.x, b.y, b.th = st
+            b.ox, b.oy, b.oth = st
         self.ctrl = FC.Controller(names, BOARD, self.ctrl_out, self.ctrl_log, seed=seed, lost_mode=lost_mode,
                                   drill=drill)
         self.frozen_until = -1.0
@@ -165,14 +196,20 @@ class Sim:
         self.next_fix = {n: self.rng.uniform(0, 0.08) for n in names}
         self.next_follow = {n: 0.0 for n in names}
         self.stats = dict(contacts=0, contact_s=0.0, min_gap=float("inf"), gap_windows=[], front_stops=0,
-                          watchdog_stops=0, edge_min=float("inf"), off_board=0)
+                          watchdog_stops=0, edge_min=float("inf"), off_board=0, wall_hits=0, front_loops=0)
+        self.fs_run = {n: 0 for n in names}       # front stops in a row with no finished move between
         self.win_min = {}
         self.win_t = 0.0
         self.in_contact = set()
 
     # -- logs ---------------------------------------------------------------------------------------------------
+    def longest_still(self):
+        return _longest(self.__dict__.get("mot_rows", []))
+
     def ctrl_log(self, table, row):
         if table == "motion":
+            self.__dict__.setdefault("mot_rows", []).append(dict(t=row["t"], robot=row["robot"], any=row["any"],
+                                                                 mode=row["mode"]))
             m = self.__dict__.setdefault("mot", {})
             k = m.setdefault(row["t"], [0, 0, 0])
             k[0] += row["any"]
@@ -233,11 +270,12 @@ class Sim:
         parts = text.split()
         verb = parts[0]
         if verb == "status":
-            self.up(b, "status", "2026-11-05b" if b.new_fw else "2026-10-29b", int(b.battery))
+            self.up(b, "status", b.fw, int(b.battery))
         elif verb == "fix":
             pass
         elif verb == "fpose":
             b.ox, b.oy, b.oth = float(parts[1]), float(parts[2]), float(parts[3])
+            b.hist = []                     # pose.h set(): the history is cleared
         elif verb == "halt":
             for s in b.q:
                 b.report(self, s["id"], "dropped", "halt")
@@ -278,10 +316,31 @@ class Sim:
                 b.q.append(dict(id=sid, type="T", h=float(parts[3])))
             elif typ == "D":
                 v = [float(q) for q in parts[3:9]]
-                b.q.append(dict(id=sid, type="D", x0=v[0], y0=v[1], x1=v[2], y1=v[3], h=v[4], v=v[5]))
+                b.q.append(dict(id=sid, type="D", x0=v[0], y0=v[1], x1=v[2], y1=v[3], h=v[4], v=v[5],
+                                rev=len(parts) > 9 and parts[9] == "1"))
             b.report(self, sid, "queued")
 
     # -- physics ------------------------------------------------------------------------------------------------
+    def front_cm(self, b, lat_max=6.0 + 4.75):
+        """What the front sensor reads (cm from the front face): the nearest other body or wall ahead within
+        lat_max of the centre line (robots: their middles; walls: the real walls, not the believed board)."""
+        c, sn = math.cos(math.radians(b.th)), math.sin(math.radians(b.th))
+        best = 999.0
+        for o in self.bots.values():
+            if o is b:
+                continue
+            dx, dy = o.x - b.x, o.y - b.y
+            fwd, lat = dx * c + dy * sn, -dx * sn + dy * c
+            if fwd > 0 and abs(lat) < lat_max:
+                best = min(best, fwd - 9.5)
+        x0, y0, x1, y1 = self.walls
+        for l in (-4.0, 0.0, 4.0):
+            px, py = b.x + 4.75 * c - l * sn, b.y + 4.75 * sn + l * c
+            for dist in ((px - x0) / -c if c < -1e-6 else 999, (x1 - px) / c if c > 1e-6 else 999,
+                         (py - y0) / -sn if sn < -1e-6 else 999, (y1 - py) / sn if sn > 1e-6 else 999):
+                best = min(best, dist)
+        return best
+
     def bot_step(self, b):
         if b.dead or not b.following:
             return
@@ -310,6 +369,16 @@ class Sim:
             b.scale, b.steer = 1.0, None
             b.state = "turn" if b.cur["type"] == "T" else "drive"
             b.report(self, b.cur["id"], "started")
+            # firmware frontLimit for a turn (and a forward drive's square-up): safe_front_cm 7, centre zone
+            if (b.cur["type"] == "T" or (not b.cur.get("rev") and abs(wrap180(b.cur["h"] - b.oth)) > 10)) and \
+                    self.front_cm(b, lat_max=3.0) < 7.0:
+                d = self.front_cm(b, lat_max=3.0)
+                b.report(self, b.cur["id"], "failed", "obstacle %.1f cm ahead" % d)
+                for q in b.q:
+                    b.report(self, q["id"], "dropped", "an earlier step failed")
+                b.q, b.cur, b.state = [], None, "idle"
+                self.stats["front_stops"] += 1
+                return
             if b.cur["type"] == "T":
                 bad = b.rng.random() < 0.02
                 b.cur["err"] = (b.rng.uniform(8, 20) * b.rng.choice((-1, 1))) if bad else b.rng.gauss(0, 1.5)
@@ -341,23 +410,20 @@ class Sim:
             s["x1"], s["y1"] = b.steer
             s["h"] = math.degrees(math.atan2(b.steer[1] - b.oy, b.steer[0] - b.ox))
             b.steer = None
-        ux, uy = math.cos(math.radians(s["h"])), math.sin(math.radians(s["h"]))
+        sg = -1.0 if s.get("rev") else 1.0
+        ux, uy = sg * math.cos(math.radians(s["h"])), sg * math.sin(math.radians(s["h"]))
         rem = (s["x1"] - b.ox) * ux + (s["y1"] - b.oy) * uy
         if rem <= b.v * 0.03 + 0.05:
             b.v = 0.0
             b.report(self, s["id"], "done")
             b.cur, b.state = None, "idle"
             return
-        # front sensor: another body in the path within follow_look_cm (8) of the front face
-        for o in self.bots.values():
-            if o is b:
-                continue
-            dx, dy = o.x - b.x, o.y - b.y
-            c, sn = math.cos(math.radians(b.th)), math.sin(math.radians(b.th))
-            fwd, lat = dx * c + dy * sn, -dx * sn + dy * c
-            if 0 < fwd - 4.75 - 4.75 < 8.0 and abs(lat) < 6.0 + 4.75 and b.v > 0.5:
+        # front sensor: another body (or a real wall) in the path within follow_look_cm (8) of the front face
+        if not s.get("rev"):
+            fc = self.front_cm(b)
+            if fc < 8.0 and b.v > 0.5:
                 b.v = 0.0
-                b.report(self, s["id"], "failed", "obstacle %.1f cm ahead" % (fwd - 9.5))
+                b.report(self, s["id"], "failed", "obstacle %.1f cm ahead" % fc)
                 for q in b.q:
                     b.report(self, q["id"], "dropped", "an earlier step failed")
                 b.q, b.cur, b.state = [], None, "idle"
@@ -368,15 +434,20 @@ class Sim:
         b.v = min(vt, b.v + 20.0 * DT + 0.5)
         cross = ux * (b.oy - s["y1"]) - uy * (b.ox - s["x1"])
         corr = max(-15.0, min(15.0, -3.0 * cross)) if rem > 3 else 0.0
-        herr = wrap180(s["h"] + corr - b.oth)
+        herr = wrap180(s["h"] + sg * corr - b.oth)
         w = max(-60.0, min(60.0, 4.0 * herr))
         b.oth = wrap180(b.oth + w * DT)
         b.th = wrap180(b.th + w * DT * (1 + b.gyro_err))
-        d = b.v * DT
+        d = sg * b.v * DT
         b.ox += d * math.cos(math.radians(b.oth))
         b.oy += d * math.sin(math.radians(b.oth))
-        b.x += d * (1 + b.wheel_err) * math.cos(math.radians(b.th))
-        b.y += d * (1 + b.wheel_err) * math.sin(math.radians(b.th))
+        nx = b.x + d * (1 + b.wheel_err) * math.cos(math.radians(b.th))
+        ny = b.y + d * (1 + b.wheel_err) * math.sin(math.radians(b.th))
+        x0, y0, x1, y1 = self.walls
+        if self.walls != BOARD and nx < x0 + 4.75:        # a real wall: the body stops at it (wheels slip)
+            self.stats["wall_hits"] += 1
+            nx = x0 + 4.75
+        b.x, b.y = nx, ny
 
     def cam_gap(self, n, t):
         return any(a <= t < b for a, b in self.gaps[n])
@@ -387,27 +458,39 @@ class Sim:
                 self.next_fix[n] = self.t + 1 / 12.0
                 if self.cam_gap(n, self.t):
                     continue
-                lat = self.rng.uniform(0.12, 0.2)
+                lat = self.rng.uniform(0.12, 0.2) if self.cam_delay is None else \
+                    max(0.05, self.cam_delay + self.rng.uniform(-0.1, 0.1))
                 fx, fy = b.x + self.rng.gauss(0, 0.5), b.y + self.rng.gauss(0, 0.5)
                 fth = b.th + self.rng.gauss(0, 2.0) if (b.state == "drive" and self.rng.random() < 0.3) else None
                 self.cam_q.append((self.t + lat, n, self.t, fx, fy, fth))
         due = [e for e in self.cam_q if e[0] <= self.t]
         if due:
             self.cam_q = [e for e in self.cam_q if e[0] > self.t]
-            for _, n, tf, fx, fy, fth in due:
-                self.ctrl.on_fix(n, tf, fx, fy, fth)
-                # the runner forwards each fix to the robot (fix command): the robot's fusion pulls its pose over
-                if self.t >= self.frozen_until:
+            for _, n, tf, fx, fy, fth in sorted(due):
+                self.ctrl.on_fix(n, tf + self.cam_clock, fx, fy, fth, arrival=self.t)
+                # the runner forwards each fix to the robot (fix command, stamped with the picture's robot time) unless
+                # the controller has it lost: the robot's fusion pulls its pose over
+                if self.t >= self.frozen_until and self.ctrl.R[n].lost is None:
                     self.ctrl.sent(n)
-                    self.down.send(self.t, self.fuse, n, fx, fy, fth)
+                    self.down.send(self.t, self.fuse, n, fx, fy, fth, tf)
 
-    def fuse(self, n, fx, fy, fth):
+    def fuse(self, n, fx, fy, fth, tf=None):
         b = self.bots[n]
         if b.dead:
             return
         b.last_rx = self.t
-        b.ox += 0.35 * (fx - b.ox)
-        b.oy += 0.35 * (fy - b.oy)
+        hx, hy = b.ox, b.oy
+        if tf is not None:                  # the firmware weighs a fix against its own pose at the fix's time
+            if self.t - tf > 1.0:           # params.h fix_max_age_ms 1000: older fixes are not used
+                return
+            older = [q for q in b.hist if q[0] <= tf]
+            if not older:                   # no own pose that old (just set by fpose): the fix is not used
+                return
+            hx, hy = older[-1][1], older[-1][2]
+        dx, dy = 0.35 * (fx - hx), 0.35 * (fy - hy)
+        b.ox += dx
+        b.oy += dy
+        b.hist = [(t0, x0 + dx, y0 + dy) for t0, x0, y0 in b.hist]   # pose.h fix(): the whole history moves too
         if fth is not None:
             b.oth = wrap180(b.oth + 0.3 * wrap180(fth - b.oth))
         # the camera knows where it is: the own pose's heading error is pulled in slowly too (fixes along the line)
@@ -417,6 +500,9 @@ class Sim:
         for n, b in self.bots.items():
             if self.t >= self.next_follow[n] and not b.dead and b.following:
                 self.next_follow[n] = self.t + 0.1
+                b.hist.append((self.t, b.ox, b.oy))
+                if len(b.hist) > 40:
+                    del b.hist[:10]
                 self.up(b, "follow", b.state, b.ox, b.oy, b.oth, b.cur["id"] if b.cur else 0, b.last_done,
                         b.last_failed)
 
@@ -463,7 +549,7 @@ class Sim:
             c.on_fw(n, "2026-11-05b" if b.new_fw else "2026-10-29b")
             c.on_battery(n, 100, 0.0)
             c.on_follow(n, 0.0, "idle", b.ox, b.oy, b.oth, 0)
-            c.on_fix(n, 0.0, b.x, b.y, b.th)
+            c.on_fix(n, 0.0 + self.cam_clock, b.x, b.y, b.th, arrival=0.0 + (self.cam_delay or 0.15))
             c.on_heard(n, 0.0)
         c.tick(0.0)
         for n in self.names:
@@ -521,7 +607,10 @@ class Sim:
         hist = [0] * 41                          # 10 s windows by their smallest body gap: 1 cm bins, 40+ last
         for g in gw:
             hist[min(40, int(g))] += 1
-        return dict(seed=self.seed, hours=round(h, 3), gap_hist=hist, contacts=st["contacts"], contact_s=round(st["contact_s"], 2),
+        return dict(seed=self.seed, hours=round(h, 3), gap_hist=hist, wall_hits=st["wall_hits"],
+                    front_loops=st["front_loops"], keepouts=len(c.keepouts), backoffs=c.counts["backoffs"],
+                    cam_refused=c.counts["cam_refused"], cam_delay_s=round(c.cam_delay, 3), clock_s=round(c.clock, 3),
+                    clock_seen_s=c.clock_seen, longest_still_s=self.longest_still(), contacts=st["contacts"], contact_s=round(st["contact_s"], 2),
                     min_gap_cm=round(st["min_gap"], 2), min_gap_at=st.get("min_gap_at"), gap_p1=pct(0.01), gap_p5=pct(0.05), gap_p50=pct(0.5),
                     reflex=dict(c.counts["reflex"]), fallbacks=dict(c.counts["fallback"]),
                     trophy_breaks=c.counts["breaks"], front_stops=st["front_stops"],
@@ -535,6 +624,24 @@ class Sim:
                     reflex_outcomes={k: sum(1 for e in refl if e["outcome"] == k) for k in set(e["outcome"] for e in refl)},
                     menu_cells_used=sum(1 for v in c.menu.n.values() if v), menu_min=min(c.menu.n.values()),
                     menu_max=max(c.menu.n.values()), motion=mot)
+
+
+def _longest(rows):
+    out = {}
+    for n in sorted(set(r["robot"] for r in rows)):
+        best = cur = 0.0
+        prev = None
+        for r in rows:
+            if r["robot"] != n:
+                continue
+            if r["any"] == 0 and r["mode"] not in ("out", "gone"):
+                cur += (r["t"] - prev) if prev is not None else 0.0
+                best = max(best, cur)
+            else:
+                cur = 0.0
+            prev = r["t"]
+        out[n] = round(best, 1)
+    return out
 
 
 def summarize(files, png=None):
@@ -624,6 +731,13 @@ def main(argv=None):
     ap.add_argument("--no-freeze", action="store_true")
     ap.add_argument("--no-dropouts", action="store_true")
     ap.add_argument("--lost-mode", default="reckon", choices=("reckon", "hold"))
+    ap.add_argument("--cam-delay", type=float, default=None, help="camera fixes this many s late (+-0.1); default "
+                                                                   "0.12-0.2 s")
+    ap.add_argument("--cam-clock", type=float, default=0.0, help="the camera's stamps this many s ahead")
+    ap.add_argument("--wall-in", type=float, default=0.0, help="a real wall this far inside the board's x_min edge")
+    ap.add_argument("--trap", action="store_true", help="Right starts 7 cm from an edge facing out")
+    ap.add_argument("--fw", default=None, help="the robots' firmware, e.g. 2026-10-28a (default: 11-05b, or "
+                                               "10-29b with --old-fw)")
     a = ap.parse_args(argv)
     lo, _, hi = a.seeds.partition("-")
     seeds = range(int(lo), int(hi or lo) + 1)
@@ -636,10 +750,12 @@ def main(argv=None):
         t0 = time.time()
         s = Sim(sd, a.hours, new_fw=not a.old_fw, dead_robot=not a.no_dead, pi_freeze=not a.no_freeze,
                 dropouts=not a.no_dropouts, loss=a.loss, lost_mode=a.lost_mode, out_dir=od,
-                lat_max=a.lat_max_ms / 1000.0, drill=a.drill)
+                lat_max=a.lat_max_ms / 1000.0, drill=a.drill, cam_delay=a.cam_delay, cam_clock=a.cam_clock,
+                wall_in=a.wall_in, trap=a.trap, fw=a.fw)
         r = s.run()
         r["wall_s"] = round(time.time() - t0, 1)
-        r.update(drill=a.drill, old_fw=a.old_fw, loss=a.loss, lat_max_ms=a.lat_max_ms, lost_mode=a.lost_mode)
+        r.update(drill=a.drill, old_fw=a.old_fw, loss=a.loss, lat_max_ms=a.lat_max_ms, lost_mode=a.lost_mode,
+                 cam_delay=a.cam_delay, cam_clock=a.cam_clock, wall_in=a.wall_in, trap=a.trap, fw=a.fw)
         print(json.dumps(r), flush=True)
         res.append(r)
         if od:

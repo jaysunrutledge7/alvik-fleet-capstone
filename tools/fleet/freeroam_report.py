@@ -304,6 +304,28 @@ def make(folder):
                   "line never let the bodies' circles touch.", ""]
         except Exception as e:     # noqa: BLE001
             L += ["(reflex chart not made: %s)" % e, ""]
+    # (11-05c) what the run discovered: keep-outs (felt by the robots' own front sensors / edge guards), walls, the
+    # camera's measured delay and clock
+    ko, cam = rd(folder, "keepouts"), rd(folder, "camera")
+    if ko:
+        found = [k for k in ko if k.get("what") == "found"]
+        walls = [k for k in ko if str(k.get("what", "")).startswith("wall")]
+        cleared = [k for k in ko if str(k.get("what", "")).startswith("cleared")]
+        L += ["**Discovered** (keepouts.csv): %d keep-outs felt by the robots' own sensors (%d cleared again when a "
+              "robot's camera track drove through), %d wall findings%s." % (
+                  len(found), len(cleared), len(walls),
+                  (": " + "; ".join("%s (%s)" % (w["what"], w["robot"]) for w in walls[:6])) if walls else ""), ""]
+        L += ["| x cm | y cm | felt by | how | inside the edge cm |", "|---|---|---|---|---|"]
+        L += ["| %s | %s | %s | %s | %s |" % (k["x"], k["y"], k["robot"], k["src"], k["edge_cm"]) for k in found[:20]]
+        L += [""]
+    if cam:
+        c = cam[-1]
+        L += ["**Camera timing** (camera.csv, measured during the run): fixes arrive %.2f s after the picture (median; "
+              "90 %% within %.2f s); a robot counts as lost when no fix newer than %.2f s; the camera's clock %s." % (
+                  fnum(c["delay_med_s"]), fnum(c["delay_p90_s"]), fnum(c["lost_after_s"]),
+                  "matches this one (alignment %+.2f s, inside the deadband)" % fnum(c["clock_seen_s"])
+                  if fnum(c["clock_applied_s"]) == 0 else "is %+.2f s from this one (applied)" %
+                  fnum(c["clock_applied_s"])), ""]
     if lost:
         inside = sum(int(fnum(e["within"])) for e in lost)
         L += ["**Lost by the camera** (lost.csv): %d episodes, %.0f s in all; the odometry's jump when seen again: "

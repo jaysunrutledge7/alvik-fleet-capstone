@@ -208,6 +208,84 @@ Full fleet suite (own network namespace): 579 passed, 9 skipped, 1 failed (a fou
 6. Edge risks are as before: the edge guard and the robots' own border are the backstop if the camera and odometry are
    both wrong by more than 9 cm.
 
+## First real run (5 Nov 14:35, home Pi, 17 min) and the fixes (build 11-05c)
+
+**Premise.** The first real run (session 20261105-143553-freeroam; Left, Center, Right on firmware 2026-10-28a, two
+cameras) was stopped by Nick after 17 min: robots kept being "lost" by the camera, Left repeated its own front stop
+hundreds of times, Center and Right stood still. Evidence: the uploaded logs (release freeroam-20261105-143553-freeroam:
+events, moves, steps, FOLLOW records, the camera bridge's track and events).
+
+**Data** (from those logs).
+
+| What the logs show | Cause found | Fix (all in `tools/fleet/freeroam_core.py` unless said) |
+|---|---|---|
+| 661 "lost" episodes in 17 min, each "seen again after -0.4 s" | Not a clock mismatch: the camera's stamps and this Pi's clock agree to 0.1-0.2 s (fixes lined up with the robots' own tracks). The camera bridge needs **0.42 s** (median; 90 % within 0.46 s) from picture to fix, so a fix was already ~0.45 s old when it arrived and any 0.15 s gap passed the 0.6 s "lost" limit | the delay is measured online; lost = no fix arrived for 0.6 s or the newest is 0.6 s older than the measured delay. The clock is checked by lining the camera's track up with the robots' own (applied only beyond 0.25 s) |
+| jumps when "seen again" up to 45 cm; `fpose` sent with old spots | each fix was compared with the robot's pose NOW, not when the picture was taken | each fix is compared with the robot's own pose at the picture's time (a short own-pose history); the position used is the camera's spot moved on by the robot's own motion since; `fpose` is projected the same way |
+| Center: camera put it 45 cm away, on Right's spot near the edge; controller set Center's pose there; Center then stood 63 + 55 + 33 s ("too near the edge") | the bridge lost Right and gave Center's name to Right's blob; three agreeing fixes were enough | a far camera spot is believed only when it moves as the robot's own wheels say (5 cm of travel, offset steady within 3 cm), or stays steady 2 s with no other robot there; otherwise "camera disagrees" and dead reckoning goes on. A continuous jump of over 12 cm in three fixes counts as lost |
+| Left: 515 front stops in a row at (18.7, 62.8), every move failing in 0.05-0.15 s | **most likely the real Center** (its own pose had it at about (26, 67) when the camera moved it away; Left's right-hand sensor zones read 2-5 cm, the left ones far: not a wall). Each turn step was refused by the firmware (turn check: anything within 7 cm ahead), and the planner, not knowing anything was there, tried again | after the robot's own front stop the next move **backs straight off** 8 cm (a reverse drive, supported since firmware 2026-10-18b; no front check); the felt point becomes a **keep-out** the planner respects for the rest of the run (logged, in keepouts.csv and the report), dropped only if a robot's camera track later drives through it |
+| Right stood 3 min 7 cm from the y_max edge (camera), "stand" 186 times; Center the same 182 times | no rung for "no room to turn": it stood until something changed | a **reverse** rung (back up to 14 cm away from the edge), then an **edge turn** (turn to face the middle when the corners still clear the edge by 1 cm); standing only when neither fits |
+| board 122 x 122 cm from the 30 Oct calibration; Right planned to end 16 cm in but the camera had it 6.6 cm in | the camera reads 5-9 cm outward at an open edge (known: cam_bridge notes); the board itself is not shown to be smaller | the run says at the start what board it assumes; a felt wall or edge inside it (two front or edge-guard stops, facing that side, 3-9 cm in, 15 cm apart) moves that side in for the rest of the run (`wall found`) |
+
+**Rehearsal of the real failure** (stress simulator; 30 simulated minutes per seed; a wall 5 cm inside the believed
+x_min edge, Right starting 7 cm from an edge facing out, firmware 2026-10-28a: turn steps refused with something within
+7 cm, no fspd / watchdog; no dead robot or Pi freeze; "before" = the controller exactly as it ran on 5 Nov):
+
+| scenario | code | contacts | closest bodies cm | front-stop loops | front stops | "stand" fallbacks | longest stand-still s | all 3 moving % (driving %) | >=2 moving % (driving %) | back-offs | reverse / edge turn | keep-outs | delay / clock found |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 1 s delay + clock 0.7 s | before | 0 | 1.2 | 2 | 8346 | 3468 | 400 | 2.6 (1.8) | 66.3 (41.4) | - | - | - | - |
+| 1 s delay + clock 0.7 s | after | 0 | 0.6 | 0 | 35 | 0 | 2 | 97.8 (46.3) | 100.0 (86.8) | 29 | 3 / 1 | 22 | 0.96 s / +0.66 s |
+| 0.45 s delay (Pi) | before | 0 | 5.8 | 0 | 29 | 3468 | 30 | 22.9 (17.0) | 96.8 (76.5) | - | - | - | - |
+| 0.45 s delay (Pi) | after | 0 | 7.1 | 0 | 6 | 0 | 4 | 98.5 (56.6) | 100.0 (92.2) | 6 | 2 / 0 | 6 | 0.45 s / +0.00 s |
+
+Two seeds each, totals (stand-still and closest: the worst of the two; shares: the mean). Contacts and wall contacts: none in any run. (The 0.45 s "after" seed 2 ran on the build just before the last wall-finding change.)
+
+![before and after](../screenshots/2026-11-05/e04-r1-fixed-freeroam-before-after-standstill-and-all-three-moving-fastsim.png)
+
+Grey is the controller as it ran on 5 Nov, blue after these fixes; the left panel is the longest time any one robot stood still, the right one the share of time all three were moving.
+
+The real-time chain (`freeroam.py run --dry`, fleet_sim with the camera 1.0 s late on a clock 0.7 s ahead, firmware
+2026-10-28a, 3.6 min): the run found the clock (+0.70 s) and the delay (1.04 s) by itself, one lost episode (a
+simulated tag dropout), all three moving 99.5 % of the time (driving 44.7 %). This ran on the build before its last
+two corrections (the speed-based clock check and the 3-fix jump rule); the stress runs above use the final code.
+
+**Conclusion.**
+- The robots did not stop because of the planner's design but because of three missing pieces: the camera's real
+  0.45 s delay, a camera that can confidently name the wrong robot, and no move for "something right in front" or "no
+  room to turn". With them added, the 5 Nov conditions rehearse with no front-stop loops, no stand-stills over 2 s
+  and all three moving about 97-99 % of the time.
+- With the camera 1.0 s late and old firmware, the closest two bodies came was 0.6-1.9 cm (no contact): avoidance on
+  1 s old positions with halt + resend is tight. At the Pi's real 0.45 s it was 7 cm or more.
+
+**What's next.**
+1. Next real run (attended, 20-30 min): same command; watch for `keep-out`, `wall found`, `camera disagrees`, `back off`
+   lines and check each against what you see.
+2. Reflash to 2026-11-05b when convenient (fspd / fsteer / watchdog); the fixes above work on 10-28a.
+3. The camera bridge: re-find a robot whose name it gave away (a seed from the controller's dead-reckoned spot) and
+   speed it up (it skipped 16,938 of ~27,600 pictures as "behind").
+
+**Sweep 1: new tests that may now be necessary.**
+- Board: back-off on a real robot (fs D with rev 1, 8 cm at 5 cm/s) next to a box, and that its turn then passes.
+- Board: a robot parked 7 cm from an edge facing out: the reverse rung.
+- Logs: from the next run, the online delay (camera.csv) against the bridge's own (events.jsonl), and whether any
+  `camera disagrees` was wrong (the robot really was there).
+- Simulator: a camera that swaps two robots' names while both drive (not modelled: the fast simulator's camera never
+  names the wrong robot).
+- DOE rows: VERIFY_CM / VERIFY_STILL_S, BACK_CM, KEEP_R, WALL_MIN_IN against stand-stills and refused true fixes.
+
+**Sweep 2: possible inaccuracies in what this relied on.**
+- **"Left felt Center"** is inferred from the logs (Center's last own pose, Left's sensor zones), not seen: no frames
+  were uploaded for that minute. If it was a wall or object, the keep-out handles it the same way.
+- The camera's outward bias near edges (5-9 cm) is from cam_bridge's notes, not measured on this run.
+- The simulator's sensor model (three rays, 7 cm turn check, 8 cm drive look) and its wall are mine; the real sensor's
+  zones are wider. The fast simulator's camera never mistakes one robot for another.
+- Chosen numbers (each marked in the code): CLOCK_DEADBAND_S 0.25 s, VERIFY_CM 5, VERIFY_STILL_S 2 s, KEEP_R 2,
+  KEEP_GAP 1, BACK_CM 8/6/4, BACK_V 5, EDGE_TURN_MIN 7.7, WALL_MIN_IN 3, WALL_MAX_IN 20 cm. A DOE would suit
+  VERIFY_* and BACK_CM (stand-stills and refusals per hour); the others are margins over measured sizes.
+- The own-pose history is stamped when each FOLLOW record arrives (WiFi 0.05-0.2 s late), so "the pose at the
+  picture's time" is up to ~2 cm off at full speed.
+- The robots' firmware rejects fixes older than 1 s (fix_max_age_ms); at 1 s delay about half are rejected, so their
+  own poses drift more in the 1 s rehearsals than on the real Pi.
+
 ## Questions for Nick
 
 **Substantive**

@@ -76,8 +76,8 @@ def test_moves_keep_the_edge_and_cover_the_menu():
         assert FC.edge_dist(BOARD, *e) >= FC.EDGE_CC - 1e-6
         h = r.move["h1"]
         c.end_move(r)                                            # pretend it got there
+        c.on_follow("Left", c.t, "idle", e[0], e[1], h, 0)     # (its own pose first: the camera sees it there after)
         c.on_fix("Left", c.t, e[0], e[1], None)
-        c.on_follow("Left", c.t, "idle", e[0], e[1], h, 0)
         r.busy_until = 0.0
     used = sum(1 for v in c.menu.n.values() if v)
     assert used >= 40                                            # 60 moves spread over the cells, not repeated
@@ -292,3 +292,151 @@ def test_report_counts_stand_stills():
         mot.append(dict(t=t, robot="Left", any=0 if still else 1, translating=0 if still else 1, mode="move"))
     ms = FR.motion_stats(mot)
     assert ms["robot"]["Left"]["still_over_3s"] == 1 and abs(ms["robot"]["Left"]["longest_still_s"] - 5.0) < 0.01
+
+
+# -------------------------------------------------------------------------------------------- the first real run (11-05c)
+# 5 Nov 14:35, home Pi, firmware 2026-10-28a, 17 min (release freeroam-20261105-143553-freeroam): fixes arrived ~0.45 s
+# old so every short gap read as "lost"; a stale camera spot was sent as fpose; the camera put Center 45 cm off (on
+# Right's spot) and the controller believed it; Left's own front sensor stopped 515 moves in a row (each turn step
+# refused: something 2.9 cm ahead); Right stood 3 min 7 cm from an edge with no turn room ("stand" 186 + 182 times).
+def _moving_robot(c, name, t0, t1, v=10.0, delay=1.0, clock=0.7, y=60.0, x0=30.0):
+    """Own poses every 0.1 s (driving along +x, speed changing between 0 and 2v every 4 s); camera fixes every 0.08 s,
+    stamped on a clock `clock` ahead, arriving `delay` s after the picture. Returns the true x at t1."""
+    def X(tt):
+        return x0 + v * (tt - t0) - v * 4.0 / (2 * math.pi) * math.sin(2 * math.pi * (tt - t0) / 4.0)
+    t = t0
+    nxt_fix = t0
+    pend = []
+    while t <= t1 + 1e-9:
+        c.on_heard(name, t)
+        c.on_follow(name, t, "drive", X(t), y, 0.0, 1)
+        if t >= nxt_fix:
+            pend.append((t + delay, t, X(t)))
+            nxt_fix = t + 0.08
+        for due, tp, xp in [q for q in pend if q[0] <= t]:
+            c.on_fix(name, tp + clock, xp, y, None, arrival=t)
+        pend = [q for q in pend if q[0] > t]
+        c.tick(t)
+        t = round(t + 0.05, 4)
+    return X(t1)
+
+
+def test_camera_delay_and_clock_measured_no_false_lost():
+    """Real failure: fixes ~0.45 s old (here 1.0 s, on a clock 0.7 s ahead) made the controller call every robot
+    lost several times a second and compare stale fixes with its pose NOW. Now: the delay and the clock are measured
+    online, no false 'lost', and the position used is the camera's moved on by its own motion (within 1.5 cm)."""
+    c, sent, rows = ctrl(names=("Left",))
+    place(c, "Left", 30, 60, 0.0)
+    r = c.R["Left"]
+    r.mode = "out"                                   # no planning: only the timing is under test
+    xt = _moving_robot(c, "Left", 0.05, 32.0)
+    ev = [x for t, x in rows if t == "events"]
+    assert abs(c.clock - 0.7) < 0.1, c.clock
+    assert abs(c.cam_delay - 1.0) < 0.1, c.cam_delay
+    late = [e for e in ev if e["kind"] == "lost" and e["t"] > 8.0]
+    assert not late, late[:3]
+    p = c.pos(r)
+    assert abs(p[0] - xt) < 1.5 and abs(p[1] - 60.0) < 0.5, (p, xt)
+
+
+def test_reacquire_compares_at_the_pictures_time_and_projects_fpose():
+    """Real failure: 'seen again' compared a 0.45 s old fix with the pose now (jumps up to 45 cm) and sent that stale
+    spot as fpose. Now the jump is measured at the picture's time and the fpose is moved on to now."""
+    c, sent, rows = ctrl(names=("Left",))
+    place(c, "Left", 30, 60, 0.0)
+    r = c.R["Left"]
+    r.mode = "out"
+    _moving_robot(c, "Left", 0.05, 32.0)            # delay and clock learned
+    assert abs(c.clock - 0.7) < 0.1
+    c.start_lost(r)
+    # 3 s blind from x 130 on its own pose; its own pose drifts 4 cm sideways while it drives on at 10 cm/s
+    for k in range(1, 31):
+        tt = 40.0 + k * 0.1
+        c.on_follow("Left", tt, "drive", 130 + k, 60 + 4.0 * k / 30, 0.0, 1)
+        c.t = tt
+    # a fix of the picture taken at 42.0 (camera clock +0.7), arriving at 43.0: truth at 42.0 was x 150, y 60
+    c.t = 43.0
+    c.on_fix("Left", 42.0 + 0.7, 150.0, 60.0, None, arrival=43.0)
+    lost = [x for t, x in rows if t == "lost"][-1]
+    assert abs(lost["jump_cm"] - 2.67) < 0.4, lost            # own at 12.0 was (150, 62.67): 2.67 cm, not ~10
+    fp = [t for n, t in sent if t.startswith("fpose")][-1].split()
+    assert abs(float(fp[1]) - 160.0) < 0.6 and abs(float(fp[2]) - 61.33) < 0.6, fp   # moved on to now
+
+
+def test_camera_on_another_robot_is_not_believed():
+    """Real failure: the camera put Center on Right's spot, 45 cm from where Center's wheels had it; three agreeing
+    fixes were enough and Center's pose was set there (it then stood 'near the edge' for the rest of the run, and
+    Left drove into the real Center). Now: a far spot must move as the wheels do, and a spot where another robot
+    stands is refused."""
+    c, sent, rows = ctrl(names=("Center", "Right"))
+    place(c, "Center", 30, 60, 90.0)
+    place(c, "Right", 27, 115, 90.0)
+    c.R["Center"].mode = c.R["Right"].mode = "out"
+    c.start_lost(c.R["Center"])
+    for k in range(1, 41):                            # Center drives on +y at 6.5 cm/s; the camera says Right's spot
+        tt = k * 0.1
+        c.t = tt
+        c.on_follow("Center", tt, "drive", 30, 60 + 0.65 * k, 90.0, 1)
+        c.on_follow("Right", tt, "idle", 27, 115, 90.0, 0)
+        c.on_fix("Right", tt, 27.0, 115.0, None)
+        c.on_fix("Center", tt, 26.9 + 0.1 * (k % 2), 115.5, None)
+    assert c.R["Center"].lost is not None
+    assert not any(n == "Center" and t.startswith("fpose") for n, t in sent)
+    assert any(x["kind"] == "camera disagrees" for t, x in rows if t == "events")
+
+
+def test_front_stop_backs_off_and_discovers_a_keepout():
+    """Real failure: Left's own front sensor stopped 515 moves in a row (2.9 cm ahead; turn steps refused), the
+    planner retrying from the same spot. Now: the next move backs straight away (a reverse drive, no front check),
+    the felt point is a keep-out the planner respects, and no move after it heads into it."""
+    c, sent, rows = ctrl(names=("Left",))
+    place(c, "Left", 18.7, 62.8, 92.6, fw="2026-10-28a")
+    c.t = 0.3
+    c.tick(0.3)
+    r = c.R["Left"]
+    sid = r.move["turn_id"] or r.move["drive_id"]
+    c.on_step("Left", sid, "failed", "obstacle 2.9 cm ahead; zones 4.0 2.9 2.8 2.7 3.7")
+    ko = c.keepouts
+    assert len(ko) == 1 and abs(ko[0]["x"] - 18.4) < 0.6 and abs(ko[0]["y"] - 70.4) < 0.6, ko
+    c.t = 0.6
+    c.tick(0.6)
+    assert r.move["kind"] == "back off"
+    d = [t for n, t in sent if t.startswith("fs ") and " D " in t][-1].split()
+    assert d[-2] == "1", d                                        # rev 1: backwards
+    assert float(d[6]) < 62.8 - 5.0                               # ends further from the thing it felt
+    for k in range(40):                                           # every later plan keeps out of it
+        c.end_move(r)
+        c.t = 1.0 + k
+        c.on_follow("Left", c.t, "idle", float(d[5]), float(d[6]), 92.6, 0)
+        c.on_fix("Left", c.t, float(d[5]), float(d[6]), None)
+        r.busy_until = 0
+        c.tick(c.t)
+        if r.move is None:
+            continue
+        assert c.keepout_ok(r, r.traj)
+
+
+def test_edge_trap_reverses_out():
+    """Real failure: Right 6.6 cm from the y_max edge facing out: no turn fits, so it stood ('stand') for the rest of
+    the run. Now it reverses inward, then moves on."""
+    c, sent, rows = ctrl(names=("Right",))
+    place(c, "Right", 27.0, 115.4, 87.0, fw="2026-10-28a")
+    c.t = 0.3
+    c.tick(0.3)
+    r = c.R["Right"]
+    assert r.move is not None and r.move["kind"] == "reverse", [x for t, x in rows if t == "fallbacks"]
+    d = [t for n, t in sent if " D " in t][-1].split()
+    assert d[-2] == "1" and float(d[6]) < 115.4 - 5.0
+
+
+def test_fastsim_real_run_conditions_no_loops_no_contact():
+    """The 5 Nov conditions in the stress simulator: camera 1 s late on a clock 0.7 s ahead, a wall 5 cm inside the
+    believed x_min edge, Right starting trapped 7 cm from an edge facing out, firmware 2026-10-28a."""
+    s = FS.Sim(2, 0.2, dead_robot=False, pi_freeze=False, cam_delay=1.0, cam_clock=0.7, wall_in=5.0, trap=True,
+               fw="2026-10-28a")
+    res = s.run()
+    assert res["contacts"] == 0
+    assert res["front_loops"] == 0
+    assert res["wall_hits"] == 0
+    assert max(res["longest_still_s"].values()) < 30.0, res["longest_still_s"]
+    assert abs(res["clock_s"] - 0.7) < 0.1

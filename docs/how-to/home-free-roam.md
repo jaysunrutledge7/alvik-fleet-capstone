@@ -110,6 +110,12 @@ a robot calibrated earlier today on the same power-on keeps it). Then all three 
 You should see `Free roam ...: N min`, then one line per robot: `move`, its battery and how many moves it has made.
 Then the run's last screen lines.
 
+(Since 5 Nov evening, after the first real run) At the start the run also prints a line beginning `Board assumed:`:
+the board size it plans on (from the camera setup calibration). If a robot's own front sensor or edge sensor finds a
+wall or object inside that board, the screen says `keep-out` or `wall found` and the run keeps away from it from then
+on: nothing to do. A robot that its front sensor stopped now **backs off a few cm** (it drives backwards slowly) before
+it turns; a robot near an edge with no room to turn backs away from the edge. Both are expected.
+
 To watch the robots: **Browser**, `http://100.122.222.75:8000` (the overhead camera).
 
 You can now close the window, log out of SSH, and switch Tailscale to the other account. **None of that stops it**: it
@@ -142,4 +148,6 @@ DOE loop does. `./run-fleet-pi.sh freeroam-status` then says `ENDED: ...` and wh
 | A robot standing still for a long time, others moving | its battery reached 10 % and it parked, or it stopped answering | nothing: the others go on round it |
 | A robot turning a little left and right on the spot | the camera lost it; it is wiggling so the camera finds it again | nothing |
 | A robot near the edge | it keeps 9 cm between its corners and the edge when it plans; its own edge sensors stop it at the edge | if it is over the edge: `./run-fleet-pi.sh stopall`, pick it up |
+| A robot backing up a few cm | its own front sensor felt something (or it was too close to an edge to turn): it backs away, then turns | nothing |
+| `camera disagrees` on the screen | the camera put a robot somewhere its wheels say it cannot be (5 Nov: Center put on Right's spot); it is not believed | nothing; if it repeats for one robot for minutes, note the time |
 | Two robots touching | should not happen (none in 30 simulated hours of stress tests and 4 rehearsals) | `./run-fleet-pi.sh stopall`, tell me the time |

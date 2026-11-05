@@ -48,7 +48,7 @@ for p in (HERE, TOOLS):
 import freeroam_core as FC   # noqa: E402
 
 PY = sys.executable
-VERSION = "freeroam-runner-2026-11-05a"
+VERSION = "freeroam-runner-2026-11-05c"
 HOME_BOARD = (0.0, 0.0, 122.24, 121.92)    # roam.py's board (the home plywood in the floor calibration's cm)
 FOLLOW_LOOK_CM = 8.0    # the robots' own front stop while driving: roam.py's 8 (the plywood reads ~10 cm ahead, 12
                         # stopped drives). Another robot's face at the planned gap is 7.9 cm or more away; the reflex
@@ -114,7 +114,7 @@ class Runner:
         self.fw = {}
         self.restarts = {n: 0 for n in names}
         self.track = open(os.path.join(outdir, "camera_track.csv"), "w", buffering=1)
-        self.track.write("t,robot,x_cm,y_cm,th_deg\n")
+        self.track.write("t,robot,x_cm,y_cm,th_deg,arrived\n")
         self.pose_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM) if pose_to else None
         self.pose_to = pose_to
         self.frames, self.guard = frames, guard
@@ -210,21 +210,33 @@ class Runner:
     def fixes(self):
         c = self.ctrl
         now = self.AC.now()
-        for ev in self.source.poll():
+        evs = self.source.poll()
+        sd, sc = getattr(self.a, "sim_cam_delay", 0.0), getattr(self.a, "sim_cam_clock", 0.0)
+        if self.a.dry and (sd or sc):
+            # SIMULATOR ONLY: the camera's fixes held back sd s more and stamped on a clock sc s ahead (the Pi's real
+            # pipeline: 0.45 s; a clock mismatch the run must discover)
+            self.held = getattr(self, "held", []) + [(now + sd, dict(ev, t=float(ev["t"]) + sc)) for ev in evs
+                                                     if ev.get("type") == "fix"]
+            evs = [e for due, e in self.held if due <= now]
+            self.held = [(due, e) for due, e in self.held if due > now]
+        for ev in evs:
             if ev.get("type") != "fix":
                 continue
             n = ev.get("robot")
             if n not in c.R:
                 continue
             th = ev.get("th")
-            c.on_fix(n, float(ev["t"]), float(ev["x"]), float(ev["y"]), None if th is None else float(th))
-            self.track.write("%.3f,%s,%.2f,%.2f,%s\n" % (ev["t"], n, ev["x"], ev["y"], "" if th is None else
-                                                          "%.1f" % th))
+            # (11-05c) the arrival time too: the controller measures the camera's delay and compares each fix with
+            # the robot's own pose at the picture's time
+            c.on_fix(n, float(ev["t"]), float(ev["x"]), float(ev["y"]), None if th is None else float(th),
+                     arrival=now)
+            self.track.write("%.3f,%s,%.2f,%.2f,%s,%.3f\n" % (ev["t"], n, ev["x"], ev["y"], "" if th is None else
+                                                               "%.1f" % th, now))
             o = self.offsets.get(n) or []
             if not o or now - self.fix_last[n] < 1.0 / FIX_HZ or c.R[n].lost is not None:
                 continue
             off = min(v for tt, v in o if tt > now - 30.0) if any(tt > now - 30.0 for tt, _ in o) else o[-1][1]
-            ms = int(round((float(ev["t"]) - off) * 1000))
+            ms = int(round((float(ev["t"]) - c.clock - off) * 1000))     # the picture's time on this clock
             self.send(n, "fix %d %.2f %.2f %s %.2f %.2f" % (ms, ev["x"], ev["y"], "-" if th is None else "%.2f" % th,
                                                             ev.get("sigma", 1.0), ev.get("sigma_th", 3.0)))
             self.fix_last[n] = now
@@ -313,6 +325,7 @@ class Runner:
             self.frames.active(True, "freeroam")
         say("Free roam: %s, until each is at %d %% or %.1f h. Ctrl+C (or ./run-fleet-pi.sh freeroam-stop) stops "
             "every robot." % (", ".join(sorted(self.joined)), c.floor, hours))
+        say(board_words(self.rect, "" if self.a.dry else getattr(self.a, "calib", "")))
         why = None
         while True:
             now = self.AC.now()
@@ -367,6 +380,17 @@ class Runner:
         self.source.close()
         self.tables.close()
         self.track.close()
+
+
+def board_words(rect, calib=""):
+    """(11-05c) What board the planner assumes, said at the start (Nick 5 Nov: say what board size it assumes)."""
+    x0, y0, x1, y1 = rect
+    src = os.path.basename(calib) if calib else "the simulator's board"
+    return ("Board assumed: x %.0f to %.0f cm, y %.0f to %.0f cm (%.0f x %.0f cm, from %s). Moves end %.0f cm or more "
+            "inside it (%.0f x %.0f cm usable); turns on the spot %.1f cm in. Walls or objects inside it are found "
+            "during the run: each front stop or edge-guard stop becomes a keep-out (events: keep-out; keepouts.csv)." % (
+                x0, x1, y0, y1, x1 - x0, y1 - y0, src, FC.EDGE_CC, x1 - x0 - 2 * FC.EDGE_CC, y1 - y0 - 2 * FC.EDGE_CC,
+                FC.TURN_EDGE_CC))
 
 
 def loopback_up():
@@ -577,6 +601,10 @@ def main(argv=None):
     ap.add_argument("--sim-fw", action="append", default=[], metavar="NAME=VERSION")
     ap.add_argument("--sim-silent", action="append", default=[], metavar="NAME@T:DUR")
     ap.add_argument("--sim-wifi-drop", action="append", default=[], metavar="NAME@T:DUR")
+    ap.add_argument("--sim-cam-delay", type=float, default=0.0, metavar="S",
+                    help="--dry: hold every camera fix back this many s more (the real Pi: ~0.45 s in all)")
+    ap.add_argument("--sim-cam-clock", type=float, default=0.0, metavar="S",
+                    help="--dry: stamp the camera's fixes on a clock this many s ahead of the controller's")
     ap.add_argument("--fix-port", type=int, default=5010)
     ap.add_argument("--no-frames", action="store_true")
     # the ladder's connection (the real start; as doe_loop.py)
