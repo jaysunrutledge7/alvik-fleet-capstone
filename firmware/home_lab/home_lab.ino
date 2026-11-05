@@ -42,7 +42,13 @@
 Arduino_Alvik alvik;
 
 // Bump this whenever the firmware changes, so every logged run says which code it ran.
-#define FW_VERSION "2026-10-29b"
+#define FW_VERSION "2026-11-05a"
+// 2026-11-05a (Nick, 5 Nov: the calibration survives power-off): `save` keeps wheel_scale, gyro_scale and
+//              gyro_drift_dps as they are now in the robot's flash (Preferences "corr", the same place corr save uses;
+//              all or nothing, corr save's limits), loaded at every power-on and wake from sleep; `unsave` (or
+//              `defaults`) forgets them (1, 0, 1); `saved` and the boot log say which values came from saved storage
+//              ("M,<name> calibration at power-on: wheel_scale 0.9700 (saved), ..."); `id` answers the robot's name,
+//              its WiFi name from the MAC (AL-xxxx, also after `name`) and the firmware. Nothing else changed.
 // 2026-10-29b (2 Nov low-battery run: all three robots silent within 24 s at 21-24 %): `status` adds the charging
 //              flag, the motor board's power pin and how old its newest sensor reading is ("charging 0, motor board on,
 //              sensors 12 ms old"); the robot says "M,<name>: motor board not answering" once when the motor / sensor
@@ -139,7 +145,7 @@ void showSelection(bool running) {
 }
 
 void printHelp() {
-  net::sendLine("M,commands: run stream|turn|lap|grid|demo|straight|survey|follow|dock|touch|posts|gyro|find|e02|dance  stop  corr [reset|tape|save <name> <value>]  calibrate  clock  name <Left|Center|Right>  set <name> <value>  get <name>  params  route <SLRE...>  status  identify  lights  help");
+  net::sendLine("M,commands: run stream|turn|lap|grid|demo|straight|survey|follow|dock|touch|posts|gyro|find|e02|dance  stop  corr [reset|tape|save <name> <value>]  save  unsave  saved  id  calibrate  clock  name <Left|Center|Right>  set <name> <value>  get <name>  params  route <SLRE...>  status  identify  lights  help");
   net::sendLine("M,during run follow: fs <id> <T|D|A|W|C|Z> ...  fix <t_ms> <x> <y> <th> <sigma>  fpose <x> <y> <th>  hold [id]  halt  (tools/fleet/run_plan.py sends these)");
   net::sendLine("M,E02: fix <x> <y> <heading|-> <t_wall> (camera fix: idle or K replaces, KC blends e02_fix_k)  go <cm> [id]  turn <deg> [id] (idle, or in run e02 with e02_mode 1)  mark|e02 start|far|end [id]");
   net::sendLine("M,sleep <min> (deep sleep, checks in every <min>; 0 = until reset)  wake  border [clear] (the virtual border)");
@@ -319,6 +325,22 @@ bool handleCommand(const String& raw, bool running) {
     return false;
   }
   if (verb == "corr") { corr::command(rest, running); return false; }
+  // 2026-11-05a: the calibration kept over power-off (corr.h)
+  if (verb == "save" || verb == "unsave" || verb == "defaults") {
+    if (running) { net::sendLine("M,busy: send stop first"); return false; }
+    if (verb == "save") corr::saveAll();
+    else corr::unsaveAll();
+    return false;
+  }
+  if (verb == "saved") { corr::showSaved("now"); return false; }
+  if (verb == "id") {
+    String mac = WiFi.macAddress();
+    char wifiName[12] = "AL-????";
+    if (mac.length() >= 17)
+      snprintf(wifiName, sizeof(wifiName), "AL-%c%c%c%c", mac.charAt(12), mac.charAt(13), mac.charAt(15), mac.charAt(16));
+    net::logf("M,id %s wifi %s firmware %s", net::name, wifiName, FW_VERSION);
+    return false;
+  }
   if (verb == "route") {
     rest.toUpperCase();
     for (unsigned i = 0; i < rest.length(); i++) {

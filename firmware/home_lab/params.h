@@ -131,7 +131,8 @@ Param PARAMS[] = {
   {"calib_spin_rpm",  15,   "calibration run: wheel speed while spinning (15 = about 34 deg/s, 11 s a turn)"},
   {"calib_still_ms", 1000,  "calibration run: stand still this long after each roll and before/after each spin (gyro bias, camera pictures)"},
 
-  // --- per-robot corrections (corr.h): saved on the robot, survive power-off; change with corr, not set ---
+  // --- per-robot corrections (corr.h): saved on the robot, survive power-off; change with corr, not set, or
+  //     set them and then `save` (2026-11-05a: what the calibration run does) ---
   // Out of the box (corr reset): 1, 0, 1. Every change is logged as a CORR record.
   {"gyro_scale",     1.0,   "turns: real turning / what the gyro counts (1.075 = the gyro misses 7.5% of every turn; same meaning as calib.py's gyro_scale)"},
   {"gyro_drift_dps", 0.0,   "turns: how fast the gyro's heading creeps while standing still, deg/s, left + (run gyro measures it)"},

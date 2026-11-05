@@ -7,6 +7,10 @@
 //   corr reset                 back to out of the box (1, 0, 1): a self-calibration test starts here
 //   corr tape                  load the tape-measured numbers for this robot (TAPE below)
 //   corr save <name> <value>   set one and save it
+//   save                       (2026-11-05a) save the values in use now (after the calibration run's `set`s) so they
+//                              survive power-off and deep sleep; refused whole if one looks wrong (same limits as corr save)
+//   unsave  (or defaults)      (2026-11-05a) forget the saved values: back to 1, 0, 1 now and at every power-on
+//   saved                      (2026-11-05a) each value and whether it came from saved storage or is the default
 //   run gyro                   stand still gyro_check_s, report how fast the heading creeps
 //                              (then: corr save gyro_drift_dps <value it reports>)
 //
@@ -69,17 +73,79 @@ void show() {
             source.c_str(), P("gyro_scale"), P("gyro_drift_dps"), P("wheel_scale"));
 }
 
+bool fromSaved[N] = {false, false, false};   // (2026-11-05a) this value came from saved storage at power-on / save
+
+// (2026-11-05a) "M,<name> calibration: wheel_scale 0.9700 (saved), gyro_scale 1.0300 (saved), gyro_drift_dps
+// 0.3000 (default)": each value and where it came from. At power-on and on `saved`.
+void showSaved(const char* when) {
+  char buf[200];
+  int k = 0;
+  for (int i = 0; i < N; i++) {
+    k += snprintf(buf + k, sizeof(buf) - k, "%s%s %.4f (%s)", i ? ", " : "", NAMES[i], P(NAMES[i]),
+                  fromSaved[i] ? "saved" : "default");
+  }
+  net::logf("M,%s calibration %s: %s", net::name, when, buf);
+}
+
 // At power-on, after the name is known.
 void load() {
   Preferences prefs;
   prefs.begin("corr", true);
   for (int i = 0; i < N; i++) {
     Param* p = findParam(NAMES[i]);
+    fromSaved[i] = prefs.isKey(NAMES[i]);
     if (p) p->value = prefs.getFloat(NAMES[i], FACTORY[i]);
   }
   source = prefs.getString("src", "out of the box");
   prefs.end();
   show();
+  showSaved("at power-on");   // (2026-11-05a) which values came from saved storage
+}
+
+// The sanity limits of corr save: a typo (0, 75 instead of 0.75) would send the robot off the table.
+bool looksWrong(const char* name, float v) {
+  bool drift = strcasecmp(name, "gyro_drift_dps") == 0;
+  return drift ? fabsf(v) > 3.0f : (v < 0.8f || v > 1.25f);
+}
+
+// (2026-11-05a) `save`: every value in use now, saved. All or nothing.
+void saveAll() {
+  for (int i = 0; i < N; i++) {
+    float v = P(NAMES[i]);
+    if (looksWrong(NAMES[i], v)) {
+      net::logf("M,save refused: %s %.4f looks wrong (allowed: %s): nothing saved", NAMES[i], v,
+                i == 1 ? "-3 to 3" : "0.8 to 1.25");
+      return;
+    }
+  }
+  source = "saved with save";
+  for (int i = 0; i < N; i++) {
+    Param* p = findParam(NAMES[i]);
+    store(p->name, p->value);
+    logChange(p->name, p->value, p->value, "save");
+    fromSaved[i] = true;
+  }
+  net::logf("M,%s saved on the robot (kept after power-off): wheel_scale %.4f, gyro_scale %.4f, gyro_drift_dps %.4f",
+            net::name, P("wheel_scale"), P("gyro_scale"), P("gyro_drift_dps"));
+}
+
+// (2026-11-05a) `unsave` / `defaults`: the saved values forgotten, back to out of the box now and at power-on.
+void unsaveAll() {
+  Preferences prefs;
+  prefs.begin("corr", false);
+  prefs.clear();
+  prefs.end();
+  source = "out of the box";
+  for (int i = 0; i < N; i++) {
+    Param* p = findParam(NAMES[i]);
+    if (!p) continue;
+    float old = p->value;
+    p->value = FACTORY[i];
+    logChange(p->name, old, FACTORY[i], "unsave");
+    fromSaved[i] = false;
+  }
+  net::logf("M,%s saved calibration cleared: back to defaults wheel_scale %.4f, gyro_scale %.4f, gyro_drift_dps %.4f",
+            net::name, P("wheel_scale"), P("gyro_scale"), P("gyro_drift_dps"));
 }
 
 // `corr ...` from the laptop. Not while a run is going (the heading would jump mid-run).
@@ -93,7 +159,7 @@ void command(String rest, bool running) {
   args.trim();
   if (verb.equalsIgnoreCase("reset")) {
     source = "out of the box";
-    for (int i = 0; i < N; i++) setOne(NAMES[i], FACTORY[i], "reset");
+    for (int i = 0; i < N; i++) { setOne(NAMES[i], FACTORY[i], "reset"); fromSaved[i] = true; }   // saved as 1, 0, 1
     show();
     return;
   }
@@ -102,6 +168,7 @@ void command(String rest, bool running) {
       if (strcasecmp(t.robot, net::name) == 0) {
         source = "tape, T1 2026-10-19";
         setOne("wheel_scale", t.wheelScale, "tape");
+        fromSaved[2] = true;
         show();
         return;
       }
@@ -120,12 +187,13 @@ void command(String rest, bool running) {
     if (end == val.c_str()) { net::logf("M,'%s' is not a number", val.c_str()); return; }
     // sanity limits: a typo (0, 75 instead of 0.75) would send the robot off the board
     bool drift = name.equalsIgnoreCase("gyro_drift_dps");
-    if (drift ? fabsf(v) > 3.0f : (v < 0.8f || v > 1.25f)) {
+    if (looksWrong(name.c_str(), v)) {
       net::logf("M,%s %.4f looks wrong (allowed: %s): not saved", name.c_str(), v, drift ? "-3 to 3" : "0.8 to 1.25");
       return;
     }
     if (source == "out of the box") source = "saved by hand";
     setOne(findParam(name)->name, v, "save");
+    for (int i = 0; i < N; i++) if (name.equalsIgnoreCase(NAMES[i])) fromSaved[i] = true;
     show();
     return;
   }
