@@ -232,7 +232,7 @@ class Site:
             if e - buf < self.edge - 0.5:
                 out.append("the edge margin (%.1f cm from the edge, %.1f with the leg's possible error)" % (e, e - buf))
             d, n = self.keepout_dist(p)
-            if d - buf < KEEPOUT_CLEAR_CM:
+            if d - buf < KEEPOUT_CLEAR_CM - 0.5:
                 out.append("%s (%.1f cm)" % (n, d))
             if p[0] + buf > self.view_x:
                 out.append("the edge of the camera's view (x %.0f cm)" % p[0])
@@ -1004,6 +1004,13 @@ class CalibRun:
                 d = cam
                 corrected = True
                 continue
+            if prob and depth < 2 and ("outlet" in prob[0] or "reference" in prob[0]):
+                w = self.S.via(cam[:2], (tx, ty))       # (rehearsal, 4 Nov) arrived off the last detour: one more
+                if w is not None:
+                    say("  %s: round %s by (%.0f, %.0f), from where the camera sees it" % (lab, prob[0], w[0], w[1]))
+                    self.ev("detour", point=lab, via=w, why=prob[0])
+                    cam = self.goto(w, phase, tour, cam=cam, odometry=False, depth=2, name="%s via" % nm)
+                    return self.goto(lab, phase, tour, cam=cam, odometry=False, depth=2, name=name)
             if prob:
                 self.ev("skip_point", point=lab, why=prob[0])
                 say("  %s skipped: even from the camera's pose the leg reaches %s" % (lab, prob[0]))
