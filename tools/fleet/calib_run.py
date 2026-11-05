@@ -61,7 +61,7 @@ for p in (HERE, TOOLS, os.path.join(TOOLS, "sim"), os.path.join(TOOLS, "recognit
 
 import numpy as np   # noqa: E402
 
-VERSION = "2026-11-05b"
+VERSION = "2026-11-05c"     # 11-05c: lost-tag recovery (Nick 16:30); arc phase for curves (16:06)
 PY = sys.executable
 LOG_PORT, CMD_PORT = 5005, 5006
 FIX_PORT = 5013          # the tag bridge's (or the simulator's) camera reads come here (run_plan uses 5010)
@@ -84,6 +84,21 @@ LOST_HOLD_S = 1.0        # chosen (cautious): the tag unseen this long while dri
                          # is 10 cm blind at most. DOE note: 0.5 / 1 / 2 s against holds per tour and how far it drives
                          # blind (the camera's dropout lengths from camera_track.csv)
 LOST_GIVEUP_S = 30.0     # chosen: held this long and still not seen -> the run ends where it is (said plainly)
+# (11-05c, Nick 5 Nov 16:30/16:34) lost-tag RECOVERY instead of stop-and-hold (the old hold: --lost-policy hold /
+# site calibration.lost_policy "hold"). Straight legs with turns on the spot only (school runs never use curves):
+# turn towards the nearest spot where the tag read reliably, drive there in short steps, each checked so the whole
+# dead-reckoning bubble stays clear of the edges (+ the camera's view) and the outlets / tiles / parked robots
+RECOVER_STEP_CM = 5.0    # chosen: one blind step (at FINAL_CMS); the check is redone before each. DOE note: 3 / 5 / 10
+                         # cm against recoveries that end in a hold and the time to be seen again
+RECOVER_MAX_CM = 40.0    # chosen: at most this far blind in a recovery (run_plan's BLIND_MAX_CM, Nick 29 Oct)
+RECOVER_BUBBLE_CAP = 8.0  # chosen (free roam's BUBBLE_CAP): over this, stop and wiggle, then the old hold
+BLIND_BASE_CM = 2.0      # the bubble: MEASURED 29 Oct (run_plan BLIND_ERR_*): p95 2.0 cm + 0.07 cm per cm blind,
+BLIND_PER_CM = 0.07      # calibrated robots (wheel_scale / gyro_scale fitted)
+BLIND_PER_CM_UNCAL = BLIND_PER_CM + (0.10 - 0.04)   # uncalibrated (phase A from the defaults, staging): + the
+                         # difference of the legs' safety allowances (SAFE_FRAC_UNCAL - SAFE_FRAC). Chosen, as those
+BLIND_TURN_FRAC = 0.03   # heading error per degree turned blind (free roam's, chosen); uncalibrated 0.07 (6 deg on a
+BLIND_TURN_FRAC_UNCAL = 0.07   # 90 deg turn: the e04 rehearsal's 173 deg turn 6 deg short). Chosen
+RECOVER_WIGGLE_DEG = 15.0  # the last resort's find-me wiggle (+-), only with the turn circle and bubble clear
 VIEW_X_MAX_CM = 78 * 2.54  # Jay-Sun: the one camera reads a roof tag anywhere in zones 1-2 (x < 78 in)
 VIEW_MARGIN_CM = 6.0     # chosen: the robot's middle stays this far inside that line (half the body + 1 cm)
 EDGE_AIM_CM = 1.0        # chosen: a point nearer an edge than edge_in_cm + this is aimed this much further in (P04:
@@ -688,6 +703,12 @@ class SimEye(Eye):
         el = time.time() - self.t_made
         if any(t <= el < t + d for t, d in self.gaps):
             return None
+        # (11-05c) "X,Y,R:DUR": the first time the robot comes within R cm of (X, Y), its tag is unread for DUR s
+        for g in getattr(self, "gaps_at", []):
+            if g.get("t") is None and math.hypot(float(msg["x"]) - g["x"], float(msg["y"]) - g["y"]) <= g["r"]:
+                g["t"] = el
+            if g.get("t") is not None and g["t"] <= el < g["t"] + g["dur"]:
+                return None
         x, y, th = float(msg["x"]), float(msg["y"]), float(msg["th"])
         px = self.cam.tag_px(x, y, self.h, self.s, th)
         if px is None or px < READ_PX:
@@ -1010,7 +1031,7 @@ class CalibRun:
                             "cam0_x", "cam0_y", "cam0_th", "cam1_x", "cam1_y", "cam1_th", "bel0_x", "bel0_y", "bel0_th",
                             "bel1_x", "bel1_y", "bel1_th", "dt_s", "cam_len_cm", "bel_len_cm", "cam_turn_deg",
                             "bel_turn_deg", "along_err_cm", "cross_err_cm", "turn_err_deg", "end_miss_cm",
-                            "corrected_first", "held_s", "edge_cm_min", "keepout_cm_min"])
+                            "corrected_first", "held_s", "edge_cm_min", "keepout_cm_min", "interrupted"])
         self.raw_f = open(os.path.join(folder, "odometry_raw.csv"), "w", newline="")
         self.raw = csv.writer(self.raw_f)
         self.raw.writerow(["t", "x_cm", "y_cm", "th_deg", "robot_ms", "anchor"])
@@ -1027,6 +1048,9 @@ class CalibRun:
         self.battery = []
         self.leg_n = 0
         self._leg_moving = False
+        self.reliable = []           # (11-05c) camera poses where the tag read reliably (averaged at stops): (x, y)
+        self.recoveries = []
+        self._recovered = False
 
     # ------------------------------------------------------------------------------------------------- bookkeeping
     def ev(self, kind, **kw):
@@ -1064,6 +1088,9 @@ class CalibRun:
         self.closest["edge_cm"] = min(self.closest["edge_cm"], self.S.edge_dist(p[:2]))
         self.closest["keepout_cm"] = min(self.closest["keepout_cm"], self.S.keepout_dist(p[:2])[0])
         self.closest["view_x_max"] = max(self.closest["view_x_max"], p[0])
+        if n >= 8 and (not self.reliable or math.dist(self.reliable[-1], p[:2]) > 1.0):
+            self.reliable.append((p[0], p[1]))       # (11-05c) a spot where the tag read well (8+ reads)
+            del self.reliable[:-200]
         return p
 
     def odo_step(self, r):
@@ -1091,12 +1118,13 @@ class CalibRun:
     # ------------------------------------------------------------------------------------------------- safety
     def watch(self):
         """During a leg: the cautious policy (tag lost > LOST_HOLD_S -> stop). True = stop sent."""
-        if self.a.lost_policy != "hold":
+        if self.a.lost_policy not in ("hold", "recover"):
             return self.stop_flag.is_set()
         if self.stop_flag.is_set():
             return True
         if self.eye.age(self.tag) > LOST_HOLD_S and self._leg_moving:
             self._lost_stop = True
+            self._lost_last = self.eye.last(self.tag)       # (11-05c) the last read before it was lost
             return True
         return False
 
@@ -1114,6 +1142,132 @@ class CalibRun:
             time.sleep(0.1)
         raise RunEnd("the camera lost the roof tag for over %.0f s: the robot stopped where it is (not parked)"
                      % LOST_GIVEUP_S)
+
+    # ------------------------------------------------------------------------------------------------- recovery (11-05c)
+    def bubble(self, blind_cm, blind_deg, after_cm=None):
+        """The dead-reckoning bubble (cm): base + per cm driven blind + the sideways effect of the heading error of
+        the degrees turned blind over the distance driven after them (after_cm; default all of it)."""
+        uncal = self.safe_frac() > SAFE_FRAC
+        per = BLIND_PER_CM_UNCAL if uncal else BLIND_PER_CM
+        tf = BLIND_TURN_FRAC_UNCAL if uncal else BLIND_TURN_FRAC
+        after = blind_cm if after_cm is None else after_cm
+        return BLIND_BASE_CM + per * blind_cm + after * math.sin(math.radians(min(60.0, tf * blind_deg)))
+
+    def lost_estimate(self, cam0, r, kind, speed):
+        """Where the robot is after the tag was lost in a leg, and how far / how much it moved blind: the last camera
+        read (its turning point) moved on along the leg by what it drove since (this leg's speed x the time since that
+        read, at most the leg's own length); the heading from the leg's own record. The bubble grows only from the
+        last read, not from the leg's start."""
+        end = compose(cam0, relative(r["start"], r["end"])) if (r.get("start") and r.get("end")) else cam0
+        leg_cm = math.hypot(end[0] - cam0[0], end[1] - cam0[1])
+        last = getattr(self, "_lost_last", None)
+        if last is None or kind != "go":
+            turned = abs(wrap180(end[2] - cam0[2])) if kind == "turn" else 0.0
+            return end, leg_cm, turned
+        t, x, y, th = last
+        c, s_ = math.cos(math.radians(th)), math.sin(math.radians(th))
+        ox, oy = self.offset
+        px, py = x - (c * ox - s_ * oy), y - (s_ * ox + c * oy)
+        blind = min(leg_cm, (speed or SPEED_CMS) * max(0.0, time.time() - t))
+        h = math.radians(end[2])
+        return (px + blind * math.cos(h), py + blind * math.sin(h), end[2]), blind, 0.0
+
+    def recover(self, est, blind_cm, blind_deg, why):
+        """(Nick, 5 Nov 16:30) The roof tag was lost while driving (the leg was stopped): dead-reckon slowly (turn on
+        the spot, then RECOVER_STEP_CM straight steps at FINAL_CMS) towards the nearest spot where the tag read
+        reliably, each step checked so the whole bubble (BLIND_* : larger while uncalibrated) stays clear of the edges,
+        the camera's view edge and the outlets / tiles / parked robots; seen again -> the odometry-vs-camera jump is
+        logged and the run resumes. A margin reached or the bubble over RECOVER_BUBBLE_CAP -> stop there, a small
+        find-me wiggle, then the old hold (last resort). Returns the seconds it took."""
+        t0 = time.time()
+        x, y, th = est
+        rec = dict(t0=round(t0, 2), why=why, start=[round(x, 1), round(y, 1)], uncalibrated=self.safe_frac() > SAFE_FRAC,
+                   steps=0, blind_cm=round(blind_cm, 1))
+        say("RECOVER: the roof tag was lost (%s): dead reckoning slowly towards where it last read well" % why)
+        self.set_status(words="RECOVERING: the camera lost the roof tag; driving slowly back towards where it read well")
+        self.ev("recover_start", **rec)
+        self.rb.set("e02_cms", FINAL_CMS)
+
+        def seen():
+            return self.eye.age(self.tag) < 0.3
+
+        def clear(a, b, bub):
+            # the whole body's circle (6.72 cm) + the bubble from the edges / view / keep-outs: Site.problems keeps the
+            # middle edge_in from the edge; the bubble is the leg's possible error
+            return not self.S.problems(a, b, buf=bub, edge_buf=bub)
+        outcome = None
+        lat0 = self.bubble(blind_cm, blind_deg) - self.bubble(blind_cm, 0.0)   # the interrupted leg's own heading part
+        after = 0.0                              # cm driven since the recovery's own turns
+
+        def bub_now(extra=0.0):
+            return self.bubble(blind_cm + extra, blind_deg, after + extra) + lat0
+        while not seen() and not self.stop_flag.is_set():
+            bub = bub_now()
+            spots = sorted(self.reliable, key=lambda q: math.dist(q, (x, y)))
+            tgt = next((q for q in spots if math.dist(q, (x, y)) > 1.0), None)
+            if tgt is None:
+                outcome = "no reliable spot known"
+                break
+            want = wrap180(math.degrees(math.atan2(tgt[1] - y, tgt[0] - x)) - th)
+            if abs(want) > 3.0:
+                if not clear((x, y), (x, y), bub + 6.72 - 4.75):        # the corners swing out on a turn
+                    outcome = "a turn here would bring the bubble to a margin"
+                    break
+                r = self.rb.leg("turn", max(-MAX_TURN_DEG, min(MAX_TURN_DEG, want)), on_tick=self.stop_flag.is_set)
+                self.odo_step(r)
+                if r.get("start") and r.get("end"):
+                    d = wrap180(r["end"][2] - r["start"][2])
+                    th = wrap180(th + d)
+                    blind_deg += abs(d)
+                continue
+            step = min(RECOVER_STEP_CM, math.dist(tgt, (x, y)))
+            nx, ny = x + step * math.cos(math.radians(th)), y + step * math.sin(math.radians(th))
+            bub2 = bub_now(step)
+            if bub2 > RECOVER_BUBBLE_CAP or blind_cm + step > RECOVER_MAX_CM:
+                outcome = "the bubble would pass %.0f cm" % RECOVER_BUBBLE_CAP
+                break
+            if not clear((x, y), (nx, ny), bub2):
+                outcome = "the next step's bubble would reach a margin"
+                break
+            r = self.rb.leg("go", step, on_tick=lambda: seen() or self.stop_flag.is_set())
+            self.odo_step(r)
+            rec["steps"] += 1
+            if r.get("start") and r.get("end"):
+                rel = relative(r["start"], r["end"])
+                x, y, th = compose((x, y, th), rel)
+                blind_cm += math.hypot(rel[0], rel[1])
+                after += math.hypot(rel[0], rel[1])
+            if r["result"] in ("refused", "timeout"):
+                outcome = "the robot %s a recovery step" % r["result"]
+                break
+        if self.stop_flag.is_set():
+            raise RunEnd("stopped (Ctrl+C or Mission Control's Stop)")
+        if seen():
+            cam = self.cam_pose(0.6) or self.eye.last(self.tag)
+            jump = math.dist(cam[:2], (x, y)) if cam else float("nan")
+            rec.update(outcome="seen again", jump_cm=round(jump, 2), bubble_cm=round(bub_now(), 2),
+                       blind_cm=round(blind_cm, 1), within=bool(jump <= bub_now()),
+                       dur_s=round(time.time() - t0, 1))
+            say("  seen again after %.1f s, %.0f cm blind: odometry was %.1f cm off the camera (bubble %.1f cm)" % (
+                rec["dur_s"], blind_cm, jump, rec["bubble_cm"]))
+        else:
+            rec.update(outcome="stopped: %s" % outcome, blind_cm=round(blind_cm, 1))
+            say("  recovery stopped (%s): a small find-me wiggle, then the old hold" % outcome)
+            bub = bub_now()
+            if clear((x, y), (x, y), bub + 6.72 - 4.75):
+                for d in (RECOVER_WIGGLE_DEG, -2 * RECOVER_WIGGLE_DEG, RECOVER_WIGGLE_DEG):
+                    if seen():
+                        break
+                    r = self.rb.leg("turn", d)
+                    self.odo_step(r)
+                rec["wiggle"] = True
+            if not seen():
+                rec["held_s"] = round(self.hold_until_seen(), 1)
+            rec["dur_s"] = round(time.time() - t0, 1)
+        self.ev("recover_end", **rec)
+        self.recoveries.append(rec)
+        self._recovered = True
+        return time.time() - t0
 
     def drive_leg(self, kind, value, label, phase, tour=0, corrected=False, cam0=None):
         """One leg, measured: commanded `kind value`, the robot's own record, the camera before and after."""
@@ -1133,19 +1287,37 @@ class CalibRun:
         r = self.rb.leg(kind, value, on_tick=self.watch)
         self._leg_moving = False
         self.odo_step(r)
-        if self._lost_stop:
+        interrupted = bool(self._lost_stop)
+        if self._lost_stop and self.a.lost_policy == "recover":
+            # (11-05c) where it is now: the camera's pose at the leg's start moved by the robot's own record of the leg
+            est, blind_cm, blind_deg = self.lost_estimate(cam0, r, kind, speed)
+            held = self.recover(est, blind_cm, blind_deg, "%s %.0f %s leg" % (kind, value, label))
+        elif self._lost_stop:
             held = self.hold_until_seen()
         if self.stop_flag.is_set():
             raise RunEnd("stopped (Ctrl+C or Mission Control's Stop)")
         time.sleep(SETTLE_S)
         cam1 = self.cam_pose()
+        if cam1 is None and self.a.lost_policy == "recover" and not interrupted:
+            # (11-05c) the tag gone at the leg's end (a short leg ends inside LOST_HOLD_S): the same recovery
+            self._lost_last = self.eye.last(self.tag)
+            est, bc, bd = self.lost_estimate(cam0, r, kind, speed)
+            interrupted = self._lost_stop = True
+            held += self.recover(est, bc, bd, "the tag gone after the %s %.0f %s leg" % (kind, value, label))
+            cam1 = self.cam_pose()
         if cam1 is None:
             held += self.hold_until_seen()
             cam1 = self.cam_pose()
         t1 = time.time()
         row = self.leg_row(phase, tour, kind, label, value, r, cam0, cam1, t0, t1, corrected, held)
+        if interrupted:
+            # (11-05c) a leg the camera lost and the robot was stopped in (then recovered or held): not in the fit
+            row["interrupted"] = True
+            self.ev("leg_interrupted", n=self.leg_n, phase=phase, label=label, policy=self.a.lost_policy)
         if r["result"] in ("refused", "timeout"):
             raise RunEnd("the robot %s the %s %.0f leg (%s): stopped" % (r["result"], kind, value, r["info"]))
+        if interrupted and self.a.lost_policy == "recover" and getattr(self, "_goto_depth", 0) > 0:
+            raise Recovered(cam1)
         return cam1, r, row
 
     def leg_row(self, phase, tour, kind, label, value, r, c0, c1, t0, t1, corrected, held):
@@ -1173,7 +1345,8 @@ class CalibRun:
                "%.2f" % b0[0], "%.2f" % b0[1], "%.2f" % b0[2], "%.2f" % b1[0], "%.2f" % b1[1], "%.2f" % b1[2],
                "%.3f" % dt_, "%.2f" % cam_len, "%.2f" % bel_len, "%.2f" % cam_turn, "%.2f" % bel_turn,
                _f(along), _f(cross), _f(terr), _f(miss), int(bool(corrected)), "%.1f" % held,
-               "%.1f" % self.S.edge_dist(c1[:2]), "%.1f" % self.S.keepout_dist(c1[:2])[0]]
+               "%.1f" % self.S.edge_dist(c1[:2]), "%.1f" % self.S.keepout_dist(c1[:2])[0],
+               int(bool(getattr(self, "_lost_stop", False)))]     # (11-05c) the tag was lost in it: not in the fit
         self.legs.writerow(row)
         self.legs_f.flush()
         d = dict(phase=phase, tour=tour, kind=kind, label=label, value=value, result=r["result"], dt=dt_,
@@ -1184,6 +1357,22 @@ class CalibRun:
 
     # ------------------------------------------------------------------------------------------------- moving
     def goto(self, lab, phase, tour, cam=None, odometry=True, depth=0, name=None):
+        """(11-05c) _goto, aimed again from the camera after a lost-tag recovery (at most 4 times)."""
+        self._goto_depth = getattr(self, "_goto_depth", 0) + 1
+        try:
+            for k in range(4):
+                try:
+                    return self._goto(lab, phase, tour, cam=cam, odometry=odometry, depth=depth, name=name)
+                except Recovered as e:
+                    if self._goto_depth > 1:
+                        raise                      # the outermost goto aims again
+                    say("  after the recovery: aiming at %s again from where the camera sees it" % (name or lab))
+                    cam, odometry = e.cam, False
+            raise RunEnd("lost the roof tag on the way to %s four times: stopped" % (name or lab))
+        finally:
+            self._goto_depth -= 1
+
+    def _goto(self, lab, phase, tour, cam=None, odometry=True, depth=0, name=None):
         """Drive to point lab: from the robot's own pose (odometry) unless safety needs the camera's first. Returns the
         camera pose at the end."""
         tx, ty = self.S.aim(lab) if (isinstance(lab, str) and lab in self.S.points) else lab
@@ -1431,7 +1620,7 @@ class CalibRun:
 
     def phase_b(self):
         self.set_status(phase="B", words="Phase B: fitting wheel_scale, gyro_scale, gyro_drift_dps")
-        A = [r for r in self.rows if r["phase"] == "A"]
+        A = [r for r in self.rows if r["phase"] == "A" and not r.get("interrupted")]   # (11-05c) interrupted legs out
         turns = [_unwrap_turn(r) for r in A if r["kind"] == "turn" and r["result"] == "done" and abs(r["value"]) >= 30]
         still = [(r["bel_turn"], r["dt"]) for r in A if r["kind"] == "still"]
         rolls = [(r["bel_len"], r["cam_len"]) for r in A if r["kind"] == "go" and r["result"] == "done"
@@ -1538,7 +1727,7 @@ class CalibRun:
             self.link.send(self.rb.ip, "saved")
             sv = self.link.wait_for(lambda n, l: l if n == name and " calibration now:" in l else None, k, 3.0) or ""
             ok = all(got[kk] is not None and abs(got[kk] - vals[kk]) <= PARAM_TOL for kk in PARAMS) and \
-                sv.count("(saved)") == 3
+                sv.count("(saved)") >= 3     # (11-05c firmware: 5 values, the arc scales too)
             out.update(how="save", ok=ok, values=got, check=sv, words=(
                 "saved on the robot with `save` (firmware 2026-11-05a or newer) and checked: %s" % sv.split(": ", 1)[-1]
                 if ok else "`save` answered but the check did not match (get %s; saved: %s)" % (got, sv or "no answer")))
@@ -1906,6 +2095,15 @@ class RunEnd(Exception):
     pass
 
 
+class Recovered(Exception):
+    """(11-05c) a leg inside goto() was interrupted and recovered: the robot is elsewhere now, so the rest of that
+    goto's legs (planned from before) must not run: goto() aims again from the camera."""
+
+    def __init__(self, cam):
+        super().__init__("recovered")
+        self.cam = cam
+
+
 class LowBattery(Exception):
     pass
 
@@ -2049,9 +2247,11 @@ def main(argv=None):
     ap.add_argument("--binding", choices=["wiggle", "fixed", "auto"], default="auto",
                     help="wiggle: bind the roof tag that follows each robot's wiggle (new); fixed: the site's tags.ids "
                          "(the old way); auto: the site's tags.binding, else wiggle")
-    ap.add_argument("--lost-policy", choices=["hold", "keep_going"], default="hold",
-                    help="hold (cautious, tonight): the tag lost > %.1f s while driving -> stop and wait; keep_going: "
-                         "the experiments' policy" % LOST_HOLD_S)
+    ap.add_argument("--lost-policy", choices=["recover", "hold", "keep_going"], default=None,
+                    help="recover (default, 5 Nov 16:30): the tag lost > %.1f s while driving -> stop, then slowly back "
+                         "towards where it read well in short bubble-checked straight steps; hold: the old stop and "
+                         "wait; keep_going: the experiments' policy (default: the site's calibration.lost_policy, else "
+                         "recover)" % LOST_HOLD_S)
     ap.add_argument("--tours", type=int, default=TOURS_C, help="phase C tours (1-3)")
     ap.add_argument("--count", type=int, default=0, help="keep waking until this many robots answer (up to --wake-min; "
                                                          "0: the first to answer and any other within 2 s)")
@@ -2100,6 +2300,8 @@ def main(argv=None):
                    "(145: 7.5 ft above the floor; 228.6: 7.5 ft above the table)")
     g.add_argument("--no-height", action="store_true", help="simulator: the camera reads with NO height correction")
     g.add_argument("--sim-max-s", type=float, default=3600)
+    g.add_argument("--sim-gap-at", action="append", default=[], metavar="X,Y,R:DUR",
+                   help="simulator (11-05c): the tag unread for DUR s the first time the robot comes within R cm of X,Y")
     g.add_argument("--sim-gap", action="append", default=[], metavar="T:DUR",
                    help="simulator: the roof tag unread for DUR s from T s after the camera starts (a hand over it)")
     a = ap.parse_args(argv)
@@ -2123,6 +2325,8 @@ def main(argv=None):
         a.baseline = str(cal_conf.get("baseline") or "auto")
         a.baseline = a.baseline if a.baseline in ("auto", "defaults", "saved") else "auto"
     a.park_spots = tuple(cal_conf.get("park_spots") or PARK_SPOTS)
+    if a.lost_policy is None:      # (11-05c) the site's calibration.lost_policy, else recover
+        a.lost_policy = str(cal_conf.get("lost_policy") or "recover")
     a.pins = a.pins and bool((site.get("tags") or {}).get("pin", True))
     if a.quick:
         global TURNS_A, ROLLS_A, STILL_S, STILL_C_S
@@ -2171,8 +2375,14 @@ def main(argv=None):
                                                                                          a.sim_true).split(","))))
             simtags = {a.sim_name: a.sim_tag}
             simtags.update({q.split(":")[0]: int(q.split(":")[1]) for q in a.sim_also})
-            eye_factory = lambda: SimEye(folder, FIX_PORT + 100, cam, simtags, tag_h=tag_h,  # noqa
-                                         correct=not a.no_height, seed=a.seed, gaps=a.sim_gap)
+            def eye_factory():
+                eye = SimEye(folder, FIX_PORT + 100, cam, simtags, tag_h=tag_h, correct=not a.no_height,
+                             seed=a.seed, gaps=a.sim_gap)
+                for g in a.sim_gap_at:          # (11-05c) position-triggered tag dropouts
+                    xyr, _, dur = g.partition(":")
+                    gx, gy, gr = (float(v) for v in xyr.split(","))
+                    eye.gaps_at = getattr(eye, "gaps_at", []) + [dict(x=gx, y=gy, r=gr, dur=float(dur), t=None)]
+                return eye
         else:
             if not a.no_focus:
                 set_focus()

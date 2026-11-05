@@ -337,6 +337,135 @@ int driveArc(float cx, float cy, float r, float a0, float sweep, float vmax, boo
   return DRIVE_OK;
 }
 
+// ---------- (2026-11-05c) continuous curves: follow step R, farc, coast, dodge ----------
+// Nick, 5 Nov 16:06: "eliminate the stop and turn ... curving turns where velocity never drops to 0". A piece is a
+// path of constant curvature k (1/cm, + = left / anticlockwise, 0 = straight) from (x0, y0) facing h0, len cm long,
+// driven on the own pose: the turn rate v x k fed forward, plus drive_kh x the heading error to the path's tangent,
+// which leans back towards the path (arc_kr deg per cm on a curve, arc_kct on a straight; at most 20 deg). The speed
+// is never ramped down at the end: the next R piece carries it on (follow.h), or the robot coasts. The calibration's
+// arc_k_scale / arc_d_scale multiply the curvature and length asked (1 = as asked).
+// gCurveV / gCurveK: the speed and curvature the robot is driving now (carried into the next piece and the coast).
+// gArcSet (farc): the running piece bends to curvature gArcSetK from where the robot is, for gArcSetLen cm (NaN: what
+// was left). Front check (gCurveLook >= 0): anything in the path closer than gCurveLook for obs_n new readings (or
+// front_confirm_ms) ends the piece WITHOUT a stop: DRIVE_DODGE, gDodgeK the tight curve away from the nearer side.
+float gCurveV = 0, gCurveK = 0;
+bool gArcSet = false;
+float gArcSetK = 0, gArcSetLen = NAN;
+float gCurveLook = -1;
+float gDodgeK = 0, gDodgeCm = 0;
+const int DRIVE_DODGE = 4;
+
+// The robot's front: the nearest thing in its path (frontInPath) and which side is more open (+1 left, -1 right).
+int openSide() {
+  float d[5];
+  alvik.get_distance(d[0], d[1], d[2], d[3], d[4]);
+  for (int k = 0; k < 5; k++) if (d[k] <= 0) d[k] = 999.0f;
+  float l = fminf(d[0], d[1]), r = fminf(d[3], d[4]);   // zones 22, 11 deg = left; -11, -22 = right
+  return l >= r ? 1 : -1;
+}
+
+int driveCurve(float x0, float y0, float h0, float k, float len, float vmax) {
+  k *= P("arc_k_scale");
+  len *= P("arc_d_scale");
+  float kr = P("arc_kr"), kct = P("arc_kct"), kh = P("drive_kh"), acc = P("drive_accel");
+  float s = 0, prev = 0;                                 // progress along the piece, cm
+  bool line = fabsf(k) < 1e-4f;
+  float R = line ? 0 : 1.0f / fabsf(k), sg = k >= 0 ? 1.0f : -1.0f;
+  float cx = 0, cy = 0, phi0 = 0;
+  auto setup = [&]() {
+    line = fabsf(k) < 1e-4f;
+    R = line ? 0 : 1.0f / fabsf(k);
+    sg = k >= 0 ? 1.0f : -1.0f;
+    if (!line) {
+      float hr = h0 * pose::DEG2RAD;
+      cx = x0 - sinf(hr) * sg * R;                       // the centre: R to the left (k > 0) or right
+      cy = y0 + cosf(hr) * sg * R;
+      phi0 = atan2f(y0 - cy, x0 - cx) / pose::DEG2RAD;
+      prev = phi0;
+    }
+    s = 0;
+  };
+  setup();
+  unsigned long t0 = millis(), last = t0;
+  float slackMs = 0;
+  unsigned long limit = 3000 + (unsigned long)(len / fmaxf(vmax, 1.0f) * 2500.0f);
+  float v = gCurveV;
+  int lowN = 0;
+  float prevF = -1;
+  while (true) {
+    if (shouldAbort()) { gCurveV = 0; return gAbortReason.length() ? DRIVE_ABORT : DRIVE_STEPSTOP; }
+    unsigned long now = millis();
+    float dt = (now - last) / 1000.0f;
+    last = now;
+    if (gArcSet) {                                       // farc: bend from here, no stop
+      gArcSet = false;
+      float left = len - s;
+      x0 = pose::x; y0 = pose::y; h0 = pose::th();
+      k = gArcSetK * P("arc_k_scale");
+      len = isNaN(gArcSetLen) ? left : gArcSetLen * P("arc_d_scale");
+      setup();
+      t0 = now; slackMs = 0;
+      limit = 3000 + (unsigned long)(len / fmaxf(vmax, 1.0f) * 2500.0f);
+    }
+    float href;                                          // the path's heading where the robot is, deg
+    float lean;                                          // steering back towards the path, deg
+    if (line) {
+      float ux = cosf(h0 * pose::DEG2RAD), uy = sinf(h0 * pose::DEG2RAD);
+      s = (pose::x - x0) * ux + (pose::y - y0) * uy;
+      float cross = ux * (pose::y - y0) - uy * (pose::x - x0);   // + = left of the path
+      href = h0;
+      lean = constrain(-kct * cross, -20.0f, 20.0f);
+    } else {
+      float phi = atan2f(pose::y - cy, pose::x - cx) / pose::DEG2RAD;
+      s += sg * wrap180(phi - prev) * pose::DEG2RAD * R;
+      prev = phi;
+      float e = sqrtf((pose::x - cx) * (pose::x - cx) + (pose::y - cy) * (pose::y - cy)) - R;   // + = outside
+      href = phi + sg * 90.0f;
+      lean = sg * constrain(kr * e, -20.0f, 20.0f);
+    }
+    float rem = len - s;
+    float sc = constrain(gSpeedScale, 0.0f, 1.5f);
+    if (sc < 1.0f) slackMs += (1.0f - sc) * dt * 1000.0f;
+    if (rem <= v * 0.03f + 0.05f) break;
+    if (now - t0 > limit + (unsigned long)slackMs) { alvik.brake(); gCurveV = 0; gFail = "curve timed out"; return DRIVE_TIMEOUT; }
+    // the front check: a dodge instead of a stop
+    if (gCurveLook > 0) {
+      float d = frontInPath();
+      bool fresh = d != prevF;
+      prevF = d;
+      if (d > 0 && d < gCurveLook) {
+        int needN = (int)P("obs_n");
+        if (fresh) lowN++;
+        if (lowN >= (needN > 0 ? needN : 2)) {
+          gFrontTripCm = d;
+          if (P("arc_dodge_r") > 0 && sc > 0) {          // held at speed 0 (fspd 0): a stop, never a dodge
+            gDodgeK = openSide() / P("arc_dodge_r");
+            gDodgeCm = d;
+            gCurveK = gDodgeK;
+            gCurveV = fminf(fmaxf(v, P("arc_vmin")), P("arc_dodge_cms"));
+            return DRIVE_DODGE;
+          }
+          gStepStop = "obstacle";
+          alvik.brake();
+          gCurveV = 0;
+          return DRIVE_STEPSTOP;
+        }
+      } else if (fresh) {
+        lowN = 0;
+      }
+    }
+    float vt = vmax * sc;
+    v = v < vt ? fminf(vt, v + acc * dt + 0.3f) : fmaxf(vt, v - acc * dt - 0.3f);
+    float herr = wrap180(href + lean - pose::th());
+    float w = (line ? 0.0f : sg * (v / R) / pose::DEG2RAD) + constrain(kh * herr, -60.0f, 60.0f);
+    setDrive(v, w);
+    gCurveV = v;
+    gCurveK = line ? 0.0f : sg / R;
+    delay(5);
+  }
+  return DRIVE_OK;                                       // no brake: the next piece or the coast carries on
+}
+
 // Turn in place to floor heading h (deg) with the IMU turn (imuTurnTo).
 bool turnToFloor(float h) {
   return imuTurnTo(wrap180(h - pose::thOff)).ok;

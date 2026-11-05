@@ -1370,7 +1370,9 @@ class Robot(FollowMixin, DockMixin, E02Mixin):
             return False
         if verb in ("fspd", "fsteer") and self.fw_version < "2026-11-05b":
             verb = "?" + verb                         # older firmware: unknown command (falls through below)
-        if verb in ("fs", "fix", "fpose", "hold", "halt", "fspd", "fsteer"):
+        if verb == "farc" and self.fw_version < "2026-11-05c":
+            verb = "?" + verb                         # (2026-11-05c) curves: unknown before
+        if verb in ("fs", "fix", "fpose", "hold", "halt", "fspd", "fsteer", "farc"):
             if running and self.f_active:
                 self.follow_command(verb, rest)
             elif verb == "fs":

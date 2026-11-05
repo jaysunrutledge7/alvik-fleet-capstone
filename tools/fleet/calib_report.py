@@ -47,8 +47,8 @@ def groups(rows):
     the camera-anchored edge finals left out: they are not odometry)."""
     out = {}
     for r in rows:
-        if r["kind"] not in ("go", "turn") or r["result"] != "done":
-            continue
+        if r["kind"] not in ("go", "turn") or r["result"] != "done" or r.get("interrupted") == "1":
+            continue                   # (11-05c) a leg the camera lost the tag in: flagged, left out
         if r["phase"] == "A" and r["tour"] != "1":
             continue
         if r["phase"] not in ("A", "C") or "edge" in r["target"] or "park" in r["target"]:
@@ -150,7 +150,8 @@ def charts(folder, g, fit, four):
                         "readings of the camera's height%s." % (" and this run's camera" if four.get("run_in") else "")))
     tours = {}
     for r in rows_all(folder):
-        if r["kind"] in ("go", "turn") and r["result"] == "done" and r["phase"] in ("A", "C") and r["tour"] != "0":
+        if r["kind"] in ("go", "turn") and r["result"] == "done" and r["phase"] in ("A", "C") and r["tour"] != "0" \
+                and r.get("interrupted") != "1":
             tours.setdefault("%s%s" % (r["phase"], r["tour"]), []).append(r)
     pick = [k for k in ("A1", "C1") if k in tours]
     if pick:

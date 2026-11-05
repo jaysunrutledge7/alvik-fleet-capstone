@@ -46,7 +46,9 @@
 # Home free roam (2026-11-05, tools/fleet/freeroam.py): Left, Center and Right moving at the same time, all the time,
 # until each battery is at 10 % (then it parks by an edge and sleeps) or the time cap; L0 + L1 first as the DOE loop;
 # runs in tmux (session freeroam): closing SSH or switching Tailscale accounts does not stop it; uploads at the end:
-#     ./run-fleet-pi.sh freeroam [hours] [hold] [full-video]   start it (default 4 h; hold: the old cautious halt when
+#     ./run-fleet-pi.sh freeroam [hours] [hold] [stopturn] [full-video]   start it (5 Nov 16:06: curves by default on
+#                                          firmware 2026-11-05c, older robots stop-turn-drive; stopturn = everyone as before)
+#     (was) ./run-fleet-pi.sh freeroam [hours] [hold] [full-video]   start it (default 4 h; hold: the old cautious halt when
 #                                          the camera loses a robot instead of dead reckoning; full-video: the recorder
 #                                          keeps its whole video too). CHARGE THE ROBOTS STRAIGHT AFTER IT
 #     ./run-fleet-pi.sh freeroam-status    minutes so far, each robot's battery and moves, reflex events, full stops
@@ -303,7 +305,7 @@ case "$WHAT" in
     else echo "No DOE loop running."; fi ;;
   freeroam)
     HRS=4; FULL=0; LOST=""
-    for x in "$@"; do case "$x" in full-video) FULL=1 ;; hold) LOST="--lost-mode hold" ;; [0-9]*) HRS="$x" ;; esac; done
+    for x in "$@"; do case "$x" in full-video) FULL=1 ;; hold) LOST="$LOST --lost-mode hold" ;; stopturn) LOST="$LOST --motion stopturn" ;; curves) LOST="$LOST --motion curves" ;; [0-9]*) HRS="$x" ;; esac; done
     if tmux has-session -t freeroam 2>/dev/null; then
       echo "A free roam is already running (tmux session freeroam). Its progress: ./run-fleet-pi.sh freeroam-status"
       echo "Stop it first if you want a new one: ./run-fleet-pi.sh freeroam-stop"; exit 1

@@ -100,6 +100,15 @@ Param PARAMS[] = {
   // firmware 2026-10-28a (one system): front stops counted in sensor readings; the arc step; the dance
   {"obs_n",            0,   "follow/survey: a front stop needs this many readings in a row too close (new readings, ~15 a second; 0 = front_confirm_ms as before)"},
   {"arc_kr",           2,   "follow arc (step C): heading correction towards the circle, deg per cm off its radius (at most 20 deg)"},
+  // firmware 2026-11-05c (continuous curves: follow step R, farc, coast, dodge)
+  {"arc_k_scale",      1,   "curves (step R): curvature asked x this (calibration, saved with save; 1 = as asked)"},
+  {"arc_d_scale",      1,   "curves (step R): length asked x this (calibration, saved with save; 1 = as asked)"},
+  {"arc_kct",          3,   "curves (step R, straight pieces): degrees of steering per cm off the path (at most 20)"},
+  {"arc_coast_ms",   800,   "curves: nothing queued at an R piece's end: go on round the same curve this long, then brake (0 = brake at once)"},
+  {"arc_vmin",         2,   "curves: slowest coast speed, cm/s"},
+  {"arc_dodge_r",      6,   "curves: front check in an R piece: dodge on a curve of this radius (cm) away from the nearer side instead of stopping (0 = stop as before)"},
+  {"arc_dodge_cms",    4,   "curves: dodge speed, cm/s"},
+  {"arc_dodge_stop_cm", 4,  "curves: while dodging or coasting, brake if anything is this close ahead (cm)"},
   {"dance_rpm",       30,   "dance (step Z, `run dance`): wheel speed for its spins and wiggles"},
 
   // --- sensor stream ---

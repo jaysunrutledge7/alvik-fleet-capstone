@@ -24,13 +24,24 @@ Layers, from planning to the last safety net:
                (firmware 2026-11-05b follow_wd_ms): their own safety stops, under all of the above.
 Lost by the camera: dead reckoning with a growing bubble (BLIND_*), find-me wiggle when it grows too big; the old
 cautious hold is kept behind lost_mode="hold".
+
+(11-05d) MOTION STYLE (Nick, 5 Nov 16:06: "eliminate the stop and turn ... curving turns where velocity never drops
+to 0"; "both options should always be available"): motion="curves" (the default here) or "stopturn" (everything
+above, unchanged). In curves each robot on firmware 2026-11-05c or newer drives PIECES of constant curvature (follow
+step R) that run into each other without slowing: the menu is curvature x length x speed; the next piece is planned
+and queued while the current one runs; every piece ends where the robot can always LOOP AWAY (a circle of LOOP_R
+inside the board, reserved for it), so when nothing else fits it circles in its own reserved disc instead of stopping;
+the reflex slows to no less than V_MIN_AVOID or bends the curve (farc) instead of stopping; the robot's own front
+check dodges (a tight curve away) instead of stopping. A robot on older firmware keeps stop-turn-drive (said at the
+start, counted apart). Every moment a robot's speed reaches zero is logged with why (zeros.csv): the trophy is "never
+stops".
 """
 import math
 import random
 
 import numpy as np
 
-VERSION = "freeroam-2026-11-05c"
+VERSION = "freeroam-2026-11-05d"     # 11-05d: continuous curves (motion style "curves", firmware 2026-11-05c)
 
 # ------------------------------------------------------------------------------------------------- body and board
 HALF = 6.72             # the 9.5 cm square's half diagonal: a circle round the body however it turns. Not chosen
@@ -123,8 +134,55 @@ EDGE_TURN_MIN = HALF + 1.0  # the edge trap's last resort: a turn on the spot wi
                             # 6.72 cm: they stay 1 cm inside the edge). Only after reversing found nothing
 
 
+# (11-05d) continuous curves
+ARC_FW = "2026-11-05c"  # follow step R, farc, coast, dodge
+V_MIN_AVOID = 3.0       # cm/s: the slowest an avoiding curve robot is made to go (never 0). EVIDENCE-BASED: 2 / 3 / 5
+                        # cm/s compared in the stress simulator (docs/build-reports/e05-nov05-curves.md, "Minimum speed")
+K_BINS = (-1 / 12.0, -1 / 25.0, -1 / 50.0, 0.0, 1 / 50.0, 1 / 25.0, 1 / 12.0)   # curvature 1/cm (+ = left): radius
+                        # 12, 25, 50 cm and straight. Chosen (12 cm: the tightest the wheels do at 9 cm/s); DOE: yes,
+                        # with LOOP_R, against fallbacks per hour and coverage
+ARC_LEN_BINS = ((10, 20), (20, 35), (35, 55))   # cm along the curve. Chosen (shorter than stop-turn's: the next piece
+                        # is planned while this one runs, so a piece is a commitment of ~2-8 s)
+ARC_SPEED_BINS = (5.0, 7.5, 10.0, 12.0)        # cm/s (the DOE loop's, top capped at what the wheels do)
+WHEEL_TOP = 12.3        # cm/s: the outer wheel's top speed on a curve (70 rpm, 1.7 cm wheels: 12.5). Not chosen
+HALF_TRACK = 4.45       # cm (setDrive's 89 mm track). Not chosen
+LOOP_R = 10.0           # the loop-away circle's radius, cm: every piece ends where a circle this big (on one side)
+                        # stays inside the board and clear of everyone's reservations. Chosen: the outer wheel at 2.3x
+                        # the inner, 6.3 cm/s at the edge of the disc; DOE: yes, 8 / 10 / 14 cm against fallbacks
+LOOP_EDGE = HALF + 2.5  # a curve's samples keep their middle this far in (the corners 2.5 cm inside). Chosen = TURN_EDGE_CC
+DODGE_K = 1 / 6.0       # firmware arc_dodge_r 6 cm. Not chosen here
+COAST_S = 0.8           # firmware arc_coast_ms. Not chosen here
+AVOID_K = (1 / 30.0, -1 / 30.0, 1 / 15.0, -1 / 15.0, 1 / 10.0, -1 / 10.0)   # the reflex's bends (farc), smallest first.
+                        # Chosen; DOE with REFLEX_GAP
+ARC_FIT_MIN = 15        # (11-05d) the curves' calibration, discovered from the run: at least this many fitted curve pieces
+                        # (|k| >= 1/40, >= 35 deg) before arc_k_scale / arc_d_scale are saved on a parked robot. Chosen
+ARC_FIT_CI = 0.03       # ... and the median's 95 % half-width under this. Chosen
+CURVE_SAMPLE_CM = 3.0   # reservation samples along a curve at most this far apart (PLAN_M0 covers half). Not chosen
+
+
 def wrap180(a):
     return (a + 180.0) % 360.0 - 180.0
+
+
+def arc_at(x, y, h, k, s):
+    """Pose after s cm (scalar or array) along a curve of curvature k (1/cm, + = left) from (x, y) facing h deg."""
+    s = np.asarray(s, float)
+    hr = math.radians(h)
+    if abs(k) < 1e-6:
+        return x + s * math.cos(hr), y + s * math.sin(hr), h + 0.0 * s
+    a = hr + k * s
+    return x + (np.sin(a) - math.sin(hr)) / k, y - (np.cos(a) - math.cos(hr)) / k, h + np.degrees(k * s)
+
+
+def loop_centre(x, y, h, side):
+    """The centre of the loop-away circle of a robot at (x, y) facing h, looping left (side +1) or right (-1)."""
+    hr = math.radians(h)
+    return x - math.sin(hr) * side * LOOP_R, y + math.cos(hr) * side * LOOP_R
+
+
+def v_cap(k):
+    """The fastest a curve of curvature k can be driven (its outer wheel at WHEEL_TOP)."""
+    return WHEEL_TOP / (1.0 + HALF_TRACK * abs(k))
 
 
 def edge_dist(rect, x, y):
@@ -177,6 +235,41 @@ class Traj:
         tr = Traj(rows)
         tr.t_end, tr.end, tr.h_end = t1, (p0[0] + ux * L, p0[1] + uy * L), h1
         return tr
+
+
+def curve_traj(t0, segs, side, m0=PLAN_M0, bubble_grow=0.0, slack0=SLACK0_S, tail=True):
+    """(11-05d) A curve robot's reservation: segs = [(x, y, h, k, L, v)] driven one after the other from t0 (each at
+    its own speed: the firmware's ramps between them are under the slack), sampled every SAMPLE_S or CURVE_SAMPLE_CM;
+    then (tail) the loop-away disc at the last piece's end, looping to `side`, reserved for ever (its margin covers the
+    circle: LOOP_R)."""
+    rows = []
+    t, s_tot = t0, 0.0
+    end = None
+    for (x, y, h, k, L, v) in segs:
+        v = max(0.5, v)
+        td = L / v
+        n = max(1, int(math.ceil(max(td / SAMPLE_S, L / CURVE_SAMPLE_CM))))
+        ss = (np.arange(n) + 0.5) * L / n
+        xs, ys, _ = arc_at(x, y, h, k, ss)
+        for j in range(n):
+            a, b = t + j * td / n, t + (j + 1) * td / n
+            st = s_tot + ss[j]
+            m = m0 + min(PLAN_M_MAX, PLAN_M_PER_CM * st) + bubble_grow * st
+            rows.append((a, b, float(xs[j]), float(ys[j]), m, slack0 + SLACK_FRAC * (b - t0)))
+        t += td
+        s_tot += L
+        ex, ey, eh = arc_at(x, y, h, k, L)
+        end = (float(ex), float(ey), float(eh))
+    m = m0 + min(PLAN_M_MAX, PLAN_M_PER_CM * s_tot) + bubble_grow * s_tot
+    if tail and end is not None:
+        c = loop_centre(end[0], end[1], end[2], side)
+        rows.append((t, INF, c[0], c[1], m + LOOP_R, slack0 + SLACK_FRAC * (t - t0)))
+    elif end is not None:
+        rows.append((t, INF, end[0], end[1], m, slack0 + SLACK_FRAC * (t - t0)))
+    tr = Traj(rows)
+    tr.t_end, tr.end, tr.h_end, tr.side = t, (end[0], end[1]), end[2], side
+    tr.loop_c = loop_centre(end[0], end[1], end[2], side) if tail else None
+    return tr
 
 
 def concat(*ts):
@@ -245,6 +338,31 @@ class Menu:
         return "t%+d_L%d-%d_v%g" % (TURN_BINS[a], LEN_BINS[b][0], LEN_BINS[b][1], SPEED_BINS[c])
 
 
+class CurveMenu(Menu):
+    """(11-05d) The curves' balanced menu: curvature x length x speed (7 x 3 x 4 = 84 cells), least-used first, seeded,
+    the same free share. A curve's speed is capped by what its outer wheel can do (v_cap)."""
+
+    def __init__(self, rng):
+        self.rng = rng
+        self.cells = [(a, b, c) for a in range(len(K_BINS)) for b in range(len(ARC_LEN_BINS))
+                      for c in range(len(ARC_SPEED_BINS))]
+        self.n = {c: 0 for c in self.cells}
+        self.n_robot = {}
+
+    def draw(self, cell):
+        a, b, c = cell
+        k = K_BINS[a] * self.rng.uniform(0.85, 1.15) if K_BINS[a] else self.rng.uniform(-1 / 300.0, 1 / 300.0)
+        L = self.rng.uniform(*ARC_LEN_BINS[b])
+        return k, L, min(ARC_SPEED_BINS[c], v_cap(k))
+
+    @staticmethod
+    def label(cell):
+        a, b, c = cell
+        k = K_BINS[a]
+        return "%s_L%d-%d_v%g" % ("straight" if not k else "r%+d" % round(1 / k), ARC_LEN_BINS[b][0],
+                                  ARC_LEN_BINS[b][1], ARC_SPEED_BINS[c])
+
+
 # ------------------------------------------------------------------------------------------------ one robot
 class Robot:
     def __init__(self, name, rank):
@@ -287,6 +405,15 @@ class Robot:
         self.pc = None                  # (t, pos) cache
         self.disagree_t = -1e9
         self.jump_n = 0
+        self.curve = False              # (11-05d) drives continuous curves (motion "curves" and firmware 2026-11-05c+)
+        self.queue = []                 # curve pieces sent after the current one
+        self.coast = None               # dict(t, k, v, dodge): the robot rolls on round its last curve (no piece)
+        self.zero_why = None            # (why, t): the latest reason this robot's speed may reach zero
+        self.zero = None                # dict while its speed is zero (motion rows): t, why
+        self.zeros = []                 # closed speed-zero moments (t, dur, why)
+        self.arc_pts = []               # (11-05d) camera spots during the current curve piece (the arc fit)
+        self.arc_fits = []              # (k ratio, length ratio) per fitted piece
+        self.arc_scales = None          # (arc_k_scale, arc_d_scale) the robot said it uses (boot / saved lines)
 
     @property
     def new_fw(self):
@@ -296,12 +423,19 @@ class Robot:
 # ------------------------------------------------------------------------------------------------ the controller
 class Controller:
     def __init__(self, names, rect, out, log, seed=1, lost_mode="reckon", battery_floor=BATTERY_FLOOR,
-                 park_sleep=True, fw_override=None, drill=0.0):
+                 park_sleep=True, fw_override=None, drill=0.0, motion="curves", v_min_avoid=None):
         self.rect = tuple(float(v) for v in rect)
         self.out_fn, self.log = out, log
         self.rng = random.Random(seed)
         self.seed = seed
         self.menu = Menu(random.Random(seed + 1))
+        # (11-05d) the motion style: "curves" (robots on firmware 2026-11-05c+; older ones keep stop-turn) or
+        # "stopturn" (everyone as before). Nick: free roam defaults to curves, both always available
+        if motion not in ("curves", "stopturn"):
+            raise ValueError("motion must be curves or stopturn")
+        self.motion_style = motion
+        self.cmenu = CurveMenu(random.Random(seed + 2))
+        self.v_min = V_MIN_AVOID if v_min_avoid is None else float(v_min_avoid)
         self.R = {n: Robot(n, k) for k, n in enumerate(names)}
         self.lost_mode = lost_mode
         self.floor = battery_floor
@@ -314,7 +448,7 @@ class Controller:
         self.ev_id = 0
         self.last_motion = -1e9
         self.counts = dict(fallback={}, reflex={}, breaks=0, contacts=0, front_stops=0, keepouts=0, backoffs=0,
-                           cam_refused=0)
+                           cam_refused=0, dodges=0, pieces=0, loops=0, zeros={})
         self.ended = False
         self.keepouts = []              # discovered: dict(x, y, r, t, robot, src); the planner keeps out for the run
         self.delays = []                # arrival - picture time (this clock), recent fixes
@@ -428,6 +562,8 @@ class Controller:
                 return
         r.cam = (t, x, y, th)
         r.cam_arr = arr
+        if r.curve and r.move is not None and r.move.get("curve") and r.move["phase"] == "drive":
+            r.arc_pts.append((x, y))
         if oa is not None:
             r.cam_off = (x - oa[0], y - oa[1])
         r.cam_hist.append((t, x, y))
@@ -491,6 +627,16 @@ class Controller:
             self.step_over(r, sid, "failed", "bad: " + info)
         elif state == "started":
             st["status"] = "started"
+            for q in r.queue:
+                if q["drive_id"] == sid and q.get("t_drive") is None:
+                    q["t_drive"] = self.t
+            # (11-05d) a queued piece started: the one before it is over even if its own report was lost
+            while r.move is not None and r.move.get("curve") and any(q["drive_id"] == sid for q in r.queue) and \
+                    r.move.get("drive_id") != sid:
+                self.event(r, "lost report", "piece %d done (the next piece started; its own report was lost)" %
+                           r.move["drive_id"])
+                r.steps.get(r.move["drive_id"], {})["status"] = "done"
+                self.curve_step_over(r, r.move["drive_id"], "done", "")
             if r.move and sid == r.move.get("drive_id"):
                 r.move["phase"] = "drive"
                 r.move["t_drive"] = self.t
@@ -590,8 +736,9 @@ class Controller:
             j = i + 5
             dt = np.maximum(0.05, c[j, 0] - c[i, 0])
             sc = np.hypot(*(c[j, 1:3] - c[i, 1:3]).T) / dt
-            if sc.max() - sc.min() < 4.0:
-                continue                     # no start or stop in the window: nothing to line up
+            if sc.max() - sc.min() < 4.0 or (r.curve and sc.min() > 1.0):
+                continue                     # no start or stop in the window: nothing to line up (11-05d: a curve
+                                             # robot's speed changes between pieces lined up wrongly, -0.35 s)
             errs = []
             for L in lags:
                 ts = c[:, 0] - L
@@ -985,6 +1132,8 @@ class Controller:
         if r.stopped_hard and (r.adj is None or r.adj["kind"] != "stop"):
             self.close_break(r)          # it moves again: the full stop (if any) ends here
         kind, cell, turn, L, v, tr = res
+        self.why_zero(r, kind if kind in ("back off", "reverse", "edge turn", "holding") else
+                      "stop-turn (turns on the spot)")
         r.hold_n = r.hold_n + 1 if kind == "holding" else 0
         if cell is not None:
             self.menu.use(cell, r.name)
@@ -1009,6 +1158,8 @@ class Controller:
         mv = r.move
         if mv is None:
             return
+        if mv.get("curve"):
+            return self.curve_step_over(r, sid, state, info)
         last = mv["drive_id"] or mv["turn_id"]
         if state == "done" and sid != last:
             return
@@ -1029,7 +1180,8 @@ class Controller:
                                # (11-05c) own pose at the PICTURE's time, not now (the fix is ~0.45 s old on the Pi)
                                own_vs_cam_cm=round(math.dist(self.own_at(r, r.cam[0])[:2], (r.cam[1], r.cam[2])), 2)
                                if (r.own and r.cam and r.lost is None and self.own_at(r, r.cam[0])) else "",
-                               cam_x=round(r.cam[1], 1) if r.cam else "", cam_y=round(r.cam[2], 1) if r.cam else ""))
+                               cam_x=round(r.cam[1], 1) if r.cam else "", cam_y=round(r.cam[2], 1) if r.cam else "",
+                               style="stopturn", curvature=""))
         if state != "done":
             if "obstacle" in info or "plywood edge" in info:
                 self.event(r, "front stop", "its own %s stopped the step: %s" % (
@@ -1044,6 +1196,7 @@ class Controller:
     def end_move(self, r):
         p = self.pos(r)
         r.move = None
+        r.queue, r.coast = [], None
         if r.adj is not None:
             self.close_adj(r, "move ended")
         r.scale = 1.0
@@ -1059,6 +1212,7 @@ class Controller:
             self.parked(r)
 
     def halt(self, r, why):
+        self.why_zero(r, "halt: " + why)
         self.control(r, "halt", "halt")
         self.event(r, "halt", why)
 
@@ -1066,6 +1220,7 @@ class Controller:
     def trophy_break(self, r, why):
         self.counts["breaks"] += 1
         r.stopped_hard = dict(t=self.t, why=why)
+        self.why_zero(r, "trophy break: " + why)
         self.event(r, "trophy break", why)
 
     def close_break(self, r):
@@ -1107,13 +1262,17 @@ class Controller:
     def pair_min(self, ma, mb):
         """Closest predicted distance and when; a pair that is not closing in (its closest is now, or within 0.3 cm
         of now) comes back as +inf: moving apart is the cure, never a reason to stop."""
-        pa, ts = self.path(ma)
-        pb, _ = self.path(mb)
+        pa, ts = (ma, np.arange(0.0, REFLEX_H_S + 1e-9, REFLEX_STEP_S)) if isinstance(ma, np.ndarray) else self.path(ma)
+        pb = mb if isinstance(mb, np.ndarray) else self.path(mb)[0]
         d = np.hypot(pa[:, 0] - pb[:, 0], pa[:, 1] - pb[:, 1])
         k = int(np.argmin(d))
         if d[k] >= d[0] - 0.3:
             return float("inf"), float(ts[k])
         return float(d[k]), float(ts[k])
+
+    def pred(self, o):
+        """(11-05d) A robot's predicted motion: a curve robot's positions over REFLEX_H_S, else the motion tuple."""
+        return self.curve_pts(o)[0] if (o.curve and (o.move is None or o.move.get("curve"))) else self.motion(o)
 
     def need(self, a, b):
         return REFLEX_CC + (a.bubble if a.lost else 0.0) + (b.bubble if b.lost else 0.0)
@@ -1125,9 +1284,9 @@ class Controller:
         for o in self.R.values():
             if o is r or o.name in skip or self.pos(o) is None or o.mode in ("gone",):
                 continue
-            mo = self.motion(o)
+            mo = self.pred(o)
             d, tm = self.pair_min(mr, mo)
-            if hedge and mo[2] > 0:
+            if hedge and self.moving(o):
                 d2, tm2 = self.pair_min(mr, (self.pos(o), (0.0, 0.0), 0.0, 0.0))
                 if d2 < d:
                     d, tm = d2, tm2
@@ -1144,27 +1303,40 @@ class Controller:
         for r in sorted(movers, key=lambda q: -q.rank):          # lowest priority first
             if r.adj is not None:
                 continue
-            mr = self.motion(r)
-            if mr[2] <= 0:
-                continue
+            if r.curve and r.move is not None and r.move.get("curve"):
+                if not self.moving(r):
+                    continue
+                mr = self.curve_pts(r)[0]
+            else:
+                mr = self.motion(r)
+                if mr[2] <= 0:
+                    continue
             g, o, tm = self.worst_for(r, mr, hedge=True)
             if o is None or g >= 0 or (r.name, o.name) in seen:
                 continue
             seen.add((o.name, r.name))
             # who acts: the lower-priority mover (r is the lower one unless o moves and ranks lower)
-            mo = self.motion(o)
             actors = [r]
-            if mo[2] > 0 and o.adj is None:
+            if self.moving(o) and o.adj is None and (o.move is not None):
                 actors = sorted([r, o], key=lambda q: -q.rank)      # the lower-priority mover first
             pred_before = g + self.need(r, o)
             done = False
             for a in actors:
-                if self.try_adjust(a, o if a is r else r, pred_before):
+                if a.curve and a.move is not None and a.move.get("curve"):
+                    ok = self.try_adjust_curve(a, o if a is r else r, pred_before)
+                else:
+                    ok = self.try_adjust(a, o if a is r else r, pred_before)
+                if ok:
                     done = True
                     break
             if done:
                 continue
             a = actors[0]
+            if a.curve and a.move is not None and a.move.get("curve"):
+                if pred_before < HARD_CC + (r.bubble if r.lost else 0) + (o.bubble if o.lost else 0) and \
+                        tm <= HARD_T_S:
+                    self.curve_stop(a, o if a is r else r, pred_before)
+                continue
             hard = pred_before < HARD_CC + (r.bubble if r.lost else 0) + (o.bubble if o.lost else 0) and tm <= HARD_T_S
             if hard:
                 self.apply(a, o if a is r else r, "stop", 0.0, None, pred_before, pred_before)
@@ -1175,7 +1347,7 @@ class Controller:
         """Speed first (only against a robot that moves: slowing towards one that stands only delays it), then a
         steer; the first that keeps every predicted gap is applied. False: none does."""
         cands = []
-        other_moves = self.motion(other)[2] > 0
+        other_moves = self.moving(other)
         for s in (SPEED_OPTIONS if (speeds and other_moves) else ()):
             if a.move["v"] * s > V_MAX or abs(s - a.scale) < 0.01:
                 continue
@@ -1293,6 +1465,9 @@ class Controller:
             if a.move is None:
                 self.close_adj(a, "move ended")
                 continue
+            if a.curve and a.move.get("curve"):
+                self.adj_watch_curve(a, ev)
+                continue
             if ev["kind"] == "steer":
                 self.close_adj(a, "steered")
                 continue
@@ -1358,6 +1533,515 @@ class Controller:
                                 method=ev["method"], dur_s=round(self.t - ev["t"], 2),
                                 actual_min_cc=round(mc, 2) if mc < 1e9 else "", outcome=out, closed=why))
 
+    # -- (11-05d) continuous curves --------------------------------------------------------------------------------
+    def uses_curves(self, r):
+        return self.motion_style == "curves" and bool(r.fw) and r.fw >= ARC_FW
+
+    def why_zero(self, r, why):
+        r.zero_why = (why, self.t)
+
+    def curve_ok(self, r, tr, gap_relax=0.0, away=False, ignore=()):
+        """A curve plan (samples + loop disc) keeps the edges (every sample's middle LOOP_EDGE in, plus its margin
+        beyond the base; the loop disc inside), the keep-outs and everyone's reservations. away: a robot already too
+        close to an edge or another robot may take it if it never gets closer and ends clear."""
+        x0, y0, x1, y1 = self.rect
+        bub = r.bubble if r.lost else 0.0
+        xs, ys, ms = tr.x[:-1], tr.y[:-1], tr.m[:-1]
+        if len(xs):
+            ed = np.minimum(np.minimum(xs - x0, x1 - xs), np.minimum(ys - y0, y1 - ys)) - (ms - PLAN_M0)
+            need = LOOP_EDGE + bub
+            if away:
+                need = np.minimum(need, ed[0] - 0.5)
+            if (ed < need).any():
+                return False
+        c = tr.loop_c
+        if c is not None and edge_dist(self.rect, *c) - (tr.m[-1] - LOOP_R - PLAN_M0) < LOOP_R + LOOP_EDGE + bub:
+            return False
+        if not self.keepout_ok(r, tr):
+            return False
+        for o in self.others(r):
+            if o.name in ignore:
+                continue
+            need = PLAN_CC - gap_relax
+            if not away:
+                if clearance(tr, o.traj, now=self.t) < need:
+                    return False
+                continue
+            prof = clearance_profile(tr, o.traj, now=self.t)
+            if prof[-1] < need or (prof < np.minimum(need, prof[0] - 0.5)).any():
+                return False
+        return True
+
+    def sides(self, x, y, h):
+        """Loop sides, the one whose loop centre is further from the edges first."""
+        a, b = loop_centre(x, y, h, 1), loop_centre(x, y, h, -1)
+        return (1, -1) if edge_dist(self.rect, *a) >= edge_dist(self.rect, *b) else (-1, 1)
+
+    def pick_curve(self, r, x, y, h, t0, v0=0.0, loop_side=None):
+        """The next piece from (x, y, h) at t0: the menu (least-used first), then off-menu (gentler / shorter), then
+        the loop in its own reserved disc (loop_side: the side reserved now), then an escape that never gets closer.
+        Returns (kind, cell, k, L, v, side, traj) or None."""
+        m0 = self.margin0(r)
+        grow = BLIND_PER_CM if r.lost is not None else 0.0
+        find_me = r.lost is not None and r.bubble > BUBBLE_CAP
+
+        def tr_for(k, L, v, side):
+            return curve_traj(t0, [(x, y, h, k, L, v)], side, m0=m0, bubble_grow=grow)
+        if not find_me:
+            free = self.rng.random() < FREE_SHARE
+            for cell in self.cmenu.order(r.name, free=free):
+                k, L, v = self.cmenu.draw(cell)
+                ex, ey, eh = arc_at(x, y, h, k, L)
+                for side in self.sides(float(ex), float(ey), float(eh)):
+                    tr = tr_for(k, L, v, side)
+                    if self.curve_ok(r, tr):
+                        return ("free" if free else "menu"), cell, k, L, v, side, tr
+            for L in (14.0, 8.0):
+                ks = [kk * sg for kk in (1 / 40.0, 1 / 20.0, 1 / 12.0) for sg in (1, -1)]
+                self.rng.shuffle(ks)
+                for k in [0.0] + ks:
+                    ex, ey, eh = arc_at(x, y, h, k, L)
+                    for side in self.sides(float(ex), float(ey), float(eh)):
+                        tr = tr_for(k, L, 5.0, side)
+                        if self.curve_ok(r, tr):
+                            self.fallback(r, 1, "off-menu curve", "no menu curve fits")
+                            return "off-menu", None, k, L, 5.0, side, tr
+        # the loop: round its own reserved disc (the last piece's end reserved it), a quarter circle at a time
+        sides = (loop_side,) if loop_side else self.sides(x, y, h)
+        for side in sides:
+            k = side / LOOP_R
+            L = math.pi * LOOP_R / 2
+            v = min(5.0 if not find_me else 4.0, v_cap(k))
+            tr = tr_for(k, L, v, side)
+            if loop_side or self.curve_ok(r, tr, gap_relax=PLAN_CC - REFLEX_CC, away=True):
+                self.counts["loops"] += 1
+                self.fallback(r, 4 if not find_me else 6, "find-me loop" if find_me else "loop",
+                              "lost, bubble %.1f cm: circles in its own disc until seen" % r.bubble if find_me else
+                              "nothing else fits: circles in its own reserved disc (never stops)")
+                return ("loop" if not find_me else "find-me loop"), None, k, L, v, side, tr
+        # escape: any curve that never brings it closer to an edge or anyone and ends clear
+        for k in (0.0, 1 / 25.0, -1 / 25.0, 1 / 12.0, -1 / 12.0, 1 / 8.0, -1 / 8.0):
+            for L in (20.0, 10.0, 5.0):
+                ex, ey, eh = arc_at(x, y, h, k, L)
+                for side in self.sides(float(ex), float(ey), float(eh)):
+                    tr = tr_for(k, L, 4.0, side)
+                    if self.curve_ok(r, tr, gap_relax=PLAN_CC - REFLEX_CC, away=True):
+                        self.fallback(r, 2, "escape curve", "nothing else fits: a curve that only moves away")
+                        return "escape", None, k, L, 4.0, side, tr
+        return None
+
+    def send_piece(self, r, kind, cell, k, L, v, side, x, y, h, t0):
+        sid = self.send_step(r, "fs %%d R %.2f %.2f %.2f %.5f %.2f %.2f -" % (x, y, h, k, L, v))
+        ex, ey, eh = arc_at(x, y, h, k, L)
+        if cell is not None:
+            self.cmenu.use(cell, r.name)
+        self.counts["pieces"] += 1
+        r.n_moves += 1
+        return dict(kind=kind, cell=cell, turn=0.0, L=L, v=v, t0=self.t, p0=(x, y), h0=h, h1=float(eh),
+                    end=(float(ex), float(ey)), phase="queued", n=r.n_moves, drive_id=sid, turn_id=None, t_drive=None,
+                    adj_scale=1.0, rev=False, curve=True, k=k, side=side, x=x, y=y, h=h, t_plan=t0)
+
+    def start_curve(self, r):
+        """A curve robot with no piece running (the start, a coast after the last piece, a dodge, after a stop):
+        the next piece from where it will be in a moment."""
+        p, h = self.pos(r), self.heading(r)
+        if r.back_off is not None:
+            # its own front check STOPPED it (no dodge): back straight off first, as in stop-turn (a speed-zero moment)
+            r.back_off = None
+            res = self.back_move(r)
+            if res is not None:
+                self.counts["backoffs"] += 1
+                self.fallback(r, 0, "back off", "its own front stop: backs away before anything else")
+                self.stopturn_move(r, res)
+                self.why_zero(r, "back off after its own front stop")
+                return
+        co = r.coast if (r.coast and self.t - r.coast["t"] < COAST_S) else None
+        lead = 0.3
+        if co:
+            ex, ey, eh = arc_at(p[0], p[1], h, co["k"], co["v"] * lead)
+            x, y, h1, v0 = float(ex), float(ey), float(eh), co["v"]
+        else:
+            x, y, h1, v0 = p[0], p[1], h, 0.0
+            lead = 0.2
+        res = self.pick_curve(r, x, y, h1, self.t + lead, v0)
+        if res is None:
+            if co is not None:
+                # nothing fits from the coast: a loop the way it is curving (it is rolling; stopping is worse)
+                side = 1 if co["k"] >= 0 else -1
+                for sd in (side, -side):
+                    k, L = sd / LOOP_R, math.pi * LOOP_R / 2
+                    tr = curve_traj(self.t + lead, [(x, y, h1, k, L, 4.0)], sd, m0=self.margin0(r))
+                    if self.curve_ok(r, tr, gap_relax=PLAN_CC - HARD_CC, away=True):
+                        res = ("loop", None, k, L, min(4.0, v_cap(k)), sd, tr)
+                        self.fallback(r, 5, "loop (forced)", "nothing fits from the coast: loops on (never closer)")
+                        break
+            if res is None:
+                # standing and no curve fits (an edge, a trap at the start): the stop-turn ladder (reverse, edge turn)
+                r.coast = None
+                self.why_zero(r, "no curve fits from a stand: stop-turn rung")
+                res2 = self.pick(r)
+                if res2 is None:
+                    r.busy_until = self.t + 1.0
+                    if not r.stopped_hard:
+                        self.trophy_break(r, "nothing fits from a spot too near the edge to turn")
+                    return
+                self.stopturn_move(r, res2)
+                return
+        kind, cell, k, L, v, side, tr = res
+        if r.stopped_hard and (r.adj is None or r.adj["kind"] != "stop"):
+            self.close_break(r)
+        r.coast = None
+        mv = self.send_piece(r, kind, cell, k, L, v, side, x, y, h1, self.t + lead)
+        r.move, r.queue, r.mode = mv, [], "move"
+        r.hold_n = 0
+        self.retraj_curve(r)
+        self.pump(r)
+
+    def plan_next(self, r):
+        """While a piece runs: the next one from its planned end, queued on the robot so they run into each other."""
+        mv = r.move
+        v_now = max(0.5, mv["v"] * (r.scale if r.scale > 0 else 1.0))
+        if mv.get("t_drive") is not None:
+            t_end = mv["t_drive"] + mv["L"] / v_now
+        else:
+            t_end = self.t + 0.3 + mv["L"] / v_now
+        t_end = max(t_end, self.t + 0.2)
+        last = r.queue[-1] if r.queue else mv
+        x, y, h = last["end"][0], last["end"][1], last["h1"]
+        res = self.pick_curve(r, x, y, h, t_end, mv["v"], loop_side=None)
+        if res is None:
+            side = last["side"]
+            k, L = side / LOOP_R, math.pi * LOOP_R / 2
+            res = ("loop", None, k, L, min(5.0, v_cap(k)), side, None)
+            self.counts["loops"] += 1
+            self.fallback(r, 4, "loop", "nothing fits: circles in its own reserved disc (never stops)")
+        kind, cell, k, L, v, side, _ = res
+        nx = self.send_piece(r, kind, cell, k, L, v, side, x, y, h, t_end)
+        r.queue.append(nx)
+        self.retraj_curve(r)
+        self.pump(r)
+
+    def curve_segs(self, r, scale=None):
+        """The rest of r's curve plan as segments from where it is now: (x, y, h, k, L, v) ..., and its loop side."""
+        p, h = self.pos(r), self.heading(r)
+        mv = r.move
+        sc = r.scale if scale is None else scale
+        if mv is None:
+            co = r.coast
+            if co and self.t - co["t"] < COAST_S:
+                return [(p[0], p[1], h, co["k"], co["v"] * max(0.0, COAST_S - (self.t - co["t"])), co["v"])], \
+                    (1 if co["k"] >= 0 else -1)
+            return [], 1
+        v = mv["v"] * sc
+        done = (self.t - mv["t_drive"]) * v if mv.get("t_drive") is not None else 0.0
+        rem = max(0.0, mv["L"] - done)
+        segs = [(p[0], p[1], h, mv["k"], rem, v)] if rem > 0.2 else []
+        side = mv["side"]
+        for q in r.queue:
+            segs.append((q["x"], q["y"], q["h"], q["k"], q["L"], q["v"] * sc))
+            side = q["side"]
+        return segs, side
+
+    def retraj_curve(self, r):
+        p = self.pos(r)
+        segs, side = self.curve_segs(r)
+        if not segs:
+            r.traj = Traj.stand(self.t, *p, m=self.margin0(r))
+            return
+        r.traj = curve_traj(self.t, segs, side, m0=self.margin0(r),
+                            bubble_grow=BLIND_PER_CM if r.lost is not None else 0.0)
+
+    def curve_pts(self, r, scale=None, bend=None, H=REFLEX_H_S, dt=REFLEX_STEP_S):
+        """Where a curve robot will be over the next H s (positions every dt): its pieces in order, then its loop;
+        bend = (k, L): the running piece bent now (farc) to curvature k for L cm, then its loop that way."""
+        ts = np.arange(0.0, H + 1e-9, dt)
+        p, h = self.pos(r), self.heading(r)
+        mv = r.move
+        coasting = bool(r.coast and self.t - r.coast["t"] < COAST_S)
+        if (mv is None and not coasting) or (mv is not None and mv["phase"] != "drive" and not coasting) or \
+                r.lost_hold:
+            return np.tile(np.array(p, float), (len(ts), 1)), 0.0
+        sc = r.scale if scale is None else scale
+        if mv is None or mv["phase"] != "drive":
+            v = r.coast["v"]
+            sched = [(r.coast["k"], v * max(0.0, COAST_S - (self.t - r.coast["t"])))]
+            side = 1 if r.coast["k"] >= 0 else -1
+        else:
+            v = mv["v"] * sc
+            if bend is not None:
+                sched = [(bend[0], bend[1])]
+                side = 1 if bend[0] >= 0 else -1
+            else:
+                done = (self.t - mv["t_drive"]) * v if mv.get("t_drive") is not None else 0.0
+                sched = [(mv["k"], max(0.0, mv["L"] - done))] + [(q["k"], q["L"]) for q in r.queue]
+                side = (r.queue[-1] if r.queue else mv)["side"]
+        sched.append((side / LOOP_R, 1e9))
+        s_all = v * ts
+        out = np.empty((len(ts), 2))
+        x, y, hh, s0 = p[0], p[1], h, 0.0
+        j = 0
+        for k, L in sched:
+            sel = (s_all >= s0 - 1e-9) & (s_all <= s0 + L + 1e-9)
+            idx = np.nonzero(sel)[0]
+            if len(idx):
+                xs, ys, _ = arc_at(x, y, hh, k, s_all[idx] - s0)
+                out[idx, 0], out[idx, 1] = xs, ys
+            ex, ey, eh = arc_at(x, y, hh, k, min(L, s_all[-1] - s0 + 1.0) if L > 1e8 else L)
+            x, y, hh = float(ex), float(ey), float(eh)
+            s0 += L
+            j += 1
+            if s0 > s_all[-1]:
+                break
+        return out, v
+
+    def try_adjust_curve(self, a, other, pred_before):
+        """A curve robot's avoidance: slower (never under v_min) or faster, then a bend (farc, smallest first), then a
+        bend at the slowest; the first that keeps every predicted gap (and, for a bend, the edges, the keep-outs and the
+        others' reservations at the reflex's gap) is applied. Nothing keeps it: the bend that leaves the most room (no
+        stop) unless the circles would touch within HARD_T_S."""
+        mv = a.move
+        if mv is None:
+            return False
+        v = mv["v"]
+        other_moves = self.moving(other)
+        cands = []
+        if other_moves:
+            for sfac in SPEED_OPTIONS:
+                sc = max(sfac, self.v_min / max(v, 0.1))
+                if v * sc > v_cap(mv["k"]) or abs(sc - a.scale) < 0.01 or (sc < 1 and v * a.scale <= self.v_min):
+                    continue
+                cands.append(("speed", sc, None))
+        for kk in AVOID_K:
+            cands.append(("bend", a.scale, (kk, 25.0)))
+        for kk in AVOID_K:
+            cands.append(("bend", max(self.v_min / max(v, 0.1), 0.0) if v > self.v_min else a.scale, (kk, 25.0)))
+        best = None
+        p, h = self.pos(a), self.heading(a)
+        for kind, sc, bend in cands:
+            pts, vv = self.curve_pts(a, scale=sc, bend=bend)
+            g, o2, tm = self.worst_for(a, pts)
+            ok_geo = True
+            if bend is not None:
+                side = 1 if bend[0] >= 0 else -1
+                tr = curve_traj(self.t, [(p[0], p[1], h, bend[0], bend[1], max(0.5, v * sc))], side,
+                                m0=self.margin0(a))
+                ok_geo = self.curve_ok(a, tr, gap_relax=PLAN_CC - REFLEX_CC, away=True)
+            if ok_geo and (best is None or g > best[0]):
+                best = (g, kind, sc, bend, o2)
+            if g >= 0.5 and ok_geo:
+                self.apply_curve(a, other, kind, sc, bend, pred_before, g + self.need(a, o2) if o2 else 99.0)
+                return True
+        if best is not None:
+            g, kind, sc, bend, o2 = best
+            hard = g + (self.need(a, o2) if o2 else REFLEX_CC) < HARD_CC
+            if not hard:
+                self.apply_curve(a, other, kind + " (best)", sc, bend, pred_before,
+                                 g + self.need(a, o2) if o2 else 99.0)
+                return True
+        return False
+
+    def apply_curve(self, a, other, kind, scale, bend, pred_before, pred_after):
+        self.ev_id += 1
+        ev = dict(id=self.ev_id, t=self.t, actor=a.name, other=other.name, kind=kind, scale=scale,
+                  steer=None, pred_before=pred_before, pred_after=pred_after,
+                  method="farc" if bend else "fspd", clear_since=None, min_cc=float("inf"), bend=bend)
+        a.adj = ev
+        key = "bend" if bend else "speed"
+        self.counts["reflex"][key] = self.counts["reflex"].get(key, 0) + 1
+        if abs(scale - a.scale) > 0.005:
+            self.control(a, "fspd %.2f" % scale, "fspd")
+            a.scale = scale
+        if bend is not None:
+            p, h = self.pos(a), self.heading(a)
+            self.control(a, "farc %.5f %.1f" % bend, "farc")
+            mv = a.move
+            for q in a.queue:
+                st = a.steps.get(q["drive_id"])
+                if st:
+                    st["status"] = "dropped"
+            a.queue = []
+            ex, ey, eh = arc_at(p[0], p[1], h, bend[0], bend[1])
+            mv.update(k=bend[0], L=bend[1], x=p[0], y=p[1], h=h, end=(float(ex), float(ey)), h1=float(eh),
+                      side=1 if bend[0] >= 0 else -1, t_drive=self.t, kind=mv["kind"] + "+bend")
+        self.retraj_curve(a)
+
+    def arc_fit(self, r, mv):
+        """(11-05d) The curves' calibration, discovered from the run (CLAUDE.md: discover, don't pre-map): the camera's
+        spots along a finished curve piece fitted with a circle (its last 80 %: the start bends from the last piece);
+        k ratio = the fitted curvature / the one asked, length ratio = the camera's arc (angle swept x radius) / the
+        length asked. Logged (arcfit.csv); medians are saved on the robot when it parks (arc_save)."""
+        pts, r.arc_pts = r.arc_pts, []
+        k, L = mv["k"], mv["L"]
+        if abs(k) < 1 / 40.0 or abs(k * L) < math.radians(35) or len(pts) < 12 or "bend" in mv["kind"]:
+            return
+        P = np.array(pts[len(pts) // 5:], float)
+        A = np.c_[2 * P[:, 0], 2 * P[:, 1], np.ones(len(P))]
+        sol, *_ = np.linalg.lstsq(A, (P ** 2).sum(1), rcond=None)
+        cx, cy = sol[0], sol[1]
+        R = math.sqrt(max(1e-6, sol[2] + cx * cx + cy * cy))
+        if not (2.0 < R < 200.0):
+            return
+        Q = np.array(pts, float)
+        ang = np.unwrap(np.arctan2(Q[:, 1] - cy, Q[:, 0] - cx))
+        kr = (1.0 / R) / abs(k)
+        dr = abs(ang[-1] - ang[0]) * R / L
+        if not (0.6 < kr < 1.6 and 0.6 < dr < 1.6):
+            return
+        r.arc_fits.append((kr, dr))
+        self.log("arcfit", dict(t=round(self.t, 2), robot=r.name, k=round(k, 5), L=round(L, 1), v=round(mv["v"], 2),
+                                R_fit=round(R, 2), k_ratio=round(kr, 4), length_ratio=round(dr, 4), n=len(pts)))
+
+    def arc_result(self, r):
+        """(median k ratio, its 95 % half-width, median length ratio, its half-width, n) or None."""
+        if len(r.arc_fits) < 3:
+            return None
+        a = np.array(r.arc_fits)
+        n = len(a)
+        hw = lambda v: 1.2533 * 1.96 * float(np.std(v)) / math.sqrt(n)     # noqa: E731 (median's standard error)
+        return float(np.median(a[:, 0])), hw(a[:, 0]), float(np.median(a[:, 1])), hw(a[:, 1]), n
+
+    def adj_watch_curve(self, a, ev):
+        o = self.R[ev["other"]]
+        if ev["kind"] == "stop" and self.t - ev["t"] >= 0.6:
+            pts, _ = self.curve_pts(a, scale=1.0)
+            if self.worst_for(a, pts)[0] < 2.0:
+                # a full stop lasts only until a new piece goes away (as in stop-turn): from the stand
+                self.halt(a, "after the hard stop: a new piece away from %s" % o.name)
+                self.end_move(a)
+                a.busy_until = self.t
+                return
+        if ev.get("bend") is not None and abs(ev["scale"] - 1.0) < 0.01:
+            self.close_adj(a, "bent")
+            return
+        pts, _ = self.curve_pts(a, scale=1.0)
+        g, _, _ = self.worst_for(a, pts)
+        if g >= 2.0:
+            if ev["clear_since"] is None:
+                ev["clear_since"] = self.t
+            elif self.t - ev["clear_since"] >= CLEAR_HOLD_S:
+                a.scale = 1.0
+                self.control(a, "fspd 1.00", "fspd")
+                self.retraj_curve(a)
+                self.close_adj(a, "clear")
+        else:
+            ev["clear_since"] = None
+            if self.t - ev["t"] > 0.4:
+                pts, _ = self.curve_pts(a)
+                gc, oc, tm = self.worst_for(a, pts)
+                if gc < 0 and oc is not None:
+                    pb = gc + self.need(a, oc)
+                    self.close_adj(a, "escalated")
+                    if not self.try_adjust_curve(a, oc, pb) and pb < HARD_CC and tm <= HARD_T_S:
+                        self.curve_stop(a, oc, pb)
+
+    def curve_stop(self, a, other, pred):
+        """The last resort: nothing keeps the circles apart within HARD_T_S: fspd 0 (a speed-zero moment, logged)."""
+        self.ev_id += 1
+        ev = dict(id=self.ev_id, t=self.t, actor=a.name, other=other.name, kind="stop", scale=0.0, steer=None,
+                  pred_before=pred, pred_after=pred, method="fspd", clear_since=None, min_cc=float("inf"), bend=None)
+        a.adj = ev
+        self.counts["reflex"]["stop"] = self.counts["reflex"].get("stop", 0) + 1
+        self.trophy_break(a, "reflex hard stop: %s predicted %.1f cm from %s in %.1f s" % (a.name, pred, other.name,
+                                                                                           HARD_T_S))
+        self.why_zero(a, "reflex hard stop")
+        self.control(a, "fspd 0.00", "fspd")
+        a.scale = 0.0
+        self.retraj_curve(a)
+
+    def moving(self, o):
+        if o.curve and (o.move is None or o.move.get("curve")):
+            return o.move is not None and o.move["phase"] == "drive" and o.scale > 0 or bool(
+                o.coast and self.t - o.coast["t"] < COAST_S)
+        return self.motion(o)[2] > 0
+
+    def stopturn_move(self, r, res):
+        """A stop-turn move (T + D steps) for a curve robot that cannot curve from where it stands."""
+        kind, cell, turn, L, v, tr = res
+        p, h = self.pos(r), self.heading(r)
+        h1 = wrap180(h + turn)
+        rev = kind in ("back off", "reverse")
+        mv = dict(kind=kind, cell=None, turn=turn, L=L, v=v, t0=self.t, p0=p, h0=h, h1=h1, end=tr.end,
+                  phase="turn", n=r.n_moves + 1, drive_id=None, turn_id=None, t_drive=None, adj_scale=1.0, rev=rev)
+        if abs(turn) >= 3.0:
+            mv["turn_id"] = self.send_step(r, "fs %%d T %.2f -" % h1)
+        if L > 0:
+            mv["drive_id"] = self.send_step(r, "fs %%d D %.2f %.2f %.2f %.2f %.2f %.2f %d -" % (
+                p[0], p[1], tr.end[0], tr.end[1], h1, v, 1 if rev else 0))
+        r.move, r.traj, r.mode, r.queue = mv, tr, "move", []
+        r.n_moves += 1
+        self.why_zero(r, "%s (stop-turn rung: no curve fits from there)" % kind)
+        self.pump(r)
+
+    def curve_step_over(self, r, sid, state, info):
+        """A curve piece ended: done -> the queued piece runs on (no stop) or the robot coasts and the next piece is
+        planned at once; dodged -> a keep-out (felt) and the next piece from the dodge; anything else stopped it."""
+        mv = r.move
+        if mv is None:
+            return
+        if sid != mv.get("drive_id"):
+            if state in ("failed", "dropped"):
+                r.queue = [q for q in r.queue if q["drive_id"] != sid]
+            return
+        p = self.pos(r)
+        self.log("moves", dict(t=round(mv["t0"], 2), robot=r.name, n=mv["n"], kind=mv["kind"],
+                               cell=CurveMenu.label(mv["cell"]) if mv["cell"] else "",
+                               turn_deg=round(math.degrees(mv["k"] * mv["L"]), 1), length_cm=round(mv["L"], 1),
+                               speed=round(mv["v"], 2), x0=round(mv["x"], 1), y0=round(mv["y"], 1),
+                               x1=round(mv["end"][0], 1), y1=round(mv["end"][1], 1),
+                               est_s=round(mv["L"] / max(0.5, mv["v"]), 2), dur_s=round(self.t - mv["t0"], 2),
+                               result="done" if state == "done" else "%s: %s" % (state, info),
+                               end_err_cm=round(math.dist(p, mv["end"]), 2) if p and state == "done" else "",
+                               own_vs_cam_cm="", cam_x=round(r.cam[1], 1) if r.cam else "",
+                               cam_y=round(r.cam[2], 1) if r.cam else "", style="curve",
+                               curvature=round(mv["k"], 5)))
+        if state == "done":
+            self.arc_fit(r, mv)
+            if r.queue:
+                nx = r.queue.pop(0)
+                nx["phase"], nx["t0"] = "drive", self.t
+                if nx.get("t_drive") is None:
+                    nx["t_drive"] = self.t
+                r.move = nx
+                self.retraj_curve(r)
+                return
+            r.coast = dict(t=self.t, k=mv["k"], v=max(2.0, mv["v"] * (r.scale if r.scale > 0 else 1.0)), dodge=False)
+            self.why_zero(r, "coast ran out (the next piece was late)")
+        elif state == "failed" and "dodged" in info:
+            self.counts["dodges"] += 1
+            self.event(r, "dodge", "its own front check: %s (no stop)" % info)
+            k = DODGE_K if "left" in info else -DODGE_K
+            self.felt(r, info.replace("dodged obstacle", "obstacle"))
+            r.back_off = None
+            r.coast = dict(t=self.t, k=k, v=4.0, dodge=True)
+            self.why_zero(r, "dodge coast ran out")
+        else:
+            r.coast = None
+            if "obstacle" in info or "plywood edge" in info:
+                self.event(r, "front stop", "its own %s stopped the step: %s" % (
+                    "front sensor" if "obstacle" in info else "edge guard", info))
+                self.felt(r, info)
+                self.why_zero(r, "its own %s" % ("front stop" if "obstacle" in info else "edge guard"))
+            elif "watchdog" in info:
+                self.event(r, "watchdog", "its watchdog stopped the step (nothing heard from the Pi)")
+                self.why_zero(r, "watchdog (nothing heard from the Pi)")
+            elif state == "failed":
+                self.event(r, "step failed", info)
+                self.why_zero(r, "step failed: %s" % info[:40])
+        for q in r.queue:
+            st = r.steps.get(q["drive_id"])
+            if st and st["status"] in ("queued_local", "sent", "acked", "started"):
+                st["status"] = "dropped"
+        r.queue = []
+        r.move = None
+        if r.adj is not None:
+            self.close_adj(r, "move ended")
+        if r.coast is None:
+            r.scale = 1.0
+        if r.mode == "move":
+            r.mode = "idle"
+        r.busy_until = self.t
+        self.retraj_curve(r)
+
     # -- battery, parking ----------------------------------------------------------------------------------------
     def park_spot(self, r):
         p = self.pos(r)
@@ -1397,6 +2081,7 @@ class Controller:
 
     def go_park(self, r, why):
         self.event(r, "parking", why)
+        self.why_zero(r, "parking (battery)")
         sp = self.park_spot(r)
         r.mode = "parking"
         if sp is None:
@@ -1422,9 +2107,36 @@ class Controller:
         if p is not None:
             r.traj = Traj.stand(self.t, *p, m=self.margin0(r) + 1.0)
         self.out(r, "stop")
+        self.arc_save(r)
         if self.park_sleep:
             self.out(r, "sleep 0")
         self.event(r, "out", "parked at %s and stopped (%s)" % ("%.1f, %.1f" % p if p else "?", r.out_why))
+
+    def arc_save(self, r):
+        """(11-05d) A parked curve robot: the curves' calibration from this run saved on it (set + save, as the
+        calibration's values), when there are ARC_FIT_MIN fitted pieces and both medians are within ARC_FIT_CI.
+        Switch: arc_save (freeroam.py --no-arc-save)."""
+        res = self.arc_result(r) if r.curve else None
+        if res is None:
+            return
+        kr, kh, dr, dh, n = res
+        cur = r.arc_scales or (1.0, 1.0)
+        ks, ds = cur[0] / kr, cur[1] / dr
+        ok = n >= ARC_FIT_MIN and kh <= ARC_FIT_CI and dh <= ARC_FIT_CI and 0.8 <= ks <= 1.25 and 0.8 <= ds <= 1.25
+        words = ("curves' calibration from %d pieces: curvature x%.3f (+-%.3f), length x%.3f (+-%.3f) of what was asked"
+                 "; arc_k_scale %.4f -> %.4f, arc_d_scale %.4f -> %.4f%s" % (
+                     n, kr, kh, dr, dh, cur[0], ks, cur[1], ds, "" if r.arc_scales else " (its values in use were "
+                     "not heard: taken as 1)"))
+        self.log("arcfit", dict(t=round(self.t, 2), robot=r.name, k="median", L="", v="", R_fit="", k_ratio=round(kr, 4),
+                                length_ratio=round(dr, 4), n=n))
+        if ok and getattr(self, "arc_save_on", True):
+            self.out(r, "set arc_k_scale %.4f" % ks)
+            self.out(r, "set arc_d_scale %.4f" % ds)
+            self.out(r, "save")
+            self.event(r, "arc calibration", words + ": saved on the robot")
+        else:
+            self.event(r, "arc calibration", words + (": NOT saved (%s)" % (
+                "switched off" if ok else "too few pieces or too spread")))
 
     # -- every tick ----------------------------------------------------------------------------------------------
     def tick(self, t):
@@ -1439,7 +2151,11 @@ class Controller:
         self.reflex()
         self.adj_watch()
         for r in self.R.values():
-            if r.mode == "idle" and t >= r.busy_until and self.pos(r) is not None and not r.silent:
+            if r.mode == "idle" and t >= r.busy_until and self.pos(r) is not None and not r.silent and r.curve and \
+                    not r.lost_hold and not (r.battery is not None and r.battery <= self.floor) and \
+                    not (r.lost is not None and r.bubble > 2 * BUBBLE_CAP):
+                self.start_curve(r)                    # (11-05d) never waits: from the coast or the stand
+            elif r.mode == "idle" and t >= r.busy_until and self.pos(r) is not None and not r.silent:
                 if r.lost is not None and r.bubble > BUBBLE_CAP:
                     self.find_me(r)
                 elif r.battery is not None and r.battery <= self.floor:
@@ -1447,6 +2163,9 @@ class Controller:
                     self.go_park(r, "battery %d %% (floor %d %%)" % (r.battery, self.floor))
                 elif not r.lost_hold:
                     self.start_move(r)
+            if r.curve and r.mode == "move" and r.move is not None and r.move.get("curve") and not r.queue and \
+                    not r.silent:
+                self.plan_next(r)                      # (11-05d) the next piece queued while this one runs
             if r.mode not in ("gone",):
                 self.pump(r)
             if r.mode not in ("out", "gone", "start") and t - r.last_sent > HEARTBEAT_S:
@@ -1490,7 +2209,12 @@ class Controller:
             self.start_lost(r)
         if r.lost is not None and r.mode == "move" and r.move is not None:
             p = self.pos(r)
-            if p and (r.bubble > BUBBLE_CAP or edge_dist(self.rect, *p) - r.bubble < TURN_EDGE_CC) and \
+            if r.move.get("curve"):
+                # (11-05d) a curve robot's plans carry the bubble in their edge margins and it loops in its own disc
+                # when the bubble passes BUBBLE_CAP (find-me loop): it eases to a stop only when far more lost
+                if p and r.bubble > 2 * BUBBLE_CAP:
+                    self.ease_stop(r, "bubble %.1f cm" % r.bubble)
+            elif p and (r.bubble > BUBBLE_CAP or edge_dist(self.rect, *p) - r.bubble < TURN_EDGE_CC) and \
                     r.move["kind"] != "wiggle":
                 self.ease_stop(r, "bubble %.1f cm" % r.bubble)
         # stuck: driving, wheels on, no camera travel
@@ -1498,7 +2222,8 @@ class Controller:
         if mv is not None and mv["phase"] == "drive" and r.scale > 0.3 and r.lost is None and mv.get("t_drive") and \
                 t - mv["t_drive"] > STUCK_S + 1.0:
             hist = [q for q in r.cam_hist if q[0] > t - STUCK_S]
-            if len(hist) >= 5 and math.dist(hist[0][1:], hist[-1][1:]) < 1.0 and r.own and r.own[4] == "drive":
+            if len(hist) >= 5 and math.dist(hist[0][1:], hist[-1][1:]) < 1.0 and r.own and r.own[4] in ("drive",
+                                                                                                         "curve"):
                 self.event(r, "stuck", "drive commanded, the camera saw it move %.1f cm in %.0f s: new move" % (
                     math.dist(hist[0][1:], hist[-1][1:]), STUCK_S))
                 self.halt(r, "stuck")
@@ -1512,6 +2237,7 @@ class Controller:
                 self.end_move(r)
 
     def ease_stop(self, r, why):
+        self.why_zero(r, "lost: eases to a stop (%s)" % why)
         if r.new_fw:
             self.control(r, "fspd 0.30", "fspd")
         self.halt(r, "eases to a stop: " + why)
@@ -1537,6 +2263,7 @@ class Controller:
         r.n_moves += 1
         r.wiggle_due = self.t + 4.0
         self.fallback(r, 6, "find-me wiggle", "lost, bubble %.1f cm over %.0f" % (r.bubble, BUBBLE_CAP))
+        self.why_zero(r, "find-me wiggle (lost)")
         self.pump(r)
 
     def motion_row(self):
@@ -1549,16 +2276,49 @@ class Controller:
                 dt = max(0.1, h[-1][0] - h[0][0])
                 trans = int(d / dt >= 1.0)
                 anym = int(trans or dth / dt >= 4.0)
+            self.zero_watch(r, trans)
             p = self.pos(r)
             self.log("motion", dict(t=round(self.t, 2), robot=r.name, any=anym, translating=trans,
                                     x=round(p[0], 1) if p else "", y=round(p[1], 1) if p else "",
                                     bubble=round(r.bubble, 2) if r.lost else 0.0, mode=r.mode,
-                                    lost=int(r.lost is not None), battery=r.battery if r.battery is not None else ""))
+                                    lost=int(r.lost is not None), battery=r.battery if r.battery is not None else "",
+                                    style="curve" if r.curve else "stopturn"))
+
+    def zero_watch(self, r, trans):
+        """(11-05d) Speed-zero moments from the robot's own wheels (FOLLOW, 10 a second): its speed under 1 cm/s
+        (translating 0) while in the roam; each one logged (zeros.csv) with why: the latest reason the controller
+        noted in the 3 s before (a stop-turn move, a reverse, a hard stop, the watchdog, a coast that ran out ...)."""
+        if r.mode in ("out", "gone", "start") or r.own is None or self.t - r.own[0] > 1.0:
+            if r.zero is not None:
+                self.close_zero(r)
+            return
+        if not trans and r.zero is None:
+            zw = r.zero_why
+            why = zw[0] if zw and self.t - zw[1] <= 3.0 else ("stop-turn (turns on the spot)" if not r.curve else
+                                                             "unexplained")
+            r.zero = dict(t=self.t, why=why)
+        elif trans and r.zero is not None:
+            self.close_zero(r)
+
+    def close_zero(self, r):
+        z = r.zero
+        r.zero = None
+        dur = self.t - z["t"]
+        r.zeros.append((z["t"], dur, z["why"]))
+        key = z["why"].split(":")[0].split(" (")[0]
+        self.counts["zeros"][key] = self.counts["zeros"].get(key, 0) + 1
+        self.log("zeros", dict(t=round(z["t"], 2), robot=r.name, style="curve" if r.curve else "stopturn",
+                               dur_s=round(dur, 2), why=z["why"]))
 
     def begin(self, name):
         """The robot is following (run follow) and seen: it joins the roam."""
         r = self.R[name]
         r.mode = "idle"
+        r.curve = self.uses_curves(r)
+        r.zero_why = ("the start (standing)", self.t + 1.0)
+        self.event(r, "motion", "curves (continuous: firmware %s)" % r.fw if r.curve else
+                   "stop-turn-drive (%s)" % ("chosen" if self.motion_style == "stopturn" else
+                                            "firmware %s is older than %s" % (r.fw or "?", ARC_FW)))
         p = self.pos(r)
         if p:
             r.traj = Traj.stand(self.t, *p, m=self.margin0(r))

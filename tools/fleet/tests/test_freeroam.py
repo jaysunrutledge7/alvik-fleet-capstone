@@ -240,7 +240,7 @@ def test_sim_firmware_fspd_fsteer():
     src = open(os.path.join(REPO, "tools", "sim", "fw_follow.py")).read()
     assert '"fspd", "fsteer"' in src and "follow_wd_ms" in src
     ino = open(os.path.join(REPO, "firmware", "home_lab", "home_lab.ino")).read()
-    assert '#define FW_VERSION "2026-11-05b"' in ino
+    assert '#define FW_VERSION "2026-11-05' in ino   # 11-05b or newer (11-05c: curves keep fspd / fsteer)
     follow = open(os.path.join(REPO, "firmware", "home_lab", "follow.h")).read()
     assert 'verb == "fspd"' in follow and '"watchdog"' in follow
     r = subprocess.run(["sh", os.path.join(REPO, "tools", "fwcheck", "check.sh")], capture_output=True, text=True)

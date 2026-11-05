@@ -127,6 +127,10 @@ class Bot:
         self.turn_target = None
         self.started = False
         self.following = True
+        self.arc = self.fw >= FC.ARC_FW             # (11-05d) firmware 2026-11-05c: R pieces, farc, coast, dodge
+        self.coast = None                           # dict(t, k, v, dodge) while rolling on after an R piece
+        self.farc = None
+        self.tx, self.ty = x, y                     # truth speed (speed-zero moments)
 
     def report(self, sim, sid, st, info=""):
         if st == "done" and sid:
@@ -145,7 +149,8 @@ class Bot:
 class Sim:
     def __init__(self, seed, hours, new_fw=True, dead_robot=True, pi_freeze=True, dropouts=True, loss=PACKET_LOSS,
                  lost_mode="reckon", out_dir=None, names=("Left", "Center", "Right"), lat_max=0.04, drill=0.0,
-                 cam_delay=None, cam_clock=0.0, wall_in=0.0, trap=False, fw=None, starts=None):
+                 cam_delay=None, cam_clock=0.0, wall_in=0.0, trap=False, fw=None, starts=None, motion="curves",
+                 fws=None, v_min=None):
         self.rng = random.Random(seed * 7919 + 13)
         self.seed, self.hours = seed, hours
         self.t = 0.0
@@ -164,6 +169,9 @@ class Sim:
             new_fw = fw >= FC.FRESH_FW
         self.bots = {n: Bot(n, p[0], p[1], self.rng.uniform(-180, 180), random.Random(seed * 101 + k), new_fw, fw)
                      for k, (n, p) in enumerate(zip(names, pts))}
+        for n, f in (fws or {}).items():          # (11-05d) a firmware mix: each robot its own
+            b = self.bots[n]
+            b.fw, b.new_fw, b.arc = f, f >= FC.FRESH_FW, f >= FC.ARC_FW
         self.cam_delay, self.cam_clock = cam_delay, cam_clock
         # the real walls: the believed board, its x_min side wall_in cm further in (the planner is not told)
         self.walls = (BOARD[0] + wall_in, BOARD[1], BOARD[2], BOARD[3])
@@ -180,7 +188,10 @@ class Sim:
             b.x, b.y, b.th = st
             b.ox, b.oy, b.oth = st
         self.ctrl = FC.Controller(names, BOARD, self.ctrl_out, self.ctrl_log, seed=seed, lost_mode=lost_mode,
-                                  drill=drill)
+                                  drill=drill, motion=motion, v_min_avoid=v_min)
+        # (11-05d) truth: each robot's true speed every step; speed-zero moments (under 0.3 cm/s for 0.1 s or more)
+        self.speed = {n: dict(moving_s=0.0, alive_s=0.0, zero_s=0.0, zero_run=0.0, zeros=0, why={}) for n in names}
+        self.n_moving = [0.0, 0.0, 0.0, 0.0]     # seconds with 0, 1, 2, 3 robots moving (robots still in the roam)
         self.frozen_until = -1.0
         self.freeze_at = self.rng.uniform(0.2, 0.8) * hours * 3600 if pi_freeze else None
         self.dead_at = (self.rng.uniform(0.15, 0.7) * hours * 3600, self.rng.choice(names)) if dead_robot else None
@@ -276,7 +287,22 @@ class Sim:
         elif verb == "fpose":
             b.ox, b.oy, b.oth = float(parts[1]), float(parts[2]), float(parts[3])
             b.hist = []                     # pose.h set(): the history is cleared
+        elif verb == "farc":
+            if not b.arc:
+                return
+            k = float(parts[1])
+            L = float(parts[2]) if len(parts) > 2 else None
+            if b.cur and b.cur["type"] == "R":
+                b.farc = (k, L)
+                for s in b.q:
+                    b.report(self, s["id"], "dropped", "farc")
+                b.q = []
+            elif b.coast:
+                b.coast["k"], b.coast["t"] = k, self.t
+            self.up(b, "fspd")
         elif verb == "halt":
+            if b.coast and not b.cur:
+                b.coast, b.v = None, 0.0
             for s in b.q:
                 b.report(self, s["id"], "dropped", "halt")
             b.q = []
@@ -295,6 +321,8 @@ class Sim:
                 return
             if verb == "fspd":
                 b.scale = float(parts[1])
+                if b.scale <= 0 and b.coast and not b.cur:
+                    b.coast, b.v = None, 0.0
             else:
                 b.steer = (float(parts[1]), float(parts[2]))
             self.up(b, "fspd")
@@ -318,6 +346,12 @@ class Sim:
                 v = [float(q) for q in parts[3:9]]
                 b.q.append(dict(id=sid, type="D", x0=v[0], y0=v[1], x1=v[2], y1=v[3], h=v[4], v=v[5],
                                 rev=len(parts) > 9 and parts[9] == "1"))
+            elif typ == "R" and b.arc:
+                v = [float(q) for q in parts[3:9]]
+                b.q.append(dict(id=sid, type="R", x0=v[0], y0=v[1], h=v[2], k=v[3], L=v[4], v=v[5]))
+            elif typ == "R":
+                b.report(self, sid, "bad", "could not read the step")
+                return
             b.report(self, sid, "queued")
 
     # -- physics ------------------------------------------------------------------------------------------------
@@ -344,7 +378,7 @@ class Sim:
     def bot_step(self, b):
         if b.dead or not b.following:
             return
-        moving = b.state in ("turn", "drive")
+        moving = b.state in ("turn", "drive", "curve", "coast", "dodge")
         b.battery -= (24.0 if moving else 6.0) * DT / 3600.0
         if b.battery < 9.5:
             b.q, b.v = [], 0.0          # the motor board stops the motors under 10 %
@@ -359,16 +393,34 @@ class Sim:
             b.q, b.cur, b.v, b.state = [], None, 0.0, "idle"
             self.stats["watchdog_stops"] += 1
             return
+        if b.cur is None and b.coast is not None and not (b.q and b.q[0]["type"] == "R"):
+            if self.coast_step(b):
+                return
         if b.cur is None:
             if not b.q:
                 b.state = "idle"
                 return
             if b.new_fw and self.t - b.last_rx > FC.WD_MS / 1000.0:
                 return
+            rolling = b.coast is not None and b.q[0]["type"] == "R"
             b.cur = b.q.pop(0)
-            b.scale, b.steer = 1.0, None
-            b.state = "turn" if b.cur["type"] == "T" else "drive"
+            if not rolling:
+                b.scale = 1.0
+                b.coast = None
+            b.steer = None
+            b.state = {"T": "turn", "R": "curve"}.get(b.cur["type"], "drive")
             b.report(self, b.cur["id"], "started")
+            if b.cur["type"] == "R":
+                c = b.cur
+                c["s"], c["prev"] = 0.0, None
+                if not rolling:
+                    b.v = 0.0
+                    if abs(wrap180(c["h"] - b.oth)) > 30:
+                        c["square"] = True
+                b.coast = None
+                if not c.get("square"):
+                    self.curve_step(b, c)          # the firmware runs straight on: no lost time step
+                return
             # firmware frontLimit for a turn (and a forward drive's square-up): safe_front_cm 7, centre zone
             if (b.cur["type"] == "T" or (not b.cur.get("rev") and abs(wrap180(b.cur["h"] - b.oth)) > 10)) and \
                     self.front_cm(b, lat_max=3.0) < 7.0:
@@ -387,6 +439,9 @@ class Sim:
                     b.cur["square"] = True
             b.v = 0.0
         s = b.cur
+        if s["type"] == "R" and not s.get("square"):
+            self.curve_step(b, s)
+            return
         if s["type"] == "T" or s.get("square"):
             tgt = s["h"]
             err = wrap180(tgt - b.oth)
@@ -397,6 +452,8 @@ class Sim:
                     b.cur, b.state = None, "idle"
                 else:
                     s["square"] = False
+                    if s["type"] == "R":
+                        b.state = "curve"
                 return
             w = max(25.0, min(TURN_MAX_DPS, 2.3 * abs(err))) * (1 if err > 0 else -1)
             d = w * DT
@@ -448,6 +505,105 @@ class Sim:
             self.stats["wall_hits"] += 1
             nx = x0 + 4.75
         b.x, b.y = nx, ny
+
+    # -- (11-05d) firmware 2026-11-05c curves ---------------------------------------------------------------------------
+    def move_truth(self, b, v, w):
+        """Own pose and truth moved by a forward speed v and turn rate w (deg/s) for DT (wheel and gyro errors)."""
+        b.oth = wrap180(b.oth + w * DT)
+        b.th = wrap180(b.th + w * DT * (1 + b.gyro_err))
+        d = v * DT
+        b.ox += d * math.cos(math.radians(b.oth))
+        b.oy += d * math.sin(math.radians(b.oth))
+        nx = b.x + d * (1 + b.wheel_err) * math.cos(math.radians(b.th))
+        ny = b.y + d * (1 + b.wheel_err) * math.sin(math.radians(b.th))
+        x0 = self.walls[0]
+        if self.walls != BOARD and nx < x0 + 4.75:
+            self.stats["wall_hits"] += 1
+            nx = x0 + 4.75
+        b.x, b.y = nx, ny
+
+    def open_side(self, b):
+        th0 = b.th
+        b.th = wrap180(th0 + 25)
+        left = self.front_cm(b, lat_max=4.0)
+        b.th = wrap180(th0 - 25)
+        right = self.front_cm(b, lat_max=4.0)
+        b.th = th0
+        return 1 if left >= right else -1
+
+    def curve_step(self, b, s):
+        """pose.h driveCurve (2026-11-05c): a piece of constant curvature on the own pose; no slowing at the end; the
+        front check dodges (a tight curve away) instead of stopping."""
+        if b.farc is not None:
+            k, L = b.farc
+            b.farc = None
+            left = s["L"] - s["s"]
+            s.update(x0=b.ox, y0=b.oy, h=b.oth, k=k, L=L if L else left, s=0.0, prev=None)
+        k = s["k"]
+        hr = math.radians(s["h"])
+        if abs(k) < 1e-4:
+            ux, uy = math.cos(hr), math.sin(hr)
+            s["s"] = (b.ox - s["x0"]) * ux + (b.oy - s["y0"]) * uy
+            cross = ux * (b.oy - s["y0"]) - uy * (b.ox - s["x0"])
+            href, lean = s["h"], max(-20.0, min(20.0, -3.0 * cross))
+            ff = 0.0
+        else:
+            sg, R = (1.0 if k > 0 else -1.0), 1.0 / abs(k)
+            cx, cy = s["x0"] - math.sin(hr) * sg * R, s["y0"] + math.cos(hr) * sg * R
+            phi = math.degrees(math.atan2(b.oy - cy, b.ox - cx))
+            if s["prev"] is not None:
+                s["s"] += sg * math.radians(wrap180(phi - s["prev"])) * R
+            s["prev"] = phi
+            e = math.hypot(b.ox - cx, b.oy - cy) - R
+            href, lean = phi + sg * 90.0, sg * max(-20.0, min(20.0, 2.0 * e))
+            ff = sg * math.degrees(b.v / R)
+        rem = s["L"] - s["s"]
+        if rem <= b.v * 0.03 + 0.05:
+            b.report(self, s["id"], "done")
+            b.cur = None
+            b.coast = dict(t=self.t, k=k, v=max(2.0, b.v), dodge=False)
+            b.state = "coast"
+            if not (b.q and b.q[0]["type"] == "R"):
+                self.coast_step(b)                 # rolls on in the same step (the firmware does not pause)
+            return
+        fc = self.front_cm(b)
+        if fc < 8.0 and b.v > 0.5 and b.scale <= 0:
+            b.v = 0.0
+            b.report(self, s["id"], "failed", "obstacle %.1f cm ahead" % fc)
+            for q in b.q:
+                b.report(self, q["id"], "dropped", "an earlier step failed")
+            b.q, b.cur, b.state, b.coast = [], None, "idle", None
+            self.stats["front_stops"] += 1
+            return
+        if fc < 8.0 and b.v > 0.5:
+            sd = self.open_side(b)
+            b.coast = dict(t=self.t, k=sd * FC.DODGE_K, v=min(max(b.v, 2.0), 4.0), dodge=True)
+            b.report(self, s["id"], "failed", "dodged obstacle %.1f cm ahead; curving %s at %.1f cm/s" % (
+                fc, "left" if sd > 0 else "right", b.coast["v"]))
+            for q in b.q:
+                b.report(self, q["id"], "dropped", "an earlier step failed")
+            b.q, b.cur, b.state = [], None, "dodge"
+            self.stats["dodges"] = self.stats.get("dodges", 0) + 1
+            return
+        sc = max(0.0, min(1.5, b.scale))
+        vt = min(s["v"] * sc, V_TOP)
+        b.v = min(vt, b.v + 20.0 * DT + 0.3) if b.v < vt else max(vt, b.v - 20.0 * DT - 0.3)
+        herr = wrap180(href + lean - b.oth)
+        w = ff + max(-60.0, min(60.0, 4.0 * herr))
+        self.move_truth(b, b.v, w)
+
+    def coast_step(self, b):
+        """follow.h coast: on round the last curve at its speed until the next R piece; stops after arc_coast_ms, for
+        the watchdog, or with something 4 cm ahead. True while it coasts."""
+        c = b.coast
+        if b.q or (b.new_fw and self.t - b.last_rx > FC.WD_MS / 1000.0) or self.t - c["t"] > FC.COAST_S or \
+                self.front_cm(b) < 4.0:
+            b.coast, b.v, b.state = None, 0.0, "idle"
+            return False
+        b.state = "dodge" if c["dodge"] else "coast"
+        b.v = c["v"]
+        self.move_truth(b, b.v, math.degrees(c["k"] * b.v))
+        return True
 
     def cam_gap(self, n, t):
         return any(a <= t < b for a, b in self.gaps[n])
@@ -506,7 +662,42 @@ class Sim:
                 self.up(b, "follow", b.state, b.ox, b.oy, b.oth, b.cur["id"] if b.cur else 0, b.last_done,
                         b.last_failed)
 
+    def speed_truth(self):
+        k = 0
+        for n, b in self.bots.items():
+            v = math.hypot(b.x - b.tx, b.y - b.ty) / DT
+            b.tx, b.ty = b.x, b.y
+            r = self.ctrl.R[n]
+            sp = self.speed[n]
+            if b.dead or r.mode in ("out", "gone", "start"):
+                sp["zero_run"] = 0.0
+                continue
+            sp["alive_s"] += DT
+            if v >= 0.3:
+                sp["moving_s"] += DT
+                k += 1
+                if sp["zero_run"] >= 0.1:
+                    self.zero_moment(n, r)
+                sp["zero_run"] = 0.0
+            else:
+                sp["zero_s"] += DT
+                sp["zero_run"] += DT
+        self.n_moving[min(3, k)] += DT
+
+    def zero_moment(self, n, r):
+        sp = self.speed[n]
+        sp["zeros"] += 1
+        zw = r.zero_why
+        why = zw[0] if zw and self.t - zw[1] <= 3.0 + sp["zero_run"] else (
+            "stop-turn (turns on the spot)" if not r.curve else "unexplained")
+        key = why.split(":")[0].split(" (")[0]
+        sp["why"][key] = sp["why"].get(key, 0) + 1
+        if len(self.__dict__.setdefault("zero_rows", [])) < 400:
+            self.zero_rows.append(dict(t=round(self.t, 2), robot=n, dur_s=round(sp["zero_run"], 2), why=why,
+                                       state=self.bots[n].state, kind=(r.move or {}).get("kind")))
+
     def truth(self):
+        self.speed_truth()
         bs = list(self.bots.values())
         for i in range(len(bs)):
             a = bs[i]
@@ -546,7 +737,7 @@ class Sim:
         c = self.ctrl
         T = self.hours * 3600.0
         for n, b in self.bots.items():
-            c.on_fw(n, "2026-11-05b" if b.new_fw else "2026-10-29b")
+            c.on_fw(n, b.fw)
             c.on_battery(n, 100, 0.0)
             c.on_follow(n, 0.0, "idle", b.ox, b.oy, b.oth, 0)
             c.on_fix(n, 0.0 + self.cam_clock, b.x, b.y, b.th, arrival=0.0 + (self.cam_delay or 0.15))
@@ -607,7 +798,19 @@ class Sim:
         hist = [0] * 41                          # 10 s windows by their smallest body gap: 1 cm bins, 40+ last
         for g in gw:
             hist[min(40, int(g))] += 1
-        return dict(seed=self.seed, hours=round(h, 3), gap_hist=hist, wall_hits=st["wall_hits"],
+        tot = sum(self.n_moving) or 1.0
+        speed = dict(robot={n: dict(moving_pct=round(100.0 * v["moving_s"] / max(1e-6, v["alive_s"]), 1),
+                                    zeros=v["zeros"], zeros_per_h=round(v["zeros"] / max(1e-6, v["alive_s"] / 3600), 1),
+                                    why=v["why"], style="curve" if c.R[n].curve else "stopturn")
+                             for n, v in self.speed.items()},
+                     ge2_pct=round(100.0 * (self.n_moving[2] + self.n_moving[3]) / tot, 1),
+                     all3_pct=round(100.0 * self.n_moving[3] / tot, 1),
+                     zeros=sum(v["zeros"] for v in self.speed.values()),
+                     zeros_per_h=round(sum(v["zeros"] for v in self.speed.values()) / max(1e-6, h), 1),
+                     why=Counter_sum(v["why"] for v in self.speed.values()))
+        return dict(seed=self.seed, hours=round(h, 3), gap_hist=hist, wall_hits=st["wall_hits"], speed=speed,
+                    dodges=c.counts["dodges"], pieces=c.counts["pieces"], loops=c.counts["loops"],
+                    motion_style=c.motion_style, v_min=c.v_min,
                     front_loops=st["front_loops"], keepouts=len(c.keepouts), backoffs=c.counts["backoffs"],
                     cam_refused=c.counts["cam_refused"], cam_delay_s=round(c.cam_delay, 3), clock_s=round(c.clock, 3),
                     clock_seen_s=c.clock_seen, longest_still_s=self.longest_still(), contacts=st["contacts"], contact_s=round(st["contact_s"], 2),
@@ -738,6 +941,10 @@ def main(argv=None):
     ap.add_argument("--trap", action="store_true", help="Right starts 7 cm from an edge facing out")
     ap.add_argument("--fw", default=None, help="the robots' firmware, e.g. 2026-10-28a (default: 11-05b, or "
                                                "10-29b with --old-fw)")
+    ap.add_argument("--motion", default="curves", choices=("curves", "stopturn"),
+                    help="(11-05d) motion style (curves need firmware 2026-11-05c: --fw 2026-11-05c)")
+    ap.add_argument("--fw-mix", default="", help="each robot's firmware, e.g. Left=2026-11-05c,Right=2026-10-28a")
+    ap.add_argument("--v-min", type=float, default=None, help="curves: the slowest an avoiding robot goes (cm/s)")
     a = ap.parse_args(argv)
     lo, _, hi = a.seeds.partition("-")
     seeds = range(int(lo), int(hi or lo) + 1)
@@ -751,11 +958,13 @@ def main(argv=None):
         s = Sim(sd, a.hours, new_fw=not a.old_fw, dead_robot=not a.no_dead, pi_freeze=not a.no_freeze,
                 dropouts=not a.no_dropouts, loss=a.loss, lost_mode=a.lost_mode, out_dir=od,
                 lat_max=a.lat_max_ms / 1000.0, drill=a.drill, cam_delay=a.cam_delay, cam_clock=a.cam_clock,
-                wall_in=a.wall_in, trap=a.trap, fw=a.fw)
+                wall_in=a.wall_in, trap=a.trap, fw=a.fw, motion=a.motion, v_min=a.v_min,
+                fws=dict(x.split("=") for x in a.fw_mix.split(",") if x))
         r = s.run()
         r["wall_s"] = round(time.time() - t0, 1)
         r.update(drill=a.drill, old_fw=a.old_fw, loss=a.loss, lat_max_ms=a.lat_max_ms, lost_mode=a.lost_mode,
-                 cam_delay=a.cam_delay, cam_clock=a.cam_clock, wall_in=a.wall_in, trap=a.trap, fw=a.fw)
+                 cam_delay=a.cam_delay, cam_clock=a.cam_clock, wall_in=a.wall_in, trap=a.trap, fw=a.fw,
+                 motion=a.motion, fw_mix=a.fw_mix, v_min=a.v_min)
         print(json.dumps(r), flush=True)
         res.append(r)
         if od:

@@ -48,7 +48,7 @@ for p in (HERE, TOOLS):
 import freeroam_core as FC   # noqa: E402
 
 PY = sys.executable
-VERSION = "freeroam-runner-2026-11-05c"
+VERSION = "freeroam-runner-2026-11-05d"   # 11-05d: --motion curves|stopturn, arc calibration save
 HOME_BOARD = (0.0, 0.0, 122.24, 121.92)    # roam.py's board (the home plywood in the floor calibration's cm)
 FOLLOW_LOOK_CM = 8.0    # the robots' own front stop while driving: roam.py's 8 (the plywood reads ~10 cm ahead, 12
                         # stopped drives). Another robot's face at the planned gap is 7.9 cm or more away; the reflex
@@ -107,7 +107,8 @@ class Runner:
         self.tables = Tables(outdir)
         self.ctrl = FC.Controller(names, rect, self.send, self.logrow, seed=a.seed, lost_mode=a.lost_mode,
                                   battery_floor=a.battery_floor, park_sleep=not a.no_sleep,
-                                  drill=a.reflex_drill if a.dry else 0.0)
+                                  drill=a.reflex_drill if a.dry else 0.0, motion=a.motion)
+        self.ctrl.arc_save_on = not a.no_arc_save
         self.offsets = {n: [] for n in names}
         self.fix_last = {n: 0.0 for n in names}
         self.run_exp = {n: None for n in names}
@@ -163,6 +164,9 @@ class Runner:
                 m = re.search(r"battery (\d+)%", vals)
                 if m:
                     c.on_battery(name, int(m.group(1)), t)
+                m = re.search(r"arc_k_scale ([0-9.]+).*arc_d_scale ([0-9.]+)", vals)
+                if m:                       # (11-05d) the curves' calibration in use (boot / saved lines)
+                    c.R[name].arc_scales = (float(m.group(1)), float(m.group(2)))
                 if "not calibrated" in low:
                     c.event(c.R[name], "not calibrated", vals)
                 continue
@@ -279,10 +283,14 @@ class Runner:
             new = fw >= FC.FRESH_FW
             if new:
                 self.send(n, "set follow_wd_ms %d" % FC.WD_MS)
-            say("  %s: firmware %s, battery %s%%: %s" % (
+            curves = c.motion_style == "curves" and fw >= FC.ARC_FW
+            say("  %s: firmware %s, battery %s%%: %s; motion: %s" % (
                 n, fw, c.R[n].battery if c.R[n].battery is not None else "?",
                 "speed and steer changes while driving, watchdog on" if new else
-                "OLDER FIRMWARE: speed and steer changes by halt + resend (a short stop each), no watchdog"))
+                "OLDER FIRMWARE: speed and steer changes by halt + resend (a short stop each), no watchdog",
+                "CURVES (never stops on purpose)" if curves else
+                "stop-turn-drive (%s)" % ("chosen: stopturn" if c.motion_style == "stopturn" else
+                                         "its firmware is older than %s: reflash for curves" % FC.ARC_FW)))
             c.event(c.R[n], "firmware", "%s (%s)" % (fw, "fspd/fsteer/watchdog" if new else "halt + resend"))
         for attempt in range(3):
             for n in live:
@@ -586,6 +594,11 @@ def main(argv=None):
     ap.add_argument("--lost-mode", choices=("reckon", "hold"), default="reckon",
                     help="reckon (default): dead reckoning with a growing bubble; hold: the old cautious halt")
     ap.add_argument("--no-sleep", action="store_true", help="a parked robot is stopped, not put to sleep")
+    ap.add_argument("--motion", choices=("curves", "stopturn"), default="curves",
+                    help="(5 Nov) curves (default: continuous curving pieces on firmware 2026-11-05c+, older robots "
+                         "stop-turn-drive) or stopturn (everyone as before)")
+    ap.add_argument("--no-arc-save", action="store_true", help="(5 Nov) do not save the curves' calibration found "
+                    "in the run on a robot when it parks")
     ap.add_argument("--seed", type=int, default=None, help="the menu's seed (default: from the clock; recorded)")
     ap.add_argument("--robots", default="Left,Center,Right")
     ap.add_argument("--dir")
@@ -652,7 +665,7 @@ def main(argv=None):
     why = "stopped before the roam"
     code = 0
     say("Free roam: %s (seed %d, battery floor %d %%, lost: %s)" % (outdir, a.seed, a.battery_floor, a.lost_mode))
-    run_info = dict(version=VERSION, core=FC.VERSION, seed=a.seed, hours=a.hours, battery_floor=a.battery_floor,
+    run_info = dict(version=VERSION, core=FC.VERSION, motion=a.motion, seed=a.seed, hours=a.hours, battery_floor=a.battery_floor,
                     lost_mode=a.lost_mode, dry=a.dry, reflex_drill=a.reflex_drill, started=dt.datetime.now().isoformat(timespec="seconds"),
                     argv=sys.argv[1:])
     try:

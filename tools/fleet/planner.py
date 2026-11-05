@@ -101,6 +101,14 @@ DEFAULT_SETTINGS = {
     "arc_piece_deg": 30.0,      # chosen: an arc step is at most this many degrees (6-8 cm at r 12-15: about one
                                 # drive chunk). Two robots circling 180 deg apart at r 15 keep pieces two apart clear of
                                 # each other, so they can run together. No DOE: geometry (it only sets step size)
+    # Motion style (Nick, 5 Nov 16:06: "A person sending a robot to a set of ordered points may want straight lines and
+    # stopped rotation for turns ... Both options should always be available"): "stopturn" (default: turn on the spot
+    # at every corner, as always) or "curves": a route's corners become arcs (follow step C, firmware 2026-10-28a and
+    # newer) of corner_r_cm where the arc keeps the whole body's turning room from everything on the map (else that
+    # corner stays a stop and turn). The start and the end of a route still turn on the spot (the robot stands there).
+    "motion": "stopturn",
+    "corner_r_cm": 12.0,        # chosen: the free roam's tightest menu curve. DOE note: 8 / 12 / 20 cm against corners
+                                # kept as stop-turn (no room) and the camera's error round the arc
     "probe_back_straight": True,  # the straight back-off above (2026-11-02); False: the old way (a free re-plan from
                                 # the stop: it may turn there), kept behind this switch (Nick's rule: keep features)
     "probe_back_cms": 3.0,      # a side feel's back-off after the edge guard or front sensor ended it: straight back the
@@ -128,6 +136,11 @@ def settings(over=None):
             raise PlanError("unknown setting %r" % k)
         if isinstance(DEFAULT_SETTINGS[k], bool) and isinstance(v, str):
             s[k] = v.strip().lower() in ("1", "true", "yes", "on")
+        elif k == "motion":
+            v = str(v).strip().lower().replace("-", "").replace(" ", "")
+            if v not in ("stopturn", "curves"):
+                raise PlanError("motion must be stopturn or curves")
+            s[k] = v
         else:
             s[k] = type(DEFAULT_SETTINGS[k])(v)
     return s
@@ -710,6 +723,8 @@ def _travel(pose, goal, grid, s, task, what):
     pts = grid.route(pose, goal)
     if pts is None:
         raise PlanError("%s cannot be reached: no clear route" % what)
+    if s.get("motion", "stopturn") == "curves" and len(pts) > 2:
+        return _travel_curves(pose, pts, grid, s, task)
     out, h = [], pose[2]
     for a, b in zip(pts[:-1], pts[1:]):
         L = float(np.linalg.norm(b - a))
@@ -720,6 +735,55 @@ def _travel(pose, goal, grid, s, task, what):
             out.append(turn_prim([a[0], a[1], h], hd, s, task=task))
         out += drive_prims(a, b, s, task=task)
         h = hd
+    return out
+
+
+def _fillet(P, h1, h2, r, Lin, Lout, grid):
+    """A corner at P (in along h1, out along h2, rad) rounded by a circle of radius r: (tangent length, centre, a0,
+    sweep), or None when the corner is too gentle or too sharp, the legs too short, or the arc leaves the turning room."""
+    d = G.wrap(h2 - h1)
+    if abs(d) < math.radians(8) or abs(d) > math.radians(120):
+        return None
+    for rr in (r, r * 0.66, r * 0.5):
+        t = rr * math.tan(abs(d) / 2)
+        if t > 0.45 * Lin or t > 0.45 * Lout:
+            continue
+        u1 = np.array([math.cos(h1), math.sin(h1)])
+        T1 = np.asarray(P, float) - u1 * t
+        sg = 1.0 if d > 0 else -1.0
+        C = T1 + sg * rr * np.array([-u1[1], u1[0]])
+        a0 = math.atan2(T1[1] - C[1], T1[0] - C[0])
+        ok = all(grid.point_clear(C + rr * np.array([math.cos(a0 + f * d), math.sin(a0 + f * d)])) >= grid.turn_thr
+                 for f in np.linspace(0, 1, 7))
+        if ok:
+            return t, C, a0, d, rr
+    return None
+
+
+def _travel_curves(pose, pts, grid, s, task):
+    """(5 Nov) motion "curves": the route's inner corners as arcs (where they fit), straight drives between."""
+    pts = [np.asarray(q, float) for q in pts]
+    hs = [math.atan2(b[1] - a[1], b[0] - a[0]) for a, b in zip(pts[:-1], pts[1:])]
+    Ls = [float(np.linalg.norm(b - a)) for a, b in zip(pts[:-1], pts[1:])]
+    fil = [None] * len(pts)
+    for i in range(1, len(pts) - 1):
+        fil[i] = _fillet(pts[i], hs[i - 1], hs[i], s.corner_r_cm, Ls[i - 1], Ls[i], grid)
+    out, h = [], pose[2]
+    for i in range(len(pts) - 1):
+        a, b = pts[i], pts[i + 1]
+        u = (b - a) / max(Ls[i], 1e-9)
+        a2 = a + u * (fil[i][0] if fil[i] else 0.0)
+        b2 = b - u * (fil[i + 1][0] if fil[i + 1] else 0.0)
+        if abs(G.wrap(hs[i] - h)) >= math.radians(0.5):
+            out.append(turn_prim([a2[0], a2[1], h], hs[i], s, task=task))
+        if float(np.linalg.norm(b2 - a2)) > 0.05:
+            out += drive_prims(a2, b2, s, task=task)
+        h = hs[i]
+        f = fil[i + 1]
+        if f:
+            t, C, a0, d, rr = f
+            out += arc_prims(C, rr, a0, d, s, phase="travel", task=task)
+            h = hs[i + 1]
     return out
 
 

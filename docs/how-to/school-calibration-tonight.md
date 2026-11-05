@@ -418,6 +418,23 @@ old firmware, nothing is broken.
 rm ~/home_lab.ino.bin
 ```
 
+## New on 5 Nov evening: what the robot does when the camera loses its roof tag, and the turning choice
+
+**Lost roof tag (calibration).** Before, the robot stopped and waited where it was. Now it **recovers by itself**:
+it stops, turns on the spot towards the nearest place where the camera read its tag well, and drives there slowly in
+short straight steps (5 cm at 5 cm/s), checking before every step that even its worst-case position error keeps it
+clear of the table's edges and the outlet plates. As soon as the camera sees the tag again, it carries on; the leg
+the tag was lost in is left out of the fit. If a step would bring it near an edge, it stops, wiggles a little, and
+waits as before. Nothing to type. You will see lines like `RECOVER: the roof tag was lost ...` and
+`seen again after 4.2 s, 10 cm blind: odometry was 1.3 cm off the camera`. The school robot's firmware
+(2026-10-29b) is fine for this. To get the old stop-and-wait back, a helper adds `--lost-policy hold` (or sets the
+site's `calibration.lost_policy` to `hold`).
+
+**Turning choice (missions).** School runs turn on the spot at every point, as always: that is the default and
+nothing changes. Mission Control's mission page now shows **How the robots turn**: leave it on **Stop and turn on
+the spot at every corner**. (The other choice, **Curves at the corners where there is room**, is for home tests.)
+On the command line the same choice is `--motion stopturn` (default) or `--motion curves`.
+
 ## If something is different
 
 | You see | What it means | Do |

@@ -247,6 +247,13 @@ class FollowMixin:
         self.dock_log = []           # simulation only: true pose at the end of every approach
         self.f_dock_hdr = self.f_touch_hdr = False
         self.survey_legs = []
+        # (2026-11-05c) continuous curves (follow.h / pose.h driveCurve): R pieces, coast, farc, dodge
+        self.curving = self.dodging = self.dodged = False
+        self.coast_t0 = 0
+        self.c_v = self.c_k = 0.0
+        self.arc_set = None
+        self.curve_look = -1.0
+        self.dodge_k = self.dodge_cm = 0.0
 
     # ------------------------------------------------------------- pose.h drives
     def set_drive(self, v, w):
@@ -541,6 +548,10 @@ class FollowMixin:
                     self.send("M,usage: fspd <scale 0-1.5>")
                     return
                 self.f_scale = sc
+                if sc <= 0 and self.curving and not self.f_cur:
+                    self.curving = False
+                    self.brake()
+                    self.c_v = 0.0
             else:
                 if n < 2 or isnan(num(tok[0])) or isnan(num(tok[1])):
                     self.send("M,usage: fsteer <x> <y>")
@@ -551,7 +562,28 @@ class FollowMixin:
                                                            getattr(self, "f_scale", 1.0), st[0] if st else 0.0,
                                                            st[1] if st else 0.0))
             return
+        if verb == "farc":                          # (2026-11-05c) bend the running curve piece or the coast
+            k = num(tok[0]) if n > 0 else float("nan")
+            L = num(tok[1]) if n > 1 else float("nan")
+            if isnan(k) or abs(k) > 0.5 or (not isnan(L) and L <= 0):
+                self.send("M,usage: farc <k 1/cm> [<len cm>]")
+                return
+            if self.f_cur and self.f_state == "curve":
+                self.arc_set = (k, L)
+                self.f_drop(0, "farc")
+            elif self.curving:
+                self.c_k, self.coast_t0 = k, self.millis()
+            else:
+                self.send("M,farc: no curve running")
+                return
+            self.send("D,FSPD,%s,%d,%d,farc,%.2f,%.4f,%.2f" % (self.run_id, self.millis(), self.f_cur,
+                                                              getattr(self, "f_scale", 1.0), k, -1.0 if isnan(L) else L))
+            return
         if verb == "halt":
+            if self.curving and not self.f_cur:
+                self.curving = False
+                self.brake()
+                self.c_v = 0.0
             self.f_drop(0, "halt")
             if self.f_cur:
                 self.step_stop = "halted"
@@ -603,6 +635,13 @@ class FollowMixin:
                 s[key] = num(tok[2 + k])
             ok = not any(isnan(s[k]) for k in ("cx", "cy", "r", "a0", "sweep", "speed")) and s["speed"] > 0 \
                 and s["r"] > 0
+            if n >= 9 and not isnan(num(tok[8])):
+                s["fmin"] = num(tok[8])
+        elif typ == "R" and n >= 8 and getattr(self, "fw_version", "") >= "2026-11-05c":
+            for k, key in enumerate(("x0", "y0", "h", "k", "len", "speed")):
+                s[key] = num(tok[2 + k])
+            ok = not any(isnan(s[k]) for k in ("x0", "y0", "h", "k", "len", "speed")) and s["speed"] > 0 and \
+                s["len"] > 0 and abs(s["k"]) <= 0.5
             if n >= 9 and not isnan(num(tok[8])):
                 s["fmin"] = num(tok[8])
         elif typ == "Z" and n >= 3:
@@ -760,6 +799,106 @@ class FollowMixin:
             self.brake()
         return True
 
+    def open_side(self):
+        d = [v if v > 0 else 999.0 for v in self.tof()]
+        return 1 if min(d[0], d[1]) >= min(d[3], d[4]) else -1
+
+    def drive_curve(self, x0, y0, h0, k, L, vmax):
+        """pose.h driveCurve() (firmware 2026-11-05c): a piece of constant curvature on the own pose, no slowing at the
+        end (the next piece or the coast carries on); farc bends it from where it is; the front check dodges."""
+        P, pose = self.P, self.pose
+        k *= P("arc_k_scale")
+        L *= P("arc_d_scale")
+        kr, kct, kh, acc = P("arc_kr"), P("arc_kct"), P("drive_kh"), P("drive_accel")
+        st = {}
+
+        def setup():
+            st["line"] = abs(k) < 1e-4
+            st["R"] = 0.0 if st["line"] else 1.0 / abs(k)
+            st["sg"] = 1.0 if k >= 0 else -1.0
+            if not st["line"]:
+                hr = h0 * DEG2RAD
+                st["cx"] = x0 - math.sin(hr) * st["sg"] * st["R"]
+                st["cy"] = y0 + math.cos(hr) * st["sg"] * st["R"]
+                st["prev"] = math.degrees(math.atan2(y0 - st["cy"], x0 - st["cx"]))
+            st["s"] = 0.0
+        setup()
+        t0 = last = self.millis()
+        slack = 0.0
+        limit = 3000 + int(L / max(vmax, 1.0) * 2500.0)
+        v = self.c_v
+        low_n, prev_f = 0, -1.0
+        while True:
+            if self.should_abort():
+                self.c_v = 0.0
+                return DRIVE_ABORT if self.abort_reason else DRIVE_STEPSTOP
+            now = self.millis()
+            dt = (now - last) / 1000.0
+            last = now
+            if self.arc_set is not None:
+                nk, nl = self.arc_set
+                self.arc_set = None
+                left = L - st["s"]
+                x0, y0, h0 = pose.x, pose.y, pose.th()
+                k = nk * P("arc_k_scale")
+                L = left if isnan(nl) else nl * P("arc_d_scale")
+                setup()
+                t0, slack = now, 0.0
+                limit = 3000 + int(L / max(vmax, 1.0) * 2500.0)
+            if st["line"]:
+                ux, uy = math.cos(h0 * DEG2RAD), math.sin(h0 * DEG2RAD)
+                st["s"] = (pose.x - x0) * ux + (pose.y - y0) * uy
+                cross = ux * (pose.y - y0) - uy * (pose.x - x0)
+                href, lean = h0, max(-20.0, min(20.0, -kct * cross))
+            else:
+                phi = math.degrees(math.atan2(pose.y - st["cy"], pose.x - st["cx"]))
+                st["s"] += st["sg"] * wrap180(phi - st["prev"]) * DEG2RAD * st["R"]
+                st["prev"] = phi
+                e = math.hypot(pose.x - st["cx"], pose.y - st["cy"]) - st["R"]
+                href, lean = phi + st["sg"] * 90.0, st["sg"] * max(-20.0, min(20.0, kr * e))
+            rem = L - st["s"]
+            sc = max(0.0, min(1.5, getattr(self, "f_scale", 1.0)))
+            if sc < 1.0:
+                slack += (1.0 - sc) * dt * 1000.0
+            if rem <= v * 0.03 + 0.05:
+                break
+            if now - t0 > limit + slack:
+                self.brake()
+                self.c_v = 0.0
+                self.fail = "curve timed out"
+                return DRIVE_TIMEOUT
+            if self.curve_look > 0:
+                d = self.front_in_path()
+                fresh = d != prev_f
+                prev_f = d
+                if 0 < d < self.curve_look:
+                    if fresh:
+                        low_n += 1
+                    need = int(P("obs_n"))
+                    if low_n >= (need if need > 0 else 2):
+                        self.front_trip = d
+                        if P("arc_dodge_r") > 0 and sc > 0:
+                            self.dodge_k = self.open_side() / P("arc_dodge_r")
+                            self.dodge_cm = d
+                            self.c_k = self.dodge_k
+                            self.c_v = min(max(v, P("arc_vmin")), P("arc_dodge_cms"))
+                            return "dodge"
+                        self.step_stop = "obstacle"
+                        self.brake()
+                        self.c_v = 0.0
+                        return DRIVE_STEPSTOP
+                elif fresh:
+                    low_n = 0
+            vt = vmax * sc
+            v = min(vt, v + acc * dt + 0.3) if v < vt else max(vt, v - acc * dt - 0.3)
+            herr = wrap180(href + lean - pose.th())
+            w = (0.0 if st["line"] else st["sg"] * math.degrees(v / st["R"])) + max(-60.0, min(60.0, kh * herr))
+            self.set_drive(v, w)
+            self.c_v = v
+            self.c_k = 0.0 if st["line"] else st["sg"] / st["R"]
+            self.loop_delay(5)
+        return DRIVE_OK
+
     def dance(self, ms):
         """follow step Z (firmware 2026-10-28a dance.h): spins, wiggles and lights where it stands, for ms (0 = until
         stopped). The simulator turns; the lights are not drawn."""
@@ -783,6 +922,23 @@ class FollowMixin:
     def run_step(self, s):
         self.f_info = ""
         t = s["type"]
+        if t == "R":                                   # (2026-11-05c)
+            if not self.curving and abs(wrap180(s["h"] - self.pose.th())) > 30.0:
+                self.front_limit = self.front_limit_for(s["fmin"])
+                if not self.turn_to_floor(s["h"]):
+                    return False
+            if not self.curving:
+                self.c_v = 0.0
+            self.front_limit = 0.0
+            self.curve_look = self.front_limit_for(s["fmin"], True)
+            d0 = self.pose.dist
+            r = self.drive_curve(s["x0"], s["y0"], s["h"], s["k"], s["len"], s["speed"])
+            self.curve_look = -1.0
+            self.f_travel = self.pose.dist - d0
+            if r == "dodge":
+                self.dodged = True
+                return False
+            return r == DRIVE_OK
         if t == "C":
             self.front_limit = self.front_limit_for(s["fmin"])
             if abs(wrap180(s["a0"] + (90.0 if s["sweep"] >= 0 else -90.0) - self.pose.th())) > 20.0:
@@ -862,6 +1018,9 @@ class FollowMixin:
                 if self.abort_reason:
                     break
                 self.step_stop = ""
+                if self.curving:                       # (2026-11-05c) the edge guard (braked) ends a coast
+                    self.curving = self.dodging = False
+                    self.c_v = 0.0
             quiet = self.millis() - self.last_rx
             if quiet > P("follow_quiet_ms"):
                 if not self.f_quiet_said and not self.f_q and not self.f_cur:
@@ -869,6 +1028,24 @@ class FollowMixin:
                     self.f_quiet_said = True
             else:
                 self.f_quiet_said = False
+            if self.curving and not (self.f_q and self.f_q[0]["type"] == "R" and self.pose.known):
+                wd = P("follow_wd_ms") > 0 and quiet > P("follow_wd_ms")
+                d = self.front_in_path()
+                why = None if self.f_q else ("watchdog" if wd else "no pose" if not self.pose.known else
+                                             "nothing queued" if self.millis() - self.coast_t0 > P("arc_coast_ms") else
+                                             "something close ahead" if 0 < d < P("arc_dodge_stop_cm") else None)
+                if self.f_q or why:
+                    self.brake()
+                    self.curving = self.dodging = False
+                    self.c_v = 0.0
+                    if why:
+                        self.send("M,%s follow: coast ended (%s): stopped" % (self.name, why))
+                else:
+                    self.f_state = "dodge" if self.dodging else "coast"
+                    v = max(P("arc_vmin"), self.c_v)
+                    self.set_drive(v, math.degrees(self.c_k * v))
+                    self.loop_delay(5)
+                    continue
             if not self.f_q or not self.pose.known:
                 self.f_state = "idle"
                 self.loop_delay(5)
@@ -886,17 +1063,26 @@ class FollowMixin:
             self.f_cur = s["id"]
             self.step = s["id"]
             self.f_state = {"T": "turn", "D": "drive", "A": "approach", "W": "wait", "K": "dock",
-                            "P": "touch", "C": "arc", "Z": "dance"}.get(s["type"], "?")
+                            "P": "touch", "C": "arc", "Z": "dance", "R": "curve"}.get(s["type"], "?")
             self.f_travel = 0.0
             self.step_stop = ""
             self.fail = ""
-            self.f_scale, self.f_steer = 1.0, None      # (2026-11-05b) every step at its own speed and line
+            if not (s["type"] == "R" and self.curving):
+                self.f_scale = 1.0                      # (2026-11-05b) every step at its own speed and line
+            self.f_steer = None                         # (2026-11-05c) an R piece run on keeps the scale
+            self.dodged = False
             self.bd_reset()
             self.f_report(s["id"], "started", "")
             self.front_low_n = 0                       # obs_n counts readings within this step (follow.h)
             ok = self.run_step(s)
-            if not (ok and s.get("cont")):
+            rolling = s["type"] == "R" and (ok or self.dodged) and not self.abort_reason
+            if not (ok and s.get("cont")) and not rolling:
                 self.brake()
+            if not rolling:
+                self.curving = self.dodging = False
+                self.c_v = 0.0
+            else:
+                self.curving, self.dodging, self.coast_t0 = True, self.dodged, self.millis()
             self.front_limit = 0.0
             self.front_path = False
             self.front_end_base = -1.0
@@ -909,7 +1095,10 @@ class FollowMixin:
                 self.f_last_done = s["id"]
                 self.f_report(s["id"], "done", self.f_info)
             else:
-                if self.step_stop == "obstacle":
+                if self.dodged:
+                    why = "dodged obstacle %.1f cm ahead; curving %s at %.1f cm/s" % (
+                        self.dodge_cm, "left" if self.dodge_k > 0 else "right", self.c_v)
+                elif self.step_stop == "obstacle":
                     d = self.tof()
                     why = "obstacle %.1f cm ahead; zones %.1f %.1f %.1f %.1f %.1f" % ((self.front_trip,) + tuple(d))
                 elif self.step_stop == "border":
@@ -929,6 +1118,8 @@ class FollowMixin:
             self.step = 0
             self.f_state = "idle"
         self.f_drop(0, "run ended")
+        self.curving = self.dodging = False
+        self.c_v = 0.0
         self.f_active = False
         self.tick_hook = None
         self.front_soft = False

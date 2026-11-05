@@ -22,12 +22,16 @@ If a robot still moves: pick it up and switch it off.
 
 ---
 
-## 1. Reflash the robots (recommended, once; about 5 minutes per robot)
+## 1. Reflash the robots (for curves; once; about 5 minutes per robot)
 
-The new firmware is **2026-11-05b**. With it, a robot can slow down, speed up or steer **while it drives**, so the
-robots avoid each other without stopping. It also stops by itself if the Pi or the WiFi goes quiet for 1.5 s (the
-watchdog). Your robots last ran **2026-10-29b**. On that firmware the run still works, but every avoidance is a
-short stop and a fresh start, and there is no watchdog. The report counts those short stops.
+The new firmware is **2026-11-05c** (5 Nov evening). With it the robots drive **continuous curves**: no stopping to
+turn on the spot, they curve from one move into the next, slow down (never below 3 cm/s) or bend their curve to keep
+apart, and curve away from something in front instead of stopping. It keeps everything 2026-11-05b had (speed and
+steer changes while driving, the 1.5 s watchdog).
+
+A robot that is **not** reflashed (your robots ran **2026-10-28a** this afternoon) still works: it simply drives the
+old way (stop, turn on the spot, drive). The start-up lines say which way each robot drives, and the report counts
+the two kinds apart. So reflashing is what makes them curve; skipping it is safe.
 
 On your PC, for each robot (Left, Center, Right):
 
@@ -40,7 +44,7 @@ On your PC, for each robot (Left, Center, Right):
 4. Arduino IDE: **File, Open**, `alvik-fleet-capstone-main\firmware\home_lab\home_lab.ino`. **Tools, Board**:
    `Arduino Nano ESP32`. **Tools, Port**: the one that appeared when you plugged it in. Press **Upload** (the right
    arrow). Wait for `Done uploading`.
-5. **Tools, Serial Monitor**, set `115200`. You should see `home_lab 2026-11-05b ready, battery NN%`.
+5. **Tools, Serial Monitor**, set `115200`. You should see `home_lab 2026-11-05c ready, battery NN%`.
 6. Unplug it and do the next robot.
 
 ## 2. Before you start (5 minutes)
@@ -97,6 +101,27 @@ step 1) and `battery 100%` or close to it.
 
 You should see `Free roam started in tmux session 'freeroam' (time cap 4 h; each robot parks at 10 % battery)` and
 `You can close this window and switch Tailscale: it keeps running on the Pi.`
+
+**Curves or the old way.** Curves are the default (for robots on 2026-11-05c). For tonight's run with full video,
+type this instead of the box above (one command):
+
+```
+./run-fleet-pi.sh freeroam 4 full-video
+```
+
+To make every robot drive the old way (stop, turn on the spot, drive), add the word `stopturn`:
+
+```
+./run-fleet-pi.sh freeroam 4 stopturn full-video
+```
+
+When it starts (watch it with `tmux attach -t freeroam`; leave with **Ctrl+B**, then **D**) you should see one line
+per robot ending in `motion: CURVES (never stops on purpose)` for a reflashed robot, or
+`motion: stop-turn-drive (its firmware is older than 2026-11-05c: reflash for curves)` for one that is not.
+
+**The curves' own calibration** happens during the run: each robot's curves are measured by the camera, and when it
+parks at 10 % the values are saved on it (you see `arc calibration ... saved on the robot` in the events). Nothing
+to do. (To leave them unsaved, a helper can add `--no-arc-save`.)
 
 What happens next, by itself: the robots are found by their lights and calibrated one at a time (about 1 minute each;
 a robot calibrated earlier today on the same power-on keeps it). Then all three start moving together.

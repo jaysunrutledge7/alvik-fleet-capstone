@@ -223,6 +223,47 @@ def chart_battery(folder, bat, t0):
     return p
 
 
+def never_stops(folder, mot, run):
+    """(11-05d) The trophy "never stops": each robot's motion style, the share of its time with speed > 0 (its own
+    wheels: 1 cm/s or more over 0.6 s), 2 / 3 at once, and every speed-zero moment with why (zeros.csv)."""
+    zeros = rd(folder, "zeros")
+    if not mot:
+        return []
+    L = ["**Never stops** (motion style: %s; speed > 0 = the robot's own wheels show 1 cm/s or more over 0.6 s, "
+         "every 0.5 s, motion.csv; speed-zero moments and why: zeros.csv)." % run.get("motion", "curves"), "",
+         "| robot | style | speed > 0 | speed-zero moments | per hour | the main reasons |", "|---|---|---|---|---|---|"]
+    by = {}
+    for m in mot:
+        if m.get("mode") in ("out", "gone", "start"):
+            continue
+        b = by.setdefault(m["robot"], [0, 0, m.get("style", "")])
+        b[0] += 1
+        b[1] += int(m.get("translating", "0") == "1")
+    ts = sorted(set(m["t"] for m in mot))
+    hours = max(1e-6, (fnum(ts[-1]) - fnum(ts[0])) / 3600.0) if ts else 1e-6
+    for n, (tot, mv, st) in sorted(by.items()):
+        z = [q for q in zeros if q["robot"] == n]
+        why = Counter(q["why"].split(":")[0].split(" (")[0] for q in z)
+        L.append("| %s | %s | %.1f %% | %d | %.0f | %s |" % (n, st or "-", 100.0 * mv / max(1, tot), len(z), len(z) / hours,
+                                                         ", ".join("%s %d" % kv for kv in why.most_common(4)) or "-"))
+    per_t = {}
+    for m in mot:
+        if m.get("mode") in ("out", "gone", "start"):
+            continue
+        per_t.setdefault(m["t"], []).append(m.get("translating") == "1")
+    if per_t:
+        n2 = sum(1 for v in per_t.values() if sum(v) >= 2)
+        n3 = sum(1 for v in per_t.values() if sum(v) >= 3)
+        L += ["", "Speed > 0 at the same time: at least 2 robots %.1f %%, all 3 %.1f %% of the time." % (
+            100.0 * n2 / len(per_t), 100.0 * n3 / len(per_t))]
+    arc = [q for q in rd(folder, "arcfit") if q.get("k") == "median"]
+    if arc:
+        L += ["", "Curves' calibration found in the run (arcfit.csv): " + "; ".join(
+            "%s curvature x%s, length x%s of what was asked (%s pieces)" % (q["robot"], q["k_ratio"], q["length_ratio"],
+                                                                          q["n"]) for q in arc) + "."]
+    return L + [""]
+
+
 def make(folder):
     run = {}
     if os.path.exists(os.path.join(folder, "run.json")):
@@ -237,7 +278,11 @@ def make(folder):
           "reservation in space and time; a reflex on every camera frame changes speed or steers before anything "
           "stops.%s Seed %s." % (run.get("battery_floor", FC.BATTERY_FLOOR), run.get("hours", 4.0),
                                  " **Simulator run** (tools/sim/fleet_sim.py), not the robots." if run.get("dry")
-                                 else "", run.get("seed")), ""]
+                                 else "", run.get("seed")), "",
+          "Motion style: **%s** (5 Nov 16:06: curves = robots on firmware 2026-11-05c drive continuous curving pieces "
+          "from a menu of curvature x length x speed and never stop on purpose; robots on older firmware, or the "
+          "stopturn choice, stop, turn on the spot and drive; the menu chart below counts the stop-turn moves only)."
+          % run.get("motion", "stopturn (before 11-05d)"), ""]
     L += ["## Data", ""]
     if ms:
         a, tr = ms["any"], ms["translating"]
@@ -262,6 +307,7 @@ def make(folder):
                   "Dark green is the share of each minute with all three robots moving; the paler bands are fewer.", ""]
         except Exception as e:     # noqa: BLE001
             L += ["(motion chart not made: %s)" % e, ""]
+    L += never_stops(folder, mot, run)
     done = [m for m in moves if m["result"] == "done"]
     kinds = Counter(m["kind"] for m in moves)
     L += ["**Moves**: %d (%d finished). By kind: %s." % (len(moves), len(done), ", ".join(

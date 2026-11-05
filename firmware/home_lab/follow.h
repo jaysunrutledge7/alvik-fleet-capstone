@@ -22,6 +22,14 @@
 //                                                            0 = stand on the line, the step kept); answered FSPD
 //   fsteer <x1> <y1>                                         (2026-11-05b) the running forward drive goes on to a new
 //                                                            end from where it is (turns while moving); answered FSPD
+//   fs <id> R <x0> <y0> <h0> <k> <len> <cms> <fmin>         (2026-11-05c) a piece of constant curvature k (1/cm, + = left,
+//                                                            0 = straight) from (x0, y0) facing h0, len cm at cms; R
+//                                                            pieces in a row run on without slowing; nothing queued at
+//                                                            the end: it coasts round the same curve arc_coast_ms, then
+//                                                            brakes. Front check: a dodge (tight curve away), not a stop
+//   farc <k> [<len>]                                         (2026-11-05c) the running piece (or coast) bends to curvature
+//                                                            k from where it is (len cm; default what was left); queued
+//                                                            pieces dropped; answered FSPD
 //   fix <t_ms> <x> <y> <th|-> <sigma_cm> [<sigma_deg>]       camera pose at robot time t_ms
 //   fpose <x> <y> <th> [<sigma_cm> <sigma_deg>]              set the pose outright
 //   hold [<id>]   finish the current step (or up to step id), drop the rest
@@ -56,7 +64,8 @@ namespace follow {
 
 struct Step {
   uint16_t id;
-  char type;                 // T, D, A, W, K, P, C (arc: x0 y0 = centre, x1 = radius, y1 = a0, h = sweep), Z (dance)
+  char type;                 // T, D, A, W, K, P, C (arc: x0 y0 = centre, x1 = radius, y1 = a0, h = sweep), Z (dance),
+                             // R (2026-11-05c curve piece: x0 y0 = start, h = heading there, x1 = curvature, y1 = length)
   uint8_t rev;
   bool cont;                 // C: the next queued step goes on round the same circle (no slowing, no brake)
   float x0, y0, x1, y1, h, speed;
@@ -76,6 +85,10 @@ unsigned long nextLog = 0, period = 100;
 bool quietSaid = false;
 char info[64] = "";
 bool dockHeaderSent = false, touchHeaderSent = false;
+// (2026-11-05c) continuous curves: after an R piece the wheels keep turning (curving) until the next R piece starts,
+// the coast runs out (arc_coast_ms), something is too close ahead (arc_dodge_stop_cm), a halt, or the watchdog
+bool curving = false, dodging = false, dodged = false;
+unsigned long coastT0 = 0;
 
 float readFront() {
   float dL, dCL, dC, dCR, dR;
@@ -171,6 +184,7 @@ void command(const String& verb, const String& rest) {
       float sc = n > 0 ? num(tok[0]) : NAN;
       if (isNaN(sc) || sc < 0 || sc > 1.5f) { net::sendLine("M,usage: fspd <scale 0-1.5>"); return; }
       gSpeedScale = sc;
+      if (sc <= 0 && curving && !curId) { curving = false; alvik.brake(); gCurveV = 0; }   // (2026-11-05c) coast
     } else {
       if (n < 2 || isNaN(num(tok[0])) || isNaN(num(tok[1]))) { net::sendLine("M,usage: fsteer <x> <y>"); return; }
       gSteerX = num(tok[0]); gSteerY = num(tok[1]); gSteer = true;
@@ -179,8 +193,26 @@ void command(const String& verb, const String& rest) {
               gSpeedScale, gSteer ? gSteerX : 0.0f, gSteer ? gSteerY : 0.0f);
     return;
   }
+  if (verb == "farc") {                           // (2026-11-05c) bend the running curve piece or the coast
+    float k = n > 0 ? num(tok[0]) : NAN, len = n > 1 ? num(tok[1]) : NAN;
+    if (isNaN(k) || fabsf(k) > 0.5f || (!isNaN(len) && len <= 0)) { net::sendLine("M,usage: farc <k 1/cm> [<len cm>]"); return; }
+    if (curId && state[0] == 'c') {               // an R piece runs ("curve")
+      gArcSetK = k; gArcSetLen = len; gArcSet = true;
+      dropQueued(0, "farc");                      // the queued pieces started at the old end
+    } else if (curving) {
+      gCurveK = k;
+      coastT0 = millis();
+    } else {
+      net::sendLine("M,farc: no curve running");
+      return;
+    }
+    net::logf("D,FSPD,%s,%lu,%u,farc,%.2f,%.4f,%.2f", gRunId.c_str(), millis(), (unsigned)curId, gSpeedScale, k,
+              isNaN(len) ? -1.0f : len);
+    return;
+  }
   if (verb == "halt") {
     dropQueued(0, "halt");
+    if (curving && !curId) { curving = false; alvik.brake(); gCurveV = 0; }   // (2026-11-05c) a coast stops too
     if (curId) gStepStop = "halted";
     report(0, "halted", "");         // the ack
     return;
@@ -218,6 +250,12 @@ void command(const String& verb, const String& rest) {
     s.speed = num(tok[7]);
     ok = !(isNaN(s.x0) || isNaN(s.y0) || isNaN(s.x1) || isNaN(s.y1) || isNaN(s.h) || isNaN(s.speed) || s.speed <= 0 ||
            s.x1 <= 0);
+    if (n >= 9 && !isNaN(num(tok[8]))) s.fmin = num(tok[8]);
+  } else if (s.type == 'R' && n >= 8) {          // (2026-11-05c) R x0 y0 h0 k len cms [fmin]
+    s.x0 = num(tok[2]); s.y0 = num(tok[3]); s.h = num(tok[4]); s.x1 = num(tok[5]); s.y1 = num(tok[6]);
+    s.speed = num(tok[7]);
+    ok = !(isNaN(s.x0) || isNaN(s.y0) || isNaN(s.h) || isNaN(s.x1) || isNaN(s.y1) || isNaN(s.speed) ||
+           s.speed <= 0 || s.y1 <= 0 || fabsf(s.x1) > 0.5f);
     if (n >= 9 && !isNaN(num(tok[8]))) s.fmin = num(tok[8]);
   } else if (s.type == 'Z' && n >= 3) {
     s.waitMs = strtoul(tok[2], nullptr, 10);
@@ -365,6 +403,22 @@ bool runStep(const Step& s) {
       travel = pose::dist - d0;
       return r == DRIVE_OK;
     }
+    case 'R': {
+      // (2026-11-05c) a curve piece; from a stand far off its heading: square up first (it stood anyway)
+      if (!curving && fabsf(wrap180(s.h - pose::th())) > 30.0f) {
+        gFrontLimitCm = frontLimit(s.fmin, false);
+        if (!turnToFloor(s.h)) return false;
+      }
+      if (!curving) gCurveV = 0;
+      gFrontLimitCm = 0;                       // the piece does its own front check: a dodge, not a stop
+      gCurveLook = frontLimit(s.fmin, true);
+      float d0 = pose::dist;
+      int r = driveCurve(s.x0, s.y0, s.h, s.x1, s.y1, s.speed);
+      gCurveLook = -1;
+      travel = pose::dist - d0;
+      if (r == DRIVE_DODGE) { dodged = true; return false; }
+      return r == DRIVE_OK;
+    }
     case 'Z':
       gFrontLimitCm = 0;
       if (!dance::run(s.waitMs)) return false;
@@ -406,7 +460,7 @@ bool runStep(const Step& s) {
 
 const char* stateName(char t) {
   return t == 'T' ? "turn" : t == 'D' ? "drive" : t == 'A' ? "approach" : t == 'W' ? "wait" : t == 'K' ? "dock"
-       : t == 'P' ? "touch" : t == 'C' ? "arc" : t == 'Z' ? "dance" : "?";
+       : t == 'P' ? "touch" : t == 'C' ? "arc" : t == 'Z' ? "dance" : t == 'R' ? "curve" : "?";
 }
 
 void run() {
@@ -435,6 +489,7 @@ void run() {
     if (shouldAbort()) {
       if (gAbortReason.length()) break;
       gStepStop = "";          // a halt while nothing was running
+      if (curving) { curving = dodging = false; gCurveV = 0; }   // (2026-11-05c) the edge guard (braked) ends a coast
     }
     unsigned long quiet = millis() - net::lastRx;
     if (quiet > (unsigned long)P("follow_quiet_ms")) {
@@ -444,6 +499,26 @@ void run() {
       }
     } else {
       quietSaid = false;
+    }
+    // (2026-11-05c) coasting after an R piece: on round the same curve until the next R piece (no stop between)
+    if (curving && !(qLen && q[qHead].type == 'R' && pose::known)) {
+      bool wd = P("follow_wd_ms") > 0 && quiet > (unsigned long)P("follow_wd_ms");
+      float d = frontInPath();
+      const char* why = qLen ? nullptr : wd ? "watchdog" : !pose::known ? "no pose" :
+                        millis() - coastT0 > (unsigned long)P("arc_coast_ms") ? "nothing queued" :
+                        (d > 0 && d < P("arc_dodge_stop_cm")) ? "something close ahead" : nullptr;
+      if (qLen || why) {
+        alvik.brake();
+        curving = dodging = false;
+        gCurveV = 0;
+        if (why) net::logf("M,%s follow: coast ended (%s): stopped", net::name, why);
+      } else {
+        state = dodging ? "dodge" : "coast";
+        float v = fmaxf(P("arc_vmin"), gCurveV);      // fspd 0 brakes a coast (the fspd command)
+        setDrive(v, gCurveK * v / pose::DEG2RAD);
+        delay(5);
+        continue;
+      }
     }
     if (!qLen || !pose::known) { state = "idle"; delay(5); continue; }
     // (2026-11-05b) watchdog: no new step starts while the laptop has been silent past follow_wd_ms
@@ -466,13 +541,19 @@ void run() {
     travel = 0;
     gStepStop = "";
     gFail = "";
-    gSpeedScale = 1.0f;        // (2026-11-05b) every step starts at its own speed, on its own line
+    if (!(s.type == 'R' && curving)) gSpeedScale = 1.0f;   // (2026-11-05b) every step starts at its own speed, on its
+                               // own line; (2026-11-05c) except an R piece run on from the last: the scale stays
+    dodged = false;
     gSteer = false;
     gFrontLowN = 0;            // obs_n counts readings within this step
     border::reset();           // the border's reference starts again with every step (a re-plan may drive it back in)
     report(s.id, "started", "");
     bool ok = runStep(s);
-    if (!(ok && s.cont)) alvik.brake();
+    // (2026-11-05c) an R piece that ended (or dodged) leaves the wheels turning: the next R piece or the coast
+    bool rolling = s.type == 'R' && (ok || dodged) && !gAbortReason.length();
+    if (!(ok && s.cont) && !rolling) alvik.brake();
+    if (!rolling) { curving = dodging = false; gCurveV = 0; }
+    else { curving = true; dodging = dodged; coastT0 = millis(); }
     gFrontLimitCm = 0;
     gFrontPath = false;
     gFrontEndBase = -1;
@@ -494,6 +575,10 @@ void run() {
         snprintf(why, sizeof(why), "obstacle %.1f cm ahead; zones %.1f %.1f %.1f %.1f %.1f", gFrontTripCm,
                  d[0], d[1], d[2], d[3], d[4]);
       }
+      else if (dodged)
+        // (2026-11-05c) no stop: it curves away (the coast) until the laptop sends the next piece
+        snprintf(why, sizeof(why), "dodged obstacle %.1f cm ahead; curving %s at %.1f cm/s", gDodgeCm,
+                 gDodgeK > 0 ? "left" : "right", gCurveV);
       else if (gStepStop == "edge")
         // where it stopped (own pose, floor cm / deg): the laptop maps the open edge just ahead of the line
         // sensors as a no-go strip and replans (run_plan.py); the robot holds
@@ -513,6 +598,8 @@ void run() {
     state = "idle";
   }
   dropQueued(0, "run ended");
+  curving = dodging = false;
+  gCurveV = 0;
   gSpeedScale = 1.0f;
   gSteer = false;
   active = false;

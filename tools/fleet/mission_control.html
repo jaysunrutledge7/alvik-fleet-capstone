@@ -178,13 +178,15 @@ function svgToFloor(svg, ev) {
 }
 
 // ---------------------------------------------------------------- settings tables (every setting, any view)
+function motionNow() { return ((S.settings || {}).planner || {}).motion || ((S.defaults || {}).planner || {}).motion || "stopturn"; }
 function settingsTable(group, keys) {
   const cur = S.settings[group] || {}, def = S.defaults[group] || {};
   const ks = keys || Object.keys(def);
   let o = `<table class="kv" data-group="${group}">`;
   for (const k of ks) {
     const v = k in cur ? cur[k] : def[k];
-    const inp = typeof def[k] === "boolean" ? `<select data-k="${k}"><option ${v ? "selected" : ""}>true</option><option ${!v ? "selected" : ""}>false</option></select>`
+    const inp = k === "motion" ? `<select data-k="${k}"><option ${v === "stopturn" ? "selected" : ""}>stopturn</option><option ${v === "curves" ? "selected" : ""}>curves</option></select>`
+      : typeof def[k] === "boolean" ? `<select data-k="${k}"><option ${v ? "selected" : ""}>true</option><option ${!v ? "selected" : ""}>false</option></select>`
       : `<input data-k="${k}" value="${esc(v)}" aria-label="${esc(k)}">`;
     o += `<tr><td>${esc(k)}</td><td>${inp}</td></tr>`;
   }
@@ -479,6 +481,7 @@ function mission() {
      ${mode === "spots" ? `<div class="card"><p class="small muted">Spots: ${spots.join(", ") || "none (add them in Workspace)"}. Example: go to A · wait 5 s · go to C · repeat 3x</p>${S.map.robots.map(r => `<label class="lbl">${esc(r.name)}<textarea data-list="${r.name}" placeholder="go to A, wait 5 s, go to C"></textarea></label>`).join("")}</div>` : ""}
      ${mode === "roam" || mode === "mow" ? `<label class="lbl">Robot <select id="robot">${S.map.robots.map(r => `<option ${r.name === "Center" ? "selected" : ""}>${r.name}</option>`).join("")}</select></label>` : ""}
      ${pv ? `<div class="card"><h3>Sequence</h3>${actsList(pv)}${pv.notes.length ? `<ul class="small muted">${pv.notes.map(n => `<li>${esc(n)}</li>`).join("")}</ul>` : ""}</div>` : ""}
+     <label class="lbl">How the robots turn (5 Nov: both always available) <select id="motion"><option value="stopturn" ${motionNow() === "stopturn" ? "selected" : ""}>Stop and turn on the spot at every corner (straight lines)</option><option value="curves" ${motionNow() === "curves" ? "selected" : ""}>Curves at the corners where there is room</option></select></label>
      <div class="card">${more("More", "<h3>Mission</h3>" + settingsTable("mission") + "<h3 style='margin-top:10px'>Planner</h3>" + settingsTable("planner"))}</div>
      <div class="row"><button class="b" id="plan" style="flex:1">Plan and preview</button><button class="p" id="go" style="flex:1" ${pv ? "" : "disabled"}>Go to run</button></div>`);
   $("main").querySelectorAll("[data-m]").forEach(b => b.onclick = () => { mode = b.dataset.m; render(); });
@@ -490,6 +493,9 @@ function mission() {
     try { flash("Planning... (Monday takes about 10-30 s)"); $("plan").disabled = true; await api("/api/mission", body); await load(); playT = 0; flash("Planned"); } catch (e) { flash(e.message, true); $("plan").disabled = false; }
   };
   $("go").onclick = () => { done.add(4); screen = 5; render(); };
+  $("motion").onchange = async () => {        // (5 Nov) the motion style: the planner setting "motion"; plan again to use it
+    try { S = await api("/api/settings", {planner: {motion: $("motion").value}}); render(); flash("Saved: plan again to use it"); } catch (e) { flash(e.message, true); }
+  };
   if (mode === "program") wireBlocks();
   wirePreview(pv);
 }

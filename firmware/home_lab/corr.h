@@ -27,9 +27,10 @@
 
 namespace corr {
 
-const char* NAMES[] = {"gyro_scale", "gyro_drift_dps", "wheel_scale"};
-const float FACTORY[] = {1.0f, 0.0f, 1.0f};
-const int N = 3;
+// (2026-11-05c) arc_k_scale and arc_d_scale: the curves' calibration (calib_run.py arc phase), saved with the others
+const char* NAMES[] = {"gyro_scale", "gyro_drift_dps", "wheel_scale", "arc_k_scale", "arc_d_scale"};
+const float FACTORY[] = {1.0f, 0.0f, 1.0f, 1.0f, 1.0f};
+const int N = 5;
 
 // Tape-measured, T1 on 2026-10-18/19 (docs/session-notes/2026-10-19.md). Straights: 100 cm asked,
 // Left 97.6 cm, Center 98.1 cm travelled. Right has no runs yet: the average of the two.
@@ -73,12 +74,12 @@ void show() {
             source.c_str(), P("gyro_scale"), P("gyro_drift_dps"), P("wheel_scale"));
 }
 
-bool fromSaved[N] = {false, false, false};   // (2026-11-05a) this value came from saved storage at power-on / save
+bool fromSaved[N] = {false, false, false, false, false};   // (2026-11-05a) this value came from saved storage at power-on / save
 
 // (2026-11-05a) "M,<name> calibration: wheel_scale 0.9700 (saved), gyro_scale 1.0300 (saved), gyro_drift_dps
 // 0.3000 (default)": each value and where it came from. At power-on and on `saved`.
 void showSaved(const char* when) {
-  char buf[200];
+  char buf[300];
   int k = 0;
   for (int i = 0; i < N; i++) {
     k += snprintf(buf + k, sizeof(buf) - k, "%s%s %.4f (%s)", i ? ", " : "", NAMES[i], P(NAMES[i]),
@@ -114,7 +115,7 @@ void saveAll() {
     float v = P(NAMES[i]);
     if (looksWrong(NAMES[i], v)) {
       net::logf("M,save refused: %s %.4f looks wrong (allowed: %s): nothing saved", NAMES[i], v,
-                i == 1 ? "-3 to 3" : "0.8 to 1.25");
+                i == 1 ? "-3 to 3" : "0.8 to 1.25");   // (11-05c) the arc scales: 0.8 to 1.25 too
       return;
     }
   }
@@ -125,8 +126,9 @@ void saveAll() {
     logChange(p->name, p->value, p->value, "save");
     fromSaved[i] = true;
   }
-  net::logf("M,%s saved on the robot (kept after power-off): wheel_scale %.4f, gyro_scale %.4f, gyro_drift_dps %.4f",
-            net::name, P("wheel_scale"), P("gyro_scale"), P("gyro_drift_dps"));
+  net::logf("M,%s saved on the robot (kept after power-off): wheel_scale %.4f, gyro_scale %.4f, gyro_drift_dps %.4f, "
+            "arc_k_scale %.4f, arc_d_scale %.4f", net::name, P("wheel_scale"), P("gyro_scale"), P("gyro_drift_dps"),
+            P("arc_k_scale"), P("arc_d_scale"));
 }
 
 // (2026-11-05a) `unsave` / `defaults`: the saved values forgotten, back to out of the box now and at power-on.

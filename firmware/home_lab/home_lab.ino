@@ -42,7 +42,19 @@
 Arduino_Alvik alvik;
 
 // Bump this whenever the firmware changes, so every logged run says which code it ran.
-#define FW_VERSION "2026-11-05b"
+#define FW_VERSION "2026-11-05c"
+// 2026-11-05c (Nick, 5 Nov 16:06: "eliminate the stop and turn ... curving turns where velocity never drops to 0"):
+//              continuous curves in the step follower. `fs <id> R <x0> <y0> <h0> <k> <len> <cms> <fmin>` drives a piece
+//              of constant curvature k (1/cm, + = left; 0 = straight) from (x0, y0) facing h0 for len cm; R pieces in a
+//              row run into each other without slowing (the speed is carried over). With nothing queued at an R
+//              piece's end the robot coasts on round the same curve for arc_coast_ms, then brakes. `farc <k> [<len>]`
+//              bends the running piece (or the coast) to a new curvature from where it is, without stopping (queued
+//              pieces dropped: they started at the old end); answered FSPD. Front check in R pieces: instead of a stop
+//              the robot dodges (arc_dodge_r: a tight curve away from the nearer side, arc_dodge_cms) and the step fails
+//              "dodged ..."; it brakes only under arc_dodge_stop_cm. fspd keeps its scale across R pieces in a row. The
+//              heartbeat watchdog also stops a coast. Two calibration values for curves, arc_k_scale and arc_d_scale
+//              (curvature and length asked x these), saved with `save` like the others (5 values now). Nothing else
+//              changed: T / D / C / A / W / K / P / Z steps run as before.
 // 2026-11-05b (Nick, 5 Nov: home free roam, "the trophy is shiniest if they never stop moving"): two follow commands
 //              change a drive while it runs: `fspd <scale>` (speed x 0-1.5, 0 = stand on the line keeping the step) and
 //              `fsteer <x> <y>` (the rest of a forward drive goes to a new end, turning while it moves); each answered
@@ -194,7 +206,7 @@ bool handleCommand(const String& raw, bool running) {
   if (verb == "go" || verb == "turn" || verb == "mark") { e02::legCommand(verb, rest, running); return false; }
   if (verb == "e02") { e02::legCommand("mark", rest, running); return false; }   // e02 start|far|end = mark
   if (verb == "fs" || verb == "fix" || verb == "fpose" || verb == "hold" || verb == "halt" || verb == "fspd" ||
-      verb == "fsteer") {
+      verb == "fsteer" || verb == "farc") {
     if (running && follow::active) follow::command(verb, rest);
     else if (verb == "fs") net::sendLine("M,not following: send run follow first");
     return false;

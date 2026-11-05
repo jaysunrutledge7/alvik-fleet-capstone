@@ -184,6 +184,9 @@ def build(args, out):
         args.speed_ = sp
         say("speeds pinned for this site: drive %.0f cm/s, turn %.0f deg/s, final approach %.0f cm/s" % (
             sp["cruise_cms"], sp["turn_dps"], sp["confirm_cms"]))
+    over["motion"] = args.motion       # (5 Nov) stop-turn-drive (default) or curves at the corners
+    if args.motion == "curves":
+        say("motion: curves at the corners where there is room (--motion stopturn: stop and turn at every corner)")
     t0 = time.time()
     if getattr(args, "on_problem_", "stop") == "keep_going":
         over["skip_unreachable"] = True     # keep going (2026-11-03): a point no route reaches is skipped and listed,
@@ -1107,6 +1110,9 @@ def main(argv=None):
                          "agree with the robot's own pose (run_plan --turn-pause)")
     g.add_argument("--below-net-doe", action="store_true",
                    help="simulator only: allow robot gaps under the 8 cm safety net (the safety-net DOE)")
+    ap.add_argument("--motion", choices=("stopturn", "curves"), default="stopturn",
+                    help="(5 Nov) how the robots turn: stop and turn on the spot at every point (default) or curves at "
+                         "the corners where the map leaves room (both always available; Mission Control's choice)")
     ap.add_argument("--setting", action="append", default=[], metavar="NAME=VALUE",
                     help="a mission setting (missions.SETTINGS), e.g. separation_cm=6.5 (repeatable)")
     ap.add_argument("--site", default="", help="the site profile (default: the one in use; home: lights as before)")

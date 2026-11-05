@@ -225,7 +225,12 @@ class LiveRobot(R.Robot):
         return False
 
     # ---- the calibration kept on the robot (firmware 2026-11-05a; corr since 2026-10-20b), names (5 Nov 2026) ----
-    CORR = (("gyro_scale", 1.0), ("gyro_drift_dps", 0.0), ("wheel_scale", 1.0))   # corr.h NAMES / FACTORY
+    CORR3 = (("gyro_scale", 1.0), ("gyro_drift_dps", 0.0), ("wheel_scale", 1.0))   # corr.h NAMES / FACTORY
+
+    @property
+    def CORR(self):
+        """corr.h NAMES / FACTORY: (2026-11-05c) the curves' arc_k_scale and arc_d_scale saved too."""
+        return self.CORR3 + ((("arc_k_scale", 1.0), ("arc_d_scale", 1.0)) if self.fw_version >= "2026-11-05c" else ())
 
     def _deaf(self):
         """Asleep and not in a check-in: hears nothing (robot.py's rule, for the commands handled here)."""
