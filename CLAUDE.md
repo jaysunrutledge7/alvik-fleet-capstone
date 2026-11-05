@@ -11,3 +11,8 @@
 - **Keep features, switch them off (Nick, 2026-11-02):** when a new method replaces an existing feature (e.g. corner
   tags replacing corner clicking), never delete the old feature. Keep it working and put it behind a setting or
   switch (per site where it makes sense), off while it isn't needed, so it can be turned back on.
+- **Discover, don't pre-map (Nick, 2026-11-05):** for every Alvik adjustment (calibration, odometry corrections,
+  surface features such as table seams, bumps, slippery patches), build systems that DISCOVER the issue from the
+  robots' own data and the camera and then account for it — the goal is dropping a new robot on an unknown surface
+  and driving on it accurately. Mapping a feature by hand (e.g. typing a seam's position) is allowed only as a
+  stand-in for initial data-gathering runs, never as the finished method.
