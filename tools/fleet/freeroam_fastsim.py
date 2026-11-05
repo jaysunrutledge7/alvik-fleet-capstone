@@ -131,7 +131,7 @@ class Bot:
 
 class Sim:
     def __init__(self, seed, hours, new_fw=True, dead_robot=True, pi_freeze=True, dropouts=True, loss=PACKET_LOSS,
-                 lost_mode="reckon", out_dir=None, names=("Left", "Center", "Right"), lat_max=0.04):
+                 lost_mode="reckon", out_dir=None, names=("Left", "Center", "Right"), lat_max=0.04, drill=0.0):
         self.rng = random.Random(seed * 7919 + 13)
         self.seed, self.hours = seed, hours
         self.t = 0.0
@@ -148,7 +148,8 @@ class Sim:
                 break
         self.bots = {n: Bot(n, p[0], p[1], self.rng.uniform(-180, 180), random.Random(seed * 101 + k), new_fw)
                      for k, (n, p) in enumerate(zip(names, pts))}
-        self.ctrl = FC.Controller(names, BOARD, self.ctrl_out, self.ctrl_log, seed=seed, lost_mode=lost_mode)
+        self.ctrl = FC.Controller(names, BOARD, self.ctrl_out, self.ctrl_log, seed=seed, lost_mode=lost_mode,
+                                  drill=drill)
         self.frozen_until = -1.0
         self.freeze_at = self.rng.uniform(0.2, 0.8) * hours * 3600 if pi_freeze else None
         self.dead_at = (self.rng.uniform(0.15, 0.7) * hours * 3600, self.rng.choice(names)) if dead_robot else None
@@ -618,6 +619,7 @@ def main(argv=None):
     ap.add_argument("--old-fw", action="store_true", help="robots on 2026-10-29b: no fspd / fsteer / watchdog")
     ap.add_argument("--loss", type=float, default=PACKET_LOSS)
     ap.add_argument("--lat-max-ms", type=float, default=40.0, help="each packet 5 ms to this late (default 40)")
+    ap.add_argument("--drill", type=float, default=0.0, help="share of moves planned ignoring the others (reflex drill)")
     ap.add_argument("--no-dead", action="store_true")
     ap.add_argument("--no-freeze", action="store_true")
     ap.add_argument("--no-dropouts", action="store_true")
@@ -634,10 +636,10 @@ def main(argv=None):
         t0 = time.time()
         s = Sim(sd, a.hours, new_fw=not a.old_fw, dead_robot=not a.no_dead, pi_freeze=not a.no_freeze,
                 dropouts=not a.no_dropouts, loss=a.loss, lost_mode=a.lost_mode, out_dir=od,
-                lat_max=a.lat_max_ms / 1000.0)
+                lat_max=a.lat_max_ms / 1000.0, drill=a.drill)
         r = s.run()
         r["wall_s"] = round(time.time() - t0, 1)
-        r.update(old_fw=a.old_fw, loss=a.loss, lat_max_ms=a.lat_max_ms, lost_mode=a.lost_mode)
+        r.update(drill=a.drill, old_fw=a.old_fw, loss=a.loss, lat_max_ms=a.lat_max_ms, lost_mode=a.lost_mode)
         print(json.dumps(r), flush=True)
         res.append(r)
         if od:

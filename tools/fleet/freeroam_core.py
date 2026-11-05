@@ -267,7 +267,7 @@ class Robot:
 # ------------------------------------------------------------------------------------------------ the controller
 class Controller:
     def __init__(self, names, rect, out, log, seed=1, lost_mode="reckon", battery_floor=BATTERY_FLOOR,
-                 park_sleep=True, fw_override=None):
+                 park_sleep=True, fw_override=None, drill=0.0):
         self.rect = tuple(float(v) for v in rect)
         self.out_fn, self.log = out, log
         self.rng = random.Random(seed)
@@ -278,6 +278,8 @@ class Controller:
         self.floor = battery_floor
         self.park_sleep = park_sleep
         self.fw_override = fw_override
+        self.drill = float(drill)       # SIMULATOR ONLY (freeroam.py refuses it on robots): this share of moves is
+                                        # planned ignoring the others' reservations, to make the reflex work
         self.t = 0.0
         self.t_start = None
         self.ev_id = 0
@@ -535,6 +537,15 @@ class Controller:
         """Menu first; then the fallback ladder. Returns (kind, cell, turn, L, v, traj)."""
         p, h = self.pos(r), self.heading(r)
         turn_ok = self.can_turn_here(r)
+        if self.drill > 0 and turn_ok and self.rng.random() < self.drill:
+            for cell in self.menu.order(r.name, free=True):
+                turn, L, v = self.menu.draw(cell)
+                tr = self.make(r, turn, L, v)
+                e = tr.end
+                if edge_dist(self.rect, *e) >= EDGE_CC and all(
+                        math.dist(e, self.pos(o)) >= PLAN_CC + 5 for o in self.R.values()
+                        if o is not r and self.pos(o) is not None):
+                    return "drill", cell, turn, L, v, tr
         free = self.rng.random() < FREE_SHARE
         if turn_ok:
             for cell in self.menu.order(r.name, free=free):

@@ -106,7 +106,8 @@ class Runner:
         self.source = UdpSource(fix_port)
         self.tables = Tables(outdir)
         self.ctrl = FC.Controller(names, rect, self.send, self.logrow, seed=a.seed, lost_mode=a.lost_mode,
-                                  battery_floor=a.battery_floor, park_sleep=not a.no_sleep)
+                                  battery_floor=a.battery_floor, park_sleep=not a.no_sleep,
+                                  drill=a.reflex_drill if a.dry else 0.0)
         self.offsets = {n: [] for n in names}
         self.fix_last = {n: 0.0 for n in names}
         self.run_exp = {n: None for n in names}
@@ -570,6 +571,9 @@ def main(argv=None):
                          "against the ladder's simulated board: the whole chain, slower")
     ap.add_argument("--sim-minutes", type=float, default=200.0,
                     help="--dry: minutes of driving from 100 %% to 10 %% (time-compressed battery)")
+    ap.add_argument("--reflex-drill", type=float, default=0.0, metavar="SHARE",
+                    help="--dry only: this share of moves ignores the others' reservations, so the reflex has to act "
+                         "(refused on the robots)")
     ap.add_argument("--sim-fw", action="append", default=[], metavar="NAME=VERSION")
     ap.add_argument("--sim-silent", action="append", default=[], metavar="NAME@T:DUR")
     ap.add_argument("--sim-wifi-drop", action="append", default=[], metavar="NAME@T:DUR")
@@ -603,6 +607,9 @@ def main(argv=None):
         return 0
     if a.seed is None:
         a.seed = int(time.time()) % 100000
+    if a.reflex_drill and not (a.dry or a.dry_chain):
+        say("--reflex-drill is for the simulator only: refused (nothing started).")
+        return 2
     names = [n.strip() for n in a.robots.split(",") if n.strip()]
     outdir = a.dir or os.path.join(REPO, "logs", dt.datetime.now().strftime("%Y%m%d-%H%M%S") + "-freeroam" +
                                    ("-dryrun" if a.dry else ""))
@@ -618,7 +625,7 @@ def main(argv=None):
     code = 0
     say("Free roam: %s (seed %d, battery floor %d %%, lost: %s)" % (outdir, a.seed, a.battery_floor, a.lost_mode))
     run_info = dict(version=VERSION, core=FC.VERSION, seed=a.seed, hours=a.hours, battery_floor=a.battery_floor,
-                    lost_mode=a.lost_mode, dry=a.dry, started=dt.datetime.now().isoformat(timespec="seconds"),
+                    lost_mode=a.lost_mode, dry=a.dry, reflex_drill=a.reflex_drill, started=dt.datetime.now().isoformat(timespec="seconds"),
                     argv=sys.argv[1:])
     try:
         if a.dry_chain:

@@ -276,3 +276,19 @@ def test_lost_step_report_seen_in_follow():
     c.on_follow("Left", 1.6, "idle", 60, 60, 0.0, 0, 0, sid)
     assert r.move is None
     assert any(x["kind"] == "lost report" for t, x in rows if t == "events")
+
+
+def test_reflex_drill_refused_on_the_robots():
+    import freeroam
+    assert freeroam.main(["run", "--reflex-drill", "0.3", "--robot", "192.168.1.250"]) == 2
+
+
+def test_report_counts_stand_stills():
+    import freeroam_report as FR
+    mot = []
+    for k in range(40):
+        t = "%.1f" % (k * 0.5)
+        still = 10 <= k < 20                                     # 5 s without motion
+        mot.append(dict(t=t, robot="Left", any=0 if still else 1, translating=0 if still else 1, mode="move"))
+    ms = FR.motion_stats(mot)
+    assert ms["robot"]["Left"]["still_over_3s"] == 1 and abs(ms["robot"]["Left"]["longest_still_s"] - 5.0) < 0.01

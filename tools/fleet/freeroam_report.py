@@ -63,6 +63,21 @@ def motion_stats(mot):
             per[name] = dict(minutes=len(rows) * 0.5 / 60.0,
                              any=100.0 * sum(int(fnum(q["any"])) for q in rows) / len(rows),
                              translating=100.0 * sum(int(fnum(q["translating"])) for q in rows) / len(rows))
+    # stand-stills: the longest stretch with no motion at all, per robot still in the run (from the same samples)
+    for name in per:
+        rows = sorted((float(q["t"]), int(fnum(q["any"])), q["mode"]) for q in mot if q["robot"] == name)
+        run_s, longest, over3, start = 0.0, 0.0, 0, None
+        for t, a_, mode in rows:
+            if a_ or mode in ("out", "gone", "start"):
+                if start is not None:
+                    d = t - start
+                    longest = max(longest, d)
+                    over3 += int(d > 3.0)
+                start = None
+            elif start is None:
+                start = t
+        per[name]["longest_still_s"] = longest
+        per[name]["still_over_3s"] = over3
     out["robot"] = per
     out["series"] = (ts, by_t)
     return out
@@ -235,9 +250,11 @@ def make(folder):
                                                                               tr["min_eq3"]),
               "| every robot still in the run moving | %.1f %% | %.1f %% |" % (a["all_active"], tr["all_active"]),
               ""]
-        L += ["| robot | minutes in the run | any motion | translating |", "|---|---|---|---|"]
+        L += ["| robot | minutes in the run | any motion | translating | longest stand-still | stand-stills over 3 s |",
+              "|---|---|---|---|---|---|"]
         for n, v in ms["robot"].items():
-            L.append("| %s | %.0f | %.1f %% | %.1f %% |" % (n, v["minutes"], v["any"], v["translating"]))
+            L.append("| %s | %.0f | %.1f %% | %.1f %% | %.1f s | %d |" % (n, v["minutes"], v["any"], v["translating"],
+                                                                   v["longest_still_s"], v["still_over_3s"]))
         L.append("")
         try:
             chart_motion(folder, ms)
