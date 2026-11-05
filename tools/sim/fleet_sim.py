@@ -376,8 +376,31 @@ class FleetSim:
                 # --turn-err NAME=PCT: its real turns are PCT % bigger than its gyro says (Center, 2026-10-26 night:
                 # 15-20 deg off a quarter turn). The gyro under-reads by 1 / (1 + PCT / 100)
                 rb.gyro_scale = 1.0 / (1.0 + turn_err[name] / 100.0) - 1.0
+            for tc in getattr(args, "true_cal", None) or []:
+                # --true-cal NAME=WS,GS,DRIFT (2026-11-04, the school calibration rehearsal): the values this robot
+                # really needs (deliberately not what it has stored): its wheels cover WS x what they count (radius
+                # set for the mean slip), its gyro counts 1 / GS of every turn and creeps DRIFT deg/s once corrected
+                n_, _, v_ = tc.partition("=")
+                if n_ == name:
+                    ws_, gs_, gd_ = (float(q) for q in v_.split(","))
+                    slip = self.cfg.robot.move_slip_mean_pct / 100.0
+                    r0 = self.cfg.robot.wheel_radius_cm * ws_ / (1.0 - slip)
+                    mism = (rb.rR - rb.rL) / (rb.rR + rb.rL)
+                    rb.rL, rb.rR = r0 * (1 - mism), r0 * (1 + mism)
+                    rb.gyro_scale = 1.0 / gs_ - 1.0
+                    rb.gyro_bias = gd_ / gs_ * self.cfg.imu.yaw_sign
+                    rb.true_cal = {"wheel_scale": ws_, "gyro_scale": gs_, "gyro_drift_dps": gd_}
             rb._record()
             rb.fw_yaw_sign = 0 if args.uncalibrated else 1
+            for sl in getattr(args, "asleep", None) or []:
+                # --asleep NAME:MIN[:FRAC] (2026-11-04): starts asleep with `sleep MIN`, its next check-in FRAC of the
+                # way through (default 0.5)
+                q = sl.split(":")
+                if q[0] == name:
+                    mins = float(q[1]) if len(q) > 1 else 10.0
+                    frac = float(q[2]) if len(q) > 2 else 0.5
+                    rb.sleep_min = mins
+                    rb.sleep_until = rb.millis() + frac * mins * 60000
             rb.world_polys = self.static_polys       # shared list: a dropped brick shows up for everyone
             if self.true_sides:
                 rb.hang_cm = 0.0                     # over an open part of the table's edge: it hangs there
@@ -1008,6 +1031,11 @@ def main(argv=None):
     ap.add_argument("--max-s", type=float, default=600.0)
     ap.add_argument("--starts", help="JSON {name: [x, y, heading deg]}: where the robots really start (default: the "
                                      "map's start spots)")
+    ap.add_argument("--true-cal", action="append", default=[], metavar="NAME=WS,GS,DRIFT",
+                    help="the corrections this robot really needs (wheel_scale, gyro_scale, gyro_drift_dps), e.g. "
+                         "AL-1DC0=0.97,1.03,0.3 (the school calibration rehearsal)")
+    ap.add_argument("--asleep", action="append", default=[], metavar="NAME:MIN[:FRAC]",
+                    help="that robot starts asleep (`sleep MIN`), its next check-in FRAC of the way through")
     ap.add_argument("--turn-err", action="append", default=[], metavar="NAME=PCT",
                     help="that robot's real turns are PCT %% bigger than its gyro says (repeatable)")
     ap.add_argument("--persist", action="store_true",

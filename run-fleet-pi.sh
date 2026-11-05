@@ -64,6 +64,12 @@
 #                                          way, in this window. See it: tmux attach -t mc (leave: Ctrl+B, then D)
 #     ./run-fleet-pi.sh mc-stop            close Mission Control (a run of its own stops first)
 #     ./run-fleet-pi.sh address            this Pi's addresses (Tailscale, WiFi, name) and the one the screens show
+#     ./run-fleet-pi.sh school-setup       (2026-11-04) the school Pi in one go: installs what is missing (tmux,
+#                                          v4l-utils, Python packages; sudo), the camera's focus, the school site,
+#                                          then the self-check (tools/pi/school_setup.sh)
+#     ./run-fleet-pi.sh calib [dry]        (2026-11-04) the cautious calibration run, zones 1-2, in tmux "calib"
+#                                          (tools/fleet/calib_run.py); Mission Control's Production screen starts it too
+#     ./run-fleet-pi.sh calib-upload [folder]   the newest calibration run's folder uploaded (a release of its own)
 #     ./run-fleet-pi.sh selfcheck          a new Pi's setup tested: packages, OpenCV, tags, cameras, repo, token,
 #                                          Tailscale, clock, site, disk: one PASS / WARN / FAIL line each
 # Sites (2026-11-02, tools/fleet/sites.py): home is the default and unchanged; a school site has its own robots, cameras,
@@ -90,6 +96,8 @@ IPS="--robot 192.168.1.250 --robot 192.168.1.252 --robot 192.168.1.253"
 # used to fall back to home's robots and picture size in silence). Two exceptions: `site` (to switch to a good one) and
 # `stopall` (the emergency stop never waits on a file: it still broadcasts `stop`).
 WHAT0="${1:-}"
+# (2026-11-04) the school Pi's setup runs before anything else here needs the site or the Python packages
+if [ "$WHAT0" = school-setup ]; then shift; exec bash tools/pi/school_setup.sh "$@"; fi
 if SITE_ENV="$(python3 tools/fleet/sites.py env 2>&1)"; then eval "$SITE_ENV"; IPS="$MIRLT_ROBOT_ARGS"
 else
   case "$WHAT0" in
@@ -350,6 +358,8 @@ case "$WHAT" in
     [ -n "${MIRLT_PI_ADDR:-}" ] && HOSTS="$HOSTS --allow-host $MIRLT_PI_ADDR"
     case "$PIADDR" in *.*.*.*) HOSTS="$HOSTS --allow-host $PIADDR" ;; esac
     for ts in $(tailscale ip -4 2>/dev/null); do HOSTS="$HOSTS --allow-host $ts"; done
+    # (2026-11-04) the camera's focus again (autofocus off, focus_absolute 0: both reset at every unplug or restart)
+    [ "$DRY" != 1 ] && { python3 tools/pi/camera_focus.py || true; }
     python3 tools/fleet/mission_control.py --dir "${MIRLT_MC_DIR:-logs/mission-control}" --listen 0.0.0.0 $HOSTS ;;
   site)            # (2026-11-02) which site: ./run-fleet-pi.sh site (shows it), ./run-fleet-pi.sh site school-conference
     if [ -n "${1:-}" ]; then python3 tools/fleet/sites.py use "$1"; else python3 tools/fleet/sites.py; python3 tools/fleet/sites.py list; fi ;;
@@ -388,6 +398,19 @@ case "$WHAT" in
                    # `stopall listed`: the old way, only the listed addresses (home's three when the site has none)
     if [ "${1:-}" = listed ]; then python3 tools/fleet/stop_all.py --only-listed $IPS
     else python3 tools/fleet/stop_all.py $IPS; fi ;;
+  calib)           # (2026-11-04) the calibration run (zones 1-2), in tmux session calib; `calib dry`: the simulator
+    if [ "${1:-}" = dry ]; then python3 tools/fleet/calib_run.py --dry "${@:2}"
+    else
+      tmux has-session -t calib 2>/dev/null && { echo "A calibration run is already running: tmux attach -t calib (leave: Ctrl+B, then D)"; exit 0; }
+      tmux new-session -d -s calib "cd '$REPO' && python3 tools/fleet/calib_run.py $IPS $*; read -r -p 'Calibration run ended. Press Enter.'"
+      echo "Calibration run started in tmux session calib. See it: tmux attach -t calib (leave: Ctrl+B, then D)"
+    fi ;;
+  calib-upload)    # (2026-11-04) the newest calibration run's folder (or the one given) as a release of its own
+    F="${1:-$(ls -td "${MIRLT_MC_DIR:-logs/mission-control}"/calib/*/ 2>/dev/null | head -1)}"; F="${F%/}"
+    [ -z "$F" ] && { echo "No calibration run folder found."; exit 1; }
+    echo "Uploading $F ..."
+    python3 tools/pi/upload_session.py --recordings "$HOME/recordings" --session "$F" --logs-only \
+      --tag "calib-$(basename "$F")" --unique-tag ;;
   selfcheck)       # (2026-11-03) the new Pi's setup, tested: PASS / FAIL lines (tools/pi/selfcheck.py)
     python3 tools/pi/selfcheck.py "$@" ;;
   address)         # (2026-11-03) the Pi's addresses: Tailscale, WiFi, name, and the one the screens show

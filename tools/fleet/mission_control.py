@@ -244,6 +244,8 @@ class Session:
         self.warm_map = None
         self.warm_result = None
         self.run = None
+        import calib_job as CJ
+        self.calib = CJ.CalibJob(self)   # the calibration run's card on the Production screen (2026-11-04)
         self.last_runs = {}          # kind -> folder
         self.corner = SJ.CornerSetup(self)   # the corners-only setup (2026-10-29): Setup screen, tools/fleet/setup_job.py
         # the site (2026-11-02): home's lights, or a site with AprilTags on the roofs (tag_job.py: Cameras & table,
@@ -532,6 +534,8 @@ class Session:
     def start_run(self, d):
         if self.run and self.run.alive():
             raise ValueError("a run is going: stop it first")
+        if getattr(self, "calib", None) and self.calib.running():
+            raise ValueError("the calibration run is driving the robot: stop it first (Production screen)")
         self.stop_asked = False
         kind = d.get("kind", "mission")
         dry = bool(d.get("dry", True))
@@ -1034,6 +1038,8 @@ class Session:
 
     def stop_run(self):
         self.stop_asked = True       # (2026-11-03) keep going never starts the next run of a chain after a Stop
+        if getattr(self, "calib", None) and self.calib.running():
+            self.calib.stop()        # (2026-11-04) the calibration run stops too (stopall's Mission Control step)
         if self.run:
             self.run.stop()
             return self.run.status()
@@ -1207,6 +1213,14 @@ class Handler(BaseHTTPRequestHandler):
                     return self._send(200, S.state())
             if path == "/api/run":
                 return self._send(200, S.run.status() if S.run else {})
+            if path == "/api/calib":
+                return self._send(200, S.calib.status())
+            if path == "/api/calib/file":
+                from urllib.parse import parse_qs
+                nm = (parse_qs(urlparse(self.path).query).get("name") or [""])[0]
+                body = S.calib.file(nm)
+                return self._send(200, body, "image/png" if nm.endswith(".png") else
+                                  "text/plain; charset=utf-8" if nm.endswith(".md") else "application/json")
             if path == "/api/review":
                 with S.lock:
                     return self._send(200, S.review())
@@ -1285,6 +1299,10 @@ class Handler(BaseHTTPRequestHandler):
                     return self._send(200, S.make_mission(d))
                 if path == "/api/program/default":
                     return self._send(200, S.default_program(d.get("robots")))
+                if path == "/api/calib/start":
+                    return self._send(200, S.calib.start(d))
+                if path == "/api/calib/stop":
+                    return self._send(200, S.calib.stop())
                 if path == "/api/run/start":
                     return self._send(200, S.start_run(d))
                 if path == "/api/setup/pictures":

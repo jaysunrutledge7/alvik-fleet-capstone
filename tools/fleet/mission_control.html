@@ -782,7 +782,7 @@ function production() {
   page(`<div><h1>Production run</h1><p class="sub">Each robot: its start-up (calibrated on this power-on? if not, it calibrates; a calibration from earlier today on the same power-on is kept), its points in the order below, ${"a stop of a few seconds at each"}, then home. Click a point on the table to add it to the chosen robot's list.</p></div>
     <div class="card">${tableSVG({id: "ptab", paths: pv ? pv.paths : paths, pathOp: .55, pathW: 2, robots: homes})}
       <p class="small muted" style="margin:8px 0 0">The table from above (corner 1 bottom left). Numbered circles: the production points (${S.site && S.site.points_typed ? "typed from the sticker sheet" : "from Measure"}); dots: each robot at its home; shaded red: keep-out areas (the raised box, reference tiles); lines: ${pv ? "the planned routes" : "each robot's points in order (straight lines; Plan makes the real routes)"}.</p></div>`,
-    `${expCard()}<div class="card"><h2>Orders</h2>${robots.map(n => `<div style="padding:8px 0;border-bottom:1px solid #F0F1F3"><label class="row"><input type="radio" name="prob" value="${esc(n)}" ${n === prodRobot ? "checked" : ""}><b><span class="dot" style="background:${COL[n] || "#5B6474"}"></span>${esc(n)}</b><span class="small muted">clicks add here</span></label>
+    `${calibCard()}${expCard()}<div class="card"><h2>Orders</h2>${robots.map(n => `<div style="padding:8px 0;border-bottom:1px solid #F0F1F3"><label class="row"><input type="radio" name="prob" value="${esc(n)}" ${n === prodRobot ? "checked" : ""}><b><span class="dot" style="background:${COL[n] || "#5B6474"}"></span>${esc(n)}</b><span class="small muted">clicks add here</span></label>
       <input id="po_${esc(n)}" value="${esc((prodOrders[n] || []).join(", "))}" style="width:100%;margin-top:6px" aria-label="${esc(n)}'s points in order"></div>`).join("")}
       <div class="row" style="margin-top:8px"><label class="lbl">Stop at each point <input id="pdwell" class="n" value="3"> s</label><label class="lbl"><input type="checkbox" id="phome" checked> then home</label></div>
       <label class="lbl"><input type="checkbox" id="pspin"> a sync spin at the start (each robot turns once on the spot: a moment the external recorder sees too)</label>
@@ -799,8 +799,42 @@ function production() {
     robots.forEach(n => { prodOrders[n] = $("po_" + n).value.split(/[ ,;]+/).filter(Boolean); });
     try { const r = await api("/api/production", {orders: prodOrders, dwell_s: +$("pdwell").value, home: $("phome").checked, sync_spin: $("pspin").checked, experiment: expPick, swap_halves: expSwap, sync_wiggle: expWiggle}); await load(); flash(r.words || "Planned"); } catch (e) { flash(e.message, true); render(); } };
   $("pnext").onclick = () => { done.add(8); screen = 5; render(); };
-  wireExp();
+  wireExp(); wireCalib();
   wireSync(); wireFeel();
+}
+// The calibration run (Nick and Jay-Sun, 4 Nov; tools/fleet/calib_run.py): zones 1-2, P01-P20, start and park at P11.
+// Finds and binds the robot by its wiggle, phase A (its current values, wheels + gyro alone, the camera for safety), B
+// (the fit, set and read back), C (tours with the new values), then parks at P11 and sends it to sleep (sleep 10).
+let CAL = null, calPoll = null, calReport = null;
+const CAL_PHASE = {starting: "Starting", find: "Finding the robot", bind: "Binding its roof tag", A: "Phase A: baseline (current values)",
+  B: "Phase B: fitting", C: "Phase C: tours with the new values", park: "Parking at P11", done: "Done"};
+function calibCard() {
+  const c = CAL || {};
+  const run = !!c.running, fit = c.fit || null;
+  const bound = c.robot ? `<b>${esc(c.robot)}</b>${c.wifi_name && c.wifi_name !== c.robot ? " (WiFi " + esc(c.wifi_name) + ")" : ""}, roof tag ${esc(String(c.tag))}` : "not bound yet";
+  return `<div class="card" id="calcard"><h2>Calibration (zones 1-2)</h2>
+    <p class="small" style="margin:0 0 8px">One robot standing on P11 (it may be asleep: it is woken). It finds the robot on the WiFi and binds the roof tag that follows its wiggle, measures its odometry error with its current values (the camera keeps it off the edges, the outlets and the edge of its view), fits wheel_scale, gyro_scale and gyro_drift_dps, then tours P01-P20 with the new values, parks on P11 and goes to sleep. About 35 minutes at experiment speed (10 cm/s, 60 deg/s, 5 cm/s final). To stop it at any moment: Stop here, or type <code>./run-fleet-pi.sh stopall</code> on the Pi.</p>
+    <div class="row"><button class="p" id="calgo" ${run ? "disabled" : ""}>Start calibration on the robot</button><button id="calsim" ${run ? "disabled" : ""}>Simulator rehearsal</button><button id="calstop" ${run ? "" : "disabled"}>Stop</button></div>
+    ${c.folder ? `<p class="small" style="margin:8px 0 0" id="calwords"><b>${esc(CAL_PHASE[c.phase] || c.phase || "")}</b>${c.dry ? " (simulator)" : ""}: ${esc(c.words || "")}<br>Robot: ${bound}${c.battery != null ? ", battery " + c.battery + " %" : ""}.${fit ? "<br>New values read back: " + Object.entries(fit).map(([k, v]) => `${esc(k)} ${v.read != null ? (+v.read).toFixed(3) : "?"} ${v.ok ? "OK" : "NOT OK"}`).join(", ") : ""}</p>` : ""}
+    ${c.phase === "done" && c.report ? `<div class="row" style="margin-top:8px"><button id="calrep">${calReport ? "Hide the report" : "Show the report"}</button><span class="small muted">${esc(c.folder || "")}</span></div>` : ""}
+    ${calReport ? `<pre class="small" style="white-space:pre-wrap;max-height:420px;overflow:auto;background:#F7F8FA;padding:8px">${esc(calReport)}</pre>
+      <img src="/api/calib/file?name=chart_leg_errors.png" alt="Per-leg odometry error before and after" style="max-width:100%">
+      <img src="/api/calib/file?name=chart_four_points.png" alt="Four-point height check" style="max-width:100%">` : ""}</div>`;
+}
+function wireCalib() {
+  if (CAL === null) { CAL = {}; api("/api/calib").then(r => { CAL = r; if (r.running) calWatch(); render(); }).catch(() => {}); }
+  const start = async (dry) => { try { CAL = await api("/api/calib/start", {dry}); calReport = null; flash(dry ? "Simulator rehearsal started" : "Calibration started"); calWatch(); render(); } catch (e) { flash(e.message, true); } };
+  if ($("calgo")) $("calgo").onclick = () => { if (confirm("Start the calibration run on the robot standing on P11? It drives for about 35 minutes.")) start(false); };
+  if ($("calsim")) $("calsim").onclick = () => start(true);
+  if ($("calstop")) $("calstop").onclick = async () => { try { CAL = await api("/api/calib/stop", {}); flash("Stop sent"); render(); } catch (e) { flash(e.message, true); } };
+  if ($("calrep")) $("calrep").onclick = async () => { if (calReport) { calReport = null; render(); return; }
+    try { const r = await fetch("/api/calib/file?name=report.md"); calReport = await r.text(); render(); } catch (e) { flash(e.message, true); } };
+}
+function calWatch() {
+  if (calPoll) return;
+  calPoll = setInterval(async () => { try { CAL = await api("/api/calib"); } catch (e) { return; }
+    if ($("calcard")) { const y = window.scrollY; render(); window.scrollTo(0, y); }
+    if (!CAL.running) { clearInterval(calPoll); calPoll = null; } }, 2000);
 }
 // The Experiment picker (Jay-Sun 3 Nov; tools/fleet/experiments.py): shakedown (no camera, default orders), 1 in order,
 // 2 reversed, 3 zig-zag, 4 shuffled, the default orders, or custom (the lists typed below). Picking one fills the lists.
