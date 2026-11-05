@@ -37,7 +37,7 @@ roof tag 2 (a spare), starting asleep, values stored 1 / 1 / 0, true values 0.97
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
 | z145 | 145 cm (7.5 ft above the floor) | 0.9692 +- 0.0037 | 1.0291 +- 0.0012 | 0.303 +- 0.016 | all 3 OK | 3.03 -> 0.21 / 0.28 / 0.31 | 2.10 -> 0.50 / 0.66 / 0.57 | 13.6 cm | 8.4 cm | 184 cm | P08 once (fixed, see z145b) | parked 0.2 cm off P11, asleep |
 | z228.6 | 229 cm (7.5 ft above the table) | 0.9721 +- 0.0037 | 1.0288 +- 0.0014 | 0.297 +- 0.018 | all 3 OK | 3.03 -> 0.36 / 0.44 / 0.28 | 2.28 -> 0.68 / 0.56 / 0.73 | 13.7 cm | 8.5 cm | 180 cm | none | parked 0.3 cm off P11, asleep |
-| z145b (after the detour fix) | 145 cm | 0.9654 +- 0.0034 | 1.0303 +- 0.0013 | 0.313 +- 0.017 | Z145B_RB | Z145B_DIST | Z145B_TURN | Z145B_EDGE | Z145B_KO | Z145B_X | Z145B_SKIP | Z145B_END |
+| z145b (after the detour fix) | 145 cm | 0.9654 +- 0.0034 | 1.0303 +- 0.0013 | 0.313 +- 0.017 | all 3 OK | 2.96 -> 0.35 / 0.42 / 0.59 | 1.98 -> 0.94 / 0.93 / 0.82 | 13.2 cm | 7.9 cm | 187 cm | none (the second detour used once, at P08) | parked 0.6 cm off P11, asleep |
 | truth | | 0.970 | 1.030 | 0.300 | | | | margin 13 cm | body touches at 6.7 cm | camera reads to 198 cm | | |
 
 +- = 95 % (1.96 x SE). Binding worked in every run (tag 2 turned +85 to +91 deg with the 90 deg wiggle). Every run
@@ -75,9 +75,9 @@ How far the 6.19 cm high tag is put away from the camera when its height is igno
   (20 / 45 / 70 cm), 60 s still and one 20-point tour: it reached about half the targets' +-; fewer (the quick mode: 4
   turns, 4 rolls, 20 s, 6 points) left wheel and drift unpinned, and the run then keeps their old values.
 - With the fitted values the median distance error per leg fell from about 3 cm per metre to 0.2-0.4, the heading error
-  per turn from about 2.2 deg to 0.5-0.7.
-- Safety held in the simulator: never under the 13 cm edge margin, never nearer a keep-out than 8.4 cm (6.7 touches),
-  never past x = 184 cm (the camera reads to 198), always parked on P11 and asleep at the end. The camera stepped in
+  per turn from about 2.1 deg to 0.5-0.9.
+- Safety held in the simulator: never under the 13 cm edge margin, never nearer a keep-out than 7.9 cm (the body touches at 6.7; 8.7 is wanted, so the outlets' clearance was 0.8 cm short once: a margin to watch),
+  never past x = 187 cm (the camera reads to 198), always parked on P11 and asleep at the end. The camera stepped in
   before about 25 legs per run (in phase A mostly, as designed).
 - (Claude's conclusion) The camera's 7.5 ft is above the floor: only that reading reproduces Jay-Sun's 2.4 / 2.7 / 4.5 /
   5.2 in (to 0.3 in). Both readings calibrate equally well (the bridge corrects the height either way).
