@@ -209,7 +209,7 @@ this window closes.` It also sets the camera's focus again (`PASS  camera focus 
 4. Then a line `Phase A from the defaults 1 / 1 / 0: the first calibration of AL-1DC0 on this site` (or `from its
    saved values` on a later calibration), then `Phase A ...`. The robot turns on the spot 12 times, rolls out and back,
    stands still for a minute, then visits P01-P20. Then `Phase B`, and a line `Saved on the robot: saved on the robot
-   with save (firmware 2026-11-05a) and checked`. Then `Phase C` (three tours), then `Parking`, then the same for the
+   with save (firmware 2026-11-05a or newer) and checked`. Then `Phase C` (three tours), then `Parking`, then the same for the
    next robot, then `Done`.
 5. You may close the browser; the run goes on. Open the address again to see where it is.
 

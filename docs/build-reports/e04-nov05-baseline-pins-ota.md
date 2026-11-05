@@ -42,16 +42,39 @@ a pinhole model).
 | wb1-wb3, `wiggle_bind.py` | AL-1DC0 (tag 2), AL-2B7F (tag 3) | 1st: bound by the 90 deg wiggle, pins written, not renamed (`AL-1DC0 is Bravo, AL-2B7F is Alpha`). 2nd: both `pin checked` with 45 deg. 3rd, tags swapped: both `PIN CHECK FAILED ... re-bound`, pins updated, slots kept |
 | r3, quick | AL-2B7F on 2026-10-29b, AL-1DC0 (0.97 / 1.03 / 0.30) | AL-2B7F `REFUSED` (not moved, kept out at its spot); AL-1DC0 from the defaults, gyro 1.0323 saved, recorded; parked 0.2 cm off P11 |
 | r2, quick, after r3 | AL-1DC0 with r3's saved values | `pin checked`; `PHASE A STARTS FROM ITS SAVED VALUES`; gyro 1.0314; parked 0.2 cm off P11 |
-| r1, 3 robots, quick phase A, full tours | AL-1DC0 at P11 (**0.93 / 1.06 / 0.30**, with 0.97 / 1.03 / 0.30 already saved on it); AL-2B7F from P02 and AL-3C11 from P06 (**1.07 / 0.94 / -0.25**) | R1_SUMMARY |
+| r1, 3 robots, quick phase A, full tours, e04 first code | AL-1DC0 at P11 (**0.93 / 1.06 / 0.30**, with 0.97 / 1.03 / 0.30 already saved on it); AL-2B7F from P02 and AL-3C11 from P06 (**1.07 / 0.94 / -0.25**) | AL-2B7F, uncalibrated, came **9.9 cm** from the edge near P15 (4 % allowance): fixed (problems table). Stopped by the 30-minute background limit during robot 2 |
+| r5, as r1, 10 % allowance everywhere | as r1 | 6 of 20 points skipped in AL-1DC0's phase A beside the outlet plate: allowance narrowed to the edges (problems table). Stopped by hand |
+| **r7, as r1, final code, firmware 2026-11-05b** | as r1 | all three `firmware 2026-11-05b ... OK`, from the defaults, fitted, saved, parked; table below |
 
-R1_TABLE
+r7 (41 min for three robots; quick phase A = 4 turns, rolls of 20 and 40 cm, 20 s still; every tour the full P01-P20;
+one phase-C tour). Closest edge: the camera's averaged pose at each stop / every single camera read (read noise about
+0.3 cm included):
 
-R1_PICTURE
+| Robot, spot (true values) | Fit, 95 % +- | Saved | Distance error cm/m, before -> after (median) | Heading error per turn, deg | Closest edge, stops / reads (cm) | Closest keep-out, other robot (cm) | Points skipped | Parked |
+|---|---|---|---|---|---|---|---|---|
+| AL-1DC0, P11 (0.93 / 1.06 / 0.30) | 0.9298 +-0.0038 / 1.0615 +-0.0017 / 0.283 +-0.040 (kept 0.30) | `save`, checked | 7.11 -> 0.29 | 4.96 -> 1.12 | 13.4 / 12.4 | 9.5 / 16.3 | P01, P09 (robots there), P16 in phase A (edge allowance) | 0.2 cm off P11 |
+| AL-2B7F, P01 (1.07 / 0.94 / -0.25) | 1.0684 +-0.0037 / 0.9398 +-0.0014 / -0.240 +-0.036 (kept 0) | `save`, checked | 6.94 -> 0.31 | 6.14 -> 0.93 | 13.6 / 12.9 | 9.2 / 16.6 | P09, P11 (robots), P16 in phase A | 1.0 cm when staged, 0.5 cm at the end |
+| AL-3C11, P09 (1.07 / 0.94 / -0.25) | 1.0665 +-0.0035 / 0.9400 +-0.0018 / -0.184 +-0.046 (kept 0) | `save`, checked | 6.91 -> 0.41 | 6.13 -> 0.80 | 13.6 / 12.8 | 9.3 / 16.3 | P01, P11 (robots), P16 in phase A; its 40 cm rolls (edge allowance at P09) | 0.3 cm when staged, 0.3 cm at the end |
+
+Robots' centres never came closer than 16.3 cm to each other (the keep-out wants 17.4 between parked and moving; the
+moving robot's own camera reads include its noise). Every spot was reached within 2 cm by the re-aim.
+
+![Before](../screenshots/2026-11-05/e04-problem-uncalibrated-robot-9.9cm-from-edge-near-P15-4pct-buffer-sim.png)
+
+r1, before the fix: each robot's track from the simulated camera; the uncalibrated AL-2B7F (orange) crossed the dashed
+13 cm margin near P15.
+
+![After](../screenshots/2026-11-05/e04-feature-three-robots-from-defaults-12.4cm-or-more-from-edges-sim.png)
+
+r7, the final code: all three robots, each started uncalibrated, stayed at the dashed margin or inside it.
 
 **Problems found while building (all fixed)**
 
 | Found | What | Fix |
 |---|---|---|
+| r1 | AL-2B7F (wheels 1.07, gyro 0.94, uncalibrated) came **9.9 cm** from the edge near P15: the leg from a detour waypoint was checked with 3 cm + 4 % of its length as its possible error, but it was 7 % long and 6 deg off | An uncalibrated robot's legs (phase A from the defaults, staging) count 10 % at the edges and the camera's view (`SAFE_FRAC_UNCAL`); 4 % once fitted, as before. r7: 13.4-13.6 cm (stops), 12.4 cm or more (single reads) |
+| r5 | With 10 % at the outlets and tiles too, 6 of 20 points were skipped in phase A beside the 1/16 in outlet plate | The 10 % applies to the edges and the camera's view only |
+| Wording | The save line said "firmware 2026-11-05a" for an 11-05b robot | "2026-11-05a or newer" |
 | r1, first try | An uncalibrated robot (wheels 1.07) driven to its spot parked **7.0 cm** off P01 in one leg. In e03 the true values were closer to 1 and the same code parked within 0.5 cm | `park` re-aims from the camera until within 2 cm. After the fix: 0.9 cm (P01), 0.3 cm (P09), 0.2 cm (P11) |
 | Review of the pins | A one-slot run would have overwritten a robot's pinned slot | A slot, once pinned, stays; it is changed by editing `robot_pins.json` |
 | Review of renaming off | With `rename_to_slot false` the e03 code stopped the run ("not called by their slot") | names in the run only (aliases), as Nick asked |
@@ -75,11 +98,30 @@ R1_PICTURE
   it to espota.py as an argument, so it is visible in the Pi's process list for the few seconds of the upload.
 - Space: .bin about 1-1.5 MB plus espota.py; the Pi card's ~1 GB free is plenty.
 
-**Tests**: SUITE_LINE
+**Tests**: the full fleet, Pi and simulator suite at 11:20-11:40 (in its own network, while two rehearsals ran):
+786 passed, 10 skipped, 21 failed. None of the 21 is from this build: 3 were the other agent's unfinished firmware
+edits in the shared folder (they pass on this build's commit), 15 fail the same way on the e03 commit in this machine's
+network setup (the launcher, camera page and stop-all tests need a network the isolated namespace does not have; feel
+table and ref tags fail at e03 too), and 3 passed when run again alone. After merging with the free-roam work (firmware
+2026-11-05b): the calibration, pins, save / wiggle and firmware-acceptance tests, **34 passed**; after the rebase onto
+0c1cd37: see the commit message. 9 new tests (`test_e04_baseline_pins.py`).
 
 ## Conclusion
 
-CONCLUSION
+- The first calibration of each robot now measures it uncalibrated, as Nick asked, and later ones start from its saved
+  values. In r7, three robots 6-7 % off in wheels and gyro were fitted to within 0.004 (wheels) and 0.002 (gyro) of
+  the truth, distance errors fell from about 7 to 0.3-0.4 cm per metre, and heading errors per turn from 5-6 to
+  about 1 deg.
+- (Claude's conclusion) Uncalibrated, the e03 edge check was not enough: 4 % of a leg did not cover a robot 7 % long
+  and 6 deg off (9.9 cm from the edge). With 10 % at the edges, all three stayed at the margin (13.4-13.6 cm at the
+  stops). The cost: P16 (13.9 cm from the edge) is skipped in an uncalibrated phase A, and P09's longer rolls.
+- Robots on 2026-11-05b are accepted (r7); older firmware is refused and kept out (r3). Pins, the check wiggle and
+  the loud re-bind work in the simulator (wb2, wb3, r2). Names in the run only are tested at the console and in the
+  arguments; not yet in a full mission (sweep 1).
+- (Claude's conclusion) P09 works as the third spot but, like P05 before, leaves room only for the short rolls once the
+  uncalibrated allowance is applied. The wheels still came out within 0.004 from the tour legs.
+- Pins are records of what each wiggle discovered, not typed positions, so they fit the new standing rule "discover,
+  don't pre-map"; the typed `tags.pins` in the site is only a seed.
 
 ## What's next
 

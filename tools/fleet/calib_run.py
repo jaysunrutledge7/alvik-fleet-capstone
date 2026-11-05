@@ -1540,7 +1540,7 @@ class CalibRun:
             ok = all(got[kk] is not None and abs(got[kk] - vals[kk]) <= PARAM_TOL for kk in PARAMS) and \
                 sv.count("(saved)") == 3
             out.update(how="save", ok=ok, values=got, check=sv, words=(
-                "saved on the robot with `save` (firmware 2026-11-05a) and checked: %s" % sv.split(": ", 1)[-1]
+                "saved on the robot with `save` (firmware 2026-11-05a or newer) and checked: %s" % sv.split(": ", 1)[-1]
                 if ok else "`save` answered but the check did not match (get %s; saved: %s)" % (got, sv or "no answer")))
         elif r and "unknown command" in r:
             mode = self.a.old_firmware_save
