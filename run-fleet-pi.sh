@@ -91,9 +91,13 @@
 # Free space (2026-10-28: the 21:34 DOE loop filled the card at 22:03). Frames go to the USB drive; every long run
 # checks the card and the drive before it starts and between loops, and ends cleanly before the card fills:
 #     ./run-fleet-pi.sh space              free space on the card and the USB drive, and the biggest folders
-#     ./run-fleet-pi.sh clean-uploaded     lists the sessions whose upload GitHub CONFIRMS (exact sizes); deletes
-#                                          nothing. Then `./run-fleet-pi.sh clean-uploaded --yes` deletes exactly those
-#                                          (--frames-only: keep every logs folder, delete only frames and upload copies)
+#     ./run-fleet-pi.sh uploads            the last 10 sessions: ✓ uploaded / ✗ not, and their size here (quick)
+#     ./run-fleet-pi.sh clean-uploaded     lists the sessions GitHub has (quick: the release has every file the upload
+#                                          sent; seconds, low priority); deletes nothing. Then `... clean-uploaded --yes`
+#                                          deletes exactly those (--frames-only: keep every logs folder; --thorough: the
+#                                          old exact-size check, ~1 min a GB; --force: even while a robot run is going)
+#     After every upload (DOE loop, free roam, mission, calibration) the session's big files (video, frames) are
+#     deleted once GitHub has them; logs, CSVs and report stay. Off: MIRLT_AUTO_CLEAN=0 (on at home, off at school)
 # The first test starts the recorder (both cameras, to the USB drive) in a tmux session called fleet; it keeps
 # recording until `stop`. Each test starts the camera bridge, runs the plan, then prints the line check (GATE).
 set -u
@@ -293,7 +297,7 @@ case "$WHAT" in
     TAG="${2:-doe-$N}"; case "$N" in *-mission*) TAG="${2:-mission-$N}" ;; esac
     echo "Uploading the frames in $FR to release $TAG (zipping first: a few minutes per GB) ..."
     python3 tools/pi/upload_session.py --recordings "$OUT" --session "$D" --tag "$TAG" --no-logs --recording-dir "$FR" \
-      && echo "Done. The frames stay on the drive until ./run-fleet-pi.sh clean-uploaded --yes." \
+      && echo "Done. (The Auto-clean lines above say what was freed; with MIRLT_AUTO_CLEAN=0 the frames stay until ./run-fleet-pi.sh clean-uploaded --yes.)" \
       || echo "Upload failed: run the same command again (parts already up are skipped)." ;;
   doe-status)
     D=""; [ "$DRY" = 1 ] && D="--dry"
@@ -431,8 +435,10 @@ case "$WHAT" in
     else echo "Mission Control is not running in tmux session mc: if it runs in a terminal window, Ctrl+C there."; fi ;;
   space)           # free space on the card and the USB drive, the biggest folders (nothing changed)
     python3 tools/fleet/diskguard.py space ;;
-  clean-uploaded)  # only what GitHub confirms (exact sizes); a list first, deletes only with --yes
+  clean-uploaded)  # only what GitHub has (quick check; --thorough: exact sizes); a list first, deletes only with --yes
     python3 tools/pi/clean_uploaded.py "$@" ;;
+  uploads)         # (2026-11-05) the last 10 sessions, uploaded or not (quick check; nothing deleted)
+    python3 tools/pi/clean_uploaded.py --status "$@" ;;
   ladder-status)   # (no recorder needed)
     D=""; [ "$DRY" = 1 ] && D="--dry"
     python3 tools/fleet/ladder.py status $D ;;

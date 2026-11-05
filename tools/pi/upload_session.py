@@ -11,9 +11,13 @@ An interrupted upload can be run again: parts already in the release (whole, the
 half-uploaded part is deleted and sent again.
 
 The GitHub token is read from ~/.config/mirlt/github_token (a fine-grained token for this repository with
-"Contents: read and write"; set up once, see docs/pi-run.md). Nothing of the session is deleted on the Pi (2026-10-28:
+"Contents: read and write"; set up once, see docs/pi-run.md). Until 2026-11-05 nothing of the session was deleted (2026-10-28:
 the zips it makes in .upload-tmp, copies, are removed once GitHub has them; ~/.local/state/mirlt/uploads/<session>.json
-records what went up, for tools/pi/clean_uploaded.py). The laptop's
+records what went up, for tools/pi/clean_uploaded.py). Auto-clean (2026-11-05, Nick: "if we lose some uploads that's
+fine"): once the release has every file sent, the big files of what went up (the recording / frames folder: videos,
+pictures; the session's own frames folder when the logs zip carried it) are deleted, the session's logs, CSVs and report
+kept. On at home; MIRLT_AUTO_CLEAN=0 (or the site file's "auto_clean_after_upload": false) or --keep-local turns it
+off. The laptop's
 mark-the-robot page (tools/label/mark_robot.py) uploads its marks with the same token file and code (on Windows the
 file is C:/Users/<you>/.config/mirlt/github_token; docs/how-to/mark-the-robot.md sets it up).
 
@@ -376,6 +380,7 @@ def _main():
     ap.add_argument("--unique-tag", action="store_true", help="if a release with this tag exists, use tag-2, -3, ...")
     ap.add_argument("--recording-dir", default="", help="this folder as the recording (not the newest in --recordings)")
     ap.add_argument("--exclude", action="append", default=[], help="a sub-folder of the session left out of its zip")
+    ap.add_argument("--keep-local", action="store_true", help="no auto-clean: keep every big file on the Pi")
     a = ap.parse_args()
     if a.stop_recorder:
         stop_recorder()
@@ -435,6 +440,29 @@ def _main():
                               t=round(time.time(), 1)))
     PROGRESS.set(state="done", link=link, done_bytes=PROGRESS.d.get("total_bytes", 0), current="")
     print("All up: " + link, flush=True)
+    auto_clean(a, sess, rec, tag, rel, tok, sent)
+
+
+def auto_clean(a, sess, rec, tag, rel, tok, sent):
+    """(2026-11-05) After the upload: a quick look that GitHub has every file sent, then the big local files go
+    (clean_uploaded.free_after_upload). Never fails the upload."""
+    try:
+        import clean_uploaded as CU
+        if a.keep_local or not CU.auto_clean_on():
+            print("Auto-clean is off (%s): every file stays on the Pi." % (
+                "--keep-local" if a.keep_local else "MIRLT_AUTO_CLEAN / this site's setting"), flush=True)
+            return
+        now = {n: int(x.get("size", 0)) for n, x in _assets(rel, tok).items()
+               if isinstance(x, dict) and x.get("state", "uploaded") == "uploaded"}
+        DG = CU.DG
+        drive = DG.drive_mount()
+        roots = [sess, a.recordings, os.path.join(REPO, "logs"), DG.rec_out()]
+        if drive:
+            roots.append(os.path.join(drive, "fleet-frames"))
+        CU.free_after_upload(sess, rec, tag, sent, now, logs_up=not a.no_logs, exclude=a.exclude,
+                             roots=roots, say=lambda m: print(m, flush=True))
+    except Exception as e:     # noqa: BLE001
+        print("Auto-clean did not run (%s): every file stays on the Pi." % e, flush=True)
 
 
 if __name__ == "__main__":

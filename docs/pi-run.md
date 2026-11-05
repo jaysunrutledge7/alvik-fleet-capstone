@@ -147,6 +147,10 @@ skipped):
 ```
 python3 tools/pi/upload_session.py --recordings /media/$USER/*/recordings
 ```
+Once GitHub has every file it sent, the upload deletes the session's big files on the Pi (videos, frames) and keeps
+the logs, CSVs and report; it prints what it deleted and the space freed (2026-11-05; on at home, off at school;
+`--keep-local` or `MIRLT_AUTO_CLEAN=0` keeps everything). `./run-fleet-pi.sh uploads` shows the last 10 sessions,
+uploaded or not.
 
 ## What is different on the Pi
 

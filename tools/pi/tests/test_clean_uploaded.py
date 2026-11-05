@@ -86,7 +86,7 @@ def test_unconfirmed_folders_are_never_deleted(env):
             # the other session's release has a frames zip of the wrong size (an upload cut short)
             "doe-20261028-010000-doe": {"logs-20261028-010000-doe.zip": _asset_sizes(env, other, ofd)[
                 "logs-20261028-010000-doe.zip"], "rec-frames-small.zip": good["rec-frames-small.zip"] - 7}}
-    code, out = _run(env, rels, "--yes")
+    code, out = _run(env, rels, "--yes", "--thorough")
     assert not sess.exists()
     assert other.exists() and ofd.exists() and dry.exists()
     assert "20261028-010000-doe: " in out and "rec-frames-small.zip" in out and "a dry run" in out
@@ -96,7 +96,7 @@ def test_no_release_or_changed_since_upload_is_kept(env):
     sess, fd = _session(env)
     rels = {"doe-" + NAME: _asset_sizes(env, sess, fd)}
     (sess / "notes-after-upload.txt").write_text("added after the upload")      # the folder changed
-    code, out = _run(env, rels, "--yes")
+    code, out = _run(env, rels, "--yes", "--thorough")
     assert sess.exists() and "changed since the upload" in out
     code, out = _run(env, {}, "--yes")
     assert sess.exists() and "no release on GitHub holds it" in out
@@ -129,9 +129,9 @@ def test_github_unreachable_deletes_nothing(env):
 def test_a_run_going_deletes_nothing(env, monkeypatch):
     sess, fd = _session(env)
     rels = {"doe-" + NAME: _asset_sizes(env, sess, fd)}
-    monkeypatch.setattr(C, "running", lambda: ["doe"])
+    monkeypatch.setattr(C, "running", lambda: ["tmux doe"])
     code, out = _run(env, rels, "--yes")
-    assert code == 1 and sess.exists() and "a run is going" in out
+    assert code == 1 and sess.exists() and "a robot run is going" in out and "CPU" in out and "--force" in out
 
 
 def test_upload_copies_deleted_only_when_github_has_that_exact_size(env):
