@@ -1527,6 +1527,7 @@ def main(argv=None):
             cam_c = cam_centre_from_model(cal)
             eye_factory = lambda: Eye(folder, FIX_PORT)    # noqa: E731
         run.cam_centre, run.tag_h = cam_c, tag_h
+        run.set_status(cam_centre=cam_c, tag_h=tag_h, sim_true=getattr(run, "sim_true", None))
         result = run.run(eye_factory)
     except (RunEnd, BindError) as e:
         result = "refused: %s" % e
@@ -1554,7 +1555,7 @@ def main(argv=None):
         import traceback
         traceback.print_exc()
         words = "the report could not be written: %s" % e
-    run.set_status(phase="done", result=result, words=words, ended=time.time())
+    run.set_status(phase="done", result=result, words=words, ended=time.time(), closest=run.closest)
     say("RESULT: " + words)
     say("Report: %s" % os.path.join(folder, "report.md"))
     return 0 if result == "finished" else 1

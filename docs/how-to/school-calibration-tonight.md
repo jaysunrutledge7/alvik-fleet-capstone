@@ -5,7 +5,7 @@ already standing on sticker **P11**, switched on and **asleep** (it wakes for 20
 id 2. Nobody needs to type which tag is on which robot: the run finds out by itself (the robot wiggles; the tag that
 wiggles with it is its tag).
 
-What the run does, about 35 minutes, all at experiment speed (drive 10 cm/s, turn 60 deg/s, last 5 cm at 5 cm/s):
+What the run does, about 40 minutes, all at experiment speed (drive 10 cm/s, turn 60 deg/s, last 5 cm at 5 cm/s):
 
 1. finds the robot on the WiFi and wakes it, reads its current settings and saves them;
 2. binds its roof tag (a quarter turn and back);

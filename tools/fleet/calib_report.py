@@ -38,6 +38,10 @@ def load_legs(folder):
     return rows
 
 
+def rows_all(folder):
+    return load_legs(folder)
+
+
 def groups(rows):
     """{label: rows} for phase A's tour (A1) and each phase-C tour (C1, C2, ...): the comparable legs (tour legs only,
     the camera-anchored edge finals left out: they are not odometry)."""
@@ -144,33 +148,43 @@ def charts(folder, g, fit, four):
         out.append((fn, "How far the robot's tag is put away from the camera when its 6.19 cm height is ignored, at "
                         "Jay-Sun's four points: his tape measurements (3 Nov) against the tag-height model for the two "
                         "readings of the camera's height%s." % (" and this run's camera" if four.get("run_in") else "")))
-    tr = os.path.join(folder, "camera_track.csv")
-    od = os.path.join(folder, "odometry_raw.csv")
-    if os.path.exists(tr) and os.path.exists(od):
-        try:
-            cam = np.array([[float(r["x_cm"]), float(r["y_cm"])] for r in csv.DictReader(open(tr))])
-            raw = np.array([[float(r["x_cm"]), float(r["y_cm"])] for r in csv.DictReader(open(od))])
-            if len(cam) and len(raw):
-                fig, ax = plt.subplots(figsize=(8, 3.8))
-                ax.plot(cam[:, 0], cam[:, 1], ".", ms=1, color="#2952CC", label="camera (every read)")
-                ax.plot(raw[:, 0], raw[:, 1], "-", lw=0.8, color="#C2410C", label="wheels + gyro alone (anchored once)")
-                ax.add_patch(matplotlib.patches.Rectangle((0, 0), 396.2, 167.6, fill=False, lw=1))
-                ax.axvline(78 * 2.54, color="grey", ls="--", lw=0.8)
-                ax.set_xlim(-10, 220)
-                ax.set_ylim(-10, 178)
-                ax.set_aspect("equal")
-                ax.set_xlabel("x cm (corner 1 = tag 20)")
-                ax.set_ylabel("y cm")
-                ax.legend(fontsize=7, loc="upper right")
-                fig.tight_layout()
-                fn = "chart_tracks.png"
-                fig.savefig(os.path.join(folder, fn), dpi=110)
-                plt.close(fig)
-                out.append((fn, "Where the robot really went (camera) against where its own wheels and gyro put it with "
-                                "no camera correction since the start, zones 1-2 of the table; from camera_track.csv and "
-                                "odometry_raw.csv."))
-        except (ValueError, KeyError):
-            pass
+    tours = {}
+    for r in rows_all(folder):
+        if r["kind"] in ("go", "turn") and r["result"] == "done" and r["phase"] in ("A", "C") and r["tour"] != "0":
+            tours.setdefault("%s%s" % (r["phase"], r["tour"]), []).append(r)
+    pick = [k for k in ("A1", "C1") if k in tours]
+    if pick:
+        import calib_run as CRN
+        fig, axs = plt.subplots(1, len(pick), figsize=(5.2 * len(pick), 4.2), squeeze=False)
+        for ax, k in zip(axs[0], pick):
+            rs = tours[k]
+            f = lambda r, a: (float(r[a + "_x"]), float(r[a + "_y"]), float(r[a + "_th"]))   # noqa: E731
+            D = f(rs[0], "cam0")
+            od, cm = [D[:2]], [D[:2]]
+            for r in rs:
+                D = CRN.compose(D, CRN.relative(f(r, "bel0"), f(r, "bel1")))
+                od.append(D[:2])
+                cm.append(f(r, "cam1")[:2])
+            od, cm = np.array(od), np.array(cm)
+            ax.plot(cm[:, 0], cm[:, 1], "-o", ms=2.5, lw=1.2, color="#2952CC", label="camera: where it stopped")
+            ax.plot(od[:, 0], od[:, 1], "-", lw=1.2, color="#C2410C", label="its own wheels + gyro (no correction)")
+            ax.add_patch(matplotlib.patches.Rectangle((0, 0), 396.2, 167.6, fill=False, lw=1))
+            ax.axvline(78 * 2.54, color="grey", ls="--", lw=0.8)
+            ax.set_xlim(-60, 230)
+            ax.set_ylim(-60, 210)
+            ax.set_aspect("equal")
+            ax.set_title("%s tour %s" % ("before the fit:" if k[0] == "A" else "after the fit:", k))
+            ax.set_xlabel("x cm (corner 1 = tag 20)")
+            ax.set_ylabel("y cm")
+            ax.legend(fontsize=7, loc="upper left")
+        fig.tight_layout()
+        fn = "chart_tracks.png"
+        fig.savefig(os.path.join(folder, fn), dpi=110)
+        plt.close(fig)
+        out.append((fn, "One P01-P20 tour before and one after the fit: where the camera saw the robot stop after each "
+                        "leg (blue) against where the robot's own wheels and gyro put it, added up from the tour's "
+                        "start with no camera correction (orange); table outline and the camera's x = 78 in limit "
+                        "(dashed); from legs.csv."))
     return out
 
 
@@ -193,7 +207,7 @@ def four_point(run, a):
         if os.path.exists(p):
             for line in open(p):
                 e = json.loads(line)
-                if e.get("kind") == "point" and e.get("point") in CR.JAY_IN:
+                if e.get("kind") == "point" and e.get("point") in CR.JAY_IN and e.get("phase") == "C":
                     visits.setdefault(e["point"], []).append(e["cam"])
         run_in, rows = {}, {}
         C = np.asarray(cc, float)
@@ -301,7 +315,7 @@ def write(folder, run, a):
             if e.get("kind") == "hold":
                 holds.append(e)
     L.append("**Safety**: closest the robot's middle came to an edge %.1f cm (margin %.0f cm), to a keep-out or tile "
-             "%.1f cm (the body's half diagonal + 2 cm = 8.7 cm needed), furthest x %.1f cm (the camera reads to "
+             "%.1f cm (wanted: the body's half diagonal + 2 cm = 8.7 cm, less 0.5 cm of measuring), furthest x %.1f cm (the camera reads to "
              "%.1f cm); the camera corrected the pose before %d legs; holds for a lost tag: %d%s; points skipped: %s." % (
                  cl.get("edge_cm", float("nan")), run.S.edge, cl.get("keepout_cm", float("nan")),
                  cl.get("view_x_max", float("nan")), 78 * 2.54, corr, len(holds),
@@ -316,13 +330,14 @@ def write(folder, run, a):
     L.append("**Four-point check** (Jay-Sun re-checks these tomorrow): how far the camera puts the robot with and "
              "without the tag-height correction (tag %.2f cm up), inches, away from the camera:" % four["tag_h_cm"])
     L.append("")
-    L.append("| point | Jay-Sun (no correction) | model, camera 145 cm above the table | model, 229 cm | this run: "
-             "with correction (cm) | this run: without (cm) | difference (in) |")
-    L.append("|---|---|---|---|---|---|---|")
+    L.append("| point | Jay-Sun (no correction) | model, camera 145 cm above the table | model, 229 cm | sticker (cm) | "
+             "this run, phase C stops: with correction (cm) | the same read without (cm) | difference (in) |")
+    L.append("|---|---|---|---|---|---|---|---|")
     for p in four["jay_in"]:
         rr = (four.get("run_rows") or {}).get(p)
-        L.append("| %s | %.1f | %.1f | %.1f | %s | %s | %s |" % (
-            p, four["jay_in"][p], four["model_145_in"][p], four["model_229_in"][p],
+        L.append("| %s | %.1f | %.1f | %.1f | %.1f, %.1f | %s | %s | %s |" % (
+            p, four["jay_in"][p], four["model_145_in"][p], four["model_229_in"][p], run.S.points[p][0],
+            run.S.points[p][1],
             "%.1f, %.1f" % tuple(rr["with_cm"]) if rr else "not visited", "%.1f, %.1f" % tuple(rr["without_cm"])
             if rr else "-", "%.1f" % four["run_in"][p] if four.get("run_in") and p in four["run_in"] else "-"))
     L.append("")
@@ -355,12 +370,12 @@ def write(folder, run, a):
     inacc = ("The camera's model comes from Measure with only tags 20, 23, 24, 25 (21 and 22 too small to read): its "
               "error grows towards zones 2's far side; every 'camera measured' number carries it.",
               "Tag height 6.19 cm is typed (Jay-Sun's tape), not measured by the camera (one camera cannot).",
-              "The tag offset from the turning point is fitted from %d resting reads of the turns; a tilted roof "
-              "would look like an offset." % len(getattr(run, "rows", []) or []),
+              "The tag offset from the turning point is fitted from %d resting reads between the in-place turns; a "
+              "tilted roof would look like an offset." % (len(__import__("calib_run").TURNS_A) + 1),
               "turn_max_rpm %.1f is worked out from the nominal wheel size for 60 deg/s, not measured." % (
                   __import__("calib_run").TURN_RPM),
               "Chosen numbers (no DOE yet): LOST_HOLD_S 1 s, MEASURE_S 1.2 s, the still periods 60 / 30 s, 12 turns, "
-              "rolls 20/40/60 cm, the 'enough' +- targets, the 1 cm edge aim, the 10 cm camera-driven edge final.",
+              "rolls 20/45/70 cm, the 'enough' +- targets, the 1 cm edge aim, the 10 cm camera-driven edge final.",
               "The fit assumes the drift is constant through the run; a gyro bias that wanders (the simulator's does) "
               "shows as a different drift in each still period.",
               "Distances per leg are from the robot's own odometry record (LEG start/done poses); a lost record "
@@ -418,5 +433,37 @@ def conclusion(g, fit, run, four):
     return out
 
 
+def remake(folder, cam_z_cm=None, dry=None):
+    """The report again from a finished run's folder (status.json, binding.json, fit.json, legs.csv, events.jsonl)."""
+    import argparse
+    import calib_run as CR
+    import sites as SI
+
+    def js(n):
+        p = os.path.join(folder, n)
+        return json.load(open(p)) if os.path.exists(p) else None
+    st = js("status.json") or {}
+    run = argparse.Namespace(folder=folder, status=st, S=CR.Site(SI.load("school-conference")),
+                             binding=js("binding.json"), fit=js("fit.json"), result=st.get("result"),
+                             before=(js("robot_values_before.json") or {}).get("values"), holds=[], rows=[],
+                             tag_h=st.get("tag_h") or 6.19, cam_centre=st.get("cam_centre"), sim_true=st.get("sim_true"))
+    if cam_z_cm is not None:
+        run.cam_centre = CR.SchoolCamera(z_cm=cam_z_cm).C.tolist()
+    ev = [json.loads(x) for x in open(os.path.join(folder, "events.jsonl"))]
+    pk = [e for e in ev if e["kind"] == "parked"]
+    run.parked = (pk[-1]["pose"], pk[-1]["miss_cm"]) if pk else None
+    end = [e for e in ev if e["kind"] == "end"]
+    run.slept = bool(end and end[-1].get("slept"))
+    run.closest = st.get("closest") or {}
+    run.fit_offset = next((e for e in ev if e["kind"] == "tag_offset"), None)
+    a = argparse.Namespace(dry=st.get("dry") if dry is None else dry)
+    return write(folder, run, a)
+
+
 if __name__ == "__main__":
-    print("Re-making a report needs the run object; see calib_run.py (the report is written at the run's end).")
+    import argparse
+    ap = argparse.ArgumentParser(description=__doc__)
+    ap.add_argument("folder")
+    ap.add_argument("--cam-z-cm", type=float, default=None, help="simulator runs before 4 Nov 20:30: the camera height")
+    a_ = ap.parse_args()
+    print(remake(a_.folder, a_.cam_z_cm))
