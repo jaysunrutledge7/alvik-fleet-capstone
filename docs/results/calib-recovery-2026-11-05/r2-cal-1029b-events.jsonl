@@ -1,0 +1,8 @@
+{"t0": 1793917444.89, "why": "the tag gone after the go 61 P12 drive leg", "start": [172.8, 105.5], "uncalibrated": false, "steps": 3, "blind_cm": 19.9, "outcome": "seen again", "jump_cm": 0.29, "bubble_cm": 6.58, "within": true, "dur_s": 7.0, "kind": "recover_end", "t": 1793917451.885}
+{"n": 30, "phase": "A", "label": "P12 drive", "policy": "recover", "kind": "leg_interrupted", "t": 1793917453.086}
+{"t0": 1793917461.05, "why": "the tag gone after the go 9 P12 drive leg", "start": [172.9, 99.8], "uncalibrated": false, "steps": 2, "blind_cm": 17.3, "outcome": "seen again", "jump_cm": 0.44, "bubble_cm": 4.48, "within": true, "dur_s": 8.7, "kind": "recover_end", "t": 1793917469.722}
+{"n": 32, "phase": "A", "label": "P12 drive", "policy": "recover", "kind": "leg_interrupted", "t": 1793917470.923}
+{"t0": 1793917508.12, "why": "the tag gone after the go 40 P13 drive leg", "start": [141.9, 29.0], "uncalibrated": false, "steps": 3, "blind_cm": 22.6, "outcome": "seen again", "jump_cm": 0.53, "bubble_cm": 5.74, "within": true, "dur_s": 6.7, "kind": "recover_end", "t": 1793917514.805}
+{"n": 40, "phase": "A", "label": "P13 drive", "policy": "recover", "kind": "leg_interrupted", "t": 1793917516.006}
+{"t0": 1793917524.0, "why": "the tag gone after the go 8 P13 drive leg", "start": [135.2, 33.0], "uncalibrated": false, "steps": 2, "blind_cm": 15.0, "outcome": "seen again", "jump_cm": 0.88, "bubble_cm": 4.1, "within": true, "dur_s": 7.3, "kind": "recover_end", "t": 1793917531.344}
+{"n": 42, "phase": "A", "label": "P13 drive", "policy": "recover", "kind": "leg_interrupted", "t": 1793917532.545}

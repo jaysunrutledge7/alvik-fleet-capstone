@@ -1,0 +1,6 @@
+{"why": "roof tag lost for over 1.0 s while driving", "kind": "hold", "t": 1793916689.768}
+{"t0": 1793916683.79, "why": "the tag gone after the go 53 P12 drive leg", "start": [174.0, 110.1], "uncalibrated": true, "steps": 0, "blind_cm": 7.2, "outcome": "stopped: the bubble would pass 8 cm", "wiggle": true, "held_s": 21.7, "dur_s": 27.7, "kind": "recover_end", "t": 1793916711.497}
+{"n": 31, "phase": "A", "label": "P12 drive", "policy": "recover", "kind": "leg_interrupted", "t": 1793916712.698}
+{"why": "roof tag lost for over 1.0 s while driving", "kind": "hold", "t": 1793916757.404}
+{"t0": 1793916749.88, "why": "the tag gone after the go 38 P13 drive leg", "start": [142.1, 29.7], "uncalibrated": true, "steps": 0, "blind_cm": 7.7, "outcome": "stopped: the bubble would pass 8 cm", "wiggle": true, "held_s": 20.1, "dur_s": 27.6, "kind": "recover_end", "t": 1793916777.534}
+{"n": 41, "phase": "A", "label": "P13 drive", "policy": "recover", "kind": "leg_interrupted", "t": 1793916778.735}

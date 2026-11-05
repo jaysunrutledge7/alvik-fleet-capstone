@@ -33,6 +33,10 @@ A robot that is **not** reflashed (your robots ran **2026-10-28a** this afternoo
 old way (stop, turn on the spot, drive). The start-up lines say which way each robot drives, and the report counts
 the two kinds apart. So reflashing is what makes them curve; skipping it is safe.
 
+**Reflash all three, or none.** In the simulator a mix (two curving, one stopping and turning) came closest of all
+(2.9 cm between two robots, no touch). If you cannot reflash all three tonight, run the old way for everyone with the
+word `stopturn` (step 5).
+
 On your PC, for each robot (Left, Center, Right):
 
 1. **Browser**: open `https://github.com/nfmaxfield-cmd/alvik-fleet-capstone`, click the green **Code** button, then

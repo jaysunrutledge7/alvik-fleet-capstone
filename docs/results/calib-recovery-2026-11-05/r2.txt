@@ -1,0 +1,45 @@
+17:20:23 Calibration run 2026-11-05c, session logs/recover/r2-cal-1029b
+17:20:23 Firmware: not checked. Pins: logs/recover/r2-cal-1029b/sim/robot_pins.json. Baseline: saved values for every robot (asked). Spots: P11, P01, P09.
+17:20:48 Found: AL-1DC0 at 127.0.0.2
+17:20:48   AL-1DC0: firmware 2026-10-29b
+17:20:52   AL-1DC0 restarted since its last compass check (woken from sleep): the compass check now (a few degrees of wiggle, no spin, no roll; about 10 s)
+17:21:02   AL-1DC0: compass check done
+17:21:11   tag 2: turned +87 deg with AL-1DC0's wiggle, +1 deg from where it started after it
+17:21:11   AL-1DC0: bound by the wiggle (no pin yet)
+17:21:11 Bound (wiggle (experiments.py sync wiggle, 90 deg and back; pinned robots a 45 deg check)): AL-1DC0 = tag 2
+17:21:11 AL-1DC0's current values (saved first): {'wheel_scale': 1.07, 'gyro_scale': 0.94, 'gyro_drift_dps': -0.25}
+17:21:11 PHASE A STARTS FROM ITS SAVED VALUES: asked for (--from-saved / calibration.baseline saved)
+17:21:14 Phase A: baseline with the robot's current values {'wheel_scale': 1.07, 'gyro_scale': 0.94, 'gyro_drift_dps': -0.25}
+17:21:36   tag offset from the turning point: 0.1 cm ahead, -0.0 cm left (0.1 cm, fit +- 0.1 cm)
+17:21:59   still 20 s: the robot's own heading moved -0.11 deg (camera +0.36): -0.0055 deg/s
+17:23:02 Tour A1: P10 P14 P17 P12 P20 P13 P11
+17:24:04 RECOVER: the roof tag was lost (the tag gone after the go 61 P12 drive leg): dead reckoning slowly towards where it last read well
+17:24:11   seen again after 7.0 s, 20 cm blind: odometry was 0.3 cm off the camera (bubble 6.6 cm)
+17:24:13   after the recovery: aiming at P12 again from where the camera sees it
+17:24:21 RECOVER: the roof tag was lost (the tag gone after the go 9 P12 drive leg): dead reckoning slowly towards where it last read well
+17:24:29   seen again after 8.7 s, 17 cm blind: odometry was 0.4 cm off the camera (bubble 4.5 cm)
+17:24:30   after the recovery: aiming at P12 again from where the camera sees it
+17:24:43   safety: from where the camera sees it, the leg to P20 would reach middle outlet box (12.8 cm): pose corrected first
+17:25:08 RECOVER: the roof tag was lost (the tag gone after the go 40 P13 drive leg): dead reckoning slowly towards where it last read well
+17:25:14   seen again after 6.7 s, 23 cm blind: odometry was 0.5 cm off the camera (bubble 5.7 cm)
+17:25:16   after the recovery: aiming at P13 again from where the camera sees it
+17:25:23 RECOVER: the roof tag was lost (the tag gone after the go 8 P13 drive leg): dead reckoning slowly towards where it last read well
+17:25:31   seen again after 7.3 s, 15 cm blind: odometry was 0.9 cm off the camera (bubble 4.1 cm)
+17:25:32   after the recovery: aiming at P13 again from where the camera sees it
+17:26:03 Fit: wheel_scale 1.0764 +- 0.0062 (ok), gyro_scale 0.9403 +- 0.0015 (ok), gyro_drift_dps -0.2599 +- 0.0396 (not pinned down: +-0.0396 (need +-0.0300))
+17:26:04   SAVE: this robot's firmware has no `save` (it needs 2026-11-05a: reflash it to get it); NOT saved (calibration.old_firmware_save off): the values last until it sleeps or is switched off
+17:26:17   still 10 s: the robot's own heading moved +0.02 deg (camera -0.33): +0.0020 deg/s
+17:26:17 Tour C1: P10 P14 P17 P12 P20 P13 P11
+17:27:23   safety: from where the camera sees it, the leg to P20 would reach middle outlet box (13.0 cm): pose corrected first
+17:28:21   still 10 s: the robot's own heading moved +0.02 deg (camera +0.02): +0.0020 deg/s
+17:28:21 Tour C2: P13 P20 P12 P17 P14 P10 P11
+17:28:56   safety: from where the camera sees it, the leg to P12 would reach middle outlet box (13.3 cm): pose corrected first
+17:28:59   safety: after the turn, the drive to P12 would reach middle outlet box (13.3 cm): heading fixed from the camera (+1.5 deg)
+17:30:31   still 10 s: the robot's own heading moved +0.31 deg (camera +0.49): +0.0306 deg/s
+17:30:31 Tour C3: P10 P12 P20 P17 P14 P13 P11
+17:30:52   safety: from where the camera sees it, the leg to P12 would reach middle outlet box (14.7 cm): pose corrected first
+17:31:12   safety: from where the camera sees it, the leg to P20 would reach middle outlet box (13.3 cm): pose corrected first
+17:32:41 AL-1DC0 parked at P11: 0.2 cm from the sticker, facing 90 deg
+17:32:41 Sent `sleep 10` to AL-1DC0 (it answered): it wakes for 20 s every 10 min; robot_sleep.py wake any brings it back
+17:32:44 RESULT: Fitted and read back on the robot: wheel_scale 1.0764, gyro_scale 0.9403; kept old: gyro_drift_dps (not pinned down: +-0.0396 (need +-0.0300)). (Claude's conclusion) Distance error per metre went from 0.14 to 0.52 cm (median), heading error per turn from 0.86 to 0.79 deg: NOT clearly better: look at the charts before using them.
+17:32:44 Report: logs/recover/r2-cal-1029b/report.md
