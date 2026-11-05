@@ -551,6 +551,21 @@ with a random sign (Nick's brief), gyro errors 6.5-8.5 % round Nick's 7.5 % with
 | Clock search with / without NTP (SEARCH_S) | 10 s / 180 s | not worth one: a search window; the tool warns when the answer is at its edge | - | ruled out |
 | Dwell at each point (production DWELL_S) | 3 s | yes (noted 2 Nov): 0 / 3 / 10 s against the RFID estimate's spread at a still robot; the pipeline now gives the standing error per point | School sessions | open |
 
+## School calibration run (2026-11-04, built; docs/build-reports/e02-nov04-school-calibration-run.md)
+
+| Number (where) | Value now | Experiment that would set it | Needs | Status |
+|---|---|---|---|---|
+| Tag lost before the cautious stop (calib_run LOST_HOLD_S) | 1.0 s, CHOSEN (10 cm blind at 10 cm/s) | yes: 0.5 / 1 / 2 s against holds per tour and the longest blind drive, from the real camera's dropout lengths in camera_track.csv (logs only first) | Logs (tonight's run) | open |
+| Held without a read before the run ends (LOST_GIVEUP_S) | 30 s, CHOSEN | not worth one: a limit; the report says where it stopped | - | ruled out |
+| Camera averaging after a leg (SETTLE_S, MEASURE_S) | 0.4 s + 1.2 s, CHOSEN | yes: 0.6 / 1.2 / 2.4 s against the spread of the measured end pose with the robot still (still periods) | Logs | open |
+| Phase-A data: in-place turns, rolls, still time (TURNS_A, ROLLS_A, STILL_S) | 12 turns (90/170 both ways), rolls 20/45/70 cm x 2 out and back, 60 s still; CHOSEN | yes: 6 / 12 / 24 turns, 6 / 12 rolls, 30 / 60 / 120 s against each value's SE in fit.json (the targets below) | Robot (repeat runs) | open |
+| "Enough" precision (ENOUGH, 95 %) | wheel 0.008, gyro 0.005, drift 0.03 deg/s, CHOSEN | not a DOE: targets; check that tonight's +- meet them, and whether after-tours improve less than the +- suggests | - | check |
+| Final approach length (FINAL_CM) | 5 cm at 5 cm/s, CHOSEN | yes: 3 / 5 / 10 cm against the end error and time per point | Robot | open |
+| Edge aim and camera-driven edge final (EDGE_AIM_CM, NEAR_EDGE_STAGE_CM) | 1 cm in, last 10 cm from the camera, CHOSEN | not worth one: safety margins; revisit if the closest-to-edge in the report is far above the margin | - | ruled out |
+| Safety buffer of an odometry leg (SAFE_BUF_CM + 4 % of the leg) | 3 cm + 4 %, CHOSEN (phase A's errors ~3 %) | yes: from tonight's per-leg errors, the 95th percentile miss per metre | Logs | open |
+| Turn speed (TURN_RPM for 60 deg/s) | 26.5 rpm, derived from nominal wheels | not a DOE: measure the camera's turn rate in tonight's legs and correct the rpm | Logs | check |
+| Simulator: tag read size (READ_PX) | 8 px, CHOSEN to match Jay-Sun's views | not a DOE: render the school camera's pictures and check against the detector at several x | Sim | check |
+
 ## Already set by data
 
 - **Line edge cue edge_thr 150** (e02.py SAFETY_SETTINGS): plywood reads 52-84 in every E02 session, the two real

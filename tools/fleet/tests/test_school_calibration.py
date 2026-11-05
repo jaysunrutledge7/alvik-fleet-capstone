@@ -252,3 +252,59 @@ def test_one_camera_table_fit_from_the_four_near_tags():
     e = np.concatenate(errs)
     assert np.nanmax(e) < 2.0, np.nanmax(e)
     assert abs(m.center[2] - 145.0) < 6.0
+
+
+# ------------------------------------------------------------------------------------------------- Mission Control
+def test_mission_control_calibration_card_job(tmp_path):
+    import json
+    import calib_job as CJ
+
+    class FakeRun:
+        def alive(self):
+            return True
+
+    class FakeSession:
+        dir = str(tmp_path)
+        run = None
+    S = FakeSession()
+    d = tmp_path / "calib" / "20261104-2100-dry"
+    d.mkdir(parents=True)
+    (d / "status.json").write_text(json.dumps({"phase": "done", "robot": "AL-1DC0", "tag": 2, "words": "ok"}))
+    (d / "report.md").write_text("# report")
+    job = CJ.CalibJob(S)                         # the newest earlier run is shown after a restart
+    st = job.status()
+    assert st["phase"] == "done" and st["robot"] == "AL-1DC0" and st["report"] and not st["running"]
+    assert job.file("report.md") == b"# report"
+    with pytest.raises(ValueError):
+        job.file("../../etc/passwd")
+    S.run = FakeRun()
+    with pytest.raises(ValueError) as e:
+        job.start({"dry": True})
+    assert "Mission Control run" in str(e.value)
+
+
+def test_cautious_hold_and_keep_going_switch(tmp_path, monkeypatch):
+    import argparse
+    a = argparse.Namespace(lost_policy="hold", dry=True)
+    run = CR.CalibRun(a, SI.load("school-conference"), str(tmp_path))
+    run.tag = 2
+
+    class E:
+        def __init__(self, age):
+            self.a = age
+
+        def age(self, t):
+            return self.a
+    run.eye = E(2.0)
+    run._leg_moving = True
+    assert run.watch() is True                   # tag unseen 2 s while driving: stop
+    run.eye = E(0.2)
+    assert run.watch() is False
+    run.a.lost_policy = "keep_going"
+    run.eye = E(5.0)
+    assert run.watch() is False                  # the experiments' policy: drive on
+    run.a.lost_policy = "hold"
+    run.eye = E(99.0)
+    monkeypatch.setattr(CR, "LOST_GIVEUP_S", 0.3)
+    with pytest.raises(CR.RunEnd):
+        run.hold_until_seen()

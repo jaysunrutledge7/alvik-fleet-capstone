@@ -54,7 +54,7 @@ say "3. Camera focus (autofocus off, focus_absolute 0)"
 python3 tools/pi/camera_focus.py || true
 
 say "4. Site"
-python3 tools/fleet/sites.py use school-conference && python3 tools/fleet/sites.py | head -3
+python3 tools/fleet/sites.py use school-conference
 
 say "5. Self-check"
 python3 tools/pi/selfcheck.py "$@"

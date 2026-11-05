@@ -115,6 +115,8 @@ PARAMS = ("wheel_scale", "gyro_scale", "gyro_drift_dps")
 EDGE_GUARD = ["set safe_edge 3", "set edge_dir 0", "set edge_thr 150", "set edge_n 3", "set edge_bot_cm 11",
               "set bumper_cm 0"]       # mission_run.EDGE_GUARD (lost at every power-off)
 LEG_TIMEOUT_S = 40.0
+GO_PIECE_CM = 100.0      # a longer drive is made in equal pieces of at most this (the firmware refuses go legs over
+                         # e02_go_max_cm, 110 by default). Each piece is measured as its own leg
 MAX_TURN_DEG = 170.0     # a bigger turn is made as two halves (a half turn's direction is ambiguous)
 BATTERY_CHECK_EVERY = 6  # chosen: `status` every 6 points
 JAY_IN = {"P01": 2.4, "P05": 2.7, "P11": 4.5, "P15": 5.2}   # Jay-Sun 3-4 Nov: how far the robot came out, no height
@@ -591,8 +593,10 @@ class SimEye(Eye):
     range, and with (bridge as built) or without the tag-height correction. The simulator's robot -> tag id mapping is
     the simulator's own truth: the run never reads it (it binds by the wiggle)."""
 
-    def __init__(self, folder, port, cam, sim_tags, tag_h=6.19, tag_cm=8.0, correct=True, seed=3, decoys=()):
+    def __init__(self, folder, port, cam, sim_tags, tag_h=6.19, tag_cm=8.0, correct=True, seed=3, decoys=(), gaps=()):
         self.cam, self.sim_tags, self.h, self.s, self.correct = cam, dict(sim_tags), tag_h, tag_cm, correct
+        self.t_made = time.time()
+        self.gaps = [tuple(float(v) for v in g.split(":")) for g in gaps]   # "T:DUR": the tag unread (a hand over it)
         self.rng = random.Random(seed)
         self.unread = 0
         super().__init__(folder, port)
@@ -610,6 +614,9 @@ class SimEye(Eye):
     def transform(self, msg):
         name = msg.get("robot")
         if name not in self.sim_tags:
+            return None
+        el = time.time() - self.t_made
+        if any(t <= el < t + d for t, d in self.gaps):
             return None
         x, y, th = float(msg["x"]), float(msg["y"]), float(msg["th"])
         px = self.cam.tag_px(x, y, self.h, self.s, th)
@@ -1008,7 +1015,9 @@ class CalibRun:
         elif abs(turn) > 1.0:
             cam, _, _ = self.drive_leg("turn", turn, "%s turn" % nm, phase, tour, corrected, cam0=cam)
         if go > FINAL_CM + 1:
-            cam, _, _ = self.drive_leg("go", go - FINAL_CM, "%s drive" % nm, phase, tour, corrected, cam0=cam)
+            n = int(math.ceil((go - FINAL_CM) / GO_PIECE_CM))
+            for _ in range(n):
+                cam, _, _ = self.drive_leg("go", (go - FINAL_CM) / n, "%s drive" % nm, phase, tour, corrected, cam0=cam)
             cam, _, _ = self.drive_leg("go", FINAL_CM, "%s final" % nm, phase, tour, corrected, cam0=cam)
         elif go > 0.5:
             cam, _, _ = self.drive_leg("go", go, "%s final" % nm, phase, tour, corrected, cam0=cam)
@@ -1018,7 +1027,7 @@ class CalibRun:
             turn2 = wrap180(math.degrees(math.atan2(ty - cam[1], tx - cam[0])) - cam[2])
             if abs(turn2) > 1.0 and dist2 > 1.0 and abs(turn2) <= MAX_TURN_DEG:
                 cam, _, _ = self.drive_leg("turn", turn2, "%s edge turn" % nm, phase, tour, True, cam0=cam)
-            if dist2 > 0.5:
+            if 0.5 < dist2 <= GO_PIECE_CM:
                 cam, _, _ = self.drive_leg("go", dist2, "%s edge final" % nm, phase, tour, True, cam0=cam)
         return cam
 
@@ -1119,7 +1128,8 @@ class CalibRun:
             self.ev("tag_offset", **self.fit_offset)
         self.still(STILL_S, "A")
         # rolls: towards -x from P11 (open table, away from the middle outlet and the camera's far limit)
-        self.set_status(words="Phase A: straight rolls 20 / 40 / 60 cm out and back")
+        self.set_status(words="Phase A: straight rolls %s cm out and back" % " / ".join("%.0f" % v for v in
+                                                                                   sorted(set(ROLLS_A))))
         cam = self.cam_pose()
         t = wrap180(180.0 - cam[2])
         for t_ in ((t / 2.0, t / 2.0) if abs(t) > MAX_TURN_DEG else (t,)):
@@ -1454,11 +1464,16 @@ def main(argv=None):
                    "(145: 7.5 ft above the floor; 228.6: 7.5 ft above the table)")
     g.add_argument("--no-height", action="store_true", help="simulator: the camera reads with NO height correction")
     g.add_argument("--sim-max-s", type=float, default=3600)
+    g.add_argument("--sim-gap", action="append", default=[], metavar="T:DUR",
+                   help="simulator: the roof tag unread for DUR s from T s after the camera starts (a hand over it)")
     a = ap.parse_args(argv)
     import sites as SI
     if a.site:
         os.environ["MIRLT_SITE"] = a.site
     site = SI.load(a.site or None)
+    cal_conf = site.get("calibration") or {}
+    if not a.robot and not a.dry:
+        a.robot = list(cal_conf.get("robot_ips") or [])     # the site's hint (school: Alvik 3), plus the broadcast
     if a.binding == "auto":
         a.binding = ((site.get("tags") or {}).get("binding") or "wiggle")
     if a.quick:
@@ -1496,7 +1511,7 @@ def main(argv=None):
             run.sim_cam = cam
             run.sim_true = dict(zip(PARAMS, (float(v) for v in a.sim_true.split(","))))
             eye_factory = lambda: SimEye(folder, FIX_PORT + 100, cam, {a.sim_name: a.sim_tag}, tag_h=tag_h,  # noqa
-                                         correct=not a.no_height, seed=a.seed)
+                                         correct=not a.no_height, seed=a.seed, gaps=a.sim_gap)
         else:
             if not a.no_focus:
                 set_focus()

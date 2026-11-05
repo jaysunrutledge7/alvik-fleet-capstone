@@ -53,7 +53,8 @@
    "Alpha": 6.19,
    "Bravo": 6.19
   },
-  "_note_heights": "Jay-Sun 3 Nov: roof AprilTag 2 7/16 in (6.19 cm) above the table, on a level platform centred over the axle. Typed because one camera over the whole table cannot measure it."
+  "_note_heights": "Jay-Sun 3 Nov: roof AprilTag 2 7/16 in (6.19 cm) above the table, on a level platform centred over the axle. Typed because one camera over the whole table cannot measure it.",
+  "binding": "wiggle"
  },
  "table": {
   "length_cm": 396.2,
@@ -245,5 +246,11 @@
   "focus": "autofocus off, focus_absolute 0 (resets if unplugged or the Pi restarts)",
   "second": "EMEET C950 available for the door end",
   "from": "Jay-Sun email 3 Nov"
+ },
+ "_note_calibration": "calib_run.py (4 Nov 2026): robot_ips = addresses asked first (besides the WiFi broadcast) when finding the robot for the calibration run; tonight Alvik 3 (WiFi name AL-1DC0). tags.binding: wiggle (bind the roof tag that follows each robot's wiggle) or fixed (tags.ids, the old way).",
+ "calibration": {
+  "robot_ips": [
+   "192.168.1.134"
+  ]
  }
 }
