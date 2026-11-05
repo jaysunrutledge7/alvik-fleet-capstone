@@ -25,8 +25,16 @@
    "label": "Camera 1 (over the corner 1 half)"
   },
   "side": {
-   "label": "Camera 2 (over the corner 2 half)"
+   "label": "Camera 2 (over the corner 2 half)",
+   "use": false,
+   "note": "switched off 5 Nov 2026 (Nick: one camera for now); kept, not deleted: set use true and camera_names.side to turn it back on"
   }
+ },
+ "_note_camera_names": "camera_names (5 Nov 2026): which USB camera is which when this site's folder has no cameras.json (tools/pi/camnames.py; an existing cameras.json always wins, e.g. after camnames.py --set). A name matches when it is part of the camera's own name. side \"\" = camera 2 switched off (the EMEET C950 is the one to name when it comes back). Home's camera names are never used for this site.",
+ "camera_names": {
+  "overhead": "C920e",
+  "side": "",
+  "side_when_on": "EMEET"
  },
  "capture": {
   "width": 1280,

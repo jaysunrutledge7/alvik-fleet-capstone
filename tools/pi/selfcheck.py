@@ -226,6 +226,11 @@ def check_cameras(R, site=None):
                                            "sizes not checked (no v4l2-ctl)",
                                            "; stable name /dev/v4l/by-id/%s" % name if name else ""))
     for r, v in rep["roles"].items():
+        if r == "side" and not v.get("name"):
+            # (5 Nov 2026) a site with one camera: camera 2 has no name = switched off, not a failure
+            R.add("PASS", "camera role side", "switched off for this site (no name set; the site's camera_names or "
+                  "cameras.json): camera 1 alone")
+            continue
         R.add("PASS" if v["ok"] else "FAIL", "camera role %s" % r, v["words"] if v["ok"] else
               v["words"] + ". Name it: python3 tools/pi/camnames.py --set %s \"<name>\" <port>" % r)
 

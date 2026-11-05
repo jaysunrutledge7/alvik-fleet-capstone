@@ -39,11 +39,35 @@ def _expo_file():
     return os.path.join(conf_dir(), "overhead_exposure.json")
 
 
+def site_name():
+    """The site in use (MIRLT_SITE, else tools/fleet/sites.py's choice), "home" if it cannot be told."""
+    v = os.environ.get("MIRLT_SITE", "").strip()
+    if v:
+        return v
+    try:
+        sys.path.insert(0, os.path.join(REPO, "tools", "fleet"))
+        import sites
+        return sites.current_name()
+    except Exception:  # noqa: BLE001
+        return "home"
+
+
 def overhead_calib(relative=True):
     """(path, words). The setup page's saved calibration if its pointer names a file that exists, else roam1, with
-    words saying which and why (the caller prints them)."""
+    words saying which and why (the caller prints them). 5 Nov 2026 (the school Pi: rec warned it used home's roam1):
+    roam1 is home's basement floor, so for any other site the fallback is "" (no lights calibration) and the words say
+    what that site's roof-tag runs use instead."""
     fallback = ROAM1_REL if relative else ROAM1
+    site = site_name()
+    if site != "home":
+        fallback = ""
     p = _pointer()
+    if site != "home" and not os.path.exists(p):
+        tc = os.path.join(conf_dir(), "tagcal", "overhead.json")
+        return "", ("Site %s: no lights floor calibration saved (%s missing); home's roam1 is NOT used for another "
+                    "site. Roof-tag runs and the calibration run use this site's camera model %s (%s; made by Mission "
+                    "Control, Setup, Measure). Lights tracking here needs ./run-fleet-pi.sh setup first." % (
+                        site, p, tc, "there" if os.path.exists(tc) else "MISSING: run Measure first"))
     try:
         with open(p) as f:
             path = f.read().strip()
@@ -51,8 +75,9 @@ def overhead_calib(relative=True):
         return fallback, ("No calibration saved by the camera setup page (%s missing): using yesterday's roam1 "
                           "calibration %s. If the overhead camera has moved, run ./run-fleet-pi.sh setup first." % (p, ROAM1_REL))
     if not path or not os.path.exists(path):
-        return fallback, ("The camera setup page's pointer (%s) names %s, which is not there: using roam1 (%s). Run "
-                          "./run-fleet-pi.sh setup again." % (p, path or "nothing", ROAM1_REL))
+        return fallback, ("The camera setup page's pointer (%s) names %s, which is not there: %s. Run "
+                          "./run-fleet-pi.sh setup again." % (p, path or "nothing", "using roam1 (%s)" % ROAM1_REL
+                                                              if fallback else "no lights calibration (site %s)" % site))
     return path, "Overhead calibration from the camera setup page: %s" % path
 
 
@@ -142,7 +167,8 @@ def main(argv=None):
     if what == "calib":
         path, words = overhead_calib()
         print(words, file=sys.stderr)
-        print(path)
+        if path:
+            print(path)
     elif what == "exposure":
         v, d = overhead_exposure()
         if v is not None:

@@ -7,7 +7,9 @@ A small file on the Pi, ~/.config/mirlt/cameras.json, says which camera name is 
 A name matches when it is part of the camera's own name (the one `v4l2-ctl --list-devices` and
 `python3 tools/pi/camrec.py --list` print), ignoring upper/lower case. Each USB webcam makes two or more
 /dev/video numbers; the one that sends pictures is the camera's first one (index 0 in /sys/class/video4linux).
-If the file is missing, the two names above are used (the cameras on the Pi on 2026-10-26).
+If the file is missing: at home the two names above (the cameras on the Pi on 2026-10-26); at any other site its
+own "camera_names" block in tools/fleet/sites/<site>.json (school: overhead "C920e", side off), never home's names
+(5 Nov 2026). An existing cameras.json always wins.
 A role can also name the USB port, for two cameras with the same name: {"overhead": {"name": "USB 2.0 Camera",
 "port": "1.4"}} (the port is the last part of camrec's "(usb-0000:01:00.0-1.4)").
 
@@ -22,24 +24,46 @@ import os
 import re
 import sys
 
+def _site():
+    """The site in use (tools/fleet/sites.py) or None (no site module)."""
+    try:
+        sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "fleet"))
+        import sites
+        return sites.load()
+    except BaseException as e:      # noqa: BLE001  (no site module: home's folder)
+        if getattr(e, "site_file_error", False):
+            raise                       # a broken or missing site file stops loudly (2026-11-03), never home's names
+        return None
+
+
 def _conf_dir():
     """MIRLT_CONF_DIR, else the site in use's folder (tools/fleet/sites.py, 2026-11-02: a school site keeps its own
     camera names; home's is ~/.config/mirlt as before)."""
     v = os.environ.get("MIRLT_CONF_DIR")
     if v:
         return os.path.expanduser(v)
-    try:
-        sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "fleet"))
-        import sites
-        return sites.load()["conf_dir"]
-    except BaseException as e:      # noqa: BLE001  (no site module: home's folder)
-        if getattr(e, "site_file_error", False):
-            raise                       # a broken or missing site file stops loudly (2026-11-03), never home's names
-        return os.path.expanduser("~/.config/mirlt")
+    s = _site()
+    return s["conf_dir"] if s else os.path.expanduser("~/.config/mirlt")
+
+
+def site_defaults(site=None):
+    """(5 Nov 2026, the school Pi: `rec` looked for home's "USB 2.0 Camera" because the school's folder had no
+    cameras.json) The names to use when there is no cameras.json: home's DEFAULTS for the home site only. Any other
+    site: its own "camera_names" block ({"overhead": "C920e", "side": ""}; "" or null = that camera not used), else
+    NO names (resolve then says to run --set). Never home's names for another site. (dict, words)."""
+    s = _site() if site is None else site
+    name = (s or {}).get("name", "home")
+    if name == "home":
+        return dict(DEFAULTS), "the built-in home defaults"
+    cn = (s or {}).get("camera_names") or {}
+    out = {r: str(cn.get(r) or "") for r in ROLES}
+    if any(out.values()):
+        return out, "the site %s's camera_names (tools/fleet/sites/%s.json)" % (name, name)
+    return out, "no names (the site %s lists no camera_names; home's are not used for another site)" % name
 
 
 CONF_PATH = os.path.join(_conf_dir(), "cameras.json")
-DEFAULTS = {"overhead": "USB 2.0 Camera", "side": "EMEET SmartCam C950"}
+DEFAULTS = {"overhead": "USB 2.0 Camera", "side": "EMEET SmartCam C950"}    # home's cameras (2026-10-26)
 ROLES = ("overhead", "side")
 SYSFS = os.environ.get("MIRLT_V4L_SYSFS", "/sys/class/video4linux")     # tests point it at a stand-in folder
 
@@ -116,10 +140,14 @@ def by_id_names(folder=None):
     return out
 
 
-def load_conf(path=None):
-    """{role: dict(name, port)} from the file, or the defaults (with from_file False)."""
+def load_conf(path=None, defaults=None):
+    """{role: dict(name, port)} from the file, or the defaults (with from_file False). An existing cameras.json always
+    wins (Nick's camnames.py --set). defaults: None = site_defaults() when reading the site's own file, home's DEFAULTS
+    for any other path (tests)."""
+    if defaults is None:
+        defaults = site_defaults()[0] if (path is None or path == CONF_PATH) else DEFAULTS
     path = path or CONF_PATH
-    raw, from_file = dict(DEFAULTS), False
+    raw, from_file = dict(defaults), False
     try:
         with open(path) as f:
             d = json.load(f)
@@ -163,7 +191,10 @@ def resolve(role, cams=None, conf=None):
         conf, _ = load_conf()
     want = conf.get(role) or dict(name="", port="")
     if not want["name"]:
-        return None, "no camera name is set for the %s camera (%s)" % (role, CONF_PATH)
+        seen = "; ".join("%s at /dev/video%d" % (c["name"], c["dev"]) for c in cams) or "no cameras at all"
+        return None, ("no camera name is set for the %s camera (%s; no file: the site's camera_names). The Pi sees: "
+                      "%s. Name it: python3 tools/pi/camnames.py --set %s \"<part of its name>\"" % (
+                          role, CONF_PATH, seen, role))
     hit = [c for c in cams if _matches(c, want)]
     label = want["name"] + (" on USB port %s" % want["port"] if want["port"] else "")
     if not hit:
@@ -217,9 +248,14 @@ def main(argv=None):
     if argv[:1] == ["--init"]:
         # the installer: write the file with today's names if there is none yet (never overwrites)
         if not os.path.exists(CONF_PATH):
+            d, src = site_defaults()
+            if not any(d.values()):
+                print("No camera names to save: %s. Name the overhead camera: python3 tools/pi/camnames.py --set "
+                      "overhead \"<part of its name>\"" % src)
+                return 1
             save_conf(load_conf()[0])
-            print("Camera names saved in %s (overhead: %s; side: %s)." % (CONF_PATH, DEFAULTS["overhead"],
-                                                                         DEFAULTS["side"]))
+            print("Camera names saved in %s from %s (overhead: %s; side: %s)." % (
+                CONF_PATH, src, d["overhead"] or "none", d["side"] or "none, switched off"))
         else:
             print("Camera names already set in %s (kept)." % CONF_PATH)
         return 0
@@ -228,7 +264,7 @@ def main(argv=None):
         return 2
     conf, from_file = load_conf()
     rep = report(conf=conf)
-    print("Camera names from %s" % (CONF_PATH if from_file else "the built-in defaults (no %s yet)" % CONF_PATH))
+    print("Camera names from %s" % (CONF_PATH if from_file else "%s (no %s yet)" % (site_defaults()[1], CONF_PATH)))
     byid = by_id_names()
     for c in rep["cameras"]:
         print("  /dev/video%-2d %-40s USB port %-6s %s" % (c["dev"], c["name"], c["port"] or "?",
@@ -238,6 +274,9 @@ def main(argv=None):
     if not rep["cameras"]:
         print("  (no cameras found)")
     for r in ROLES:
+        if r == "side" and not rep["roles"][r]["name"]:
+            print("OFF: the side camera (camera 2) is switched off here (no name set): the overhead camera alone")
+            continue
         print(("OK: " if rep["roles"][r]["ok"] else "MISSING: ") + rep["roles"][r]["words"])
     return 0
 

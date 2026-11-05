@@ -671,6 +671,8 @@ def run(args):
         else:
             cal, words = SCF.overhead_calib(relative=False)
             say(words)
+            if not cal:
+                raise SystemExit("No lights floor calibration for this site (above). Nothing moved.")
         if args.no_side:
             scal = ""
         elif args.side_calib:

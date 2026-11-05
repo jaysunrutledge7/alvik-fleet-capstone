@@ -6,7 +6,8 @@
 #      the tag detector: OpenCV's aruco with AprilTag 25h9, else pupil-apriltags (pip, --user)
 #   3. the camera's focus: autofocus off, focus_absolute 0 (tools/pi/camera_focus.py; it resets at every unplug or
 #      restart, so Mission Control's start sets it again too)
-#   4. the site: school-conference (tools/fleet/sites.py use)
+#   4. the site: school-conference (tools/fleet/sites.py use) and its camera names (camnames.py --init: overhead C920e,
+#      camera 2 off; an existing cameras.json is kept)
 #   5. the self-check (tools/pi/selfcheck.py): one PASS / WARN / FAIL line each
 # SCHOOL_SETUP_DRY=1: says what it would install, installs nothing (how it was tested off the Pi).
 set -u
@@ -55,6 +56,10 @@ python3 tools/pi/camera_focus.py || true
 
 say "4. Site"
 python3 tools/fleet/sites.py use school-conference
+# the cameras' names for this site (5 Nov 2026: with no cameras.json the recorder looked for home's camera): the site's
+# camera_names (overhead C920e, camera 2 switched off) written to its folder; an existing cameras.json is kept
+python3 tools/pi/camnames.py --init || true
+python3 tools/pi/camnames.py || true
 
 say "5. Self-check"
 python3 tools/pi/selfcheck.py "$@"
