@@ -1,0 +1,61 @@
+t,robot,kind,text
+1793897558.14,Left,firmware,2026-11-05b (fspd/fsteer/watchdog)
+1793897558.14,Center,firmware,2026-11-05b (fspd/fsteer/watchdog)
+1793897558.14,Right,firmware,2026-11-05b (fspd/fsteer/watchdog)
+1793897627.09,Left,lost,"camera lost it at 65.2, 47.8: dead reckoning, bubble 2.0 cm"
+1793897634.33,Left,halt,eases to a stop: bubble 8.3 cm
+1793897634.33,Left,find me,"bubble too big (bubble 8.3 cm): eases to a stop, then wiggles"
+1793897638.66,Left,seen again,"after 11.5 s, 29.7 cm and 364 deg blind: odometry was 0.5 cm off (bubble 9.7)"
+1793897763.09,Right,lost,"camera lost it at 92.0, 86.0: dead reckoning, bubble 2.0 cm"
+1793897769.49,Right,halt,eases to a stop: bubble 8.0 cm
+1793897769.49,Right,find me,"bubble too big (bubble 8.0 cm): eases to a stop, then wiggles"
+1793897782.65,Right,seen again,"after 19.5 s, 42.0 cm and 396 deg blind: odometry was 0.4 cm off (bubble 13.6)"
+1793897858.11,Left,lost,"camera lost it at 23.0, 53.8: dead reckoning, bubble 2.0 cm"
+1793897863.7,Left,seen again,"after 5.4 s, 33.9 cm and 47 deg blind: odometry was 0.6 cm off (bubble 5.2)"
+1793897874.07,Center,lost,"camera lost it at 44.2, 21.7: dead reckoning, bubble 2.0 cm"
+1793897882.52,Center,halt,eases to a stop: bubble 8.0 cm
+1793897882.52,Center,find me,"bubble too big (bubble 8.0 cm): eases to a stop, then wiggles"
+1793897888.66,Center,seen again,"after 14.5 s, 36.7 cm and 316 deg blind: odometry was 0.1 cm off (bubble 10.6)"
+1793898110.07,Right,lost,"camera lost it at 76.5, 22.2: dead reckoning, bubble 2.0 cm"
+1793898113.65,Right,seen again,"after 3.5 s, 17.2 cm and 91 deg blind: odometry was 1.0 cm off (bubble 4.0)"
+1793898141.08,Left,lost,"camera lost it at 17.6, 100.0: dead reckoning, bubble 2.0 cm"
+1793898144.67,Left,seen again,"after 3.5 s, 12.4 cm and 102 deg blind: odometry was 1.1 cm off (bubble 3.5)"
+1793898190.08,Center,lost,"camera lost it at 18.9, 22.6: dead reckoning, bubble 2.0 cm"
+1793898196.68,Center,seen again,"after 6.5 s, 63.8 cm and 7 deg blind: odometry was 0.8 cm off (bubble 6.7)"
+1793898489.1,Center,lost,"camera lost it at 76.2, 24.7: dead reckoning, bubble 2.0 cm"
+1793898492.68,Center,seen again,"after 3.5 s, 27.3 cm and 1 deg blind: odometry was 0.2 cm off (bubble 3.9)"
+1793898493.08,Left,lost,"camera lost it at 55.7, 94.2: dead reckoning, bubble 2.0 cm"
+1793898502.69,Left,seen again,"after 9.5 s, 31.7 cm and 184 deg blind: odometry was 0.1 cm off (bubble 7.3)"
+1793898516.09,Right,lost,"camera lost it at 59.4, 48.8: dead reckoning, bubble 2.0 cm"
+1793898526.72,Right,halt,eases to a stop: bubble 8.0 cm
+1793898526.72,Right,find me,"bubble too big (bubble 8.0 cm): eases to a stop, then wiggles"
+1793898531.66,Right,seen again,"after 15.5 s, 41.8 cm and 239 deg blind: odometry was 0.9 cm off (bubble 10.1)"
+1793898798.13,Center,slow move,move 190 took 37 s (estimate 7): ended
+1793898798.13,Center,halt,move timed out
+1793898818.1,Right,lost,"camera lost it at 53.9, 72.6: dead reckoning, bubble 2.0 cm"
+1793898821.66,Right,seen again,"after 3.4 s, 25.5 cm and 0 deg blind: odometry was 0.5 cm off (bubble 3.8)"
+1793898939.09,Center,lost,"camera lost it at 95.3, 98.0: dead reckoning, bubble 2.0 cm"
+1793898948.66,Center,seen again,"after 9.5 s, 31.7 cm and 133 deg blind: odometry was 0.8 cm off (bubble 6.4)"
+1793898973.07,Left,lost,"camera lost it at 103.0, 54.3: dead reckoning, bubble 2.0 cm"
+1793898980.21,Left,halt,eases to a stop: bubble 8.1 cm
+1793898980.21,Left,find me,"bubble too big (bubble 8.1 cm): eases to a stop, then wiggles"
+1793898984.66,Left,seen again,"after 11.5 s, 53.7 cm and 173 deg blind: odometry was 1.2 cm off (bubble 10.6)"
+1793899129.07,Right,lost,"camera lost it at 88.0, 73.4: dead reckoning, bubble 2.0 cm"
+1793899147.67,Right,seen again,"after 18.5 s, 41.4 cm and 378 deg blind: odometry was 1.7 cm off (bubble 13.0)"
+1793899390.09,Left,lost,"camera lost it at 55.4, 81.3: dead reckoning, bubble 2.0 cm"
+1793899400.66,Left,seen again,"after 10.5 s, 0.0 cm and 0 deg blind: odometry was 0.1 cm off (bubble 2.0)"
+1793899400.92,Left,slow move,move 297 took 47 s (estimate 11): ended
+1793899400.92,Left,halt,move timed out
+1793899420.09,Center,lost,"camera lost it at 80.6, 83.6: dead reckoning, bubble 2.0 cm"
+1793899427.92,Center,halt,eases to a stop: bubble 8.0 cm
+1793899427.92,Center,find me,"bubble too big (bubble 8.0 cm): eases to a stop, then wiggles"
+1793899429.68,Center,seen again,"after 9.4 s, 31.1 cm and 294 deg blind: odometry was 0.6 cm off (bubble 8.9)"
+1793899591.07,Right,lost,"camera lost it at 100.6, 61.0: dead reckoning, bubble 2.0 cm"
+1793899595.65,Right,seen again,"after 4.5 s, 16.3 cm and 60 deg blind: odometry was 0.8 cm off (bubble 3.7)"
+1793899783.12,Right,parking,battery 10 % (floor 10 %)
+1793899783.87,Right,out,"parked at 48.3, 102.4 and stopped (battery 10 %)"
+1793899789.5,Left,parking,battery 10 % (floor 10 %)
+1793899792.96,Left,out,"parked at 103.8, 24.9 and stopped (battery 10 %)"
+1793899814.19,Center,parking,battery 10 % (floor 10 %)
+1793899821.75,Center,out,"parked at 101.6, 67.8 and stopped (battery 10 %)"
+1793899821.8,-,end,"every robot is out (battery 10 %, or silent)"

@@ -1,0 +1,35 @@
+{
+ "version": "freeroam-runner-2026-11-05a",
+ "core": "freeroam-2026-11-05a",
+ "seed": 21,
+ "hours": 0.15,
+ "battery_floor": 10,
+ "lost_mode": "reckon",
+ "dry": false,
+ "started": "2026-11-05T11:55:59",
+ "argv": [
+  "run",
+  "--dry-chain",
+  "--hours",
+  "0.15",
+  "--seed",
+  "21",
+  "--no-frames",
+  "--sim-calibrated",
+  "--dir",
+  "logs/20261105-chain-freeroam-dryrun"
+ ],
+ "robots": [
+  "Left",
+  "Right",
+  "Center"
+ ],
+ "rect": [
+  0.0,
+  0.0,
+  122.0,
+  122.0
+ ],
+ "ended": "the time cap (0.1 h)",
+ "finished": "2026-11-05T12:09:16"
+}

@@ -1,0 +1,5 @@
+t,robot,kind,text
+1793898008.27,Left,firmware,2026-11-05b (fspd/fsteer/watchdog)
+1793898008.27,Right,firmware,2026-11-05b (fspd/fsteer/watchdog)
+1793898008.27,Center,firmware,2026-11-05b (fspd/fsteer/watchdog)
+1793898551.63,-,end,the time cap (0.1 h)

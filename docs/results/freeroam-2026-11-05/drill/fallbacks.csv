@@ -1,0 +1,16 @@
+t,robot,level,kind,why
+1793899934.34,Left,2,escape,no menu move fits; off-menu too
+1793899968.56,Left,4,holding turn,no menu move fits; no off-menu or escape move either
+1793899969.82,Left,2,escape,no menu move fits; off-menu too
+1793900086.98,Center,2,escape,no menu move fits; off-menu too
+1793900099.32,Left,2,escape,no menu move fits; off-menu too
+1793900198.85,Right,6,find-me wiggle,"lost, bubble 8.2 cm over 8"
+1793900202.86,Right,6,find-me wiggle,"lost, bubble 10.2 cm over 8"
+1793900229.87,Left,2,escape,no menu move fits; off-menu too
+1793900229.87,Right,2,escape,no menu move fits; off-menu too
+1793900229.94,Center,2,escape,no menu move fits; off-menu too
+1793900230.89,Center,2,escape,no menu move fits; off-menu too
+1793900372.62,Left,2,escape,no menu move fits; off-menu too
+1793900391.86,Center,6,find-me wiggle,"lost, bubble 8.1 cm over 8"
+1793900395.88,Center,6,find-me wiggle,"lost, bubble 9.6 cm over 8"
+1793900467.36,Center,2,escape,no menu move fits; off-menu too

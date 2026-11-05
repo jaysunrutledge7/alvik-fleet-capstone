@@ -1,0 +1,34 @@
+t,robot,kind,text
+1793899915.25,Left,firmware,2026-11-05b (fspd/fsteer/watchdog)
+1793899915.25,Center,firmware,2026-11-05b (fspd/fsteer/watchdog)
+1793899915.25,Right,firmware,2026-11-05b (fspd/fsteer/watchdog)
+1793899934.34,Left,halt,reflex: no speed or steer keeps 15.9 cm from Center: new move
+1793899970.07,Center,halt,reflex: no speed or steer keeps 15.9 cm from Left: new move
+1793899994.21,Center,lost,"camera lost it at 44.5, 65.8: dead reckoning, bubble 2.0 cm"
+1793900000.8,Center,seen again,"after 6.5 s, 33.5 cm and 153 deg blind: odometry was 2.0 cm off (bubble 7.0)"
+1793900030.7,Left,halt,reflex: no speed or steer keeps 15.9 cm from Right: new move
+1793900086.98,Center,halt,reflex: no speed or steer keeps 15.9 cm from Right: new move
+1793900087.99,Right,halt,reflex: no speed or steer keeps 15.9 cm from Center: new move
+1793900095.22,Left,lost,"camera lost it at 16.1, 55.6: dead reckoning, bubble 2.0 cm"
+1793900101.83,Left,seen again,"after 6.5 s, 32.3 cm and 141 deg blind: odometry was 0.5 cm off (bubble 6.7)"
+1793900192.23,Right,lost,"camera lost it at 80.9, 41.2: dead reckoning, bubble 2.0 cm"
+1793900198.7,Right,halt,eases to a stop: bubble 8.1 cm
+1793900198.7,Right,find me,"bubble too big (bubble 8.1 cm): eases to a stop, then wiggles"
+1793900206.83,Right,seen again,"after 14.5 s, 51.6 cm and 247 deg blind: odometry was 0.8 cm off (bubble 12.3)"
+1793900211.7,Left,halt,reflex: no speed or steer keeps 15.9 cm from Center: new move
+1793900229.87,Right,halt,reflex: no speed or steer keeps 15.9 cm from Center: new move
+1793900229.87,Left,halt,reflex: no speed or steer keeps 15.9 cm from Center: new move
+1793900229.94,Center,halt,reflex: no speed or steer keeps 15.9 cm from Right: new move
+1793900230.89,Center,halt,reflex: no speed or steer keeps 15.9 cm from Right: new move
+1793900353.23,Left,lost,"camera lost it at 26.3, 57.1: dead reckoning, bubble 2.0 cm"
+1793900355.79,Left,seen again,"after 2.5 s, 13.0 cm and 0 deg blind: odometry was 1.5 cm off (bubble 2.9)"
+1793900356.29,Left,stuck,"drive commanded, the camera saw it move 1.0 cm in 3 s: new move"
+1793900356.29,Left,halt,stuck
+1793900372.62,Left,halt,reflex: no speed or steer keeps 15.9 cm from Right: new move
+1793900373.69,Right,halt,reflex: no speed or steer keeps 15.9 cm from Left: new move
+1793900382.22,Center,lost,"camera lost it at 75.4, 94.4: dead reckoning, bubble 2.0 cm"
+1793900391.71,Center,halt,eases to a stop: bubble 8.0 cm
+1793900391.71,Center,find me,"bubble too big (bubble 8.0 cm): eases to a stop, then wiggles"
+1793900399.79,Center,seen again,"after 17.5 s, 37.5 cm and 328 deg blind: odometry was 0.4 cm off (bubble 11.0)"
+1793900468.21,Left,halt,reflex: no speed or steer keeps 15.9 cm from Center: new move
+1793900530.6,-,end,the time cap (0.2 h)

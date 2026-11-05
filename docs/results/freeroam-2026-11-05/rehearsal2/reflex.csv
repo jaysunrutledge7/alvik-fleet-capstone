@@ -1,0 +1,2 @@
+id,t,actor,other,kind,scale,steer,pred_before,pred_after,method,dur_s,actual_min_cc,outcome,closed
+1,1793900851.16,Left,Center,replan,,,26.7,,halt+new move,0.0,37.6,kept,replanned

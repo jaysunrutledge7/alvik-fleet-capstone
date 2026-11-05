@@ -1,0 +1,41 @@
+id,t,actor,other,kind,scale,steer,pred_before,pred_after,method,dur_s,actual_min_cc,outcome,closed
+2,1793899931.38,Left,Center,speed,0.6,,15.64,18.46,fspd,0.8,22.59,kept,escalated
+3,1793899932.18,Left,Center,speed,0.35,,15.13,18.07,fspd,1.01,19.11,kept,escalated
+1,1793899931.03,Center,Left,speed,0.6,,15.8,17.91,fspd,2.16,19.11,kept,clear
+4,1793899933.18,Left,Center,speed,0.15,,15.83,18.0,fspd,1.16,17.15,kept,escalated
+5,1793899934.34,Left,Center,replan,,,15.21,,halt+new move,0.0,17.15,kept,replanned
+6,1793899939.26,Right,Left,speed,0.6,,15.7,16.97,fspd,1.05,20.54,kept,clear
+7,1793899939.31,Left,Right,speed,0.6,,15.62,17.63,fspd,2.81,18.56,kept,clear
+8,1793899949.21,Right,Center,speed,0.6,,15.51,20.88,fspd,0.5,28.47,kept,escalated
+9,1793899949.71,Right,Center,speed,0.35,,15.94,21.06,fspd,2.76,25.73,kept,clear
+10,1793899970.07,Center,Left,replan,,,15.65,,halt+new move,0.0,31.74,kept,replanned
+11,1793900030.7,Left,Right,replan,,,5.7,,halt+new move,0.0,27.3,kept,replanned
+12,1793900031.4,Right,Left,speed,0.6,,7.84,19.9,fspd,1.0,24.71,kept,clear
+13,1793900031.45,Left,Right,speed,0.35,,9.79,19.48,fspd,2.15,24.71,kept,clear
+15,1793900085.43,Center,Right,speed,0.6,,15.21,19.19,fspd,0.6,25.79,kept,escalated
+16,1793900086.03,Center,Right,speed,0.35,,14.17,16.75,fspd,0.4,24.9,kept,escalated
+17,1793900086.43,Center,Right,speed,0.15,,15.86,17.93,fspd,0.55,23.1,kept,escalated
+18,1793900086.98,Center,Right,replan,,,15.9,,halt+new move,0.0,23.1,kept,replanned
+14,1793900085.08,Right,Center,speed,0.6,,15.9,19.93,fspd,2.92,20.99,kept,escalated
+19,1793900087.99,Right,Center,replan,,,15.84,,halt+new move,0.0,20.99,kept,replanned
+20,1793900211.7,Left,Center,replan,,,15.32,,halt+new move,0.0,24.53,kept,replanned
+21,1793900226.71,Left,Center,speed,0.6,,14.17,17.54,fspd,0.4,23.26,kept,escalated
+22,1793900227.11,Left,Center,speed,0.35,,15.66,18.04,fspd,0.5,19.5,kept,escalated
+24,1793900229.87,Right,Center,replan,,,7.93,,halt+new move,0.0,21.58,kept,replanned
+23,1793900227.61,Left,Center,speed,0.15,,15.7,17.11,fspd,2.26,16.15,kept,escalated
+25,1793900229.87,Left,Center,replan,,,15.48,,halt+new move,0.0,16.15,kept,replanned
+26,1793900229.94,Center,Right,replan,,,14.32,,halt+new move,0.0,21.23,kept,replanned
+27,1793900230.89,Center,Right,replan,,,14.79,,halt+new move,0.0,16.27,kept,replanned
+28,1793900231.94,Center,Left,speed,0.6,,13.89,19.2,fspd,1.0,17.94,kept,clear
+29,1793900231.99,Left,Center,speed,0.35,,13.81,17.47,fspd,2.61,17.94,kept,clear
+30,1793900334.47,Center,Left,speed,0.6,,15.18,26.62,fspd,1.45,31.99,kept,escalated
+31,1793900335.92,Center,Left,speed,0.35,,15.76,22.29,fspd,1.35,24.73,kept,escalated
+32,1793900337.27,Center,Left,speed,0.15,,15.68,20.48,fspd,2.11,24.13,kept,clear
+34,1793900370.51,Left,Right,speed,0.6,,15.92,21.12,fspd,0.85,31.21,kept,escalated
+35,1793900371.37,Left,Right,speed,0.35,,15.6,19.33,fspd,0.8,25.71,kept,escalated
+36,1793900372.17,Left,Right,speed,0.15,,14.09,17.41,fspd,0.45,23.56,kept,escalated
+37,1793900372.62,Left,Right,replan,,,15.08,,halt+new move,0.0,23.56,kept,replanned
+33,1793900370.16,Right,Left,speed,0.6,,15.58,19.99,fspd,3.53,20.62,kept,escalated
+38,1793900373.69,Right,Left,replan,,,15.34,,halt+new move,0.0,20.62,kept,replanned
+39,1793900466.91,Left,Center,speed,0.6,,15.48,27.08,fspd,1.3,32.54,kept,escalated
+40,1793900468.21,Left,Center,replan,,,15.4,,halt+new move,0.0,32.54,kept,replanned
