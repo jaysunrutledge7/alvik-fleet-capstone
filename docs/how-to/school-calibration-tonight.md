@@ -55,13 +55,21 @@ ending in `nick@rfidthesis:~ $`. From here on this window is the **Pi window**.
 git clone https://github.com/nfmaxfield-cmd/alvik-fleet-capstone.git ~/alvik-fleet-capstone
 ```
 
-You should see `Cloning into ...` and `done.` (If it says `already exists`, it was cloned before: go on.)
+You should see `Cloning into ...` and `done.`
 
 **Pi window:**
 
 ```
 cd ~/alvik-fleet-capstone
 ```
+
+Only if the clone said `already exists` (it was cloned before), get tonight's version. **Pi window:**
+
+```
+git pull
+```
+
+You should see `Fast-forward` or `Already up to date.`
 
 ## 4. Set the Pi up (Pi window, about 2-10 minutes)
 
@@ -79,8 +87,7 @@ press **Enter**), sets the camera's focus, picks the school site, and runs the s
 - `School setup DONE: no FAIL lines.`
 
 `WARN` lines for the GitHub token (uploads), `roof height` (6.19 cm is typed per robot; the run uses it) and `video
-space` are fine tonight. A `FAIL` line: see **If something is
-different** below.
+space` are fine tonight. A `FAIL` line: see **If something is different** below.
 
 ## 5. Wake the robot (Pi window, up to 10 minutes)
 
@@ -108,7 +115,8 @@ this window closes.` It also sets the camera's focus again (`PASS  camera focus 
 
 1. **Browser**: go to `http://100.72.183.28:8095`
 2. Click **Connect**, then **Robots**.
-3. Click **Cameras & table** in the top bar. Press **Check the cameras**: every line PASS.
+3. Click **Cameras & table** in the top bar. Press **Check the cameras**: every line PASS (a WARN or
+   FAIL about camera 2 / "side" is expected tonight: only one camera is plugged in).
 4. Press **Take pictures**. You should see orange outlines on tags **20, 23, 24 and 25** (the two corners at the TV end
    and the two side tags). **21 and 22 are expected to be missing** (too small from the TV end). Do **not** click
    corners or stickers.
@@ -129,10 +137,16 @@ this window closes.` It also sets the camera's focus again (`PASS  camera focus 
 **To stop the robot at any moment** (it heads for an edge; pillows are on the floor), any one of:
 
 - **Browser**: press **Stop** in the Calibration card.
-- **Pi window** (open a second Mac Terminal and do step 2 again if the first is busy):
+- **Pi window** (open a second Mac Terminal and do step 2 again if the first is busy), first:
 
 ```
-cd ~/alvik-fleet-capstone && ./run-fleet-pi.sh stopall
+cd ~/alvik-fleet-capstone
+```
+
+  then:
+
+```
+./run-fleet-pi.sh stopall
 ```
 
 After a stop, the robot stays where it is (it is not driven back). Put it back on P11 by hand, nose towards the
