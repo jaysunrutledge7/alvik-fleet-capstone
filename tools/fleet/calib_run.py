@@ -1111,6 +1111,22 @@ class CalibRun:
             cam, _, _ = self.drive_leg("turn", turn / 2.0, "%s turn half" % nm, phase, tour, corrected, cam0=cam)
         elif abs(turn) > 1.0:
             cam, _, _ = self.drive_leg("turn", turn, "%s turn" % nm, phase, tour, corrected, cam0=cam)
+        if go > 0.5 and abs(turn) > 1.0:
+            # (5 Nov, two-robot rehearsal: a 173 deg turn 6 deg short on the uncalibrated gyro, then a 47 cm drive along
+            # the edge ended 9.5 cm from it, under the 13 cm margin) the turn's own error was not in the check above:
+            # where the drive would really end along the heading the camera sees now; unsafe -> a camera turn first
+            h2 = math.radians(cam[2])
+            end2 = (cam[0] + go * math.cos(h2), cam[1] + go * math.sin(h2))
+            p2 = self.S.problems(cam[:2], end2, buf=SAFE_BUF_CM + 0.04 * go)
+            want = wrap180(math.degrees(math.atan2(ty - cam[1], tx - cam[0])) - cam[2])
+            if p2 and 1.0 < abs(want) <= MAX_TURN_DEG:
+                say("  safety: after the turn, the drive to %s would reach %s: heading fixed from the camera (%+.1f deg)"
+                    % (nm, p2[0], want))
+                self.reanchor(cam, "drive to %s after the turn would reach %s" % (nm, p2[0]))
+                cam, _, _ = self.drive_leg("turn", want, "%s turn fix" % nm, phase, tour, True, cam0=cam)
+                corrected = True
+                go = max(0.0, math.hypot(tx - cam[0], ty - cam[1]) -
+                         (NEAR_EDGE_STAGE_CM if near and dist > NEAR_EDGE_STAGE_CM + 2 else 0.0))
         if go > FINAL_CM + 1:
             n = int(math.ceil((go - FINAL_CM) / GO_PIECE_CM))
             for _ in range(n):

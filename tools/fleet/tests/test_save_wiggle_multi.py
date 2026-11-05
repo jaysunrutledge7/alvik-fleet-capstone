@@ -47,15 +47,16 @@ def test_wake_by_address_still_works_and_names_robots_heard_elsewhere(tmp_path):
 
 # ------------------------------------------------------------------------------------------------- the robot's save
 def test_sim_robot_save_survives_sleep_and_old_firmware_has_corr_only(tmp_path):
-    out = _harness(tmp_path, ["AL-1DC0:0.05:0.99"], ["cmds", "127.0.0.2", "wake", "set wheel_scale 0.97", "save",
+    out = _harness(tmp_path, ["AL-1DC0:0.05:0.99"], ["cmds", "127.0.0.2", "wait:4", "wake", "set wheel_scale 0.97", "save",
                                                      "set wheel_scale 0.5", "sleep 1", "wait:68", "wake",
                                                      "get wheel_scale", "unsave", "get wheel_scale"], timeout=150)
     assert "saved on the robot (kept after power-off): wheel_scale 0.9700" in out, out
     assert "calibration at power-on: wheel_scale 0.9700 (saved)" in out          # the wake from sleep is a restart
     assert out.count("wheel_scale = 0.970") == 2 and "back to defaults wheel_scale 1.0000" in out
     assert out.rstrip().endswith("RC=0") and "wheel_scale = 1.000" in out
-    out = _harness(tmp_path / "old", ["AL-1DC0:0.05:0.99", "--fw", "AL-1DC0=2026-10-29b"],
-                   ["cmds", "127.0.0.2", "wake", "save", "corr save wheel_scale 0.97", "get wheel_scale", "id"])
+    out = _harness(tmp_path / "old", ["AL-1DC0:0.05:0.99", "--fw=AL-1DC0=2026-10-29b"],
+                   ["cmds", "127.0.0.2", "wait:4", "wake", "save", "corr save wheel_scale 0.97", "get wheel_scale",
+                    "id"])
     assert "unknown command 'save'" in out and "corrections (saved by hand)" in out and "wheel_scale = 0.970" in out
     assert "unknown command 'id'" in out
 
