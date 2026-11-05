@@ -243,11 +243,20 @@ void setDrive(float v, float w) {
 // robot back onto the line (drive_kct deg per cm, at most drive_max_corr),
 // stopped in the last 3 cm. Speed ramps up and down (drive_accel), slowest 2 cm/s.
 // Front check: the caller sets gFrontLimitCm / gFrontSoft.
+// (2026-11-05b, home free roam) the follow commands `fspd` and `fsteer` change a drive WHILE it runs:
+// gSpeedScale multiplies the step's speed (0 = stand on the line, holding the step; up to 1.5), gSteer points the
+// rest of a forward drive at a new end (the line from where the robot is now to (gSteerX, gSteerY)). Both are reset
+// to "no change" at the start of every follow step; nothing else sets them, so every other drive is unchanged.
+float gSpeedScale = 1.0f;
+bool gSteer = false;
+float gSteerX = 0, gSteerY = 0;
+
 int driveLine(float x0, float y0, float x1, float y1, float h, float vmax, bool rev) {
   float ux = cosf(h * pose::DEG2RAD), uy = sinf(h * pose::DEG2RAD);
   float dir = rev ? -1.0f : 1.0f;
   float mx = dir * ux, my = dir * uy;                 // direction of motion
   float L = (x1 - x0) * mx + (y1 - y0) * my;
+  float slackMs = 0;                                  // (2026-11-05b) time not counted against the limit while slowed
   float kct = P("drive_kct"), maxc = P("drive_max_corr"), kh = P("drive_kh"), acc = P("drive_accel");
   const float vmin = 2.0f, lead_s = 0.03f;
   unsigned long t0 = millis(), last = t0;
@@ -258,16 +267,27 @@ int driveLine(float x0, float y0, float x1, float y1, float h, float vmax, bool 
     unsigned long now = millis();
     float dt = (now - last) / 1000.0f;
     last = now;
+    if (gSteer && !rev) {                             // (2026-11-05b) fsteer: the rest of the drive to a new end
+      gSteer = false;
+      x1 = gSteerX; y1 = gSteerY;
+      h = atan2f(y1 - pose::y, x1 - pose::x) / pose::DEG2RAD;
+      mx = cosf(h * pose::DEG2RAD); my = sinf(h * pose::DEG2RAD);
+      L = (x1 - pose::x) * mx + (y1 - pose::y) * my;
+      t0 = now; slackMs = 0;
+      limit = 3000 + (unsigned long)(fabsf(L) / fmaxf(vmax, 1.0f) * 2500.0f);
+    }
+    float sc = constrain(gSpeedScale, 0.0f, 1.5f);
+    if (sc < 1.0f) slackMs += (1.0f - sc) * dt * 1000.0f;
     float rem = (x1 - pose::x) * mx + (y1 - pose::y) * my;
     if (rem <= v * lead_s + 0.05f) break;
     // follow: only what is in the part of the path this step still drives can be hit
     // (beyond its end the next step checks; another robot may legitimately wait there)
     if (gFrontEndBase >= 0) gFrontLimitCm = fminf(gFrontEndBase, fmaxf(rem, 0.0f) + P("front_end_cm"));
-    if (now - t0 > limit) { alvik.brake(); gFail = "drive timed out"; return DRIVE_TIMEOUT; }
+    if (now - t0 > limit + (unsigned long)slackMs) { alvik.brake(); gFail = "drive timed out"; return DRIVE_TIMEOUT; }
     float cross = mx * (pose::y - y1) - my * (pose::x - x1);   // + = left of the line (facing the motion)
     float corr = rem > 3.0f ? constrain(-kct * cross, -maxc, maxc) : 0.0f;
     float herr = wrap180(h + corr - pose::th());
-    float vt = fminf(vmax, sqrtf(2.0f * acc * rem) + vmin);
+    float vt = fminf(vmax * sc, sqrtf(2.0f * acc * rem) + vmin * fminf(sc, 1.0f));
     v = fminf(vt, v + acc * dt + 0.5f);
     float w = constrain(kh * herr, -60.0f, 60.0f);
     setDrive(dir * v, w);

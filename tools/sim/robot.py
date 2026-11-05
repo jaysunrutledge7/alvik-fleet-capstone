@@ -1368,7 +1368,9 @@ class Robot(FollowMixin, DockMixin, E02Mixin):
         if verb == "e02":                            # e02 start|far|end = mark
             self.e_leg_command("mark", rest, running)
             return False
-        if verb in ("fs", "fix", "fpose", "hold", "halt"):
+        if verb in ("fspd", "fsteer") and self.fw_version < "2026-11-05b":
+            verb = "?" + verb                         # older firmware: unknown command (falls through below)
+        if verb in ("fs", "fix", "fpose", "hold", "halt", "fspd", "fsteer"):
             if running and self.f_active:
                 self.follow_command(verb, rest)
             elif verb == "fs":

@@ -43,6 +43,15 @@
 #     ./run-fleet-pi.sh doe-stop           stop it (every robot stops), then it uploads as when it finishes
 #     ./run-fleet-pi.sh reupload-frames 20261029-074342-doe   send a DOE loop's frames to its release again (after a
 #                                          failed upload; a zip over 1.9 GB goes in parts, parts already up are skipped)
+# Home free roam (2026-11-05, tools/fleet/freeroam.py): Left, Center and Right moving at the same time, all the time,
+# until each battery is at 10 % (then it parks by an edge and sleeps) or the time cap; L0 + L1 first as the DOE loop;
+# runs in tmux (session freeroam): closing SSH or switching Tailscale accounts does not stop it; uploads at the end:
+#     ./run-fleet-pi.sh freeroam [hours] [hold] [full-video]   start it (default 4 h; hold: the old cautious halt when
+#                                          the camera loses a robot instead of dead reckoning; full-video: the recorder
+#                                          keeps its whole video too). CHARGE THE ROBOTS STRAIGHT AFTER IT
+#     ./run-fleet-pi.sh freeroam-status    minutes so far, each robot's battery and moves, reflex events, full stops
+#     ./run-fleet-pi.sh freeroam-stop      stop it (every robot stops), then it uploads as when it finishes
+#     FLEET_DRY=1 ./run-fleet-pi.sh freeroam 0.5    the same against the simulator (no robots, no camera)
 # One system (2026-10-28): Monday's mission and Mission Control, the same program (tools/fleet/mission_run.py):
 #     ./run-fleet-pi.sh monday [61x122] [Left,Right] [farm]   Monday's default mission on the table of that size (put
 #                                          each robot at its own end first; a facing check by their lights measures
@@ -292,6 +301,54 @@ case "$WHAT" in
     if tmux has-session -t doe 2>/dev/null; then
       tmux send-keys -t doe C-c; echo "Sent Ctrl+C to the DOE loop: every robot stops; it then uploads (watch: tmux capture-pane -p -t doe | tail -20)."
     else echo "No DOE loop running."; fi ;;
+  freeroam)
+    HRS=4; FULL=0; LOST=""
+    for x in "$@"; do case "$x" in full-video) FULL=1 ;; hold) LOST="--lost-mode hold" ;; [0-9]*) HRS="$x" ;; esac; done
+    if tmux has-session -t freeroam 2>/dev/null; then
+      echo "A free roam is already running (tmux session freeroam). Its progress: ./run-fleet-pi.sh freeroam-status"
+      echo "Stop it first if you want a new one: ./run-fleet-pi.sh freeroam-stop"; exit 1
+    fi
+    for s in doe monday practice ladder ladder2 calib; do
+      tmux has-session -t $s 2>/dev/null && { echo "A run is going in tmux session $s: stop it first (./run-fleet-pi.sh stopall). Stopped."; exit 1; }
+    done
+    python3 tools/fleet/diskguard.py preflight || exit 1
+    [ "$DRY" = 1 ] || { [ "$FULL" = 1 ] || REC_EXTRA="--no-record"; start_recorder; }
+    tmux new-session -d -s freeroam -x 200 -y 50 "cd '$REPO' && FLEET_DRY=$DRY ./run-fleet-pi.sh freeroam-run $HRS $LOST; FLEET_DRY=$DRY ./run-fleet-pi.sh freeroam-finish; read -r -p 'Free roam finished. Press Enter.'"
+    tmux pipe-pane -t freeroam "cat >> '$REPO/logs/freeroam-screen.txt'" 2>/dev/null || true
+    echo "Free roam started in tmux session 'freeroam' (time cap $HRS h; each robot parks at 10 % battery)."
+    echo "You can close this window and switch Tailscale: it keeps running on the Pi."
+    echo "Progress:        ./run-fleet-pi.sh freeroam-status"
+    echo "Watch it live:   tmux attach -t freeroam        (leave it again: Ctrl+B, then D)"
+    echo "Pictures:        http://$PIADDR:8000 (overhead)"
+    echo "Stop it:         ./run-fleet-pi.sh freeroam-stop"
+    echo "CHARGE THE ROBOTS STRAIGHT AFTER IT (they finish at 10 %)." ;;
+  freeroam-run)     # (inside the tmux session freeroam)
+    H="${1:-4}"; shift || true
+    if [ "$DRY" = 1 ]; then
+      python3 tools/fleet/freeroam.py run --dry --hours "$H" "$@" ${FREEROAM_DRY_ARGS:-}
+    else
+      PIN=""; if [ "$(nproc)" -ge 4 ] && command -v taskset >/dev/null; then PIN="taskset -c 2,3"; fi
+      $PIN python3 tools/fleet/freeroam.py run --hours "$H" "$@" $IPS --stream 127.0.0.1:8000 --calib "$CALIB" $SIDE_ARG
+    fi ;;
+  freeroam-finish)  # (inside the tmux session freeroam, after the run): recorder stopped, logs + frames uploaded
+    D="$(ls -td logs/*-freeroam 2>/dev/null | head -1)"
+    [ "$DRY" = 1 ] && D="$(ls -td logs/*-freeroam-dryrun 2>/dev/null | head -1)"
+    [ -f logs/freeroam-screen.txt ] && [ -n "$D" ] && mv logs/freeroam-screen.txt "$D/screen.txt"
+    [ "$DRY" = 1 ] && { echo "(dry run: no recorder to stop, nothing uploaded; folder $D)"; exit 0; }
+    OUT="$(cat /tmp/fleet_rec_out 2>/dev/null || echo "$HOME/recordings")"
+    if rec_running; then tmux send-keys -t fleet:rec C-c; echo "Stopping the recorder ..."; sleep 6; fi
+    [ -z "$D" ] && { echo "No free-roam folder found."; exit 1; }
+    FR="$(python3 tools/fleet/diskguard.py where "$D")"
+    python3 tools/pi/upload_session.py --recordings "$OUT" --session "$D" --tag "freeroam-$(basename "$D")" --unique-tag \
+      --exclude frames --recording-dir "$FR" || echo "Upload failed: the files stay in $D and $FR (run ./run-fleet-pi.sh freeroam-finish again)" ;;
+  freeroam-status)
+    D=""; [ "$DRY" = 1 ] && D="--dry"
+    python3 tools/fleet/freeroam.py status $D
+    tmux has-session -t freeroam 2>/dev/null && { echo "--- its screen (last 12 lines) ---"; tmux capture-pane -p -t freeroam | grep -v '^$' | tail -12; } || echo "(no free roam running)" ;;
+  freeroam-stop)
+    if tmux has-session -t freeroam 2>/dev/null; then
+      tmux send-keys -t freeroam C-c; echo "Sent Ctrl+C to the free roam: every robot stops; it then makes its report and uploads (./run-fleet-pi.sh freeroam-status)."
+    else echo "No free roam running."; fi ;;
   monday|practice)
     TABLE="61x122"; ROB="Left,Right"; EXTRA=""; TS="monday"; PROG=""
     if [ "$WHAT" = practice ]; then
@@ -455,5 +512,5 @@ case "$WHAT" in
     python3 tools/pi/upload_session.py --recordings "$OUT" --stop-recorder --no-logs --tag "p0-$DAY-recording" || true
     tmux kill-session -t fleet 2>/dev/null || true ;;
   *)
-    sed -n '2,81p' "$0"; exit 1 ;;
+    sed -n '2,89p' "$0"; exit 1 ;;
 esac

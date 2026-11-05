@@ -18,6 +18,10 @@
 //                                                            stand still dock_still_ms; back out <back> cm (0 = stay)
 //   fs <id> P <h> <max_travel> <back>                        touch probe (dock.h): creep facing h until a nose
 //                                                            switch clicks (TOUCH record), back off <back> cm
+//   fspd <scale>                                             (2026-11-05b) the running drive's speed x scale (0-1.5;
+//                                                            0 = stand on the line, the step kept); answered FSPD
+//   fsteer <x1> <y1>                                         (2026-11-05b) the running forward drive goes on to a new
+//                                                            end from where it is (turns while moving); answered FSPD
 //   fix <t_ms> <x> <y> <th|-> <sigma_cm> [<sigma_deg>]       camera pose at robot time t_ms
 //   fpose <x> <y> <th> [<sigma_cm> <sigma_deg>]              set the pose outright
 //   hold [<id>]   finish the current step (or up to step id), drop the rest
@@ -96,6 +100,13 @@ void log() {
 
 void tickHook() {
   pose::tick();
+  // (2026-11-05b) heartbeat watchdog (follow_wd_ms, 0 = off): the laptop / Pi or the WiFi gone while a step runs:
+  // the step brakes and fails ("watchdog"), the queue is dropped (the run loop's failure path), the robot stands
+  if (curId && P("follow_wd_ms") > 0 && millis() - net::lastRx > (unsigned long)P("follow_wd_ms") &&
+      !gStepStop.length() && !gAbortReason.length()) {
+    gStepStop = "watchdog";
+    alvik.brake();
+  }
   // the four-sided virtual border (border.h, 2026-10-27a): only the step stops; the laptop re-plans
   if (border::followTick(pose::dist, pose::known) && curId && !gStepStop.length() && !gAbortReason.length()) {
     gStepStop = "border";
@@ -153,6 +164,19 @@ void command(const String& verb, const String& rest) {
     uint16_t keep = n > 0 ? (uint16_t)atoi(tok[0]) : 0;
     dropQueued(keep, "hold");
     report(keep, "held", "");        // the ack: the laptop resends hold until it sees this
+    return;
+  }
+  if (verb == "fspd" || verb == "fsteer") {       // (2026-11-05b) change the running drive
+    if (verb == "fspd") {
+      float sc = n > 0 ? num(tok[0]) : NAN;
+      if (isNaN(sc) || sc < 0 || sc > 1.5f) { net::sendLine("M,usage: fspd <scale 0-1.5>"); return; }
+      gSpeedScale = sc;
+    } else {
+      if (n < 2 || isNaN(num(tok[0])) || isNaN(num(tok[1]))) { net::sendLine("M,usage: fsteer <x> <y>"); return; }
+      gSteerX = num(tok[0]); gSteerY = num(tok[1]); gSteer = true;
+    }
+    net::logf("D,FSPD,%s,%lu,%u,%s,%.2f,%.2f,%.2f", gRunId.c_str(), millis(), (unsigned)curId, verb.c_str(),
+              gSpeedScale, gSteer ? gSteerX : 0.0f, gSteer ? gSteerY : 0.0f);
     return;
   }
   if (verb == "halt") {
@@ -390,6 +414,7 @@ void run() {
   net::sendLine("H,STEP,run,id,state,ms,x_cm,y_cm,th_deg,front_cm,info");
   net::sendLine("H,FOLLOW,run,ms,step_id,state,queued,last_done,last_failed,x_cm,y_cm,th_deg,pos_sd_cm,th_sd_deg,"
                 "fixes_used,fixes_rejected,front_cm,travel_cm,quiet_ms");
+  net::sendLine("H,FSPD,run,ms,step_id,verb,scale,x,y");      // (2026-11-05b) fspd / fsteer answers
   qHead = qLen = 0;
   maxId = curId = lastDone = lastFailed = 0;
   dockHeaderSent = touchHeaderSent = false;
@@ -421,6 +446,11 @@ void run() {
       quietSaid = false;
     }
     if (!qLen || !pose::known) { state = "idle"; delay(5); continue; }
+    // (2026-11-05b) watchdog: no new step starts while the laptop has been silent past follow_wd_ms
+    if (P("follow_wd_ms") > 0 && quiet > (unsigned long)P("follow_wd_ms")) {
+      dropQueued(0, "watchdog");
+      state = "idle"; delay(5); continue;
+    }
     Step s = q[qHead];
     qHead = (qHead + 1) % NQ;
     qLen--;
@@ -436,6 +466,8 @@ void run() {
     travel = 0;
     gStepStop = "";
     gFail = "";
+    gSpeedScale = 1.0f;        // (2026-11-05b) every step starts at its own speed, on its own line
+    gSteer = false;
     gFrontLowN = 0;            // obs_n counts readings within this step
     border::reset();           // the border's reference starts again with every step (a re-plan may drive it back in)
     report(s.id, "started", "");
@@ -481,6 +513,8 @@ void run() {
     state = "idle";
   }
   dropQueued(0, "run ended");
+  gSpeedScale = 1.0f;
+  gSteer = false;
   active = false;
   gTickHook = nullptr;
   gFrontSoft = false;

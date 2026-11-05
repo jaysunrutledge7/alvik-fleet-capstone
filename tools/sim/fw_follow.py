@@ -266,25 +266,37 @@ class FollowMixin:
         t0 = last = self.millis()
         limit = 3000 + int(abs(L) / max(vmax, 1.0) * 2500.0)
         v = 0.0
+        slack = 0.0          # (2026-11-05b) time slowed by fspd, added to the limit
         while True:
             if self.should_abort():
                 return DRIVE_ABORT if self.abort_reason else DRIVE_STEPSTOP
             now = self.millis()
             dt = (now - last) / 1000.0
             last = now
+            if getattr(self, "f_steer", None) is not None and not rev:    # (2026-11-05b) fsteer
+                x1, y1 = self.f_steer
+                self.f_steer = None
+                h = math.degrees(math.atan2(y1 - pose.y, x1 - pose.x))
+                mx, my = math.cos(h * DEG2RAD), math.sin(h * DEG2RAD)
+                L = (x1 - pose.x) * mx + (y1 - pose.y) * my
+                t0, slack = now, 0.0
+                limit = 3000 + int(abs(L) / max(vmax, 1.0) * 2500.0)
+            sc = max(0.0, min(1.5, getattr(self, "f_scale", 1.0)))
+            if sc < 1.0:
+                slack += (1.0 - sc) * dt * 1000.0
             rem = (x1 - pose.x) * mx + (y1 - pose.y) * my
             if rem <= v * lead_s + 0.05:
                 break
             if self.front_end_base >= 0:
                 self.front_limit = min(self.front_end_base, max(rem, 0.0) + P("front_end_cm"))
-            if now - t0 > limit:
+            if now - t0 > limit + slack:
                 self.brake()
                 self.fail = "drive timed out"
                 return DRIVE_TIMEOUT
             cross = mx * (pose.y - y1) - my * (pose.x - x1)
             corr = max(-maxc, min(maxc, -kct * cross)) if rem > 3.0 else 0.0
             herr = wrap180(h + corr - pose.th())
-            vt = min(vmax, math.sqrt(2.0 * acc * max(rem, 0.0)) + vmin)
+            vt = min(vmax * sc, math.sqrt(2.0 * acc * max(rem, 0.0)) + vmin * min(sc, 1.0))
             v = min(vt, v + acc * dt + 0.5)
             w = max(-60.0, min(60.0, kh * herr))
             self.set_drive(d * v, w)
@@ -427,6 +439,11 @@ class FollowMixin:
 
     def f_tick(self):
         self.pose.tick()
+        # (2026-11-05b) heartbeat watchdog (follow.h tickHook)
+        if (getattr(self, "fw_version", "") >= "2026-11-05b" and self.f_cur and self.P("follow_wd_ms") > 0 and
+                self.millis() - self.last_rx > self.P("follow_wd_ms") and not self.step_stop and not self.abort_reason):
+            self.step_stop = "watchdog"
+            self.brake()
         # the four-sided virtual border (border.h, firmware 2026-10-27a): only the step stops
         if self.bd_follow_tick() and self.f_cur and not self.step_stop and not self.abort_reason:
             self.step_stop = "border"
@@ -516,6 +533,23 @@ class FollowMixin:
                 keep = 0
             self.f_drop(keep, "hold")
             self.f_report(keep, "held", "")
+            return
+        if verb in ("fspd", "fsteer"):              # (2026-11-05b) change the running drive (follow.h)
+            if verb == "fspd":
+                sc = num(tok[0]) if n > 0 else float("nan")
+                if isnan(sc) or sc < 0 or sc > 1.5:
+                    self.send("M,usage: fspd <scale 0-1.5>")
+                    return
+                self.f_scale = sc
+            else:
+                if n < 2 or isnan(num(tok[0])) or isnan(num(tok[1])):
+                    self.send("M,usage: fsteer <x> <y>")
+                    return
+                self.f_steer = (num(tok[0]), num(tok[1]))
+            st = getattr(self, "f_steer", None)
+            self.send("D,FSPD,%s,%d,%d,%s,%.2f,%.2f,%.2f" % (self.run_id, self.millis(), self.f_cur, verb,
+                                                           getattr(self, "f_scale", 1.0), st[0] if st else 0.0,
+                                                           st[1] if st else 0.0))
             return
         if verb == "halt":
             self.f_drop(0, "halt")
@@ -805,6 +839,8 @@ class FollowMixin:
         self.send("H,STEP,run,id,state,ms,x_cm,y_cm,th_deg,front_cm,info")
         self.send("H,FOLLOW,run,ms,step_id,state,queued,last_done,last_failed,x_cm,y_cm,th_deg,pos_sd_cm,th_sd_deg,"
                   "fixes_used,fixes_rejected,front_cm,travel_cm,quiet_ms")
+        if getattr(self, "fw_version", "") >= "2026-11-05b":
+            self.send("H,FSPD,run,ms,step_id,verb,scale,x,y")
         self.f_q = []
         self.f_max_id = self.f_cur = self.f_last_done = self.f_last_failed = 0
         self.f_dock_hdr = self.f_touch_hdr = False
@@ -837,6 +873,11 @@ class FollowMixin:
                 self.f_state = "idle"
                 self.loop_delay(5)
                 continue
+            if getattr(self, "fw_version", "") >= "2026-11-05b" and P("follow_wd_ms") > 0 and quiet > P("follow_wd_ms"):     # (2026-11-05b) watchdog
+                self.f_drop(0, "watchdog")
+                self.f_state = "idle"
+                self.loop_delay(5)
+                continue
             s = self.f_q.pop(0)
             nx = self.f_q[0] if self.f_q else None
             s["cont"] = bool(s["type"] == "C" and nx is not None and nx["type"] == "C" and
@@ -849,6 +890,7 @@ class FollowMixin:
             self.f_travel = 0.0
             self.step_stop = ""
             self.fail = ""
+            self.f_scale, self.f_steer = 1.0, None      # (2026-11-05b) every step at its own speed and line
             self.bd_reset()
             self.f_report(s["id"], "started", "")
             self.front_low_n = 0                       # obs_n counts readings within this step (follow.h)

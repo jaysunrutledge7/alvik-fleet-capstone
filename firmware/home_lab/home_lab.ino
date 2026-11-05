@@ -42,7 +42,14 @@
 Arduino_Alvik alvik;
 
 // Bump this whenever the firmware changes, so every logged run says which code it ran.
-#define FW_VERSION "2026-11-05a"
+#define FW_VERSION "2026-11-05b"
+// 2026-11-05b (Nick, 5 Nov: home free roam, "the trophy is shiniest if they never stop moving"): two follow commands
+//              change a drive while it runs: `fspd <scale>` (speed x 0-1.5, 0 = stand on the line keeping the step) and
+//              `fsteer <x> <y>` (the rest of a forward drive goes to a new end, turning while it moves); each answered
+//              by a FSPD record. Both reset at every step's start, so run_plan / mission runs are unchanged. A heartbeat
+//              watchdog, follow_wd_ms (default 0 = off; the free roam sets 1500): a step brakes and fails "watchdog"
+//              when nothing came from the laptop/Pi for that long, and no queued step starts. A drive slowed by fspd
+//              gets the slowed time added to its time-out. Compatible: older laptop tools never send these.
 // 2026-11-05a (Nick, 5 Nov: the calibration survives power-off): `save` keeps wheel_scale, gyro_scale and
 //              gyro_drift_dps as they are now in the robot's flash (Preferences "corr", the same place corr save uses;
 //              all or nothing, corr save's limits), loaded at every power-on and wake from sleep; `unsave` (or
@@ -186,7 +193,8 @@ bool handleCommand(const String& raw, bool running) {
   if (verb == "fix" && !(running && follow::active)) { e02::fixCommand(rest, running); return false; }
   if (verb == "go" || verb == "turn" || verb == "mark") { e02::legCommand(verb, rest, running); return false; }
   if (verb == "e02") { e02::legCommand("mark", rest, running); return false; }   // e02 start|far|end = mark
-  if (verb == "fs" || verb == "fix" || verb == "fpose" || verb == "hold" || verb == "halt") {
+  if (verb == "fs" || verb == "fix" || verb == "fpose" || verb == "hold" || verb == "halt" || verb == "fspd" ||
+      verb == "fsteer") {
     if (running && follow::active) follow::command(verb, rest);
     else if (verb == "fs") net::sendLine("M,not following: send run follow first");
     return false;

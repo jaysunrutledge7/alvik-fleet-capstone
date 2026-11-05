@@ -576,6 +576,26 @@ with a random sign (Nick's brief), gyro errors 6.5-8.5 % round Nick's 7.5 % with
 | Waiting for the run's robots before the wiggle (wiggle_bind wake_min) | 3 min, CHOSEN (wake them first with robot_sleep.py wake any) | not a DOE: the check-in period (10 min after sleep 10) sets it; the runbook wakes them first | - | ruled out |
 | Slot by position (wiggle_bind assign_slots) | the least total distance to the slots' homes, CHOSEN rule | not a DOE: a rule; the report of each run lists who got which slot | - | check |
 
+## Home free roam (2026-11-05, built; docs/build-reports/e04-nov05-home-free-roam.md)
+
+All in tools/fleet/freeroam_core.py. "Sim" rows can be run with tools/fleet/freeroam_fastsim.py (no sockets, ~2 min per
+simulated 4 h); "Run" rows need the first real free roam's logs (motion.csv, reflex.csv, moves.csv, lost.csv).
+
+| Number (where) | Value now | Experiment that would set it | Needs | Status |
+|---|---|---|---|---|
+| Edge margin for a move's end spot (EDGE_CC) | 16 cm centre to edge (corner 9.3 cm in), CHOSEN | yes: 14 / 16 / 20 cm against edge-guard trips, menu coverage of the long cells and fallbacks per hour | Sim then Run | open |
+| Planned gap between the bodies' circles (PLAN_GAP) | 4 cm (17.4 cm centre to centre + margins), CHOSEN | yes: 3 / 4 / 6 cm against fallbacks per hour, reflex events per hour and the closest approach | Sim then Run | open |
+| Reflex gap (REFLEX_GAP) and look-ahead (REFLEX_H_S) | 2.5 cm, 2 s, CHOSEN (Nick: "~1-2 s") | yes: gap 1.5 / 2.5 / 4 cm x horizon 1.5 / 2 / 3 s against reflex events, full stops and the closest approach | Sim | open |
+| Hard-stop limit (HARD_CC, HARD_T_S) | circles 0.5 cm apart within 1.2 s, CHOSEN | not a DOE: a safety floor (the squares can first touch at 13.44 cm) | - | ruled out |
+| Execution margin (PLAN_M0, PLAN_M_PER_CM, PLAN_M_MAX) | 1 cm + 0.06 cm per cm, at most 3 cm more, CHOSEN from the 2-3 cm line tracking of 28 Oct | yes: from the first run's end_err_cm (moves.csv) and the camera track against each planned line | Run | open |
+| Reservation time slack (SLACK0_S, SLACK_FRAC) | 0.6 s + 15 % of the time since commit, CHOSEN from latencies | not a DOE: set from moves.csv est_s against dur_s after the first run | Run | check |
+| Turn time model (TURN_S0, TURN_DPS) | 0.6 s + deg / 75, estimated from the 40 rpm turn | not a DOE: fit to moves.csv | Run | check |
+| Menu bins (TURN_BINS, LEN_BINS, SPEED_BINS) | 7 turns x 4 lengths x 4 speeds (speeds: the DOE loop's), CHOSEN | yes, in the simulator: coarser / finer bins against coverage evenness and fallbacks per hour | Sim | open |
+| Share of free picks (FREE_SHARE) | 10 %, CHOSEN | yes: 0 / 10 / 25 % against coverage evenness, fallbacks per hour and how often robots meet | Sim | open |
+| Dead-reckoning bubble, turns (BLIND_TURN_FRAC) and its cap (BUBBLE_CAP) | 3 % of degrees turned; 8 cm, CHOSEN (the 2.0 + 0.07 per cm part is measured) | yes: lost.csv jumps against the bubble from the first runs (how many fall outside), and 6 / 8 / 12 cm cap against find-me wiggles per hour | Run | open |
+| Robots' front stop while roaming (FOLLOW_LOOK_CM) | 8 cm (roam.py's), CHOSEN | yes: 6 / 8 / 10 cm against front stops per hour (step.csv obstacle) and closest approaches | Run | open |
+| Watchdog (follow_wd_ms in the roam) | 1.5 s, CHOSEN (15 camera fixes) | not a DOE: a safety timeout | - | ruled out |
+
 ## Already set by data
 
 - **Line edge cue edge_thr 150** (e02.py SAFETY_SETTINGS): plywood reads 52-84 in every E02 session, the two real

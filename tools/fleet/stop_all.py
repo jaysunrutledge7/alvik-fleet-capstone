@@ -7,7 +7,7 @@ also when nothing is running.
     python3 tools/fleet/stop_all.py --only-listed --robot 192.168.1.250 ...    (the old way: only these addresses)
 
 In order:
-  1. Ctrl+C to every fleet run started in tmux (monday, practice, doe, ladder, ladder2, mc's own run is step 2): each
+  1. Ctrl+C to every fleet run started in tmux (monday, practice, doe, ladder, ladder2, calib, freeroam, mc's own run is step 2): each
      program's own stop then halts its robots and closes its logs (the upload follows where the program uploads).
   2. Mission Control's Stop (POST /api/run/stop on 127.0.0.1:8095), if Mission Control is open.
   3. `stop` straight to every robot's command port (UDP 5006), STOP_REPEATS times, STOP_GAP_S apart. This does not
@@ -39,7 +39,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 CMD_PORT = 5006            # tools/alvik_console.py CMD_PORT (laptop/Pi -> robot)
 LOG_PORT = 5005            # robot -> laptop/Pi
 ROBOT_IPS = ("192.168.1.250", "192.168.1.252", "192.168.1.253")
-TMUX_RUNS = ("monday", "practice", "doe", "ladder", "ladder2", "calib")
+TMUX_RUNS = ("monday", "practice", "doe", "ladder", "ladder2", "calib", "freeroam")   # freeroam: 2026-11-05
 MC_URL = "http://127.0.0.1:8095/api/run/stop"
 STOP_REPEATS = 3           # chosen: UDP can drop a packet (27 Oct: up to 1 in 10); three copies 0.2 s apart. No DOE:
 STOP_GAP_S = 0.2           # a repeated `stop` is harmless on the robot
