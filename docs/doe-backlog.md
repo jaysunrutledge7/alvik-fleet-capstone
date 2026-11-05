@@ -566,6 +566,16 @@ with a random sign (Nick's brief), gyro errors 6.5-8.5 % round Nick's 7.5 % with
 | Turn speed (TURN_RPM for 60 deg/s) | 26.5 rpm, derived from nominal wheels | not a DOE: measure the camera's turn rate in tonight's legs and correct the rpm | Logs | check |
 | Simulator: tag read size (READ_PX) | 8 px, CHOSEN to match Jay-Sun's views | not a DOE: render the school camera's pictures and check against the detector at several x | Sim | check |
 
+## Save, wiggle-first, several robots (2026-11-05, built; docs/build-reports/e03-nov05-save-wiggle-multi.md)
+
+| Number (where) | Value now | Experiment that would set it | Needs | Status |
+|---|---|---|---|---|
+| Second robot's calibration spot (calib_run PARK_SPOTS) | P05 (third P01), CHOSEN: the zone-1 corner sticker furthest from P11 | yes, in the simulator: P01 / P03 / P05 / P09 as the second spot against points skipped and detours per tour of both robots | Sim | open |
+| Keep-out round a standing robot (PARKED_R_CM) | 6.72 + 2 cm, CHOSEN (centres 17.4 cm apart with the clearance) | yes: 1 / 2 / 4 cm extra against points skipped and the closest approach between the robots (camera_track.csv of both) | Sim then Logs | open |
+| Off its spot before it is driven there (AT_SPOT_CM) | 5 cm, CHOSEN | not worth one: a placement tolerance | - | ruled out |
+| Waiting for the run's robots before the wiggle (wiggle_bind wake_min) | 3 min, CHOSEN (wake them first with robot_sleep.py wake any) | not a DOE: the check-in period (10 min after sleep 10) sets it; the runbook wakes them first | - | ruled out |
+| Slot by position (wiggle_bind assign_slots) | the least total distance to the slots' homes, CHOSEN rule | not a DOE: a rule; the report of each run lists who got which slot | - | check |
+
 ## Already set by data
 
 - **Line edge cue edge_thr 150** (e02.py SAFETY_SETTINGS): plywood reads 52-84 in every E02 session, the two real

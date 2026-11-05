@@ -6,6 +6,7 @@ The simulator run goes in its own network namespace (unshare -rn) when that work
 robots' or another run's."""
 import json
 import os
+import re
 import shutil
 import signal
 import subprocess
@@ -99,7 +100,9 @@ class CalibJob:
         return st
 
     def file(self, name):
-        if name not in SAFE_FILES or not self.folder:
+        # (5 Nov) several robots: each robot's own files in its folder, "<robot>/<file>"
+        sub, _, base = name.rpartition("/")
+        if base not in SAFE_FILES or not self.folder or (sub and not re.fullmatch(r"[A-Za-z0-9_-]{1,20}", sub)):
             raise ValueError("no such file")
         p = os.path.join(self.folder, name)
         if not os.path.exists(p):

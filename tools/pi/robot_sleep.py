@@ -56,7 +56,7 @@ def wake_ips(ips, max_min, tx, rx):
     left = set(ips)
     end = time.time() + max_min * 60
     others = {}
-    print("Waking %s: sending `wake` every 2 s until each answers (up to %.0f min) ..." % (", ".join(ips), max_min))
+    print("Waking %s: sending `wake` every 2 s until each answers (up to %g min) ..." % (", ".join(ips), max_min))
     while left and time.time() < end:
         for ip in list(left):
             try:
@@ -93,7 +93,7 @@ def wake_heard(max_min, tx, rx, name=None, count=1, bcast=BROADCAST, also=()):
     battery = {}
     who = ("%s" % name) if name else ("any robot" if count == 1 else "the first %d robots" % count)
     print("Waking %s, from any address: `wake` to the WiFi broadcast every 2 s, and to each robot as it is heard "
-          "(up to %.0f min; a sleeping robot answers at its check-in) ..." % (who, max_min))
+          "(up to %g min; a sleeping robot answers at its check-in) ..." % (who, max_min))
     last = 0.0
     said = time.time()
     while time.time() < end:

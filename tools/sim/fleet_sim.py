@@ -175,11 +175,8 @@ class LiveRobot(R.Robot):
             # has no such command (it would answer "unknown command")
             parts = raw.split()
             if len(parts) >= 2 and parts[1] == "restart":
-                self.boot_id = (self.boot_id * 7 + 0x1357) % 0xF000 + 0x1000
-                self.fw_yaw_sign = 0
-                for k, v in config.firmware_params():
-                    self.params[k] = v
                 self.send("M,%s: restarted (simulated power-on)" % self.name)
+                self.boot()                               # (5 Nov) the saved corrections come back too
             elif len(parts) >= 3 and parts[1] == "battery":
                 self.battery = float(parts[2])
                 self.send("M,%s: battery set to %s%% (simulated)" % (self.name, parts[2]))
@@ -194,6 +191,8 @@ class LiveRobot(R.Robot):
                 self.send("M,%s: the next %d leg end record(s) will be lost (simulated)" % (self.name,
                                                                                         self.lose_leg_end))
             return False
+        if verb in ("corr", "save", "unsave", "defaults", "saved", "name", "id"):
+            return self.saved_command(verb, raw.strip()[len(verb):].strip(), running)
         if verb != "led":
             return super().handle_command(raw, running)
         self.last_rx = self.millis()
@@ -223,6 +222,119 @@ class LiveRobot(R.Robot):
         self.led_col = (off if side == "R" else col, off if side == "L" else col)
         self.send("M,%s: led %s for %d ms%s" % (self.name, " ".join(parts[:3]), ms,
                                                 {"L": ", left only", "R": ", right only"}.get(side, "")))
+        return False
+
+    # ---- the calibration kept on the robot (firmware 2026-11-05a; corr since 2026-10-20b), names (5 Nov 2026) ----
+    CORR = (("gyro_scale", 1.0), ("gyro_drift_dps", 0.0), ("wheel_scale", 1.0))   # corr.h NAMES / FACTORY
+
+    def _deaf(self):
+        """Asleep and not in a check-in: hears nothing (robot.py's rule, for the commands handled here)."""
+        su = getattr(self, "sleep_until", 0)
+        return bool(su) and self.millis() < su
+
+    def _looks_wrong(self, k, v):
+        return abs(v) > 3.0 if k == "gyro_drift_dps" else not (0.8 <= v <= 1.25)
+
+    def _show_corr(self):
+        self.send("M,%s corrections (%s): gyro_scale %.4f, gyro_drift_dps %.4f, wheel_scale %.4f" % (
+            self.name, getattr(self, "corr_src", "out of the box"), self.params["gyro_scale"],
+            self.params["gyro_drift_dps"], self.params["wheel_scale"]))
+
+    def _show_saved(self, when):
+        sv = getattr(self, "saved", {})
+        self.send("M,%s calibration %s: %s" % (self.name, when, ", ".join(
+            "%s %.4f (%s)" % (k, self.params[k], "saved" if k in sv else "default")
+            for k in ("wheel_scale", "gyro_scale", "gyro_drift_dps"))))
+
+    def boot(self):
+        """A power-on or a wake from deep sleep (the firmware restarts): new boot id, no compass check, every setting
+        back to params.h, then the saved corrections (corr::load)."""
+        self.boot_id = (self.boot_id * 7 + 0x1357) % 0xF000 + 0x1000
+        self.fw_yaw_sign = 0
+        for k, v in config.firmware_params():
+            self.params[k] = v
+        self.params.update(getattr(self, "saved", {}))
+        self.send("M,home_lab %s ready, battery %d%%" % (self.fw_version, int(self.battery)))
+        self._show_corr()
+        if self.fw_version >= "2026-11-05a":
+            self._show_saved("at power-on")
+
+    def saved_command(self, verb, rest, running):
+        if self._deaf():
+            return False
+        self.last_rx = self.millis()
+        new = self.fw_version >= "2026-11-05a"
+        if verb in ("save", "unsave", "defaults", "saved", "id") and not new:
+            self.send("M,unknown command '%s' (type help)" % (verb + (" " + rest if rest else "")))
+            return False
+        if verb == "id":
+            self.send("M,id %s wifi %s firmware %s" % (self.name, getattr(self, "sim_id", self.name), self.fw_version))
+            return False
+        if verb == "saved":
+            self._show_saved("now")
+            return False
+        if verb == "name":
+            if running:
+                self.send("M,busy: send stop first")
+                return False
+            old = self.name
+            nm = rest or getattr(self, "sim_id", self.name)
+            self.name = nm
+            self.radio.name = nm
+            self.send("M,%s is now called %s (kept after power-off)" % (old, nm))
+            return False
+        if running:
+            self.send("M,busy: send stop first")
+            return False
+        sv = self.__dict__.setdefault("saved", {})
+        if verb == "save":
+            bad = [(k, self.params[k]) for k, _ in self.CORR if self._looks_wrong(k, self.params[k])]
+            if bad:
+                self.send("M,save refused: %s %.4f looks wrong (allowed: %s): nothing saved" % (
+                    bad[0][0], bad[0][1], "-3 to 3" if bad[0][0] == "gyro_drift_dps" else "0.8 to 1.25"))
+                return False
+            for k, _ in self.CORR:
+                sv[k] = self.params[k]
+            self.corr_src = "saved with save"
+            self.send("M,%s saved on the robot (kept after power-off): wheel_scale %.4f, gyro_scale %.4f, "
+                      "gyro_drift_dps %.4f" % (self.name, self.params["wheel_scale"], self.params["gyro_scale"],
+                                               self.params["gyro_drift_dps"]))
+            return False
+        if verb in ("unsave", "defaults"):
+            sv.clear()
+            for k, v in self.CORR:
+                self.params[k] = v
+            self.corr_src = "out of the box"
+            self.send("M,%s saved calibration cleared: back to defaults wheel_scale 1.0000, gyro_scale 1.0000, "
+                      "gyro_drift_dps 0.0000" % self.name)
+            return False
+        # corr (firmware 2026-10-20b on): show | reset | save <name> <value>
+        w = rest.split()
+        if not w:
+            self._show_corr()
+        elif w[0] == "reset":
+            for k, v in self.CORR:
+                self.params[k] = v
+                sv[k] = v
+            self.corr_src = "out of the box"
+            self._show_corr()
+        elif w[0] == "save" and len(w) == 3 and w[1] in dict(self.CORR):
+            try:
+                v = float(w[2])
+            except ValueError:
+                self.send("M,'%s' is not a number" % w[2])
+                return False
+            if self._looks_wrong(w[1], v):
+                self.send("M,%s %.4f looks wrong (allowed: %s): not saved" % (
+                    w[1], v, "-3 to 3" if w[1] == "gyro_drift_dps" else "0.8 to 1.25"))
+                return False
+            if getattr(self, "corr_src", "out of the box") == "out of the box":
+                self.corr_src = "saved by hand"
+            self.params[w[1]] = v
+            sv[w[1]] = v
+            self._show_corr()
+        else:
+            self.send("M,usage: corr | corr reset | corr tape | corr save <name> <value>")
         return False
 
     def send(self, text):
@@ -255,15 +367,21 @@ class LiveRobot(R.Robot):
                     sim.follow_done(self)
                 continue
             su = getattr(self, "sleep_until", 0)
+            if su != getattr(self, "_su_seen", None):
+                if getattr(self, "_su_seen", None) is not None and su and su != float("inf") \
+                        and su > self.millis():
+                    self.checkin_said = False        # a new `sleep`: its check-in is announced again
+                self._su_seen = su
             if su and su != float("inf"):
                 # (5 Nov 2026) as the firmware: a check-in announces itself at once (it boots and broadcasts), with
                 # its battery, without waiting for a command (robot_sleep.py wake any hears it from any address)
                 now_ms = self.millis()
                 aw = self.P("sleep_awake_s") * 1000
                 if now_ms >= su + aw:                     # a check-in nobody answered: asleep again
-                    self.sleep_until = now_ms + self.sleep_min * 60000
+                    self.sleep_until = self._su_seen = now_ms + self.sleep_min * 60000
                     self.checkin_said = False
                 elif su <= now_ms and not getattr(self, "checkin_said", False):
+                    self.boot()                           # a wake from deep sleep is a fresh start (2026-11-05)
                     self.send("M,%s: awake for a check-in (sleeping %d min at a time; send `wake` within %d s to keep "
                               "it awake), battery %d%%" % (self.name, self.sleep_min, self.P("sleep_awake_s"),
                                                            int(self.battery)))
@@ -381,6 +499,11 @@ class FleetSim:
             rb = LiveRobot(name, self.cfg, random.Random(self.rng.random()), params, fw, t_boot,
                            self.rng.randrange(0x1000, 0x10000), ip)
             rb.idle_until(now)
+            rb.sim_id = name                     # its WiFi name: fixes keep it after a `name` (5 Nov 2026)
+            for fv in getattr(args, "fw", None) or []:
+                n_, _, v_ = fv.partition("=")    # --fw NAME=VERSION: that robot runs older firmware (no `save`)
+                if n_ == name:
+                    rb.fw_version = v_
             rb.one_side_led = not getattr(args, "old_led", False)
             e = args.start_noise
             st = starts.get(name, rr["start"])
@@ -407,6 +530,13 @@ class FleetSim:
                     rb.true_cal = {"wheel_scale": ws_, "gyro_scale": gs_, "gyro_drift_dps": gd_}
             rb._record()
             rb.fw_yaw_sign = 0 if args.uncalibrated else 1
+            for sv_ in getattr(args, "saved", None) or []:
+                n_, _, v_ = sv_.partition("=")
+                if n_ == name:
+                    ws_, gs_, gd_ = (float(q) for q in v_.split(","))
+                    rb.saved = {"wheel_scale": ws_, "gyro_scale": gs_, "gyro_drift_dps": gd_}
+                    rb.params.update(rb.saved)
+                    rb.corr_src = "saved with save"
             for sl in getattr(args, "asleep", None) or []:
                 # --asleep NAME:MIN[:FRAC] (2026-11-04): starts asleep with `sleep MIN`, its next check-in FRAC of the
                 # way through (default 0.5)
@@ -478,7 +608,7 @@ class FleetSim:
                 for rb in self.robots.values():
                     if rb.lifted or self.cam_gap(rb.name, now):
                         continue
-                    msg = {"type": "fix", "robot": rb.name, "t": now,
+                    msg = {"type": "fix", "robot": getattr(rb, "sim_id", rb.name), "t": now,
                            "x": rb.x + rng.gauss(0, a.fix_sigma), "y": rb.y + rng.gauss(0, a.fix_sigma),
                            "th": math.degrees(rb.th) + rng.gauss(0, a.fix_sigma_deg),
                            "sigma": a.fix_sigma, "sigma_th": a.fix_sigma_deg}
@@ -1049,6 +1179,10 @@ def main(argv=None):
     ap.add_argument("--true-cal", action="append", default=[], metavar="NAME=WS,GS,DRIFT",
                     help="the corrections this robot really needs (wheel_scale, gyro_scale, gyro_drift_dps), e.g. "
                          "AL-1DC0=0.97,1.03,0.3 (the school calibration rehearsal)")
+    ap.add_argument("--fw", action="append", default=[], metavar="NAME=VERSION",
+                    help="that robot runs this firmware version (e.g. 2026-10-29b: no save / unsave)")
+    ap.add_argument("--saved", action="append", default=[], metavar="NAME=WS,GS,GD",
+                    help="that robot has these corrections saved on it (loaded at its power-on)")
     ap.add_argument("--asleep", action="append", default=[], metavar="NAME:MIN[:FRAC]",
                     help="that robot starts asleep (`sleep MIN`), its next check-in FRAC of the way through")
     ap.add_argument("--turn-err", action="append", default=[], metavar="NAME=PCT",

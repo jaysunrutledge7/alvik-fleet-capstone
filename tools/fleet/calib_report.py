@@ -322,8 +322,13 @@ def write(folder, run, a):
                  (" (%s s)" % ", ".join("%.1f" % h for h in run.holds)) if run.holds else "", ", ".join(skips) or "none"))
     L.append("")
     pk = getattr(run, "parked", None)
+    sv = (fit or {}).get("saved") or {}
+    if sv:
+        L.append("**Saved on the robot** (Nick, 5 Nov: kept over power-off): %s%s." % (
+            sv.get("words", ""), "" if sv.get("ok") or sv.get("how") in ("off", "nothing new") else " (NOT confirmed)"))
+        L.append("")
     L.append("**End**: %s; `sleep 10` %s. Battery %s %% at the start, %s %% at the end." % (
-        ("parked at P11, %.1f cm from the sticker" % pk[1]) if pk else "NOT parked",
+        ("parked at %s, %.1f cm from the sticker" % (run.S.park_label, pk[1])) if pk else "NOT parked",
         "answered" if getattr(run, "slept", False) else "sent (no answer seen)", st.get("battery_start"),
         st.get("battery_end")))
     L.append("")
@@ -353,8 +358,12 @@ def write(folder, run, a):
     L.append("")
     L.append("## What's next")
     L.append("- Jay-Sun re-checks P01, P05, P11 and P15 with a tape (the four-point table above).")
-    L.append("- If the values read back and the after-tours are better: keep them for the experiments (they last until "
-             "the robot is switched off; `corr save` would keep them across power-offs: Nick's call).")
+    if sv.get("how") in ("save", "corr save") and sv.get("ok"):
+        L.append("- The values are saved on the robot and come back at every power-on and wake. If the after-tours are "
+                 "NOT better: `unsave` (firmware 2026-11-05a) or `corr reset` puts it back to 1 / 0 / 1.")
+    else:
+        L.append("- The values are NOT kept over power-off (%s): reflash the robot with firmware 2026-11-05a and run "
+                 "this again, or keep them for today only." % (sv.get("words") or "no save step"))
     L.append("- Zones 3-4 need the second camera (EMEET C950 at the door end) before they can be calibrated or run.")
     L.append("")
     L.append("## Sweep 1: new tests that may now be needed")
@@ -431,6 +440,51 @@ def conclusion(g, fit, run, four):
                        "/".join("%.1f" % m[p] for p in j), worst, "/".join("%.1f" % j[p] for p in j),
                        "/".join("%.1f" % four["model_229_in"][p] for p in j)))
     return out
+
+
+def write_multi(folder, run, a):
+    """(5 Nov) Several robots calibrated one after another: a summary table, then each robot's own report (written in
+    its folder) as a section, its pictures linked in its folder."""
+    subs = run.subs
+    L = ["# Calibration run, zones 1-2, %d robots%s: %s" % (len(subs), " (SIMULATOR)" if a.dry else "",
+                                                          os.path.basename(folder)), ""]
+    L.append("Written automatically by tools/fleet/calib_run.py at the run's end. The robots were calibrated one "
+             "after another, each at its own spot; while one drove, the others stood at theirs and were kept out of "
+             "its way (a %.1f cm circle round where the camera saw each, plus the moving robot's clearance). "
+             "Result: **%s**." % (__import__("calib_run").PARKED_R_CM, getattr(run, "result", "")))
+    L.append("")
+    L.append("| robot | WiFi name | tag | spot | result | wheel_scale | gyro_scale | gyro_drift_dps | saved on the robot "
+             "| parked |")
+    L.append("|---|---|---|---|---|---|---|---|---|---|")
+    for s_ in subs:
+        fit = getattr(s_, "fit", None) or {}
+        new = fit.get("new") or {}
+        sv = fit.get("saved") or {}
+        pk = getattr(s_, "parked", None)
+        L.append("| %s | %s | %s | %s | %s | %s | %s | %s | %s | %s |" % (
+            s_.name, s_.rb.name, s_.tag, s_.S.park_label, getattr(s_, "result", "-"),
+            *("%.4f" % new[k] if k in new else "-" for k in PARAMS),
+            ("%s%s" % (sv.get("how"), "" if sv.get("ok") else " (not confirmed)")) if sv else "-",
+            "%.1f cm off" % pk[1] if pk else "no"))
+    L.append("")
+    for s_ in subs:
+        sub = os.path.basename(s_.folder)
+        p = os.path.join(s_.folder, "report.md")
+        if not os.path.exists(p):
+            L += ["## %s" % s_.name, "", "No report (it did not start).", ""]
+            continue
+        body = open(p).read().splitlines()
+        L.append("## %s (folder %s/)" % (s_.name, sub))
+        L.append("")
+        for line in body[1:]:
+            if line.startswith("#"):
+                line = "#" + line
+            line = line.replace("](chart_", "](%s/chart_" % sub)
+            L.append(line)
+        L.append("")
+    with open(os.path.join(folder, "report.md"), "w") as f:
+        f.write("\n".join(L))
+    return "%d robots: %s" % (len(subs), "; ".join("%s %s" % (s_.name, getattr(s_, "result", "-")) for s_ in subs))
 
 
 def remake(folder, cam_z_cm=None, dry=None):

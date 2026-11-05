@@ -399,6 +399,8 @@ def feel_first(args, out):
              "--on-problem", args.on_problem_, "--lost-robot-points", "skip"]
     if args.dry and args.sim_true_floor:
         extra += ["--sim-true-floor", args.sim_true_floor]
+    if getattr(args, "binding_file_", None):
+        extra += ["--binding-file", args.binding_file_]     # (5 Nov) the feel-out runs use this run's wiggle binding
     for a in args.sim_arg:
         extra += ["--sim-arg=%s" % a]
     for ip in args.robot:
@@ -465,6 +467,52 @@ def feel_first(args, out):
     return 0
 
 
+def wiggle_first(args, out):
+    """(Nick, 5 Nov 2026) Before every run with roof tags: each robot wiggles, the tag that turns with it is its tag,
+    and it is given its slot (args.robots: Alpha, Bravo ...), renamed if needed (wiggle_bind.py). The site's
+    tags.binding "fixed" (or --binding fixed) keeps the typed tags.ids (the old way). The simulator's robots carry
+    their slot names and tags already: not wiggled (said). Returns 0, or an exit code with nothing run."""
+    import wiggle_bind as WB
+    mode = WB.binding_mode(args.site_, getattr(args, "binding", "auto"))
+    if mode != "wiggle":
+        say("TAGS: fixed ids from the site (tags.binding %s): %s" % (mode, ", ".join(
+            "%s=%s" % kv for kv in (args.tags_.get("ids") or {}).items())))
+        return 0
+    if getattr(args, "binding_file", None):
+        # a feel-out run started by a run that has just bound them (the same robots, the same power-on)
+        with open(args.binding_file) as f:
+            rec = json.load(f)
+        args.tags_ = WB.tags_with_binding(args.tags_, rec)
+        args.binding_file_ = args.binding_file
+        say("TAGS from this run's wiggle (%s): %s" % (args.binding_file, ", ".join(
+            "%s = tag %d" % kv for kv in sorted(rec["slots"].items()))))
+        return 0
+    if args.dry:
+        say("TAGS: simulator: the robots carry their slot names and tags (no wiggle-first binding in a dry run)")
+        return 0
+    slots = [r.strip() for r in args.robots.split(",") if r.strip()]
+    tc = os.path.join((args.site_ or {}).get("conf_dir") or os.path.expanduser("~/.config/mirlt"), "tagcal")
+    say("WIGGLE FIRST: each robot wiggles in turn; the roof tag that turns with it is its tag, and it is given its "
+        "slot (%s)" % ", ".join(slots))
+    try:
+        import calib_run as CRN
+        rec = WB.run_for_mission(args.site_, slots, os.path.join(out, "bind"), stream=args.stream,
+                                 calib=args.calib or os.path.join(tc, "overhead.json"), ips=args.robot)
+    except (Exception, SystemExit) as e:   # noqa: BLE001  (BindError, RunEnd, the port in use)
+        say("NOT STARTED: the wiggle-first binding did not finish: %s. To run with the typed tag ids instead: "
+            "--binding fixed (or the site's tags.binding \"fixed\")." % e)
+        return 5
+    if rec["empty_slots"]:
+        found = sorted(rec["slots"])
+        say("NOT STARTED: no robot for %s (robots bound: %s). Switch the missing robot on, or run with --robots %s." % (
+            ", ".join(rec["empty_slots"]), ", ".join(found) or "none", ",".join(found)))
+        return 5
+    args.tags_ = WB.tags_with_binding(args.tags_, rec)
+    args.binding_file_ = os.path.join(out, "bind", "binding.json")
+    say("TAGS from the wiggle: %s" % ", ".join("%s = tag %d" % kv for kv in sorted(rec["slots"].items())))
+    return 0
+
+
 def resolve_experiment(args):
     """--experiment / --swap-halves (2026-11-03): args.experiment_, args.swap_, args.swap_words_. The shakedown is the
     no-camera run unless a tracking was chosen."""
@@ -504,6 +552,10 @@ def run(args):
         say("NOT STARTED: %s. Nothing moved. Free space first: ./run-fleet-pi.sh space, then "
             "./run-fleet-pi.sh clean-uploaded" % st0["why"])
         return 3
+    if args.tracking_ == "tags" and not args.plan_only:
+        code_ = wiggle_first(args, out)
+        if code_:
+            return code_
     if args.tracking_ == "tags":
         args.tags_json = os.path.join(out, "tags.json")
         with open(args.tags_json, "w") as f:
@@ -1036,6 +1088,11 @@ def main(argv=None):
     g.add_argument("--sim-cond", help="a JSON file of sim_shim.py conditions (sweeps/sim_shim.py), added to the above")
     g.add_argument("--sim-arg", action="append", default=[], metavar="ARG",
                    help="one more fleet_sim.py argument, e.g. --sim-arg=--turn-err=Left=7.5 (repeatable)")
+    ap.add_argument("--binding", choices=["auto", "wiggle", "fixed"], default="auto",
+                    help="roof tags: wiggle = before the run each robot wiggles and the tag that turns with it is its "
+                         "tag, the robot given its slot (5 Nov 2026); fixed = the site's typed tags.ids (the old way); "
+                         "auto = the site's tags.binding, else wiggle")
+    ap.add_argument("--binding-file", default="", help=argparse.SUPPRESS)   # a feel-out child: the parent's binding
     ap.add_argument("--rp-arg", action="append", default=[], metavar="ARG",
                     help="one more run_plan.py argument, e.g. --rp-arg=--send --rp-arg='set gyro_scale 1.075'")
     ap.add_argument("--no-turn-pause", action="store_true",

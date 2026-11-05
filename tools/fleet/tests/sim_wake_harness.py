@@ -20,6 +20,32 @@ for p in (FLEET, TOOLS, os.path.join(TOOLS, "sim"), os.path.join(TOOLS, "pi")):
         sys.path.insert(0, p)
 
 
+def cmds(args):
+    """`cmds IP CMD ...`: each command sent to that robot, every line heard for 1.5 s after it printed (CMD 'wait:S'
+    waits S seconds, printing what is heard)."""
+    import socket
+    ip, todo = args[0], args[1:]
+    rx = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    rx.bind(("", 5005))
+    rx.settimeout(0.2)
+    tx = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    for c in todo:
+        dur = 1.5
+        if c.startswith("wait:"):
+            dur = float(c[5:])
+        else:
+            tx.sendto(c.encode(), (ip, 5006))
+            print(">> " + c, flush=True)
+        end = time.time() + dur
+        while time.time() < end:
+            try:
+                d, _ = rx.recvfrom(4096)
+            except socket.timeout:
+                continue
+            print(d.decode("utf-8", "replace"), flush=True)
+    return 0
+
+
 def main():
     argv = sys.argv[1:]
     k = argv.index("--")
@@ -29,7 +55,7 @@ def main():
     import sites as SI
     CR.loopback_up()
     S = CR.Site(SI.load("school-conference"))
-    names = [s.split(":")[0] for s in specs]
+    names = [s.split(":")[0] for s in specs if not s.startswith("--")]
     os.makedirs(os.path.join(folder, "sim"), exist_ok=True)
     m, _w = PR.site_map((S.L, S.W), names, points={kk: list(v) for kk, v in S.points.items()}, keepouts=S.keepouts)
     mp = os.path.join(folder, "sim", "map.json")
@@ -41,13 +67,16 @@ def main():
            os.path.join(folder, "sim"), "--fix-hz", "0", "--starts", os.path.join(folder, "sim", "starts.json"),
            "--max-s", "300", "--drop-cm", "74", "--quiet"]
     for s in specs:
-        cmd += ["--asleep", s]
+        cmd += ([s] if s.startswith("--") else ["--asleep", s])
     log = open(os.path.join(folder, "sim", "fleet_sim.txt"), "w")
     p = subprocess.Popen(cmd, stdout=log, stderr=subprocess.STDOUT, cwd=REPO)
     time.sleep(2.5)
     import robot_sleep as RS
     try:
-        rc = RS.main(rs_args)
+        if rs_args[:1] == ["cmds"]:
+            rc = cmds(rs_args[1:])
+        else:
+            rc = RS.main(rs_args)
     finally:
         p.terminate()
         p.wait(timeout=10)

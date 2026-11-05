@@ -61,7 +61,7 @@ for p in (HERE, TOOLS, os.path.join(TOOLS, "sim"), os.path.join(TOOLS, "recognit
 
 import numpy as np   # noqa: E402
 
-VERSION = "2026-11-04a"
+VERSION = "2026-11-05a"
 PY = sys.executable
 LOG_PORT, CMD_PORT = 5005, 5006
 FIX_PORT = 5013          # the tag bridge's (or the simulator's) camera reads come here (run_plan uses 5010)
@@ -121,6 +121,19 @@ MAX_TURN_DEG = 170.0     # a bigger turn is made as two halves (a half turn's di
 BATTERY_CHECK_EVERY = 6  # chosen: `status` every 6 points
 JAY_IN = {"P01": 2.4, "P05": 2.7, "P11": 4.5, "P15": 5.2}   # Jay-Sun 3-4 Nov: how far the robot came out, no height
                          # correction, always away from the camera
+PARK_SPOTS = ("P11", "P05", "P01")   # (5 Nov) where each robot is calibrated and parked, in calibration order: the
+                         # first robot P11 (as on 4 Nov); the second P05 (chosen: the zone-1 corner sticker furthest from
+                         # P11, 141 cm, 15.9 cm in from the x = 0 edge, near the camera, where few tour legs pass; its
+                         # rolls go along +x in open table); a third P01 (corner 1). Each robot's own tours skip the
+                         # others' spots. Chosen, not derived. DOE note: a simulator comparison of P01 / P03 / P05 / P09
+                         # as the second spot against points skipped and detours per tour would decide it
+PARKED_R_CM = 6.72 + 2.0  # (5 Nov) a robot standing still is kept out as a circle this big round where the camera sees it
+                         # (its body's half diagonal + 2 cm for the camera and its turning); the moving robot's middle
+                         # then stays KEEPOUT_CLEAR_CM further off (centres at least 17.4 cm apart). Chosen. DOE note:
+                         # 1 / 2 / 4 cm extra against points skipped and the closest approach between the two robots
+AT_SPOT_CM = 5.0         # (5 Nov) a robot further than this from its spot is driven there (by the camera) first. Chosen
+ROLL_DIRS = (180.0, 0.0, 90.0, -90.0)   # (5 Nov) phase A's rolls: the first heading with room for the longest roll
+                         # (P11: -x as on 4 Nov; P05: +x)
 READ_PX = 8.0            # simulator: a tag is read when its shorter side in the picture is at least this many pixels.
                          # Chosen so the simulated camera (lens 145 cm up) reads the roof tag in all of zones 1-2
                          # (9.5 px at x = 78 in) and not the far corner tags 21/22 (6.6 px), as Jay-Sun saw
@@ -154,7 +167,7 @@ def wrap180(a):
 class Site:
     """The school site's table, points, keep-outs (outlets and reference tiles), edge margin and the camera's view."""
 
-    def __init__(self, site):
+    def __init__(self, site, park_label="P11"):
         import sticker_points as SP
         import production as PR
         self.site = site
@@ -176,8 +189,26 @@ class Site:
             say("(reference tiles not added as keep-outs: %s)" % e)
         self.view_x = VIEW_X_MAX_CM - VIEW_MARGIN_CM
         hp = (site.get("homes") or {})
-        self.park_label = "P11"
+        self.park_label = park_label
         self.park_face = float(hp.get("face_deg", 90.0))
+
+    def set_parked(self, poses):
+        """(5 Nov) the other robots standing still: {name: (x, y)} where the camera sees them, each kept out as a
+        circle of PARKED_R_CM (replaces the previous set)."""
+        self.keepouts = [k for k in self.keepouts if k.get("kind") != "robot"]
+        for n, (x, y) in poses.items():
+            poly = [(x + PARKED_R_CM * math.cos(math.radians(a)), y + PARKED_R_CM * math.sin(math.radians(a)))
+                    for a in range(0, 360, 30)]
+            self.keepouts.append({"name": "parked robot %s" % n, "polygon": poly, "kind": "robot"})
+
+    def parked_near(self, p):
+        """(name, distance) of a parked robot's keep-out nearer p than the clearance, else None."""
+        for k in self.keepouts:
+            if k.get("kind") == "robot":
+                d = poly_dist(p, k["polygon"])
+                if d < KEEPOUT_CLEAR_CM:
+                    return k["name"], d
+        return None
 
     def zone12(self):
         return sorted([k for k, z in self.zones.items() if z in (1, 2)], key=lambda s: int(s[1:]))
@@ -239,6 +270,11 @@ class Site:
             if out:
                 break
         return out
+
+
+def solid(why):
+    """A problem a detour can go round: an outlet, a reference tile, or (5 Nov) a parked robot."""
+    return "outlet" in why or "reference" in why or "parked robot" in why
 
 
 def compose(a, rel):
@@ -691,6 +727,34 @@ class BindError(Exception):
     pass
 
 
+def compass_check(link, rb, log=say):
+    """(5 Nov) A robot woken from `sleep` has restarted: it refuses `turn` / `go` legs until its compass check has run
+    (firmware 2026-10-25c), so a wiggle would be refused. A `turn 0` leg asks; if refused for that reason, the
+    calibration run with no spin and no roll (the compass check's few-degree wiggle alone, run_plan's compass_only) is
+    run, then it is asked again. (ok, words)."""
+    r = rb.leg("turn", 0.0, timeout=10.0)
+    if r["result"] == "done":
+        return True, "already checked"
+    info = r.get("info") or ""
+    if "compass" not in info and "calibrate" not in info:
+        log("  %s: the check leg answered %s %s (carrying on)" % (rb.name, r["result"], info))
+        return False, "%s %s" % (r["result"], info)
+    import calib_room as CRM
+    log("  %s restarted since its last compass check (woken from sleep): the compass check now (a few degrees of "
+        "wiggle, no spin, no roll; about 10 s)" % rb.name)
+    link.send(rb.ip, "set calib_spin_deg 0")
+    link.send(rb.ip, CRM.caps_cmd([(d, 0.0) for d in CRM.CAP_DEGS]))
+    time.sleep(0.3)
+    k = link.mark()
+    link.send(rb.ip, "calibrate")
+    link.wait_for(lambda n, l: l if n == rb.name and l.startswith("D,RUNEND,") else None, k, 60.0)
+    link.send(rb.ip, "set calib_spin_deg 720")
+    r = rb.leg("turn", 0.0, timeout=10.0)
+    ok = r["result"] == "done"
+    log("  %s: compass check %s" % (rb.name, "done" if ok else "did NOT take (%s %s)" % (r["result"], r["info"])))
+    return ok, "compass check run" if ok else "compass check failed"
+
+
 def site_name_for(site, wifi_name, ip):
     """The site's name for a robot found on the WiFi (a site robot listing its ip or wifi name), else the WiFi name."""
     for r in (site or {}).get("robots") or []:
@@ -792,8 +856,10 @@ def tag_offset(samples):
 
 # =============================================================================================== the run
 class CalibRun:
-    def __init__(self, a, site, folder):
-        self.a, self.S, self.folder = a, Site(site), folder
+    def __init__(self, a, site, folder, park_label=None, parent=None):
+        os.makedirs(folder, exist_ok=True)
+        self.a, self.folder, self.parent = a, folder, parent
+        self.S = Site(site, park_label or PARK_SPOTS[0])
         self.site = site
         self.events = open(os.path.join(folder, "events.jsonl"), "a")
         self.status = {"version": VERSION, "phase": "starting", "robot": None, "tag": None, "words": "Starting",
@@ -835,6 +901,15 @@ class CalibRun:
         with open(p + ".tmp", "w") as f:
             json.dump(self.status, f, indent=1, default=str)
         os.replace(p + ".tmp", p)
+        if self.parent is not None:
+            # (5 Nov) one robot of several: Mission Control's card reads the top folder's status
+            up = {k: v for k, v in kw.items() if k in ("phase", "robot", "tag", "point", "battery", "fit", "wifi_name",
+                                                        "saved")}
+            if "words" in kw:
+                up["words"] = "%s (robot %d of %d): %s" % (self.name if hasattr(self, "name") else "?",
+                                                           self.k + 1, self.n, kw["words"])
+            if up:
+                self.parent.set_status(**up)
 
     # ------------------------------------------------------------------------------------------------- poses
     def cam_pose(self, dur=MEASURE_S):
@@ -981,13 +1056,16 @@ class CalibRun:
         d = self.D if (odometry and self.D is not None) else cam
         near = isinstance(lab, str) and lab in self.S.points and self.S.near_edge(lab)
         if depth == 0:
-            blocked = [q for q in self.S.problems(cam[:2], (tx, ty)) if "outlet" in q or "reference" in q]
+            blocked = [q for q in self.S.problems(cam[:2], (tx, ty)) if solid(q)]
             if blocked:
                 w = self.S.via(cam[:2], (tx, ty))
                 if w is not None:
                     say("  %s: round %s by (%.0f, %.0f)" % (lab, blocked[0], w[0], w[1]))
                     self.ev("detour", point=lab, via=w, why=blocked[0])
                     cam = self.goto(w, phase, tour, cam=cam, odometry=odometry, depth=1, name="%s via" % lab)
+                    # (5 Nov) from where the detour ended: with odometry off, d was still the pose BEFORE the detour
+                    # (the leg was aimed from the wrong place: found staging a robot to P05 round the zone 1 plate)
+                    d = self.D if (odometry and self.D is not None) else cam
         for attempt in range(2):
             dist = math.hypot(tx - d[0], ty - d[1])
             turn = wrap180(math.degrees(math.atan2(ty - d[1], tx - d[0])) - d[2])
@@ -1004,7 +1082,7 @@ class CalibRun:
                 d = cam
                 corrected = True
                 continue
-            if prob and depth < 2 and ("outlet" in prob[0] or "reference" in prob[0]):
+            if prob and depth < 2 and solid(prob[0]):
                 w = self.S.via(cam[:2], (tx, ty))       # (rehearsal, 4 Nov) arrived off the last detour: one more
                 if w is not None:
                     say("  %s: round %s by (%.0f, %.0f), from where the camera sees it" % (lab, prob[0], w[0], w[1]))
@@ -1039,8 +1117,8 @@ class CalibRun:
         return cam
 
     def park(self, phase):
-        """Back to P11 by the camera (safety), facing the park heading."""
-        self.set_status(words="Returning to park at P11")
+        """Back to its park spot (P11 for the first robot) by the camera (safety), facing the park heading."""
+        self.set_status(words="Returning to park at %s" % self.S.park_label)
         cam = self.goto(self.S.park_label, phase, 0, odometry=False)
         t = wrap180(self.S.park_face - cam[2])
         for t_ in ((t / 2.0, t / 2.0) if abs(t) > MAX_TURN_DEG else (t,)):
@@ -1049,7 +1127,7 @@ class CalibRun:
         x, y = self.S.points[self.S.park_label]
         miss = math.hypot(cam[0] - x, cam[1] - y)
         self.ev("parked", miss_cm=miss, pose=cam)
-        say("Parked at P11: %.1f cm from the sticker, facing %.0f deg" % (miss, cam[2]))
+        say("%s parked at %s: %.1f cm from the sticker, facing %.0f deg" % (self.name, self.S.park_label, miss, cam[2]))
         return cam, miss
 
     def check_battery(self):
@@ -1076,6 +1154,12 @@ class CalibRun:
                 raise RunEnd("stopped")
             self.set_status(words="Phase %s tour %d: point %s (%d of %d)" % (phase, k, lab, j + 1, len(order)),
                             point=lab)
+            pk = self.S.parked_near(self.S.aim(lab))
+            if pk:
+                # (5 Nov) another robot is parked there: the point is left out of this robot's tours
+                self.ev("skip_point", point=lab, why="%s (%.1f cm)" % pk)
+                say("  %s skipped: %s stands there" % (lab, pk[0]))
+                continue
             cam = self.goto(lab, phase, k, cam=cam)
             x, y = self.S.points[lab]
             self.ev("point", phase=phase, tour=k, point=lab, cam=cam, off_cm=math.hypot(cam[0] - x, cam[1] - y))
@@ -1116,7 +1200,7 @@ class CalibRun:
         return d
 
     def phase_a(self):
-        self.set_status(phase="A", words="Phase A: in-place turns at P11 (current values)")
+        self.set_status(phase="A", words="Phase A: in-place turns at %s (current values)" % self.S.park_label)
         say("Phase A: baseline with the robot's current values %s" % self.before)
         cam = self.cam_pose()
         rest = [self.eye.measure(self.tag)]
@@ -1138,9 +1222,15 @@ class CalibRun:
         self.set_status(words="Phase A: straight rolls %s cm out and back" % " / ".join("%.0f" % v for v in
                                                                                    sorted(set(ROLLS_A))))
         cam = self.cam_pose()
-        t = wrap180(180.0 - cam[2])
+        far = max(ROLLS_A)
+        hd = next((h for h in ROLL_DIRS if not self.S.problems(cam[:2], (cam[0] + far * math.cos(math.radians(h)),
+                                                                       cam[1] + far * math.sin(math.radians(h))),
+                                                                buf=0.04 * far)), ROLL_DIRS[0])
+        if hd != ROLL_DIRS[0]:
+            say("  rolls towards %+.0f deg (more room there from %s)" % (hd, self.S.park_label))
+        t = wrap180(hd - cam[2])
         for t_ in ((t / 2.0, t / 2.0) if abs(t) > MAX_TURN_DEG else (t,)):
-            cam, _, _ = self.drive_leg("turn", t_, "face -x", "A", 0, cam0=cam)
+            cam, _, _ = self.drive_leg("turn", t_, "face roll", "A", 0, cam0=cam)
         for L in ROLLS_A:
             for leg in ("out", "back"):
                 end = (cam[0] + L * math.cos(math.radians(cam[2])), cam[1] + L * math.sin(math.radians(cam[2])))
@@ -1152,7 +1242,7 @@ class CalibRun:
                 sg = 1.0 if leg == "out" else -1.0      # round by two quarter turns, left out, right back
                 cam, _, _ = self.drive_leg("turn", 90.0 * sg, "roll turn", "A", 0, cam0=cam)
                 cam, _, _ = self.drive_leg("turn", 90.0 * sg, "roll turn", "A", 0, cam0=cam)
-        # back to P11 by the camera (safety), then anchor and tour
+        # back to its spot by the camera (safety), then anchor and tour
         cam = self.goto(self.S.park_label, "A", 0, odometry=False)
         self.set_status(words="Phase A: tour P01-P20 on wheels + gyro (camera for safety)")
         order = self.S.zone12()
@@ -1183,13 +1273,75 @@ class CalibRun:
                 say("  %s did NOT read back (%s): the old value is put back" % (k, got))
                 self.rb.set_checked(k, self.before[k])
         fit["readback"] = rb
+        fit["saved"] = self.save_on_robot(new, rb)
         self.fit = fit
         with open(os.path.join(self.folder, "fit.json"), "w") as f:
             json.dump(fit, f, indent=1, default=str)
         self.ev("fit", **{k: v for k, v in fit.items() if not isinstance(v, dict)})
         with open(os.path.join(self.folder, "robot_values_after.json"), "w") as f:
             json.dump({"robot": self.name, "values": {k: rb[k]["read"] for k in PARAMS}}, f, indent=1)
-        self.set_status(fit={k: rb[k] for k in PARAMS})
+        self.set_status(fit={k: rb[k] for k in PARAMS}, saved=fit["saved"])
+
+    # ------------------------------------------------------------------------------------------------- save (5 Nov)
+    def save_on_robot(self, new, rb):
+        """Nick (5 Nov): the fitted values kept on the robot over power-off. Firmware 2026-11-05a: `save`, then `saved`
+        and `get` to check. Older firmware answers "unknown command": said plainly; then, unless the site's
+        calibration.old_firmware_save is "off", each value with `corr save` (in the firmware since 2026-10-20b, the
+        same storage), checked with `get`. Switch: calibration.save_on_robot (default on) / --no-save."""
+        out = {"how": None, "ok": False, "words": ""}
+        if not self.a.save_on_robot:
+            out.update(how="off", words="not saved on the robot (switched off: calibration.save_on_robot / "
+                                        "--no-save): the values last until it sleeps or is switched off")
+            say("  " + out["words"])
+            return out
+        vals = {k: (rb[k]["read"] if rb[k].get("ok") else self.before[k]) for k in PARAMS}
+        if all(abs(vals[k] - self.before[k]) <= PARAM_TOL for k in PARAMS):
+            out.update(how="nothing new", ok=True, values=vals,
+                       words="nothing new to save: the robot keeps the values it had")
+            say("  " + out["words"])
+            return out
+        self.set_status(words="Saving the values on the robot")
+        name = self.rb.name
+        r = None
+        for _ in range(2):
+            k = self.link.mark()
+            self.link.send(self.rb.ip, "save")
+            r = self.link.wait_for(lambda n, l: l if n == name and (
+                "saved on the robot" in l or "unknown command 'save" in l or "save refused" in l or "busy" in l)
+                else None, k, 4.0)
+            if r:
+                break
+        if r and "saved on the robot" in r:
+            got = {kk: self.rb.get(kk) for kk in PARAMS}
+            k = self.link.mark()
+            self.link.send(self.rb.ip, "saved")
+            sv = self.link.wait_for(lambda n, l: l if n == name and " calibration now:" in l else None, k, 3.0) or ""
+            ok = all(got[kk] is not None and abs(got[kk] - vals[kk]) <= PARAM_TOL for kk in PARAMS) and \
+                sv.count("(saved)") == 3
+            out.update(how="save", ok=ok, values=got, check=sv, words=(
+                "saved on the robot with `save` (firmware 2026-11-05a) and checked: %s" % sv.split(": ", 1)[-1]
+                if ok else "`save` answered but the check did not match (get %s; saved: %s)" % (got, sv or "no answer")))
+        elif r and "unknown command" in r:
+            mode = self.a.old_firmware_save
+            pre = "this robot's firmware has no `save` (it needs 2026-11-05a: reflash it to get it)"
+            if mode == "off":
+                out.update(how="old firmware", words=pre + "; NOT saved (calibration.old_firmware_save off): the "
+                                                           "values last until it sleeps or is switched off")
+            else:
+                for kk in PARAMS:
+                    self.link.send(self.rb.ip, "corr save %s %.4f" % (kk, vals[kk]))
+                    time.sleep(0.3)
+                got = {kk: self.rb.get(kk) for kk in PARAMS}
+                ok = all(got[kk] is not None and abs(got[kk] - vals[kk]) <= PARAM_TOL for kk in PARAMS)
+                out.update(how="corr save", ok=ok, values=got, words=pre + "; saved instead with `corr save` (this "
+                           "firmware has it since 2026-10-20b; the same storage, loaded at power-on)%s" % (
+                               "" if ok else ": the check with get did NOT match (%s)" % got))
+        else:
+            out.update(how="failed", words="`save` was not answered (%s): the values are on the robot until it sleeps "
+                                           "or is switched off" % (r or "nothing heard"))
+        say("  SAVE: " + out["words"])
+        self.ev("saved", **out)
+        return out
 
     def phase_c(self):
         base = self.S.zone12()
@@ -1209,7 +1361,10 @@ class CalibRun:
     # ------------------------------------------------------------------------------------------------- the whole run
     def start_robot(self):
         self.set_status(phase="find", words="Finding the robot on the WiFi (waking it if it sleeps)")
-        found = discover(self.link, self.a.robot, self.a.wake_min, self.a.dry)
+        found = discover(self.link, self.a.robot, self.a.wake_min, self.a.dry, count=self.a.count)
+        if self.a.count and len(found) < self.a.count:
+            say("NOTE: %d of the %d robots expected answered (%s): calibrating those" % (
+                len(found), self.a.count, ", ".join(found) or "none"))
         if not found:
             raise RunEnd("no robot answered on the WiFi (sent status and wake to %s for %.0f min). Is it switched on "
                          "and on AGV_SWARM?" % (", ".join(self.a.robot) or "the broadcast", self.a.wake_min))
@@ -1220,7 +1375,15 @@ class CalibRun:
             for c in EDGE_GUARD + ["set turn_max_rpm %.1f" % TURN_RPM]:
                 rb.link.send(rb.ip, c)
                 time.sleep(0.05)
+        for rb in self.robots:
+            self.ensure_compass(rb)
         return found
+
+    def ensure_compass(self, rb):
+        self.set_status(words="Checking %s can turn (compass check since it woke)" % rb.name)
+        ok, how = compass_check(self.link, rb)
+        self.ev("compass_check", robot=rb.name, ok=ok, how=how)
+        return ok
 
     def bind(self, found):
         self.set_status(phase="bind", words="Binding: each robot does the sync wiggle; the tag that follows it is its")
@@ -1258,13 +1421,145 @@ class CalibRun:
         time.sleep(2.0)
         rec = self.bind(found)
         self.binding = rec
-        if len(self.robots) > 1:
-            say("NOTE: %d robots found; tonight's calibration drives the first one only (%s), the others stay still"
-                % (len(self.robots), self.robots[0].name))
-        self.rb = self.robots[0]
-        self.name = rec["robots"][0]["name"]
-        self.tag = rec["robots"][0]["tag_id"]
-        self.set_status(robot=self.name, tag=self.tag, wifi_name=self.rb.name)
+        plan = self.order_robots(rec)
+        # (5 Nov) a roof tag the camera sees that no robot claimed (a robot that did not answer, switched off or
+        # asleep, or a spare lying there): kept out like a parked robot, where it is now
+        bound = {int(r["tag_id"]) for r in rec["robots"] if r.get("tag_id") is not None}
+        self.unclaimed = {}
+        for t in self.eye.seen_ids(2.0):
+            if t not in bound:
+                m = self.eye.measure(t, 0.6)
+                if m:
+                    self.unclaimed["(tag %d, no robot answered for it)" % t] = (m[0], m[1])
+        if self.unclaimed:
+            say("Kept out: %s" % ", ".join("%s at %.0f, %.0f" % (n, p_[0], p_[1]) for n, p_ in self.unclaimed.items()))
+            self.ev("unclaimed_tags", tags=self.unclaimed)
+        if len(plan) == 1:
+            rb, name, tag, spot = plan[0]
+            self.S.park_label = spot
+            self.S.set_parked(self.unclaimed)
+            self.rb, self.name, self.tag, self.k, self.n = rb, name, tag, 0, 1
+            self.set_status(robots=[{"name": name, "wifi_name": rb.name, "tag": tag, "spot": spot}])
+            return self.calibrate_one()
+        # (Nick, 5 Nov) every robot found, one after another: each with its own folder, fit, save and report section;
+        # the others parked at their own spots and kept out of its way; each parks and sleeps when it is done
+        say("%d robots: calibrated one after another (%s)" % (len(plan), ", ".join(
+            "%s at %s" % (p_[1], p_[3]) for p_ in plan)))
+        self.set_status(robots=[{"name": n, "wifi_name": rb.name, "tag": t, "spot": sp} for rb, n, t, sp in plan])
+        subs = []
+        for k, (rb, name, tag, spot) in enumerate(plan):
+            sub = CalibRun(self.a, self.site, os.path.join(self.folder, re.sub(r"[^A-Za-z0-9_-]", "_", name)),
+                           park_label=spot, parent=self)
+            sub.link, sub.eye, sub.robots, sub.stop_flag, sub.binding = self.link, self.eye, self.robots, \
+                self.stop_flag, rec
+            sub.rb, sub.name, sub.tag, sub.k, sub.n, sub.rows = rb, name, tag, k, len(plan), []
+            for at in ("cam_centre", "tag_h", "sim_true", "sim_cam"):
+                if hasattr(self, at):
+                    setattr(sub, at, getattr(self, at))
+            if getattr(self, "S_quick", False):
+                sub.S.zone12 = self.S.zone12            # --quick: the short tour for every robot
+            if getattr(self, "sim_true_by", None):
+                sub.sim_true = self.sim_true_by.get(rb.name, getattr(self, "sim_true", None))
+            subs.append(sub)
+        self.subs = subs
+        results = []
+        import calib_report as CRP
+        for k, sub in enumerate(subs):
+            if self.stop_flag.is_set():
+                results.append("not started (stopped)")
+                continue
+            try:
+                for o in subs[k + 1:]:
+                    # the robots still to come go to their own spots first, out of its way (by the camera)
+                    o.S.set_parked(self.where([q for q in subs if q is not o]))
+                    o.stage()
+                sub.S.set_parked(self.where([q for q in subs if q is not sub]))
+                say("=== %s (robot %d of %d): calibrated at %s; kept out round %s ===" % (
+                    sub.name, k + 1, len(subs), sub.S.park_label, ", ".join(
+                        "%s" % kk["name"] for kk in sub.S.keepouts if kk.get("kind") == "robot") or "nobody"))
+                res = sub.calibrate_one()
+            except (RunEnd, LowBattery) as e:
+                res = "ended: %s" % e
+                say("ENDED (%s): %s" % (sub.name, e))
+            sub.result = getattr(sub, "result", res)
+            results.append(res)
+            for f in (sub.legs_f, sub.raw_f, sub.cor_f, sub.events):
+                try:
+                    f.flush()
+                except (OSError, ValueError):
+                    pass
+            try:
+                sub.set_status(phase="done", result=res, ended=time.time(), closest=sub.closest)
+                CRP.write(sub.folder, sub, self.a)
+            except Exception as e:  # noqa: BLE001
+                say("(the report for %s could not be written: %s)" % (sub.name, e))
+        self.result = "finished" if all(r == "finished" for r in results) else "; ".join(
+            "%s: %s" % (s_.name, r) for s_, r in zip(subs, results))
+        self.closest = {kk: (min if kk != "view_x_max" else max)(s_.closest[kk] for s_ in subs)
+                        for kk in subs[0].closest}
+        self.parked = subs[-1].parked if hasattr(subs[-1], "parked") else None
+        self.slept = all(getattr(s_, "slept", False) for s_ in subs)
+        self.ev("end", result=self.result, robots=[s_.name for s_ in subs])
+        return self.result
+
+    def order_robots(self, rec):
+        """[(Robot, name, tag, spot)]: the robot nearest PARK_SPOTS[0] first (it is calibrated there), the others to
+        the next spots in turn, nearest first. More robots than spots: the extra ones are left out, said."""
+        byw = {r["wifi_name"]: r for r in rec["robots"]}
+        rows = []
+        for rb in self.robots:
+            r = byw.get(rb.name) or {}
+            if r.get("tag_id") is None:
+                continue
+            m = self.eye.measure(int(r["tag_id"]), 0.6)
+            rows.append([rb, r["name"], int(r["tag_id"]), (m[0], m[1]) if m else None])
+        spots = [p for p in PARK_SPOTS if p in self.S.points]
+        out = []
+        left = list(rows)
+        for sp in spots:
+            if not left:
+                break
+            sx, sy = self.S.points[sp]
+            left.sort(key=lambda q: math.hypot(q[3][0] - sx, q[3][1] - sy) if q[3] else 1e9)
+            q = left.pop(0)
+            out.append((q[0], q[1], q[2], sp))
+        for q in left:
+            say("NOTE: %s is not calibrated in this run (only %d park spots: %s); it must stay still where it is" % (
+                q[1], len(spots), ", ".join(spots)))
+        return out
+
+    def where(self, subs):
+        """{name: (x, y)} of these robots where the camera sees them now (and the unclaimed tags)."""
+        out = dict(getattr(self, "unclaimed", {}))
+        for o in subs:
+            m = self.eye.measure(o.tag, 0.6)
+            if m:
+                out[o.name] = (m[0], m[1])
+            else:
+                say("  (%s is not seen by the camera now: not kept out)" % o.name)
+        return out
+
+    def stage(self):
+        """(5 Nov) Drive to its own spot by the camera (safety) if it is more than AT_SPOT_CM from it, facing the park
+        heading; the other robots are kept out."""
+        cam = self.cam_pose()
+        if cam is None:
+            raise RunEnd("the camera does not see %s's tag where it stands" % self.name)
+        x, y = self.S.points[self.S.park_label]
+        if self.D is None:
+            self.reanchor(cam, "start")
+        if math.hypot(cam[0] - x, cam[1] - y) <= AT_SPOT_CM:
+            return cam
+        say("%s goes to its spot %s first (%.0f cm away), out of the way" % (
+            self.name, self.S.park_label, math.hypot(cam[0] - x, cam[1] - y)))
+        self.set_status(words="Going to its spot %s first" % self.S.park_label)
+        cam, miss = self.park("stage")
+        return cam
+
+    def calibrate_one(self):
+        """One robot (self.rb, self.name, self.tag): its values read, phases A, B (fit, set, save), C, park at its
+        spot, `sleep 10`."""
+        self.set_status(robot=self.name, tag=self.tag, wifi_name=self.rb.name, spot=self.S.park_label)
         self.before = {}
         for k in PARAMS:
             v = self.rb.get(k)
@@ -1274,7 +1569,7 @@ class CalibRun:
         with open(os.path.join(self.folder, "robot_values_before.json"), "w") as f:
             json.dump({"robot": self.name, "wifi_name": self.rb.name, "values": self.before,
                        "how": "read with get before anything was sent"}, f, indent=1)
-        say("The robot's current values (saved first): %s" % self.before)
+        say("%s's current values (saved first): %s" % (self.name, self.before))
         b0 = self.check_battery()
         self.status["battery_start"] = b0
         cam = self.cam_pose()
@@ -1283,6 +1578,7 @@ class CalibRun:
         self.reanchor(cam, "start")
         result = "finished"
         try:
+            self.stage()
             self.phase_a()
             self.phase_b()
             self.phase_c()
@@ -1312,8 +1608,8 @@ class CalibRun:
         k = self.link.mark()
         slept = self.link.wait_for(lambda n, l: n == self.rb.name and "sleeping" in l, k, 4.0)
         self.slept = bool(slept)
-        say("Sent `sleep 10` (%s): it wakes for 20 s every 10 min; robot_sleep.py wake brings it back" % (
-            "it answered" if slept else "no answer seen"))
+        say("Sent `sleep 10` to %s (%s): it wakes for 20 s every 10 min; robot_sleep.py wake any brings it back" % (
+            self.name, "it answered" if slept else "no answer seen"))
         self.ev("end", result=result, parked=parked, slept=self.slept)
         return result
 
@@ -1338,42 +1634,46 @@ def _unwrap_turn(r):
     return (b, r["dt"], c)
 
 
-def discover(link, ips, wake_min, dry=False):
+def discover(link, ips, wake_min, dry=False, count=0):
     """{wifi name: ip} of the robots that answer `status` (sent to the given addresses and the broadcast; `wake` too, so
-    a sleeping robot answers at its next check-in), for up to wake_min minutes."""
+    a sleeping robot answers at its next check-in), for up to wake_min minutes. (5 Nov) A robot heard at all (its
+    check-in, its hello) is also asked at the address it was heard from. count: keep going until this many robots have
+    answered (0: the first to answer and any other within 2 s, as before)."""
     targets = list(ips) + ([] if dry else ["255.255.255.255"])
     end = time.time() + wake_min * 60
     found = {}
     k = link.mark()
-    said = 0
+    said = time.time()
+    first = None
     while time.time() < end:
-        for ip in targets:
+        with link.cond:
+            heard = {n: ip for t, n, ip, line in link.lines[k:]}
+            for t, n, ip, line in link.lines[k:]:
+                if line.startswith("M,status ") or ": awake" in line:
+                    found[n] = ip
+        if found and first is None:
+            first = time.time()
+        if (count and len(found) >= count) or (not count and first is not None and time.time() - first >= 2.0):
+            return found
+        for ip in targets + [ip for n, ip in heard.items() if n not in found and ip not in targets]:
             link.send(ip, "wake")
             link.send(ip, "status")
-        r = link.wait_for(lambda n, l: (n, l) if l.startswith("M,status ") or ": awake" in l else None, k, 2.0)
-        if r:
-            with link.cond:
-                for t, n, ip, line in link.lines[k:]:
-                    if line.startswith("M,status ") or ": awake" in line:
-                        found[n] = ip
-            time.sleep(2.0)       # a second robot's answer
-            with link.cond:
-                for t, n, ip, line in link.lines[k:]:
-                    if line.startswith("M,status ") or ": awake" in line:
-                        found[n] = ip
-            return found
+        time.sleep(2.0)
         if time.time() - said > 30:
             said = time.time()
-            say("  no robot answered yet (a sleeping robot answers at its check-in, every 10 min): still trying, "
-                "%.0f min left" % ((end - time.time()) / 60))
+            say("  %s (a sleeping robot answers at its check-in, every 10 min): still trying, %.0f min left" % (
+                "no robot answered yet" if not found else "%d of %d answered (%s)" % (len(found), count,
+                                                                                    ", ".join(found)),
+                (end - time.time()) / 60))
     return found
 
 
 # =============================================================================================== the simulator
-def sim_map(S, folder, name):
+def sim_map(S, folder, names):
     import production as PR
     pts = {k: list(v) for k, v in S.points.items()}
-    m, _w = PR.site_map((S.L, S.W), [name], points=pts, keepouts=S.keepouts)
+    m, _w = PR.site_map((S.L, S.W), list(names) if isinstance(names, (list, tuple)) else [names], points=pts,
+                        keepouts=S.keepouts)
     p = os.path.join(folder, "sim", "map.json")
     os.makedirs(os.path.dirname(p), exist_ok=True)
     PR.save_map(m, p)
@@ -1384,20 +1684,31 @@ def start_sim(a, S, folder):
     """fleet_sim.py: one robot named from its WiFi (not in the site), on P11 facing +y, ASLEEP, with the deliberately
     wrong true values (what it really needs: --true-cal), its fixes to SimEye."""
     name = a.sim_name
-    mp = sim_map(S, folder, name)
-    x, y = S.points["P11"]
+    mp = sim_map(S, folder, [name] + [q.split(":")[0] for q in a.sim_also])
+    x, y = S.points[getattr(a, "sim_start", None) or "P11"]
     starts = os.path.join(folder, "sim", "starts.json")
+    st = {name: [x, y, 90.0]}
+    for spec in a.sim_also:
+        # (5 Nov) more robots: NAME:TAG:POINT[:HEADING], awake, standing on that sticker
+        q = spec.split(":")
+        px, py = S.points[q[2]]
+        st[q[0]] = [px, py, float(q[3]) if len(q) > 3 else 90.0]
     with open(starts, "w") as f:
-        json.dump({name: [x, y, 90.0]}, f)
+        json.dump(st, f)
     cmd = [PY, os.path.join(TOOLS, "sim", "fleet_sim.py"), "--map", mp, "--out", os.path.join(folder, "sim"),
            "--seed", str(a.seed), "--fixes-to", "127.0.0.1:%d" % (FIX_PORT + 100), "--fix-hz", "10", "--fix-sigma", "0",
            "--fix-sigma-deg", "0", "--fix-delay", "0.08", "--starts", starts, "--start-noise", "1.0",
            "--max-s", str(a.sim_max_s), "--drop-cm", "74", "--true-cal", "%s=%s" % (name, a.sim_true),
            "--asleep", "%s:%s" % (name, a.sim_sleep), "--quiet"]
+    for spec in a.sim_also:
+        q = spec.split(":")
+        cmd += ["--true-cal", "%s=%s" % (q[0], a.sim_true_also or a.sim_true)]
+    for fv in a.sim_fw:
+        cmd += ["--fw", fv]
     f = open(os.path.join(folder, "sim", "fleet_sim.txt"), "w")
     p = subprocess.Popen(cmd, stdout=f, stderr=subprocess.STDOUT, cwd=REPO)
     time.sleep(3.0)
-    return p, ["127.0.0.2"]
+    return p, ["127.0.0.%d" % (2 + k) for k in range(1 + len(a.sim_also))]
 
 
 # =============================================================================================== real camera
@@ -1452,6 +1763,13 @@ def main(argv=None):
                     help="hold (cautious, tonight): the tag lost > %.1f s while driving -> stop and wait; keep_going: "
                          "the experiments' policy" % LOST_HOLD_S)
     ap.add_argument("--tours", type=int, default=TOURS_C, help="phase C tours (1-3)")
+    ap.add_argument("--count", type=int, default=0, help="keep waking until this many robots answer (up to --wake-min; "
+                                                         "0: the first to answer and any other within 2 s)")
+    ap.add_argument("--no-save", action="store_true", help="do not save the fitted values on the robot (the site's "
+                                                           "calibration.save_on_robot, default on)")
+    ap.add_argument("--old-firmware-save", choices=["corr", "off", "auto"], default="auto",
+                    help="a robot whose firmware has no `save` (before 2026-11-05a): corr = save with `corr save` "
+                         "instead; off = not saved, said; auto = the site's calibration.old_firmware_save, else corr")
     ap.add_argument("--session", default="")
     ap.add_argument("--stream", default="127.0.0.1:8000")
     ap.add_argument("--calib", default="", help="the camera model (default: the site's tagcal/overhead.json)")
@@ -1463,6 +1781,11 @@ def main(argv=None):
     g.add_argument("--seed", type=int, default=1)
     g.add_argument("--sim-name", default="AL-1DC0")
     g.add_argument("--sim-tag", type=int, default=2)
+    g.add_argument("--sim-also", action="append", default=[], metavar="NAME:TAG:POINT[:HEADING]",
+                   help="simulator: another robot, awake, on that sticker (e.g. AL-2B7F:3:P14)")
+    g.add_argument("--sim-true-also", default="", help="simulator: the other robots' true values (default --sim-true)")
+    g.add_argument("--sim-fw", action="append", default=[], metavar="NAME=VERSION",
+                   help="simulator: that robot runs older firmware (e.g. AL-1DC0=2026-10-29b: no save)")
     g.add_argument("--sim-true", default="0.97,1.03,0.3", help="what the simulated robot really needs: wheel_scale,"
                                                               "gyro_scale,gyro_drift_dps")
     g.add_argument("--sim-sleep", default="1:0.4", help="the simulated robot sleeps MIN minutes, next check-in after "
@@ -1483,6 +1806,11 @@ def main(argv=None):
         a.robot = list(cal_conf.get("robot_ips") or [])     # the site's hint (school: Alvik 3), plus the broadcast
     if a.binding == "auto":
         a.binding = ((site.get("tags") or {}).get("binding") or "wiggle")
+    if a.dry and not a.count:
+        a.count = 1 + len(a.sim_also)
+    a.save_on_robot = (not a.no_save) and bool(cal_conf.get("save_on_robot", True))
+    if a.old_firmware_save == "auto":
+        a.old_firmware_save = str(cal_conf.get("old_firmware_save") or "corr")
     if a.quick:
         global TURNS_A, ROLLS_A, STILL_S, STILL_C_S
         TURNS_A, ROLLS_A, STILL_S, STILL_C_S = (90, -90, 170, -170), (20.0, 40.0), 20.0, 10.0
@@ -1517,7 +1845,13 @@ def main(argv=None):
             tag_h = 6.19
             run.sim_cam = cam
             run.sim_true = dict(zip(PARAMS, (float(v) for v in a.sim_true.split(","))))
-            eye_factory = lambda: SimEye(folder, FIX_PORT + 100, cam, {a.sim_name: a.sim_tag}, tag_h=tag_h,  # noqa
+            run.sim_true_by = {a.sim_name: run.sim_true}
+            for q in a.sim_also:
+                run.sim_true_by[q.split(":")[0]] = dict(zip(PARAMS, (float(v) for v in (a.sim_true_also or
+                                                                                         a.sim_true).split(","))))
+            simtags = {a.sim_name: a.sim_tag}
+            simtags.update({q.split(":")[0]: int(q.split(":")[1]) for q in a.sim_also})
+            eye_factory = lambda: SimEye(folder, FIX_PORT + 100, cam, simtags, tag_h=tag_h,  # noqa
                                          correct=not a.no_height, seed=a.seed, gaps=a.sim_gap)
         else:
             if not a.no_focus:
@@ -1550,7 +1884,7 @@ def main(argv=None):
             f.close()
     import calib_report as CR
     try:
-        words = CR.write(folder, run, a)
+        words = CR.write_multi(folder, run, a) if getattr(run, "subs", None) else CR.write(folder, run, a)
     except Exception as e:  # noqa: BLE001
         import traceback
         traceback.print_exc()
