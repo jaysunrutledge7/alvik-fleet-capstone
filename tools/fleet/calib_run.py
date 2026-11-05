@@ -91,6 +91,11 @@ EDGE_AIM_CM = 1.0        # chosen: a point nearer an edge than edge_in_cm + this
 KEEPOUT_CLEAR_CM = 6.72 + 2.0   # the body's half diagonal + 2 cm from any keep-out or reference tile
 SAFE_BUF_CM = 3.0        # chosen: a leg's predicted path (from where the camera sees the robot) must stay this much
                          # inside the edge margin + 4 % of the leg's length, else the pose is corrected first
+SAFE_FRAC = 0.04         # a calibrated robot's leg: 4 % of its length as its possible error (as since 4 Nov)
+SAFE_FRAC_UNCAL = 0.10   # (5 Nov 11:00, Nick: "cautious about the table edges") an uncalibrated robot's leg: 10 %
+                         # (rehearsal r1: wheels 1.07, gyro 0.94 took AL-2B7F 9.9 cm from the edge with 4 %). Chosen:
+                         # 7 % in length plus sin(6 deg) across. DOE note: 6 / 10 / 14 % against the closest approach to
+                         # the edges and the points skipped in phase A, with true values 0.90-1.10
 NEAR_EDGE_STAGE_CM = 10.0  # chosen: a point within edge_in + 8 cm of an edge: driven to a stop 10 cm short (odometry),
                          # then the last 10 cm from the camera's pose (safety)
 TURNS_A = (90, 90, 90, 90, -90, -90, -90, -90, 170, -170, 170, -170)   # chosen: 12 in-place turns, 1400 deg, both
@@ -1206,7 +1211,11 @@ class CalibRun:
             # where it would really go, from where the camera sees it (+ the leg's possible error while on odometry)
             h = math.radians(cam[2] + turn)
             end = (cam[0] + go * math.cos(h), cam[1] + go * math.sin(h))
-            buf = (SAFE_BUF_CM + 0.04 * go) if (odometry and not corrected) else 0.0
+            # (5 Nov 11:00) the leg's own error: a robot still uncalibrated (phase A from the defaults, or staging) can
+            # be 7 % off in length and 6 deg in heading: SAFE_FRAC_UNCAL of the leg, not 4 %; a leg aimed from the
+            # camera still runs on the robot's own wheels: its length error counts too
+            fr = self.safe_frac()
+            buf = (SAFE_BUF_CM + fr * go) if (odometry and not corrected) else fr * go
             prob = self.S.problems(cam[:2], end, buf=buf)
             if prob and attempt == 0 and odometry:
                 say("  safety: from where the camera sees it, the leg to %s would reach %s: pose corrected first"
@@ -1238,7 +1247,7 @@ class CalibRun:
             # where the drive would really end along the heading the camera sees now; unsafe -> a camera turn first
             h2 = math.radians(cam[2])
             end2 = (cam[0] + go * math.cos(h2), cam[1] + go * math.sin(h2))
-            p2 = self.S.problems(cam[:2], end2, buf=SAFE_BUF_CM + 0.04 * go)
+            p2 = self.S.problems(cam[:2], end2, buf=SAFE_BUF_CM + self.safe_frac() * go)
             want = wrap180(math.degrees(math.atan2(ty - cam[1], tx - cam[0])) - cam[2])
             if p2 and 1.0 < abs(want) <= MAX_TURN_DEG:
                 say("  safety: after the turn, the drive to %s would reach %s: heading fixed from the camera (%+.1f deg)"
@@ -1264,6 +1273,13 @@ class CalibRun:
             if 0.5 < dist2 <= GO_PIECE_CM:
                 cam, _, _ = self.drive_leg("go", dist2, "%s edge final" % nm, phase, tour, True, cam0=cam)
         return cam
+
+    def safe_frac(self):
+        """(5 Nov 11:00) The share of a leg's length taken as its possible error in the safety checks: SAFE_FRAC once
+        the robot's values are fitted (phase C) or it started from saved values, else SAFE_FRAC_UNCAL."""
+        if getattr(self, "fit", None) is not None or getattr(self, "baseline", "") == "saved":
+            return SAFE_FRAC
+        return SAFE_FRAC_UNCAL
 
     def park(self, phase):
         """Back to its park spot (P11 for the first robot) by the camera (safety), facing the park heading."""
@@ -1385,7 +1401,7 @@ class CalibRun:
         far = max(ROLLS_A)
         hd = next((h for h in ROLL_DIRS if not self.S.problems(cam[:2], (cam[0] + far * math.cos(math.radians(h)),
                                                                        cam[1] + far * math.sin(math.radians(h))),
-                                                                buf=0.04 * far)), ROLL_DIRS[0])
+                                                                buf=self.safe_frac() * far)), ROLL_DIRS[0])
         if hd != ROLL_DIRS[0]:
             say("  rolls towards %+.0f deg (more room there from %s)" % (hd, self.S.park_label))
         t = wrap180(hd - cam[2])
@@ -1394,7 +1410,7 @@ class CalibRun:
         for L in ROLLS_A:
             for leg in ("out", "back"):
                 end = (cam[0] + L * math.cos(math.radians(cam[2])), cam[1] + L * math.sin(math.radians(cam[2])))
-                prob = self.S.problems(cam[:2], end, buf=0.04 * L)
+                prob = self.S.problems(cam[:2], end, buf=self.safe_frac() * L)
                 if prob:
                     say("  roll %.0f cm %s skipped: would reach %s" % (L, leg, prob[0]))
                     continue
