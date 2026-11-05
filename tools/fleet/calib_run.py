@@ -703,11 +703,13 @@ class SimEye(Eye):
         el = time.time() - self.t_made
         if any(t <= el < t + d for t, d in self.gaps):
             return None
-        # (11-05c) "X,Y,R:DUR": the first time the robot comes within R cm of (X, Y), its tag is unread for DUR s
+        # (11-05c) "X,Y,R:DUR": a spot the camera cannot read (glare, the far end of its view): the tag is unread while
+        # the robot is within R cm of (X, Y), for DUR s from the first time it comes there (then it reads again)
         for g in getattr(self, "gaps_at", []):
-            if g.get("t") is None and math.hypot(float(msg["x"]) - g["x"], float(msg["y"]) - g["y"]) <= g["r"]:
+            inside = math.hypot(float(msg["x"]) - g["x"], float(msg["y"]) - g["y"]) <= g["r"]
+            if g.get("t") is None and inside:
                 g["t"] = el
-            if g.get("t") is not None and g["t"] <= el < g["t"] + g["dur"]:
+            if inside and g.get("t") is not None and g["t"] <= el < g["t"] + g["dur"]:
                 return None
         x, y, th = float(msg["x"]), float(msg["y"]), float(msg["th"])
         px = self.cam.tag_px(x, y, self.h, self.s, th)
@@ -1168,8 +1170,11 @@ class CalibRun:
         c, s_ = math.cos(math.radians(th)), math.sin(math.radians(th))
         ox, oy = self.offset
         px, py = x - (c * ox - s_ * oy), y - (s_ * ox + c * oy)
-        blind = min(leg_cm, (speed or SPEED_CMS) * max(0.0, time.time() - t))
         h = math.radians(end[2])
+        # what it drove after the last read: the leg's own end (its wheels, from the leg's start) less where the camera
+        # last had it, along the heading; its error is the leg's whole length's (the allowance's share: extra_cm)
+        blind = max(0.0, min(leg_cm, (end[0] - px) * math.cos(h) + (end[1] - py) * math.sin(h)))
+        self._lost_extra = self.safe_frac() * leg_cm
         return (px + blind * math.cos(h), py + blind * math.sin(h), end[2]), blind, 0.0
 
     def recover(self, est, blind_cm, blind_deg, why):
@@ -1197,6 +1202,8 @@ class CalibRun:
             return not self.S.problems(a, b, buf=bub, edge_buf=bub)
         outcome = None
         lat0 = self.bubble(blind_cm, blind_deg) - self.bubble(blind_cm, 0.0)   # the interrupted leg's own heading part
+        lat0 += getattr(self, "_lost_extra", 0.0)        # the leg's length error behind the estimate (lost_estimate)
+        self._lost_extra = 0.0
         after = 0.0                              # cm driven since the recovery's own turns
 
         def bub_now(extra=0.0):
@@ -1210,7 +1217,7 @@ class CalibRun:
                 break
             want = wrap180(math.degrees(math.atan2(tgt[1] - y, tgt[0] - x)) - th)
             if abs(want) > 3.0:
-                if not clear((x, y), (x, y), bub + 6.72 - 4.75):        # the corners swing out on a turn
+                if not clear((x, y), (x, y), bub):      # as every turn of the calibration: the margin holds the body
                     outcome = "a turn here would bring the bubble to a margin"
                     break
                 r = self.rb.leg("turn", max(-MAX_TURN_DEG, min(MAX_TURN_DEG, want)), on_tick=self.stop_flag.is_set)
@@ -1254,7 +1261,7 @@ class CalibRun:
             rec.update(outcome="stopped: %s" % outcome, blind_cm=round(blind_cm, 1))
             say("  recovery stopped (%s): a small find-me wiggle, then the old hold" % outcome)
             bub = bub_now()
-            if clear((x, y), (x, y), bub + 6.72 - 4.75):
+            if clear((x, y), (x, y), bub):
                 for d in (RECOVER_WIGGLE_DEG, -2 * RECOVER_WIGGLE_DEG, RECOVER_WIGGLE_DEG):
                     if seen():
                         break
@@ -2301,7 +2308,7 @@ def main(argv=None):
     g.add_argument("--no-height", action="store_true", help="simulator: the camera reads with NO height correction")
     g.add_argument("--sim-max-s", type=float, default=3600)
     g.add_argument("--sim-gap-at", action="append", default=[], metavar="X,Y,R:DUR",
-                   help="simulator (11-05c): the tag unread for DUR s the first time the robot comes within R cm of X,Y")
+                   help="simulator (11-05c): the tag unread while the robot is within R cm of X,Y, for DUR s from the first time")
     g.add_argument("--sim-gap", action="append", default=[], metavar="T:DUR",
                    help="simulator: the roof tag unread for DUR s from T s after the camera starts (a hand over it)")
     a = ap.parse_args(argv)

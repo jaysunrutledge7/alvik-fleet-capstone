@@ -25,7 +25,7 @@ If a robot still moves: pick it up and switch it off.
 ## 1. Reflash the robots (for curves; once; about 5 minutes per robot)
 
 The new firmware is **2026-11-05c** (5 Nov evening). With it the robots drive **continuous curves**: no stopping to
-turn on the spot, they curve from one move into the next, slow down (never below 3 cm/s) or bend their curve to keep
+turn on the spot, they curve from one move into the next, slow down (never below 5 cm/s) or bend their curve to keep
 apart, and curve away from something in front instead of stopping. It keeps everything 2026-11-05b had (speed and
 steer changes while driving, the 1.5 s watchdog).
 

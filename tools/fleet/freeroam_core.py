@@ -136,8 +136,11 @@ EDGE_TURN_MIN = HALF + 1.0  # the edge trap's last resort: a turn on the spot wi
 
 # (11-05d) continuous curves
 ARC_FW = "2026-11-05c"  # follow step R, farc, coast, dodge
-V_MIN_AVOID = 3.0       # cm/s: the slowest an avoiding curve robot is made to go (never 0). EVIDENCE-BASED: 2 / 3 / 5
-                        # cm/s compared in the stress simulator (docs/build-reports/e05-nov05-curves.md, "Minimum speed")
+V_MIN_AVOID = 5.0       # cm/s: the slowest an avoiding curve robot is made to go (never 0). EVIDENCE-BASED: 2 / 3 / 5
+                        # cm/s compared in the stress simulator, 4 seeds x 1 h each (docs/build-reports/e05-nov05-curves.md,
+                        # "Minimum speed"): with a dead robot in the way 2 cm/s touched 3 times, 3 cm/s came to 0.7 cm,
+                        # 5 cm/s to 1.6 cm with the fewest speed-zero moments; the other seeds alike. A finer DOE (4 / 5 /
+                        # 6 / 7 cm/s, more seeds) would pin it down
 K_BINS = (-1 / 12.0, -1 / 25.0, -1 / 50.0, 0.0, 1 / 50.0, 1 / 25.0, 1 / 12.0)   # curvature 1/cm (+ = left): radius
                         # 12, 25, 50 cm and straight. Chosen (12 cm: the tightest the wheels do at 9 cm/s); DOE: yes,
                         # with LOOP_R, against fallbacks per hour and coverage
@@ -157,6 +160,8 @@ AVOID_K = (1 / 30.0, -1 / 30.0, 1 / 15.0, -1 / 15.0, 1 / 10.0, -1 / 10.0)   # th
 ARC_FIT_MIN = 15        # (11-05d) the curves' calibration, discovered from the run: at least this many fitted curve pieces
                         # (|k| >= 1/40, >= 35 deg) before arc_k_scale / arc_d_scale are saved on a parked robot. Chosen
 ARC_FIT_CI = 0.03       # ... and the median's 95 % half-width under this. Chosen
+EDGE_AWAY = True        # (11-05d) a curve from a stand near an edge may run along it if it never gets closer (switch)
+REAIM = True            # (11-05d) an overdue curve piece is re-aimed with farc (switch)
 CURVE_SAMPLE_CM = 3.0   # reservation samples along a curve at most this far apart (PLAN_M0 covers half). Not chosen
 
 
@@ -593,6 +598,9 @@ class Controller:
                 r.lost_rep = None
                 self.event(r, "lost report", "step %d %s (its own report was lost: seen in FOLLOW)" % ev)
                 self.on_step(name, ev[0], ev[1], "report lost; seen in FOLLOW" if ev[1] == "failed" else "")
+        if r.move is not None and r.move.get("curve") and cur and any(q["drive_id"] == cur for q in r.queue):
+            # (11-05d) the robot runs a queued piece (its own reports of the last one's end and this one's start lost)
+            self.on_step(name, cur, "started")
         if t - getattr(r, "fpose_t", -1e9) < 0.15:
             return          # (11-05c) a record sent before our fpose reached it: the old frame
         prev = r.own
@@ -647,7 +655,7 @@ class Controller:
     def on_fspd(self, name):
         r = self.R.get(name)
         if r is not None:
-            r.controls = [c for c in r.controls if c["kind"] not in ("fspd", "fsteer")]
+            r.controls = [c for c in r.controls if c["kind"] not in ("fspd", "fsteer", "farc")]   # (11-05d) farc too
 
     # -- where is it -------------------------------------------------------------------------------------------
     def fresh(self, r):
@@ -1197,6 +1205,7 @@ class Controller:
         p = self.pos(r)
         r.move = None
         r.queue, r.coast = [], None
+        r.controls = [c for c in r.controls if c["kind"] != "farc"]   # (11-05d) a bend for a piece that is over
         if r.adj is not None:
             self.close_adj(r, "move ended")
         r.scale = 1.0
@@ -1540,7 +1549,7 @@ class Controller:
     def why_zero(self, r, why):
         r.zero_why = (why, self.t)
 
-    def curve_ok(self, r, tr, gap_relax=0.0, away=False, ignore=()):
+    def curve_ok(self, r, tr, gap_relax=0.0, away=False, ignore=(), edge_away=False):
         """A curve plan (samples + loop disc) keeps the edges (every sample's middle LOOP_EDGE in, plus its margin
         beyond the base; the loop disc inside), the keep-outs and everyone's reservations. away: a robot already too
         close to an edge or another robot may take it if it never gets closer and ends clear."""
@@ -1550,7 +1559,7 @@ class Controller:
         if len(xs):
             ed = np.minimum(np.minimum(xs - x0, x1 - xs), np.minimum(ys - y0, y1 - ys)) - (ms - PLAN_M0)
             need = LOOP_EDGE + bub
-            if away:
+            if away or edge_away:
                 need = np.minimum(need, ed[0] - 0.5)
             if (ed < need).any():
                 return False
@@ -1584,6 +1593,8 @@ class Controller:
         m0 = self.margin0(r)
         grow = BLIND_PER_CM if r.lost is not None else 0.0
         find_me = r.lost is not None and r.bubble > BUBBLE_CAP
+        # starting closer to an edge than a curve may go (after a stop there): curves that never get closer to it
+        ea = EDGE_AWAY and edge_dist(self.rect, x, y) < LOOP_EDGE + 3.0 + (r.bubble if r.lost else 0.0)
 
         def tr_for(k, L, v, side):
             return curve_traj(t0, [(x, y, h, k, L, v)], side, m0=m0, bubble_grow=grow)
@@ -1594,7 +1605,7 @@ class Controller:
                 ex, ey, eh = arc_at(x, y, h, k, L)
                 for side in self.sides(float(ex), float(ey), float(eh)):
                     tr = tr_for(k, L, v, side)
-                    if self.curve_ok(r, tr):
+                    if self.curve_ok(r, tr, edge_away=ea):
                         return ("free" if free else "menu"), cell, k, L, v, side, tr
             for L in (14.0, 8.0):
                 ks = [kk * sg for kk in (1 / 40.0, 1 / 20.0, 1 / 12.0) for sg in (1, -1)]
@@ -1603,7 +1614,7 @@ class Controller:
                     ex, ey, eh = arc_at(x, y, h, k, L)
                     for side in self.sides(float(ex), float(ey), float(eh)):
                         tr = tr_for(k, L, 5.0, side)
-                        if self.curve_ok(r, tr):
+                        if self.curve_ok(r, tr, edge_away=ea):
                             self.fallback(r, 1, "off-menu curve", "no menu curve fits")
                             return "off-menu", None, k, L, 5.0, side, tr
         # the loop: round its own reserved disc (the last piece's end reserved it), a quarter circle at a time
@@ -2033,6 +2044,7 @@ class Controller:
                 st["status"] = "dropped"
         r.queue = []
         r.move = None
+        r.controls = [c for c in r.controls if c["kind"] != "farc"]   # a bend for the piece that ended: not resent
         if r.adj is not None:
             self.close_adj(r, "move ended")
         if r.coast is None:
@@ -2228,11 +2240,35 @@ class Controller:
                     math.dist(hist[0][1:], hist[-1][1:]), STUCK_S))
                 self.halt(r, "stuck")
                 self.end_move(r)
+        # (11-05d) a curve piece well past its time (off its path, slowed, bent): re-aimed from where it is with a new
+        # piece (farc), no stop
+        if REAIM and mv is not None and mv.get("curve") and mv.get("t_drive") is not None and r.scale > 0 and \
+                t - mv["t_drive"] > 1.5 * mv["L"] / max(0.5, mv["v"] * r.scale) + 3.0 and r.lost is None:
+            p, h = self.pos(r), self.heading(r)
+            res = self.pick_curve(r, p[0], p[1], h, t)
+            if res is not None:
+                kind, cell, k, L, v, side, _ = res
+                self.event(r, "overdue piece", "piece %d ran %.0f s (planned %.0f): re-aimed from where it is "
+                           "(farc, no stop)" % (mv["drive_id"], t - mv["t_drive"], mv["L"] / max(0.5, mv["v"])))
+                self.control(r, "farc %.5f %.1f" % (k, L), "farc")
+                for q in r.queue:
+                    st = r.steps.get(q["drive_id"])
+                    if st:
+                        st["status"] = "dropped"
+                r.queue = []
+                ex, ey, eh = arc_at(p[0], p[1], h, k, L)
+                mv.update(k=k, L=L, x=p[0], y=p[1], h=h, end=(float(ex), float(ey)), h1=float(eh), side=side,
+                          t_drive=t, t0=t, kind=mv["kind"] + "+reaimed")
+                if cell is not None:
+                    self.cmenu.use(cell, r.name)
+                self.counts["reaimed"] = self.counts.get("reaimed", 0) + 1
+                self.retraj_curve(r)
         # a move that takes far too long
         if mv is not None:
             est = turn_s(mv["turn"]) + (drive_s(mv["L"], mv["v"]) if mv["L"] else 0.0)
             if t - mv["t0"] > 3.0 * est + 15.0 and not mv.get("paused"):
-                self.event(r, "slow move", "move %d took %.0f s (estimate %.0f): ended" % (mv["n"], t - mv["t0"], est))
+                self.event(r, "slow move", "move %d took %.0f s (estimate %.0f): ended (%s, scale %.2f, own %s)" % (
+                    mv["n"], t - mv["t0"], est, mv["kind"], r.scale, r.own[4] if r.own else "-"))
                 self.halt(r, "move timed out")
                 self.end_move(r)
 

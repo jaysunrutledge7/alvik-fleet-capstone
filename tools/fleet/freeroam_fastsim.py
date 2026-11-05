@@ -538,7 +538,18 @@ class Sim:
             k, L = b.farc
             b.farc = None
             left = s["L"] - s["s"]
-            s.update(x0=b.ox, y0=b.oy, h=b.oth, k=k, L=L if L else left, s=0.0, prev=None)
+            s.update(x0=b.ox, y0=b.oy, h=b.oth, k=k, L=L if L else left, s=0.0, prev=None, t0=self.t, slack=0.0)
+        s.setdefault("t0", self.t)
+        s.setdefault("slack", 0.0)
+        if b.scale < 1.0:
+            s["slack"] += (1.0 - max(0.0, b.scale)) * DT
+        if self.t - s["t0"] > 3.0 + s["L"] / max(s["v"], 1.0) * 2.5 + s["slack"]:
+            b.v = 0.0                                   # firmware: "curve timed out", brake, the queue dropped
+            b.report(self, s["id"], "failed", "curve timed out")
+            for q in b.q:
+                b.report(self, q["id"], "dropped", "an earlier step failed")
+            b.q, b.cur, b.state, b.coast = [], None, "idle", None
+            return
         k = s["k"]
         hr = math.radians(s["h"])
         if abs(k) < 1e-4:

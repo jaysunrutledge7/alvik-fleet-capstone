@@ -297,3 +297,17 @@ def test_calib_lost_policy_default_recover_hold_kept():
     assert 'choices=["recover", "hold", "keep_going"], default=None' in src
     assert 'cal_conf.get("lost_policy") or "recover"' in src
     assert "def hold_until_seen" in src                 # the old hold: kept (switch and last resort)
+
+
+def test_farc_answer_stops_its_resending():
+    """Found in the stress runs: a farc was resent every 0.3 s for ever (its FSPD answer did not clear it), bending
+    every later piece and dropping the queue (the robots then crowded and touched)."""
+    c, sent, _ = ctrl(("Left",))
+    place(c, "Left", 60, 60, 0.0)
+    r = c.R["Left"]
+    c.control(r, "farc 0.05000 25.0", "farc")
+    c.on_fspd("Left")
+    assert not [x for x in r.controls if x["kind"] == "farc"]
+    c.control(r, "farc 0.05000 25.0", "farc")
+    c.end_move(r)
+    assert not [x for x in r.controls if x["kind"] == "farc"]
