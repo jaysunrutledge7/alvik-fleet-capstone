@@ -363,10 +363,29 @@ class Controller:
         if len(r.cam_hist) > 80:
             del r.cam_hist[:20]
 
-    def on_follow(self, name, t, state, x, y, th, cur=0):
+    def on_follow(self, name, t, state, x, y, th, cur=0, last_done=None, last_failed=None):
         r = self.R.get(name)
         if r is None:
             return
+        # a step's own end report can be lost (a WiFi drop: the watchdog stopped it and said so into the gap); the
+        # FOLLOW record (10 a second) carries the last done and last failed step ids, so the end is noticed anyway
+        if r.move is not None and (last_done is not None or last_failed is not None):
+            ids = [i for i in (r.move.get("turn_id"), r.move.get("drive_id")) if i]
+            st = {i: r.steps.get(i, {}).get("status") for i in ids}
+            ev = None
+            if last_failed and last_failed in st and st[last_failed] not in ("done", "failed", "dropped"):
+                ev = (last_failed, "failed")
+            elif last_done and ids and max(ids) <= last_done and st[max(ids)] not in ("done", "failed", "dropped") \
+                    and state == "idle":
+                ev = (max(ids), "done")
+            if ev is None:
+                r.lost_rep = None
+            elif getattr(r, "lost_rep", None) is None or r.lost_rep[0] != ev:
+                r.lost_rep = (ev, t)                  # the step's own report may still be on its way: 0.5 s
+            elif t - r.lost_rep[1] >= 0.5:
+                r.lost_rep = None
+                self.event(r, "lost report", "step %d %s (its own report was lost: seen in FOLLOW)" % ev)
+                self.on_step(name, ev[0], ev[1], "report lost; seen in FOLLOW" if ev[1] == "failed" else "")
         prev = r.own
         r.own = (t, x, y, th, state, cur)
         r.own_hist.append((t, x, y, th))

@@ -259,3 +259,20 @@ def test_launcher_has_freeroam_and_stopall_knows_it():
 def test_old_roam_still_parses():
     import roam
     assert hasattr(roam, "Roamer") and callable(roam.main)
+
+
+def test_lost_step_report_seen_in_follow():
+    """A WiFi drop: the watchdog failed the step and its report was lost. FOLLOW's last_failed ends the move after
+    0.5 s instead of the slow-move timeout (rehearsal 5 Nov: 37 and 47 s standing)."""
+    c, sent, rows = ctrl(names=("Left",))
+    place(c, "Left", 60, 60, 0.0)
+    c.tick(0.1)
+    r = c.R["Left"]
+    sid = r.move["drive_id"] or r.move["turn_id"]
+    c.on_step("Left", sid, "queued")
+    c.on_step("Left", sid, "started")
+    c.on_follow("Left", 1.0, "idle", 60, 60, 0.0, 0, 0, sid)
+    assert r.move is not None                                   # not yet: its own report may still come
+    c.on_follow("Left", 1.6, "idle", 60, 60, 0.0, 0, 0, sid)
+    assert r.move is None
+    assert any(x["kind"] == "lost report" for t, x in rows if t == "events")

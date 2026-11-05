@@ -110,6 +110,7 @@ class Bot:
         self.wheel_err = rng.uniform(-0.03, 0.03)
         self.gyro_err = rng.uniform(-0.015, 0.015)
         self.q, self.cur, self.max_id = [], None, 0
+        self.last_done = self.last_failed = 0
         self.v, self.scale, self.steer = 0.0, 1.0, None
         self.state = "idle"
         self.battery = 100.0
@@ -121,6 +122,10 @@ class Bot:
         self.following = True
 
     def report(self, sim, sid, st, info=""):
+        if st == "done":
+            self.last_done = sid
+        elif st == "failed" and sid:
+            self.last_failed = sid
         sim.up(self, "step", sid, st, info)
 
 
@@ -411,7 +416,8 @@ class Sim:
         for n, b in self.bots.items():
             if self.t >= self.next_follow[n] and not b.dead and b.following:
                 self.next_follow[n] = self.t + 0.1
-                self.up(b, "follow", b.state, b.ox, b.oy, b.oth, b.cur["id"] if b.cur else 0)
+                self.up(b, "follow", b.state, b.ox, b.oy, b.oth, b.cur["id"] if b.cur else 0, b.last_done,
+                        b.last_failed)
 
     def truth(self):
         bs = list(self.bots.values())
@@ -522,6 +528,9 @@ class Sim:
                     out={n: (r.out_why, round(r.battery or 0)) for n, r in c.R.items()},
                     edge_min_cm=round(st["edge_min"], 2), off_board=st["off_board"],
                     lost_episodes=len(kept.get("lost", [])),
+                    slow_moves=sum(1 for e in kept.get("events", []) if e["kind"] == "slow move"),
+                    lost_reports=sum(1 for e in kept.get("events", []) if e["kind"] == "lost report"),
+                    break_why=Counter_sum({e["why"].split(":")[0]: 1} for e in kept.get("breaks", [])),
                     reflex_outcomes={k: sum(1 for e in refl if e["outcome"] == k) for k in set(e["outcome"] for e in refl)},
                     menu_cells_used=sum(1 for v in c.menu.n.values() if v), menu_min=min(c.menu.n.values()),
                     menu_max=max(c.menu.n.values()), motion=mot)
@@ -554,17 +563,17 @@ def summarize(files, png=None):
             off_board=tot(lambda r: r["off_board"]), edge_min=min(r["edge_min_cm"] for r in rs),
             any2=sum(m["any_ge2"] for m in mo) / max(1, len(mo)), any3=sum(m["any_3"] for m in mo) / max(1, len(mo)),
             tr2=sum(m["trans_ge2"] for m in mo) / max(1, len(mo)), tr3=sum(m["trans_3"] for m in mo) / max(1, len(mo)),
-            moves=tot(lambda r: r["moves"]) / H, outcomes=Counter_sum(r.get("reflex_outcomes", {}) for r in rs)))
+            moves=tot(lambda r: r["moves"]) / H, slow=tot(lambda r: r.get("slow_moves", 0)) / H, outcomes=Counter_sum(r.get("reflex_outcomes", {}) for r in rs)))
     L = ["| group | runs | sim h | contacts | smallest gap cm | 1st pct of 10 s minima cm | speed /h | steer /h | "
          "new move /h | hard stop /h | full stops /h | fallbacks /h | find-me /h | front stops /h | watchdog stops | "
-         "off board | closest to edge cm | >=2 moving % (driving %) | 3 moving % (driving %) | moves /h |",
-         "|" + "---|" * 20]
+         "off board | closest to edge cm | >=2 moving % (driving %) | 3 moving % (driving %) | moves /h | slow moves /h |",
+         "|" + "---|" * 21]
     for r in rows:
         L.append("| %s | %d | %.1f | %d | %.2f | %.2f | %.2f | %.2f | %.2f | %.2f | %.2f | %.1f | %.1f | %.2f | %d | %d "
-                 "| %.1f | %.1f (%.1f) | %.1f (%.1f) | %.0f |" % (
+                 "| %.1f | %.1f (%.1f) | %.1f (%.1f) | %.0f | %.2f |" % (
                      r["group"], r["runs"], r["hours"], r["contacts"], r["min_gap"], r["p1"], r["speed"], r["steer"],
                      r["replan"], r["stop"], r["breaks"], r["fallbacks"], r["wiggles"], r["front"], r["watchdog"],
-                     r["off_board"], r["edge_min"], r["any2"], r["tr2"], r["any3"], r["tr3"], r["moves"]))
+                     r["off_board"], r["edge_min"], r["any2"], r["tr2"], r["any3"], r["tr3"], r["moves"], r["slow"]))
     if png:
         import matplotlib
         matplotlib.use("Agg")

@@ -173,7 +173,8 @@ class Runner:
                     ms = int(float(vals[1]))
                     self.offset(name, t, ms)
                     if vals[3] != "nopose":
-                        c.on_follow(name, t, vals[3], float(vals[7]), float(vals[8]), float(vals[9]), int(vals[2]))
+                        c.on_follow(name, t, vals[3], float(vals[7]), float(vals[8]), float(vals[9]), int(vals[2]),
+                                    int(vals[5]), int(vals[6]))
                         if self.pose_sock is not None:
                             off = self.offset(name, t, ms)
                             msg = {"type": "pose", "robot": name, "t": round(ms / 1000.0 + off, 4),
