@@ -270,6 +270,8 @@
   "save_on_robot": true,
   "old_firmware_save": "off",
   "min_firmware": "2026-11-05a",
+  "safe_edge": 2,
+  "_safe_edge_note": "5 Nov 18:52: the line sensors (safe_edge 1/3) read the black tape over the table seam as a plywood edge and refused the wiggle; 2 = only the distance sensor bottom zone (a real drop). Discover-not-map follow-up: a line trip the bottom zone does not confirm should become a logged surface mark, not an edge.",
   "baseline": "auto",
   "park_spots": [
    "P11",

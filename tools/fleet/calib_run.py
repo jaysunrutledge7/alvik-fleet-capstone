@@ -61,7 +61,8 @@ for p in (HERE, TOOLS, os.path.join(TOOLS, "sim"), os.path.join(TOOLS, "recognit
 
 import numpy as np   # noqa: E402
 
-VERSION = "2026-11-05d"     # 11-05d: recovery jump used the camera time as a position; hold again until a pose (school 18:33 crash). 11-05c: lost-tag recovery; arc phase
+VERSION = "2026-11-05e"     # 11-05e: --safe-edge / calibration.safe_edge (school: 2, the tape seam tripped the line sensors).
+VERSION_D = "2026-11-05d"     # 11-05d: recovery jump used the camera time as a position; hold again until a pose (school 18:33 crash). 11-05c: lost-tag recovery; arc phase
 PY = sys.executable
 LOG_PORT, CMD_PORT = 5005, 5006
 FIX_PORT = 5013          # the tag bridge's (or the simulator's) camera reads come here (run_plan uses 5010)
@@ -1822,7 +1823,8 @@ class CalibRun:
         self.wifi = {rb.name: wifi_name_of(self.link, rb) for rb in self.robots}
         for rb in self.robots:
             rb.link.send(rb.ip, "wake")
-            for c in EDGE_GUARD + ["set turn_max_rpm %.1f" % TURN_RPM]:
+            guard = [("set safe_edge %d" % self.a.safe_edge) if c.startswith("set safe_edge") else c for c in EDGE_GUARD]
+            for c in guard + ["set turn_max_rpm %.1f" % TURN_RPM]:
                 rb.link.send(rb.ip, c)
                 time.sleep(0.05)
         for rb in self.robots:
@@ -2285,6 +2287,10 @@ def main(argv=None):
                          "even for a robot calibrated before (default: only its first calibration on this site)")
     bl.add_argument("--from-saved", dest="baseline", action="store_const", const="saved",
                     help="phase A starts from the robot's saved values even on its first calibration")
+    ap.add_argument("--safe-edge", type=int, default=None, choices=[0, 1, 2, 3],
+                    help="the robot's own edge guard: 0 off, 1 line sensors, 2 the distance sensor's bottom zone (a real "
+                         "drop), 3 both (default: the site's calibration.safe_edge, else 3). School 5 Nov: the line "
+                         "sensors read the black tape over the table seam as an edge and refused the wiggle -> 2")
     ap.add_argument("--min-firmware", default=None, help="refuse a robot on firmware older than this (default: the "
                     "site's calibration.min_firmware, else %s; \"\" = no check)" % MIN_FIRMWARE)
     ap.add_argument("--no-pins", dest="pins", action="store_false", help="do not use or write the robot <-> tag pins "
@@ -2338,6 +2344,8 @@ def main(argv=None):
     a.save_on_robot = (not a.no_save) and bool(cal_conf.get("save_on_robot", True))
     if a.old_firmware_save == "auto":
         a.old_firmware_save = str(cal_conf.get("old_firmware_save") or "corr")
+    if a.safe_edge is None:
+        a.safe_edge = int(cal_conf.get("safe_edge", 3))
     if a.min_firmware is None:
         a.min_firmware = cal_conf.get("min_firmware", MIN_FIRMWARE) or ""
     if a.baseline == "auto":
