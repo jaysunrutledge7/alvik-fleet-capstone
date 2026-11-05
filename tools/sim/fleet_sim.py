@@ -254,7 +254,22 @@ class LiveRobot(R.Robot):
                 if run is not None and run["exp"] == "follow":
                     sim.follow_done(self)
                 continue
-            if not self.radio.got_cmd and time.time() - last_hello > 2.0:
+            su = getattr(self, "sleep_until", 0)
+            if su and su != float("inf"):
+                # (5 Nov 2026) as the firmware: a check-in announces itself at once (it boots and broadcasts), with
+                # its battery, without waiting for a command (robot_sleep.py wake any hears it from any address)
+                now_ms = self.millis()
+                aw = self.P("sleep_awake_s") * 1000
+                if now_ms >= su + aw:                     # a check-in nobody answered: asleep again
+                    self.sleep_until = now_ms + self.sleep_min * 60000
+                    self.checkin_said = False
+                elif su <= now_ms and not getattr(self, "checkin_said", False):
+                    self.send("M,%s: awake for a check-in (sleeping %d min at a time; send `wake` within %d s to keep "
+                              "it awake), battery %d%%" % (self.name, self.sleep_min, self.P("sleep_awake_s"),
+                                                           int(self.battery)))
+                    self.checkin_said = True
+            asleep = bool(getattr(self, "sleep_until", 0)) and self.millis() < self.sleep_until
+            if not self.radio.got_cmd and not asleep and time.time() - last_hello > 2.0:
                 last_hello = time.time()
                 self.send("M,hello from %s at %s (type help in the console)" % (self.name, self.ip))
             self.advance(10)
