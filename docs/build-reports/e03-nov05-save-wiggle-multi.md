@@ -95,8 +95,17 @@ is off, and home's roam1 floor calibration is no longer offered for the school.
 | Two-robot run q2, P15 -> P16 along the far edge | In phase A (uncalibrated), a 173 deg turn came out 6 deg short (gyro 0.97). The 47 cm drive along the edge then ended **9.5 cm from the edge** (margin 13). The safety check counted the drive's own error (3 cm + 4 %) but not the turn's error. The 4 Nov rehearsals came no closer than 13.2 cm, so this was not seen before | After the turn, the drive is checked again along the heading the camera now sees. If it is unsafe, a turn from the camera first (logged, counted as a correction). Full-length two-robot rerun q4: see the line under this table |
 | `rec` on the school Pi (coordinator) | No `cameras.json` in the school folder: home's camera names used | the site's `camera_names`; `school-setup` writes them |
 
-Rerun q4 (full phase A, one C tour, two robots, the turn check in): RUNNING when this was written (about 50 minutes);
-its closest approach to an edge is added here when it ends.
+Rerun q4 (full phase A, one C tour per robot, two robots, the turn check in; 41 minutes for both):
+
+| Robot (true values) | Fit, 95 % +- | Saved | Before -> after, distance error cm/m (median) | heading error per turn, deg | Closest: edge / keep-out or robot | Heading fixed from the camera after a turn | Parked |
+|---|---|---|---|---|---|---|---|
+| AL-1DC0 at P11, old firmware (0.97 / 1.03 / 0.30) | 0.9690 +-0.0030 / 1.0299 +-0.0011 / 0.276 +-0.014 | `corr save`, checked | 2.97 -> 0.22 | 2.38 -> 0.90 | **13.5** / 9.4 cm | 6 times (1-4 deg) | 0.4 cm off P11, asleep |
+| AL-2B7F at P05, new firmware (1.02 / 0.97 / -0.20) | 1.0205 +-0.0030 / 0.9714 +-0.0013 / -0.324 +-0.016 | `save`, checked (`saved`: all 3) | 2.17 -> 0.33 | 3.26 -> 0.85 | **13.4** / 9.2 cm | 10 times (1-5 deg) | 0.4 cm off P05, asleep |
+
+Both robots stayed at or beyond the 13 cm edge margin, against 9.5 cm in q2. AL-2B7F's 45 cm and 70 cm rolls were
+skipped: P05 is 15.9 cm from the x = 0 edge, and after the first 20 cm roll and back the robot was 14 cm from it, too
+close for the check. Its wheel_scale still came out within +-0.003 from the 20 cm rolls and the tour. Its drift fit,
+-0.324 against the simulator's -0.20, is outside its own +- and not explained (see sweep 2).
 
 **Firmware compile check**: `tools/fwcheck/check.sh` (g++ `-fsyntax-only` against the stand-in headers, which now include
 `Preferences::isKey` and `clear`, both in the ESP32 core) is clean. **No real Arduino build**: arduino-cli 1.1.1 was
@@ -115,8 +124,14 @@ not be installed. The first real compile is Nick's upload in the Arduino IDE (ru
   sleep. The simulator's wake did not restart the robot, which is why the rehearsals passed. The fix is pushed and
   backward compatible.
 - Several robots: each robot is calibrated at its own spot. The others are parked and kept out (the other robot's spot
-  is skipped in the tours), and each robot parks and sleeps. One run, q2, shows this in the simulator. It is not yet
-  checked with two real robots.
+  is skipped in the tours), and each robot parks and sleeps. Two simulator runs show it (q2, q4). In the full-length
+  run (q4) both fits came out within 0.003 of the truth for the wheels and the gyro, and errors per leg fell about
+  tenfold. It is not yet checked with two real robots.
+- (Claude's conclusion) The edge check missed a turn's own error, which put a robot 9.5 cm from the edge in q2.
+  After the fix, q4 stayed at 13.4 cm or more. The fix uses the camera on 6-10 headings per robot. These are logged as
+  corrections and are only for safety; the fit uses the robot's own records, as before.
+- (Claude's conclusion) P05 is a tight spot for the second robot's rolls (15.9 cm from the edge): only its 20 cm
+  rolls ran. P01 (30.5 cm from both edges, nearest the camera) is probably better. See question 6.
 - Wiggle-first naming is in mission_run (and so Mission Control's runs and the experiments). It runs before the feel-out
   and the run's bridge. The feel-out's own runs reuse the binding instead of wiggling again. Only the binding step is
   tested in the simulator: a dry mission run keeps the simulator's own names and tags, said on the screen.
@@ -147,6 +162,9 @@ not be installed. The first real compile is Nick's upload in the Arduino IDE (ru
 
 - The firmware build is checked only against stand-in headers. `Preferences::isKey` and `clear` are assumed from the
   ESP32 core's API; no real compile was possible here.
+- AL-2B7F's drift fit (q4): -0.324 +-0.016 deg/s against the simulator's -0.20. Its gyro scale and wheels were right.
+  This is not explained. Possible causes: the simulator's own random gyro bias added to the one set, or its bias
+  walking. AL-1DC0 came out 0.276 against 0.30.
 - The simulator's save is a dictionary that survives `simctl restart` and the sleep restart. Flash wear, a write lost
   at power-off, and NVS being full are not modelled.
 - The second spot P05, the keep-out PARKED_R_CM 6.72 + 2 cm, AT_SPOT_CM 5 cm and wiggle_bind's 3-minute wait are chosen,
@@ -177,4 +195,6 @@ Substantive:
 Other:
 
 5. Who reflashes the borrowed robots, Nick or Jay-Sun (whoever has their `secrets.h`)?
-6. P05 as the second robot's spot: fine, or do you prefer another sticker?
+6. The second robot's spot is P05 (as asked, chosen and said). In q4, P05 left room only for its 20 cm rolls, and P01
+   (30.5 cm from both edges, nearest the camera) looks better. Switch to P01 (one line, `PARK_SPOTS`), after one
+   simulator run to confirm?
