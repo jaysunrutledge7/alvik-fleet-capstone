@@ -107,7 +107,8 @@ def test_rename_steps_never_give_two_robots_one_name():
 def test_wiggle_bind_in_the_simulator_binds_and_renames(tmp_path):
     out = subprocess.run(["unshare", "-rn", sys.executable, os.path.join(FLEET, "wiggle_bind.py"), "--site",
                           "school-conference", "--robots", "Alpha,Bravo", "--dry", "--session", str(tmp_path),
-                          "--sim", "AL-1DC0:2:P14", "--sim", "AL-2B7F:3:P05"], capture_output=True, text=True,
+                          "--sim", "AL-1DC0:2:P14", "--sim", "AL-2B7F:3:P05", "--rename", "on"], capture_output=True,
+                         text=True,
                          cwd=REPO, timeout=240)
     rec = json.load(open(tmp_path / "binding.json"))
     assert out.returncode == 0, out.stdout + out.stderr
@@ -154,7 +155,7 @@ def test_parked_robot_keepout_and_detour_rule():
     assert probs and CR.solid(probs[0])                        # a leg through it: a detour, as round an outlet
     S.set_parked({})
     assert not [k for k in S.keepouts if k.get("kind") == "robot"]
-    assert CR.PARK_SPOTS[:2] == ("P11", "P05")
+    assert CR.PARK_SPOTS[:2] == ("P11", "P01") and CR.PARK_SPOTS_E03[:2] == ("P11", "P05")   # P01 since 5 Nov 11:00
     # the spots: inside the camera's view, clear of the edge margin and every keep-out
     for p in CR.PARK_SPOTS:
         x, y = S.points[p]

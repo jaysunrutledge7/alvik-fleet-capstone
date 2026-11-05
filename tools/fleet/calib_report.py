@@ -252,12 +252,24 @@ def write(folder, run, a):
     L.append("## Data")
     b = getattr(run, "binding", None)
     if b:
-        L.append("**Binding** (%s): %s." % (b["how"], ", ".join("%s (WiFi %s, %s) = tag %s" % (
-            r["name"], r["wifi_name"], r["ip"], r["tag_id"]) for r in b["robots"])))
+        L.append("**Binding** (%s): %s." % (b["how"], ", ".join("%s (WiFi %s, %s) = tag %s%s" % (
+            r["name"], r.get("wifi") or r["wifi_name"], r["ip"], r["tag_id"],
+            " [%s]" % r["pin"] if r.get("pin") else "") for r in b["robots"])))
         L.append("")
+        if b.get("refused"):
+            L.append("**Refused for old firmware** (not moved; their roof tags kept out): %s." % "; ".join(
+                b["refused"].values()))
+            L.append("")
     if getattr(run, "before", None) and all(k in run.before for k in PARAMS):
         L.append("**The robot's values before** (read with `get`, saved in robot_values_before.json): %s." %
                  ", ".join("%s %.4f" % (k, run.before[k]) for k in PARAMS))
+        L.append("")
+    bw = getattr(run, "baseline_words", None) or (getattr(run, "status", {}) or {}).get("baseline_words")
+    if bw:
+        bm = getattr(run, "baseline", None) or (getattr(run, "status", {}) or {}).get("baseline")
+        L.append("**Phase A started from %s**: %s." % (
+            "the defaults (wheel_scale 1, gyro_scale 1, gyro_drift_dps 0)" if bm == "defaults" else
+            "the robot's own values", bw))
         L.append("")
     if fit:
         L.append("**Fit from phase A** (%d turns, %d still periods, %d straight legs; 95 %% +- = 1.96 x SE):" % (

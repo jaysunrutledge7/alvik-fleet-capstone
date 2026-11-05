@@ -99,6 +99,8 @@ class Session:
         self.listeners = []    # functions(name, kind, rtype, values) called for every M and D line
         self.quiet = False     # True: don't print rows/messages (another program shows its own)
         self.clock_file = None
+        self.aliases = {}      # (5 Nov 2026) the name a robot answers with -> the name the run knows it by (a slot such
+                               # as Alpha), when robots are not renamed on the robot (site tags.rename_to_slot false)
 
     # ---- CSV ----
     def _open(self, rtype, cols):
@@ -144,6 +146,7 @@ class Session:
             name, seq, line = ip, int(parts[0]), payload.split("|", 1)[1]
         else:
             name, seq, line = ip, None, payload
+        name = self.aliases.get(name, name)     # (5 Nov 2026) names in the run only: AL-1DC0 -> Alpha
         new = False
         t_recv = now()
         events = []
@@ -298,12 +301,13 @@ class Link:
     """The WiFi link to the robots: receives and logs everything, checks clocks,
     sends commands. Used by this console and by tools/run_sheet.py."""
 
-    def __init__(self, outdir, robot_ips=(), show_rows=False):
+    def __init__(self, outdir, robot_ips=(), show_rows=False, aliases=None):
         self.outdir = outdir
         self.robot_ips = list(robot_ips)
         self.tx = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.tx.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
         self.session = Session(outdir, show_rows, on_new_robot=self._new_robot)
+        self.session.aliases = dict(aliases or {})      # (5 Nov 2026) before the first line is heard
         write_session_info(outdir)
         self.rx = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         # No SO_REUSEADDR: with it, a second program on this port binds fine

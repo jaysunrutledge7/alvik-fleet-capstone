@@ -11,12 +11,16 @@ corresponding number"). Before a run with roof tags:
              home is nearest (tags.slot_by "position", the default) or keeping a name that already is a slot
              (tags.slot_by "name");
   4. name    a robot whose name is not its slot is renamed with `name <slot>` (kept on the robot; temporary names first
-             when two robots swap); tags.rename_to_slot false: not renamed, the run then stops if a slot has no robot
-             by that name;
+             when two robots swap); tags.rename_to_slot false (the school, 5 Nov 11:00): not renamed, the slot name
+             lives in the run only (record "aliases"; run_plan --alias AL-1DC0=Alpha);
   5. record  <conf_dir>/robot_binding.json and the session's binding.json: slot -> tag id, WiFi name, address. The run's
              tag bridge then follows those tag ids (instead of the site's typed tags.ids).
 
 The site's tags.binding switch: "wiggle" (the default since 5 Nov) or "fixed" (the typed tags.ids, the old way, kept).
+(5 Nov 11:00, Nick) Before anything moves, a robot on firmware older than calibration.min_firmware is refused. Pins
+(tags.pin, default on): <conf_dir>/robot_pins.json keeps, per WiFi name, the roof tag a wiggle found and the slot it
+was given; a pinned robot does a short check wiggle (its pinned tag must turn; another tag turning re-binds it, said
+loudly) and keeps its slot. A roof tag on the table that no robot of the run turned is refused (tags.unclaimed).
 
     python3 tools/fleet/wiggle_bind.py --robots Alpha,Bravo                    # on the Pi (mission_run calls it too)
     python3 tools/fleet/wiggle_bind.py --robots Alpha,Bravo --dry              # the simulator
@@ -43,7 +47,7 @@ for p in (HERE, TOOLS, os.path.join(TOOLS, "sim"), os.path.join(TOOLS, "recognit
 
 import calib_run as CR   # noqa: E402
 
-VERSION = "2026-11-05a"
+VERSION = "2026-11-05b"
 say = CR.say
 
 
@@ -136,12 +140,18 @@ def rename(link, steps, log=say):
 
 
 def bind_for_run(site, slots, link, eye, ips=(), wake_min=3.0, dry=False, folder=None, log=say, by=None,
-                 rename_ok=None):
-    """Steps 1-5 with a Link and an Eye already open. Returns the record (dict): slots {slot: tag}, robots [...]."""
+                 rename_ok=None, state_dir=None, min_firmware=None, use_pins=None):
+    """Steps 1-5 with a Link and an Eye already open. Returns the record (dict): slots {slot: tag}, robots [...],
+    aliases {name it answers with: slot} when the robots are not renamed (tags.rename_to_slot false)."""
     S = CR.Site(site)
     tg = (site or {}).get("tags") or {}
     by = by or str(tg.get("slot_by") or "position")
     rename_ok = bool(tg.get("rename_to_slot", True)) if rename_ok is None else rename_ok
+    use_pins = bool(tg.get("pin", True)) if use_pins is None else use_pins
+    if min_firmware is None:
+        min_firmware = ((site or {}).get("calibration") or {}).get("min_firmware", CR.MIN_FIRMWARE) or ""
+    if state_dir is None:
+        state_dir = (folder or "") if dry else ((site or {}).get("conf_dir") or "")
     found = CR.discover(link, list(ips), wake_min, dry, count=len(slots))
     if not found:
         raise CR.BindError("no robot answered on the WiFi (wake and status to %s for %.0f min). Is it switched on and "
@@ -149,49 +159,78 @@ def bind_for_run(site, slots, link, eye, ips=(), wake_min=3.0, dry=False, folder
                            % (", ".join(ips) or "the broadcast", wake_min))
     log("Found: %s" % ", ".join("%s at %s" % kv for kv in found.items()))
     robots = [CR.Robot(link, n, ip) for n, ip in found.items()]
+    # (Nick, 5 Nov 11:00) older firmware: refused before anything moves (switch calibration.min_firmware)
+    fw = {rb.name: CR.firmware_of(rb) for rb in robots}
+    old = [CR.firmware_refusal(n, v, min_firmware) for n, v in fw.items() if not CR.firmware_ok(v, min_firmware)]
+    if old:
+        raise CR.BindError("; ".join(old) + ". Nothing moved")
     for rb in robots:
         link.send(rb.ip, "wake")
         for c in CR.EDGE_GUARD:
             link.send(rb.ip, c)
             time.sleep(0.05)
+    # the WiFi name (firmware 2026-11-05a `id`; older: the name it answered with) before the wiggle: the pins use it
+    wifi = {rb.ip: CR.wifi_name_of(link, rb) for rb in robots}
     for rb in robots:
         CR.compass_check(link, rb, log=log)
     import experiments as EX
     w = EX.conf(site)["sync_wiggle"]
+    pp = CR.state_path(state_dir, CR.PINS_FILE) if use_pins else ""
+    pins = CR.load_pins(site, pp) if use_pins else {}
+    expect = {rb.name: pins[wifi[rb.ip]]["tag"] for rb in robots
+              if wifi.get(rb.ip) in pins and pins[wifi[rb.ip]].get("tag") is not None}
+    if expect:
+        log("Pinned: %s: a %.0f deg check wiggle each" % (", ".join("%s = tag %s" % kv for kv in expect.items()),
+                                                         CR.PIN_CHECK_DEG))
     time.sleep(1.0)
-    b = CR.bind_by_wiggle(robots, eye, wiggle_deg=float(w["deg"]), pause_s=float(w["pause_s"]), log=log)
+    notes = {}
+    b = CR.bind_by_wiggle(robots, eye, wiggle_deg=float(w["deg"]), pause_s=float(w["pause_s"]), log=log,
+                          expect=expect, check_deg=CR.PIN_CHECK_DEG, notes=notes)
+    # (5 Nov 11:00) a roof tag on the table that no robot of this run claimed (a third robot, asleep or not in the
+    # run): the run would not know it is there. Refused (switch tags.unclaimed: refuse / ignore)
+    claimed = set(b.values())
+    stray = [t for t in eye.seen_ids(2.0) if t not in claimed]
+    if stray and str(tg.get("unclaimed") or "refuse") == "refuse":
+        raise CR.BindError("roof tag %s is on the table but no robot of this run turned it (a robot asleep, switched "
+                           "off, refused, or one more than the run's %d slots %s). The run would not know it is there: "
+                           "take that robot off the table, or add it to the run. Nothing else moved" % (
+                               ", ".join(map(str, stray)), len(slots), ", ".join(slots)))
     seen = {}
     for n, t in b.items():
         m = eye.measure(t, 0.6)
         if m:
             seen[n] = (m[0], m[1])
-    pins = {}
+    spins = {}
     for r in (site or {}).get("robots") or []:
         if r.get("wifi") and r["wifi"] in found:
-            pins[r["wifi"]] = r["name"]
-    assign = assign_slots(list(slots), list(found), seen, slot_homes(site, S, slots), pins, by)
-    log("Slots (%s): %s" % ("pinned in the site, then nearest home" if by == "position" else
+            spins[r["wifi"]] = r["name"]
+    for rb in robots:           # (5 Nov 11:00) a robot's slot pinned by its WiFi name (robot_pins.json)
+        sl = (pins.get(wifi.get(rb.ip)) or {}).get("slot")
+        if sl and rb.name not in spins:
+            spins[rb.name] = sl
+    assign = assign_slots(list(slots), list(found), seen, slot_homes(site, S, slots), spins, by)
+    log("Slots (%s): %s" % ("pinned, then nearest home" if by == "position" else
                             "pinned, then names kept", ", ".join("%s -> %s" % kv for kv in assign.items())))
     steps = rename_steps(found, assign)
     renamed = []
+    aliases = {}
     if steps and not rename_ok:
-        raise CR.BindError("these robots are not called by their slot and renaming is switched off "
-                           "(tags.rename_to_slot false): %s" % ", ".join("%s should be %s" % (r, s) for r, s in
-                                                                         assign.items() if r != s))
-    if steps:
+        # (Nick, 5 Nov 11:00) renaming on the robot switched off: the names live in the run only
+        aliases = {r: s_ for r, s_ in assign.items() if r != s_}
+        log("Not renamed on the robots (tags.rename_to_slot false): in this run %s" % ", ".join(
+            "%s is %s" % kv for kv in aliases.items()))
+    elif steps:
         renamed = rename(link, steps, log=log)
-    wifi = {}
-    for rb in robots:            # the WiFi name (firmware 2026-11-05a `id`; older: the name it answered with)
-        k = link.mark()
-        link.send(rb.ip, "id")
-        r = link.wait_for(lambda n, l: l if l.startswith("M,id ") else None, k, 1.5)
-        m = re.search(r" wifi (\S+)", r or "")
-        wifi[rb.ip] = m.group(1) if m else (rb.name if rb.name.startswith("AL-") else None)
+    if use_pins:
+        CR.update_pins(pp, pins, {wifi.get(ip_): b[n] for n, ip_ in found.items() if n in b},
+                       {wifi.get(ip_): assign[n] for n, ip_ in found.items() if n in assign})
     rec = {"how": "wiggle (wiggle_bind.py %s)" % VERSION, "time": dt.datetime.now().isoformat(timespec="seconds"),
            "slots": {assign[n]: int(t) for n, t in b.items()},
            "robots": [{"slot": assign[rb.name], "name_before": rb.name, "wifi_name": wifi.get(rb.ip), "ip": rb.ip,
-                       "tag_id": b.get(rb.name), "seen_cm": seen.get(rb.name)} for rb in robots],
+                       "tag_id": b.get(rb.name), "seen_cm": seen.get(rb.name), "firmware": fw.get(rb.name),
+                       "pin": notes.get(rb.name)} for rb in robots],
            "renamed": [{"ip": ip, "from": o, "to": n} for ip, o, n in renamed],
+           "aliases": aliases,
            "empty_slots": [s for s in slots if s not in assign.values()]}
     for p in ([os.path.join(folder, "binding.json")] if folder else []) + \
             ([os.path.join(site["conf_dir"], "robot_binding.json")] if (site.get("conf_dir") and not dry) else []):
@@ -212,7 +251,8 @@ def tags_with_binding(tags, rec):
     return t
 
 
-def run_for_mission(site, slots, folder, stream="127.0.0.1:8000", calib="", ips=(), log=say):
+def run_for_mission(site, slots, folder, stream="127.0.0.1:8000", calib="", ips=(), log=say, rename_ok=None,
+                    use_pins=None):
     """mission_run's step before its bridge (real robots): a tag bridge of its own on the recorder's pictures with
     every listed and spare tag id, the binding, the bridge stopped. Returns the record."""
     import argparse
@@ -224,7 +264,8 @@ def run_for_mission(site, slots, folder, stream="127.0.0.1:8000", calib="", ips=
         link = CR.Link(folder)
         eye = CR.Eye(folder, CR.FIX_PORT)
         time.sleep(2.0)
-        return bind_for_run(site, slots, link, eye, ips=ips, folder=folder, log=log)
+        return bind_for_run(site, slots, link, eye, ips=ips, folder=folder, log=log, rename_ok=rename_ok,
+                            use_pins=use_pins)
     finally:
         for o in (eye, link):
             if o is not None:
@@ -244,6 +285,9 @@ def main(argv=None):
     ap.add_argument("--robot", action="append", default=[], help="an address to ask too (besides the broadcast)")
     ap.add_argument("--wake-min", type=float, default=12.0)
     ap.add_argument("--slot-by", choices=["position", "name"], default=None)
+    ap.add_argument("--rename", choices=["auto", "on", "off"], default="auto", help="rename each robot to its slot on "
+                    "the robot (on) or keep the slot in the run only (off); auto: the site's tags.rename_to_slot")
+    ap.add_argument("--no-pins", dest="pins", action="store_false", help="a full wiggle for every robot, no pins")
     ap.add_argument("--session", default="")
     ap.add_argument("--stream", default="127.0.0.1:8000")
     ap.add_argument("--calib", default="")
@@ -264,7 +308,8 @@ def main(argv=None):
     os.makedirs(folder, exist_ok=True)
     if not a.dry:
         try:
-            rec = run_for_mission(site, slots, folder, a.stream, a.calib, a.robot)
+            rec = run_for_mission(site, slots, folder, a.stream, a.calib, a.robot,
+                                  rename_ok={"on": True, "off": False}.get(a.rename), use_pins=a.pins)
         except CR.BindError as e:
             say("NOT BOUND: %s" % e)
             return 1
@@ -284,7 +329,10 @@ def main(argv=None):
     eye = CR.SimEye(folder, CR.FIX_PORT + 100, cam, tags, seed=a.seed)
     try:
         time.sleep(1.0)
-        rec = bind_for_run(site, slots, link, eye, ips=ips, wake_min=2.0, dry=True, folder=folder, by=a.slot_by)
+        rec = bind_for_run(site, slots, link, eye, ips=ips, wake_min=2.0, dry=True, folder=folder, by=a.slot_by,
+                           rename_ok={"on": True, "off": False}.get(a.rename), use_pins=a.pins)
+        if rec.get("aliases"):
+            say("Names in the run only: %s" % ", ".join("%s is %s" % kv for kv in sorted(rec["aliases"].items())))
         print(json.dumps(rec["slots"]))
         return 0
     except CR.BindError as e:

@@ -484,6 +484,7 @@ def wiggle_first(args, out):
             rec = json.load(f)
         args.tags_ = WB.tags_with_binding(args.tags_, rec)
         args.binding_file_ = args.binding_file
+        args.aliases_ = dict(rec.get("aliases") or {})
         say("TAGS from this run's wiggle (%s): %s" % (args.binding_file, ", ".join(
             "%s = tag %d" % kv for kv in sorted(rec["slots"].items()))))
         return 0
@@ -509,7 +510,11 @@ def wiggle_first(args, out):
         return 5
     args.tags_ = WB.tags_with_binding(args.tags_, rec)
     args.binding_file_ = os.path.join(out, "bind", "binding.json")
+    args.aliases_ = dict(rec.get("aliases") or {})
     say("TAGS from the wiggle: %s" % ", ".join("%s = tag %d" % kv for kv in sorted(rec["slots"].items())))
+    if args.aliases_:
+        say("NAMES in this run only (the robots are not renamed: tags.rename_to_slot false): %s" % ", ".join(
+            "%s is %s" % kv for kv in sorted(args.aliases_.items())))
     return 0
 
 
@@ -609,6 +614,8 @@ def run(args):
         rp += ["--send", c]
     for ip in args.robot:
         rp += ["--robot", ip]
+    for k_, v_ in sorted((getattr(args, "aliases_", None) or {}).items()):
+        rp += ["--alias", "%s=%s" % (k_, v_)]      # (5 Nov) names in the run only (tags.rename_to_slot false)
     rp += list(args.rp_arg)
     cond = {}
     tag_setup_thread = None

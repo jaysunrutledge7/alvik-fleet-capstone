@@ -4682,6 +4682,9 @@ def main(argv=None):
     ap.add_argument("--session", help="log folder (default logs/<date-time>-plan)")
     ap.add_argument("--fixes", help="position source: none, udp[:PORT], replay:FILE (default none; udp with --dry-run)")
     ap.add_argument("--robot", action="append", default=[], help="robot IP, if not found automatically")
+    ap.add_argument("--alias", action="append", default=[], metavar="ANSWERS_AS=RUN_NAME",
+                    help="(5 Nov 2026) a robot that answers as AL-1DC0 is this run's Alpha (names in the run only, "
+                         "the site's tags.rename_to_slot false; mission_run passes the wiggle's pairs)")
     ap.add_argument("--ahead", type=int, default=2, help="steps a robot may hold beyond the one it runs (default 2)")
     ap.add_argument("--resend-s", type=float, default=0.3, help="resend an unacknowledged step after this")
     ap.add_argument("--fix-hz", type=float, default=10.0, help="most camera fixes per robot per second")
@@ -4893,7 +4896,10 @@ def main(argv=None):
         sim = subprocess.Popen(cmd, stdout=open(os.path.join(outdir, "sim_stdout.txt"), "w"), stderr=subprocess.STDOUT)
         time.sleep(1.5)
     source = make_source(fixes)
-    link = AC.Link(outdir, robot_ips)
+    aliases = dict(a_.split("=", 1) for a_ in getattr(args, "alias", []) if "=" in a_)
+    if aliases:
+        print("Names in this run only (not on the robots): %s" % ", ".join("%s is %s" % kv for kv in aliases.items()))
+    link = AC.Link(outdir, robot_ips, aliases=aliases)
     link.session.quiet = True
     args.homes = assigned
     # auto: real robots only. The simulated robots (a dry run, or the ladder's / DOE loop's dry runs, whose robots are on

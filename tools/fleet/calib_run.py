@@ -61,7 +61,7 @@ for p in (HERE, TOOLS, os.path.join(TOOLS, "sim"), os.path.join(TOOLS, "recognit
 
 import numpy as np   # noqa: E402
 
-VERSION = "2026-11-05a"
+VERSION = "2026-11-05b"
 PY = sys.executable
 LOG_PORT, CMD_PORT = 5005, 5006
 FIX_PORT = 5013          # the tag bridge's (or the simulator's) camera reads come here (run_plan uses 5010)
@@ -121,7 +121,12 @@ MAX_TURN_DEG = 170.0     # a bigger turn is made as two halves (a half turn's di
 BATTERY_CHECK_EVERY = 6  # chosen: `status` every 6 points
 JAY_IN = {"P01": 2.4, "P05": 2.7, "P11": 4.5, "P15": 5.2}   # Jay-Sun 3-4 Nov: how far the robot came out, no height
                          # correction, always away from the camera
-PARK_SPOTS = ("P11", "P05", "P01")   # (5 Nov) where each robot is calibrated and parked, in calibration order: the
+PARK_SPOTS = ("P11", "P01", "P09")   # (5 Nov, 11:00 Nick: P01 instead of P05) where each robot is calibrated and
+                         # parked, in calibration order. P01: 30.5 cm from both edges, nearest the camera, rolls along +x.
+                         # P09 (third, chosen): 21.5 cm from the y = W edge, in the A1 corner, off the tour's main legs,
+                         # 29 cm or more from every other sticker but P05 (34) and P06 (36), rolls along +x at y 146.
+                         # The site's calibration.park_spots replaces this list. Before 11:00 5 Nov (kept for the record):
+PARK_SPOTS_E03 = ("P11", "P05", "P01")   # the
                          # first robot P11 (as on 4 Nov); the second P05 (chosen: the zone-1 corner sticker furthest from
                          # P11, 141 cm, 15.9 cm in from the x = 0 edge, near the camera, where few tour legs pass; its
                          # rolls go along +x in open table); a third P01 (corner 1). Each robot's own tours skip the
@@ -131,6 +136,16 @@ PARKED_R_CM = 6.72 + 2.0  # (5 Nov) a robot standing still is kept out as a circ
                          # (its body's half diagonal + 2 cm for the camera and its turning); the moving robot's middle
                          # then stays KEEPOUT_CLEAR_CM further off (centres at least 17.4 cm apart). Chosen. DOE note:
                          # 1 / 2 / 4 cm extra against points skipped and the closest approach between the two robots
+BASELINE_DEFAULTS = {"wheel_scale": 1.0, "gyro_scale": 1.0, "gyro_drift_dps": 0.0}   # (Nick, 5 Nov 11:00) the first
+                         # calibration of a robot starts phase A from these (uncalibrated baseline), not saved values
+PIN_CHECK_DEG = 45.0     # (5 Nov) a robot pinned to its roof tag: the check wiggle (a turn this big and back; only that
+                         # tag must follow it). Chosen: 20x the camera's heading noise. DOE note: 20 / 45 / 90 deg against
+                         # false failures on the real camera (it is the bind wiggle's own test, half the angle)
+MIN_FIRMWARE = "2026-11-05a"   # (Nick, 5 Nov 11:00) the runs refuse a robot on older firmware; the site's
+                         # calibration.min_firmware replaces it ("" or null = no check, the old behaviour)
+PARK_TOL_CM = 2.0        # (5 Nov 11:00) parking: re-aimed from the camera while further than this from the spot (up to
+PARK_TRIES = 2           # PARK_TRIES more legs). Chosen: the spot is where the next run starts and where the others keep
+                         # out. DOE note: 1 / 2 / 4 cm against the extra legs and the next run's start error
 AT_SPOT_CM = 5.0         # (5 Nov) a robot further than this from its spot is driven there (by the camera) first. Chosen
 ROLL_DIRS = (180.0, 0.0, 90.0, -90.0)   # (5 Nov) phase A's rolls: the first heading with room for the longest roll
                          # (P11: -x as on 4 Nov; P05: +x)
@@ -681,13 +696,20 @@ class SimEye(Eye):
 
 
 # =============================================================================================== binding
-def bind_by_wiggle(robots, eye, wiggle_deg=90.0, pause_s=1.0, log=say, moved_deg=None):
+def bind_by_wiggle(robots, eye, wiggle_deg=90.0, pause_s=1.0, log=say, moved_deg=None, expect=None, check_deg=None,
+                   notes=None):
     """Each robot (in turn) does the sync wiggle; the tag whose heading follows it is bound. {name: tag id} or raises
     BindError with plain words. robots: [Robot]. moved_deg: a tag 'moves' when its heading changes more than this
-    (default half the wiggle); a robot's tag must turn within 40 % of the wiggle and come back within 25 deg."""
-    moved_deg = moved_deg if moved_deg is not None else wiggle_deg / 2.0
+    (default half the wiggle); a robot's tag must turn within 40 % of the wiggle and come back within 25 deg.
+    (5 Nov 11:00, Nick: "pin it because the tags won't change") expect: {robot name: its pinned tag}: a pinned robot
+    does the check wiggle (check_deg) and its pinned tag must be the one that turns; when another tag turns instead it
+    is re-bound to that one, said loudly. notes: {name: what happened} filled in."""
+    md0 = moved_deg
     out = {}
     for rb in robots:
+        pin = (expect or {}).get(rb.name)
+        wiggle_deg_ = float(check_deg) if (pin is not None and check_deg) else wiggle_deg
+        moved_deg = md0 if md0 is not None else wiggle_deg_ / 2.0
         before = {}
         t0 = time.time()
         time.sleep(1.0)
@@ -698,11 +720,11 @@ def bind_by_wiggle(robots, eye, wiggle_deg=90.0, pause_s=1.0, log=say, moved_deg
         if not before:
             raise BindError("no roof tag is seen by the camera (nothing to bind %s to). Check that the robot is in "
                             "zones 1-2 and its tag faces up, and that the camera's picture is sharp." % rb.name)
-        r1 = rb.leg("turn", wiggle_deg)
+        r1 = rb.leg("turn", wiggle_deg_)
         mid = {i: (eye.last(i) or (0, 0, 0, before[i]))[3] for i in before}
         time.sleep(pause_s)
         mid2 = {i: (eye.last(i) or (0, 0, 0, before[i]))[3] for i in before}
-        r2 = rb.leg("turn", -wiggle_deg)
+        r2 = rb.leg("turn", -wiggle_deg_)
         time.sleep(0.6)
         after = {i: (eye.last(i) or (0, 0, 0, before[i]))[3] for i in before}
         if r1["result"] != "done" or r2["result"] != "done":
@@ -716,22 +738,36 @@ def bind_by_wiggle(robots, eye, wiggle_deg=90.0, pause_s=1.0, log=say, moved_deg
             log("  tag %d: turned %+.0f deg with %s's wiggle, %+.0f deg from where it started after it" % (
                 i, d1, rb.name, back))
             if abs(d1) > moved_deg:
-                ok = abs(d1 - wiggle_deg) <= 0.4 * abs(wiggle_deg) and abs(back) <= 25
+                ok = abs(d1 - wiggle_deg_) <= 0.4 * abs(wiggle_deg_) and abs(back) <= 25
                 moved.append((i, ok, d1))
         good = [i for i, ok, _ in moved if ok]
         if not moved:
-            raise BindError("no roof tag moved when %s did its wiggle (tags seen: %s). Is that robot in the camera's "
-                            "view, with its tag on its roof?" % (rb.name, ", ".join(map(str, before))))
+            raise BindError("no roof tag moved when %s did its wiggle (tags seen: %s)%s. Is that robot in the camera's "
+                            "view, with its tag on its roof?" % (rb.name, ", ".join(map(str, before)),
+                                                                 "; it is pinned to tag %d: PIN CHECK FAILED" % int(pin)
+                                                                 if pin is not None else ""))
         if len(moved) > 1:
             raise BindError("%d tags moved when %s did its wiggle (%s): cannot tell which one is on it. Only one robot "
                             "may move at a time; check nobody moved a tag." % (len(moved), rb.name,
                                                                                  ", ".join(str(m[0]) for m in moved)))
         if not good:
             raise BindError("tag %d moved with %s's wiggle but not as commanded (%+.0f deg for %+.0f): not bound"
-                            % (moved[0][0], rb.name, moved[0][2], wiggle_deg))
+                            % (moved[0][0], rb.name, moved[0][2], wiggle_deg_))
         if good[0] in out.values():
             raise BindError("tag %d moved with two robots' wiggles" % good[0])
         out[rb.name] = good[0]
+        if pin is None:
+            note = "bound by the wiggle (no pin yet)"
+        elif int(pin) == good[0]:
+            note = "pin checked: its pinned tag %d turned with it" % good[0]
+        else:
+            note = "PIN CHECK FAILED: pinned to tag %d, but tag %d turned with it: re-bound to tag %d" % (
+                int(pin), good[0], good[0])
+            log("!!! %s: %s. Was a roof tag moved to another robot? The pin is changed to tag %d." % (
+                rb.name, note, good[0]))
+        log("  %s: %s" % (rb.name, note))
+        if notes is not None:
+            notes[rb.name] = note
     return out
 
 
@@ -784,6 +820,91 @@ def fixed_binding(site, names):
         raise BindError("--binding fixed: the site's tags.ids does not list %s (it lists %s)" % (
             ", ".join(missing), ", ".join("%s=%s" % kv for kv in ids.items())))
     return out
+
+
+# ======================================================== firmware, WiFi names, pins, calibrated robots (5 Nov 11:00)
+FW_RX = re.compile(r"\(firmware ([0-9]{4}-[0-9]{2}-[0-9]{2}[a-z]?)")
+
+
+def firmware_of(rb, timeout=2.5):
+    """The firmware version in the robot's `status` line ("" when it does not say: firmware before 2026-10-28)."""
+    r = rb.ask("status", lambda l: FW_RX.search(l) if l.startswith("M,status ") else None, timeout)
+    return r.group(1) if r else ""
+
+
+def firmware_ok(ver, minv):
+    """Version strings are dates with a letter (2026-11-05a): they sort as text. minv empty = no check."""
+    return (not minv) or (bool(ver) and ver >= minv)
+
+
+def firmware_refusal(name, ver, minv):
+    return ("%s is on firmware %s; this run needs %s or newer. Reflash it with the repo's firmware/home_lab (runbook: "
+            "Reflash a robot), then start again" % (name, ver or "older than 2026-10-28 (its status does not say)", minv))
+
+
+def wifi_name_of(link, rb):
+    """The robot's WiFi name (AL-xxxx) from `id` (firmware 2026-11-05a, answers it even after `name`); older: the
+    name it answers with when that is a WiFi name, else None."""
+    r = rb.ask("id", lambda l: l if l.startswith("M,id ") else None, 1.5, tries=2)
+    m = re.search(r" wifi (\S+)", r or "")
+    return m.group(1) if m else (rb.name if rb.name.startswith("AL-") else None)
+
+
+def state_path(a_or_dir, name):
+    """Where this site's records live: the Pi's site folder (conf_dir), a dry run's own sim folder (never the Pi's)."""
+    d = a_or_dir if isinstance(a_or_dir, str) else getattr(a_or_dir, "state_dir", "")
+    return os.path.join(d, name) if d else ""
+
+
+def load_json(p, default):
+    try:
+        with open(p) as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        return default
+
+
+def save_json(p, obj):
+    if not p:
+        return
+    os.makedirs(os.path.dirname(p), exist_ok=True)
+    with open(p + ".tmp", "w") as f:
+        json.dump(obj, f, indent=1, sort_keys=True)
+    os.replace(p + ".tmp", p)
+
+
+PINS_FILE = "robot_pins.json"          # {WiFi name: {"tag": id, "slot": "Alpha", "since": ..., "checked": ...}}
+CALIBRATED_FILE = "calibrated_robots.json"   # {WiFi name: {"first": ..., "last": ..., "values": {...}, "how": ...}}
+
+
+def load_pins(site, path):
+    """The pins: the site's tags.pins (typed, may be empty) under the Pi's robot_pins.json (what the wiggles found)."""
+    out = {}
+    for w, v in (((site or {}).get("tags") or {}).get("pins") or {}).items():
+        out[w] = dict(v, source="site")
+    for w, v in (load_json(path, {}) if path else {}).items():
+        out[w] = dict(out.get(w, {}), **v)
+    return out
+
+
+def update_pins(path, pins, wifi_tag, wifi_slot=None):
+    """Record what a wiggle found: {wifi: tag} (and {wifi: slot}); returns the pins as written."""
+    now = dt.datetime.now().isoformat(timespec="seconds")
+    cur = load_json(path, {}) if path else {}
+    for w, t in wifi_tag.items():
+        if not w:
+            continue
+        e = dict(cur.get(w) or {})
+        if e.get("tag") != int(t):
+            e["since"] = now
+        e.update(tag=int(t), checked=now)
+        if not e.get("slot"):         # a slot, once given, stays (the pin); robot_pins.json is edited to change it
+            e["slot"] = (pins.get(w) or {}).get("slot") or (wifi_slot or {}).get(w) or None
+            if not e["slot"]:
+                del e["slot"]
+        cur[w] = e
+    save_json(path, cur)
+    return cur
 
 
 # =============================================================================================== the fit
@@ -916,7 +1037,7 @@ class CalibRun:
         if self.parent is not None:
             # (5 Nov) one robot of several: Mission Control's card reads the top folder's status
             up = {k: v for k, v in kw.items() if k in ("phase", "robot", "tag", "point", "battery", "fit", "wifi_name",
-                                                        "saved")}
+                                                        "saved", "baseline", "baseline_words")}
             if "words" in kw:
                 up["words"] = "%s (robot %d of %d): %s" % (self.name if hasattr(self, "name") else "?",
                                                            self.k + 1, self.n, kw["words"])
@@ -1148,11 +1269,20 @@ class CalibRun:
         """Back to its park spot (P11 for the first robot) by the camera (safety), facing the park heading."""
         self.set_status(words="Returning to park at %s" % self.S.park_label)
         cam = self.goto(self.S.park_label, phase, 0, odometry=False)
-        t = wrap180(self.S.park_face - cam[2])
-        for t_ in ((t / 2.0, t / 2.0) if abs(t) > MAX_TURN_DEG else (t,)):
-            if abs(t_) > 3:
-                cam, _, _ = self.drive_leg("turn", t_, "park face", phase, 0, True, cam0=cam)
         x, y = self.S.points[self.S.park_label]
+        ax, ay = self.S.aim(self.S.park_label)
+        for k in range(PARK_TRIES):
+            # (5 Nov 11:00 rehearsal: an uncalibrated robot, wheels 1.07, parked 7.0 cm off P01 in one leg) once more
+            # from where the camera sees it, until within PARK_TOL_CM
+            if math.hypot(cam[0] - ax, cam[1] - ay) <= PARK_TOL_CM:
+                break
+            cam = self.goto(self.S.park_label, phase, 0, cam=cam, odometry=False, name="%s again" % self.S.park_label)
+        for k in range(PARK_TRIES + 1):
+            t = wrap180(self.S.park_face - cam[2])
+            if abs(t) <= 3:
+                break
+            for t_ in ((t / 2.0, t / 2.0) if abs(t) > MAX_TURN_DEG else (t,)):
+                cam, _, _ = self.drive_leg("turn", t_, "park face", phase, 0, True, cam0=cam)
         miss = math.hypot(cam[0] - x, cam[1] - y)
         self.ev("parked", miss_cm=miss, pose=cam)
         say("%s parked at %s: %.1f cm from the sticker, facing %.0f deg" % (self.name, self.S.park_label, miss, cam[2]))
@@ -1228,8 +1358,10 @@ class CalibRun:
         return d
 
     def phase_a(self):
-        self.set_status(phase="A", words="Phase A: in-place turns at %s (current values)" % self.S.park_label)
-        say("Phase A: baseline with the robot's current values %s" % self.before)
+        self.set_status(phase="A", words="Phase A: in-place turns at %s (%s)" % (
+            self.S.park_label, "defaults 1 / 1 / 0" if getattr(self, "baseline", "") == "defaults" else "saved values"))
+        say("Phase A: baseline with %s %s" % ("the defaults" if getattr(self, "baseline", "") == "defaults" else
+                                              "the robot's current values", self.phase_a_values))
         cam = self.cam_pose()
         rest = [self.eye.measure(self.tag)]
         for k, t in enumerate(TURNS_A):
@@ -1283,8 +1415,10 @@ class CalibRun:
         still = [(r["bel_turn"], r["dt"]) for r in A if r["kind"] == "still"]
         rolls = [(r["bel_len"], r["cam_len"]) for r in A if r["kind"] == "go" and r["result"] == "done"
                  and r["value"] >= 15]
-        fit = fit_values(turns, still, rolls, self.before)
+        fit = fit_values(turns, still, rolls, self.phase_a_values)    # the values phase A ran with
         fit["old"] = dict(self.before)
+        fit["phase_a_values"] = dict(self.phase_a_values)
+        fit["baseline"] = getattr(self, "baseline", "saved")
         fit["enough"] = dict(ENOUGH)
         new = dict(self.before)
         for k in PARAMS:
@@ -1302,6 +1436,7 @@ class CalibRun:
                 self.rb.set_checked(k, self.before[k])
         fit["readback"] = rb
         fit["saved"] = self.save_on_robot(new, rb)
+        self.record_calibrated(fit)
         self.fit = fit
         with open(os.path.join(self.folder, "fit.json"), "w") as f:
             json.dump(fit, f, indent=1, default=str)
@@ -1309,6 +1444,43 @@ class CalibRun:
         with open(os.path.join(self.folder, "robot_values_after.json"), "w") as f:
             json.dump({"robot": self.name, "values": {k: rb[k]["read"] for k in PARAMS}}, f, indent=1)
         self.set_status(fit={k: rb[k] for k in PARAMS}, saved=fit["saved"])
+
+    # ------------------------------------------------------------------------------------------------- baseline (5 Nov)
+    def baseline_mode(self):
+        """(Nick, 5 Nov 11:00) The FIRST calibration of a robot starts phase A from the defaults (uncalibrated
+        baseline); later ones from its saved values. "First" = its WiFi name is not in this site's
+        calibrated_robots.json (written when a run saved its values). --baseline-defaults / --from-saved override
+        (the site's calibration.baseline: auto, defaults or saved). ("defaults" | "saved", words)."""
+        mode = getattr(self.a, "baseline", "auto") or "auto"
+        wifi = (getattr(self, "wifi", {}) or {}).get(self.rb.name)
+        p = state_path(self.a, CALIBRATED_FILE)
+        rec = load_json(p, {}) if p else {}
+        if mode == "defaults":
+            return "defaults", "asked for (--baseline-defaults / calibration.baseline defaults)"
+        if mode == "saved":
+            return "saved", "asked for (--from-saved / calibration.baseline saved)"
+        if wifi and wifi in rec:
+            e = rec[wifi]
+            return "saved", "%s was calibrated here before (first %s, last %s): a re-calibration, from its saved values" % (
+                wifi, e.get("first", "?"), e.get("last", "?"))
+        return "defaults", "the first calibration of %s on this site (not in %s): an uncalibrated baseline" % (
+            wifi or self.rb.name + " (WiFi name not known)", CALIBRATED_FILE)
+
+    def record_calibrated(self, fit):
+        """This robot counts as calibrated once its fitted values were saved on it (save or corr save, checked)."""
+        sv = fit.get("saved") or {}
+        wifi = (getattr(self, "wifi", {}) or {}).get(self.rb.name)
+        p = state_path(self.a, CALIBRATED_FILE)
+        if not (p and wifi and sv.get("ok") and sv.get("how") in ("save", "corr save")):
+            return
+        rec = load_json(p, {})
+        now = dt.datetime.now().isoformat(timespec="seconds")
+        e = dict(rec.get(wifi) or {"first": now})
+        e.update(last=now, values=fit.get("new"), how=sv.get("how"), baseline=fit.get("baseline"),
+                 session=os.path.basename(self.folder.rstrip("/")))
+        rec[wifi] = e
+        save_json(p, rec)
+        say("  %s recorded as calibrated (%s): its next calibration starts from its saved values" % (wifi, p))
 
     # ------------------------------------------------------------------------------------------------- save (5 Nov)
     def save_on_robot(self, new, rb):
@@ -1397,7 +1569,28 @@ class CalibRun:
             raise RunEnd("no robot answered on the WiFi (sent status and wake to %s for %.0f min). Is it switched on "
                          "and on AGV_SWARM?" % (", ".join(self.a.robot) or "the broadcast", self.a.wake_min))
         say("Found: %s" % ", ".join("%s at %s" % kv for kv in found.items()))
+        # (Nick, 5 Nov 11:00) a robot on older firmware is refused, said plainly (switch calibration.min_firmware); it is
+        # not moved, and its roof tag is kept out like a parked robot's
+        self.fw, self.refused = {}, {}
+        minv = getattr(self.a, "min_firmware", "")
+        for n, ip in list(found.items()):
+            fw = firmware_of(Robot(self.link, n, ip))
+            self.fw[n] = fw
+            if not firmware_ok(fw, minv):
+                w = firmware_refusal(n, fw, minv)
+                self.refused[n] = w
+                del found[n]
+                say("REFUSED: %s. It is not moved; its roof tag is kept out where it stands." % w)
+                self.ev("refused_firmware", robot=n, firmware=fw, need=minv)
+            else:
+                say("  %s: firmware %s%s" % (n, fw or "(not said)", " (needs %s or newer: OK)" % minv if minv else ""))
+        if self.refused:
+            self.set_status(refused=list(self.refused.values()))
+        if not found:
+            raise RunEnd("every robot that answered is on older firmware: %s. Nothing moved." % "; ".join(
+                self.refused.values()))
         self.robots = [Robot(self.link, n, ip) for n, ip in found.items()]
+        self.wifi = {rb.name: wifi_name_of(self.link, rb) for rb in self.robots}
         for rb in self.robots:
             rb.link.send(rb.ip, "wake")
             for c in EDGE_GUARD + ["set turn_max_rpm %.1f" % TURN_RPM]:
@@ -1422,13 +1615,31 @@ class CalibRun:
         else:
             import experiments as EX
             w = EX.conf(self.site)["sync_wiggle"]
-            b0 = bind_by_wiggle(self.robots, self.eye, wiggle_deg=float(w["deg"]), pause_s=float(w["pause_s"]))
+            # (5 Nov 11:00) pinned robots: the check wiggle; their pinned tag must turn (else re-bound, said loudly)
+            pp = state_path(self.a, PINS_FILE)
+            pins = load_pins(self.site, pp) if getattr(self.a, "pins", True) else {}
+            wf = getattr(self, "wifi", {}) or {}
+            expect = {rb.name: pins[wf.get(rb.name)]["tag"] for rb in self.robots
+                      if wf.get(rb.name) in pins and pins[wf.get(rb.name)].get("tag") is not None}
+            if expect:
+                say("Pinned (robot_pins.json): %s: a %.0f deg check wiggle each" % (", ".join(
+                    "%s = tag %s" % kv for kv in expect.items()), PIN_CHECK_DEG))
+            self.pin_notes = {}
+            b0 = bind_by_wiggle(self.robots, self.eye, wiggle_deg=float(w["deg"]), pause_s=float(w["pause_s"]),
+                                expect=expect, check_deg=PIN_CHECK_DEG, notes=self.pin_notes)
+            if getattr(self.a, "pins", True):
+                update_pins(pp, pins, {wf.get(n): t for n, t in b0.items()})
             b = {site_name_for(self.site, n, found[n]): t for n, t in b0.items()}
-            how = "wiggle (experiments.py sync wiggle, %.0f deg and back)" % float(w["deg"])
+            how = "wiggle (experiments.py sync wiggle, %.0f deg and back; pinned robots a %.0f deg check)" % (
+                float(w["deg"]), PIN_CHECK_DEG)
+        notes = getattr(self, "pin_notes", {}) or {}
+        wf = getattr(self, "wifi", {}) or {}
         rec = {"how": how, "robots": [{"name": site_name_for(self.site, rb.name, rb.ip), "wifi_name": rb.name,
+                                       "wifi": wf.get(rb.name), "firmware": (getattr(self, "fw", {}) or {}).get(rb.name),
+                                       "pin": notes.get(rb.name),
                                        "ip": rb.ip, "tag_id": b.get(site_name_for(self.site, rb.name, rb.ip))}
                                       for rb in self.robots], "time": dt.datetime.now().isoformat(timespec="seconds"),
-               "version": VERSION}
+               "version": VERSION, "refused": dict(getattr(self, "refused", {}) or {})}
         with open(os.path.join(self.folder, "binding.json"), "w") as f:
             json.dump(rec, f, indent=1)
         if not self.a.dry:
@@ -1449,19 +1660,19 @@ class CalibRun:
         time.sleep(2.0)
         rec = self.bind(found)
         self.binding = rec
-        plan = self.order_robots(rec)
         # (5 Nov) a roof tag the camera sees that no robot claimed (a robot that did not answer, switched off or
-        # asleep, or a spare lying there): kept out like a parked robot, where it is now
+        # asleep, refused for its firmware, or a spare lying there): kept out like a parked robot, where it is now
         bound = {int(r["tag_id"]) for r in rec["robots"] if r.get("tag_id") is not None}
         self.unclaimed = {}
         for t in self.eye.seen_ids(2.0):
             if t not in bound:
                 m = self.eye.measure(t, 0.6)
                 if m:
-                    self.unclaimed["(tag %d, no robot answered for it)" % t] = (m[0], m[1])
+                    self.unclaimed["(tag %d, no robot in this run for it)" % t] = (m[0], m[1])
         if self.unclaimed:
             say("Kept out: %s" % ", ".join("%s at %.0f, %.0f" % (n, p_[0], p_[1]) for n, p_ in self.unclaimed.items()))
             self.ev("unclaimed_tags", tags=self.unclaimed)
+        plan = self.order_robots(rec)
         if len(plan) == 1:
             rb, name, tag, spot = plan[0]
             self.S.park_label = spot
@@ -1481,6 +1692,7 @@ class CalibRun:
             sub.link, sub.eye, sub.robots, sub.stop_flag, sub.binding = self.link, self.eye, self.robots, \
                 self.stop_flag, rec
             sub.rb, sub.name, sub.tag, sub.k, sub.n, sub.rows = rb, name, tag, k, len(plan), []
+            sub.wifi = getattr(self, "wifi", {})
             for at in ("cam_centre", "tag_h", "sim_true", "sim_cam"):
                 if hasattr(self, at):
                     setattr(sub, at, getattr(self, at))
@@ -1541,7 +1753,13 @@ class CalibRun:
                 continue
             m = self.eye.measure(int(r["tag_id"]), 0.6)
             rows.append([rb, r["name"], int(r["tag_id"]), (m[0], m[1]) if m else None])
-        spots = [p for p in PARK_SPOTS if p in self.S.points]
+        spots = [p for p in (getattr(self.a, "park_spots", None) or PARK_SPOTS) if p in self.S.points]
+        # (5 Nov 11:00) a spot where a robot nobody drives stands (refused firmware, asleep, a spare tag) is not used
+        for nm_, (ux, uy) in (getattr(self, "unclaimed", {}) or {}).items():
+            for sp in list(spots):
+                if math.hypot(self.S.points[sp][0] - ux, self.S.points[sp][1] - uy) < PARKED_R_CM + KEEPOUT_CLEAR_CM:
+                    spots.remove(sp)
+                    say("NOTE: spot %s is not used: %s stands there" % (sp, nm_))
         out = []
         left = list(rows)
         for sp in spots:
@@ -1598,6 +1816,22 @@ class CalibRun:
             json.dump({"robot": self.name, "wifi_name": self.rb.name, "values": self.before,
                        "how": "read with get before anything was sent"}, f, indent=1)
         say("%s's current values (saved first): %s" % (self.name, self.before))
+        self.baseline, words = self.baseline_mode()
+        self.baseline_words = words
+        say("PHASE A STARTS FROM %s: %s" % ("DEFAULTS 1 / 1 / 0" if self.baseline == "defaults" else "ITS SAVED VALUES",
+                                            words))
+        self.set_status(baseline=self.baseline, baseline_words=words)
+        self.ev("baseline", mode=self.baseline, words=words, before=self.before)
+        self.phase_a_values = dict(self.before)
+        if self.baseline == "defaults":
+            for k in PARAMS:
+                ok, got = self.rb.set_checked(k, BASELINE_DEFAULTS[k])
+                if not ok:
+                    for kk in PARAMS:
+                        self.rb.set_checked(kk, self.before[kk])
+                    raise RunEnd("%s did not take %s %.4f (read %s): its own values put back, nothing moved" % (
+                        self.name, k, BASELINE_DEFAULTS[k], got))
+            self.phase_a_values = dict(BASELINE_DEFAULTS)
         b0 = self.check_battery()
         self.status["battery_start"] = b0
         cam = self.cam_pose()
@@ -1618,6 +1852,11 @@ class CalibRun:
             say("ENDED: %s" % e)
         except BindError:
             raise
+        if getattr(self, "fit", None) is None and self.phase_a_values != self.before:
+            # ended before phase B: the robot gets its own values back (the defaults were only for phase A)
+            for k in PARAMS:
+                self.rb.set_checked(k, self.before[k])
+            say("  %s's own values put back (the run ended before the fit)" % self.name)
         self.result = result
         parked = None
         if self.stop_flag.is_set():
@@ -1733,6 +1972,8 @@ def start_sim(a, S, folder):
         cmd += ["--true-cal", "%s=%s" % (q[0], a.sim_true_also or a.sim_true)]
     for fv in a.sim_fw:
         cmd += ["--fw", fv]
+    for sv in getattr(a, "sim_saved", []) or []:
+        cmd += ["--saved", sv]
     f = open(os.path.join(folder, "sim", "fleet_sim.txt"), "w")
     p = subprocess.Popen(cmd, stdout=f, stderr=subprocess.STDOUT, cwd=REPO)
     time.sleep(3.0)
@@ -1798,6 +2039,18 @@ def main(argv=None):
     ap.add_argument("--old-firmware-save", choices=["corr", "off", "auto"], default="auto",
                     help="a robot whose firmware has no `save` (before 2026-11-05a): corr = save with `corr save` "
                          "instead; off = not saved, said; auto = the site's calibration.old_firmware_save, else corr")
+    bl = ap.add_mutually_exclusive_group()
+    bl.add_argument("--baseline-defaults", dest="baseline", action="store_const", const="defaults", default="auto",
+                    help="phase A starts from wheel_scale 1, gyro_scale 1, gyro_drift_dps 0 (an uncalibrated baseline) "
+                         "even for a robot calibrated before (default: only its first calibration on this site)")
+    bl.add_argument("--from-saved", dest="baseline", action="store_const", const="saved",
+                    help="phase A starts from the robot's saved values even on its first calibration")
+    ap.add_argument("--min-firmware", default=None, help="refuse a robot on firmware older than this (default: the "
+                    "site's calibration.min_firmware, else %s; \"\" = no check)" % MIN_FIRMWARE)
+    ap.add_argument("--no-pins", dest="pins", action="store_false", help="do not use or write the robot <-> tag pins "
+                    "(robot_pins.json): a full wiggle for every robot, as before 5 Nov 11:00")
+    ap.add_argument("--state-dir", default="", help="where robot_pins.json and calibrated_robots.json live (default: "
+                    "the site's folder on the Pi; a dry run: its own sim folder)")
     ap.add_argument("--session", default="")
     ap.add_argument("--stream", default="127.0.0.1:8000")
     ap.add_argument("--calib", default="", help="the camera model (default: the site's tagcal/overhead.json)")
@@ -1806,6 +2059,8 @@ def main(argv=None):
                                                           "6 points (code checks)")
     g = ap.add_argument_group("simulator")
     g.add_argument("--dry", action="store_true")
+    g.add_argument("--quick-full-tour", action="store_true", help="with --quick: phase A's turns, rolls and still period "
+                   "short, but every tour the whole P01-P20 (the edges and the parked robots are what is checked)")
     g.add_argument("--seed", type=int, default=1)
     g.add_argument("--sim-name", default="AL-1DC0")
     g.add_argument("--sim-tag", type=int, default=2)
@@ -1816,6 +2071,8 @@ def main(argv=None):
                    help="simulator: that robot runs older firmware (e.g. AL-1DC0=2026-10-29b: no save)")
     g.add_argument("--sim-true", default="0.97,1.03,0.3", help="what the simulated robot really needs: wheel_scale,"
                                                               "gyro_scale,gyro_drift_dps")
+    g.add_argument("--sim-saved", action="append", default=[], metavar="NAME=WS,GS,GD",
+                   help="simulator: that robot already has these values saved (loaded at power-on)")
     g.add_argument("--sim-sleep", default="1:0.4", help="the simulated robot sleeps MIN minutes, next check-in after "
                                                         "FRAC of it")
     g.add_argument("--cam-z-cm", type=float, default=145.0, help="the simulated camera's lens above the table top "
@@ -1839,14 +2096,28 @@ def main(argv=None):
     a.save_on_robot = (not a.no_save) and bool(cal_conf.get("save_on_robot", True))
     if a.old_firmware_save == "auto":
         a.old_firmware_save = str(cal_conf.get("old_firmware_save") or "corr")
+    if a.min_firmware is None:
+        a.min_firmware = cal_conf.get("min_firmware", MIN_FIRMWARE) or ""
+    if a.baseline == "auto":
+        a.baseline = str(cal_conf.get("baseline") or "auto")
+        a.baseline = a.baseline if a.baseline in ("auto", "defaults", "saved") else "auto"
+    a.park_spots = tuple(cal_conf.get("park_spots") or PARK_SPOTS)
+    a.pins = a.pins and bool((site.get("tags") or {}).get("pin", True))
     if a.quick:
         global TURNS_A, ROLLS_A, STILL_S, STILL_C_S
         TURNS_A, ROLLS_A, STILL_S, STILL_C_S = (90, -90, 170, -170), (20.0, 40.0), 20.0, 10.0
     folder = session_dir(a)
     os.makedirs(folder, exist_ok=True)
+    a.state_dir = a.state_dir or (os.path.join(folder, "sim") if a.dry else (site.get("conf_dir") or ""))
     say("Calibration run %s, session %s" % (VERSION, folder))
+    say("Firmware: %s. Pins: %s. Baseline: %s. Spots: %s." % (
+        "robots older than %s are refused" % a.min_firmware if a.min_firmware else "not checked",
+        state_path(a, PINS_FILE) if a.pins else "off (a full wiggle for every robot)",
+        {"auto": "defaults on a robot's first calibration here, else its saved values",
+         "defaults": "defaults for every robot (asked)", "saved": "saved values for every robot (asked)"}[a.baseline],
+        ", ".join(a.park_spots)))
     run = CalibRun(a, site, folder)
-    if a.quick:
+    if a.quick and not a.quick_full_tour:
         run.S_quick = True
         z = run.S.zone12()
         run.S.zone12 = lambda: ["P10", "P14", "P17", "P12", "P20", "P13"] if z else z
