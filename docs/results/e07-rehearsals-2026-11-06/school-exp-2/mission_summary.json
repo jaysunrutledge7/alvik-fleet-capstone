@@ -1,0 +1,2146 @@
+{
+ "folder": "/tmp/claude-0/-home-claude/fff6dc9c-5876-54f9-92a7-a08483d3d5c7/scratchpad/reh/mc/school-exp-2/runs/20261106-063910-experiment-sim-cameras",
+ "conditions": {
+  "restart": {
+   "name": "Alpha",
+   "t": 70.0,
+   "boot_s": 3.0
+  }
+ },
+ "result": "every robot is out (none heard again within 90 s)",
+ "duration_s": 665.62,
+ "planned_s": 270.3,
+ "replans": 65,
+ "robots_out": [
+  {
+   "robot": "Bravo",
+   "why": "recovering (it drove 41 cm with no camera seeing it (the limit is 40 cm))",
+   "t_run": 38.23
+  },
+  {
+   "robot": "Alpha",
+   "why": "restarted mid-run (boot 4C01, was D386): it lost its calibration and its steps",
+   "t_run": 74.53
+  },
+  {
+   "robot": "Bravo",
+   "why": "recovering (it drove 41 cm with no camera seeing it (the limit is 40 cm))",
+   "t_run": 163.11
+  },
+  {
+   "robot": "Bravo",
+   "why": "heard again, but no plan fits it back in (Bravo left without a route)",
+   "t_run": 178.56
+  },
+  {
+   "robot": "Alpha",
+   "why": "recovering (it drove 40 cm with no camera seeing it (the limit is 40 cm))",
+   "t_run": 223.82
+  },
+  {
+   "robot": "Alpha",
+   "why": "it drove 40 cm with no camera seeing it (the limit is 40 cm)",
+   "t_run": 269.69
+  },
+  {
+   "robot": "Bravo",
+   "why": "nothing heard from it for 4.0 s (battery dead or WiFi gone)",
+   "t_run": 573.94
+  }
+ ],
+ "plans_refused": 0,
+ "sensor_stops": 0,
+ "confirm_checks": [],
+ "battery": {
+  "Alpha": 94,
+  "Bravo": 90
+ },
+ "start_checks": {
+  "Alpha": {
+   "firmware": "2026-11-05d",
+   "battery": 96,
+   "boot": "D386",
+   "restarted": false,
+   "stop_limit": {
+    "limit_cm": 12.0,
+    "rule": "cap",
+    "floor_cm": null,
+    "ceiling_cm": 12.0
+   },
+   "place_cm": 2.48,
+   "heading_deg": 0.95,
+   "heading_rule": "measured (facing check); straightened if off"
+  },
+  "Bravo": {
+   "firmware": "2026-11-05d",
+   "battery": 91,
+   "boot": "45BF",
+   "restarted": false,
+   "stop_limit": {
+    "limit_cm": 12.0,
+    "rule": "cap",
+    "floor_cm": null,
+    "ceiling_cm": 12.0
+   },
+   "place_cm": 0.44,
+   "heading_deg": 2.22,
+   "heading_rule": "measured (facing check); straightened if off"
+  },
+  "facing": {
+   "Alpha": {
+    "heading": 90.95,
+    "off": 0.9,
+    "ok": true
+   },
+   "Bravo": {
+    "heading": 92.22,
+    "off": 2.2,
+    "ok": true
+   }
+  },
+  "settings_resent": 0,
+  "plan_gap": {
+   "closest_cm": 62.1,
+   "pair": [
+    "Alpha",
+    "Bravo"
+   ],
+   "t": 260.2,
+   "start_cm": 80.54,
+   "judged_cm": 62.1,
+   "judged_pair": [
+    "Alpha",
+    "Bravo"
+   ],
+   "judged_t": 260.2
+  },
+  "facing-rejoin-Alpha": {
+   "Alpha": {
+    "heading": null,
+    "off": null,
+    "ok": false
+   }
+  },
+  "facing-rejoin-Bravo": {
+   "Bravo": {
+    "heading": -135.67,
+    "off": -0.1,
+    "ok": true
+   }
+  }
+ },
+ "on_problem": "keep_going",
+ "kept_going": [
+  {
+   "kind": "cam_guard",
+   "robot": "Alpha",
+   "words": "Alpha: the camera and its own pose disagreed by 6.4 cm for 1.0 s: its pose was set to the camera's (the camera is trusted), the run goes on",
+   "t_run": 21.76,
+   "d_cm": 6.39,
+   "cam": [
+    36.46,
+    33.92,
+    -156.6
+   ],
+   "own": [
+    30.44,
+    31.77,
+    -157.03
+   ]
+  },
+  {
+   "kind": "points_reassigned",
+   "robot": "Alpha",
+   "words": "Alpha is held (restarted mid-run (boot 4C01, was D386): it lost its calibration and its steps): its points not done go to the robots still running: Bravo (points P05, P06, P07, P08, P09, P10, P11, P12, P13, P14, P15, P16, P17, P18, P19, P20 to Bravo)",
+   "t_run": 74.54
+  },
+  {
+   "kind": "cam_guard",
+   "robot": "Alpha",
+   "words": "Alpha: the camera and its own pose disagreed by 0.1 cm for 1.0 s: its pose was set to the camera's (the camera is trusted), the run goes on",
+   "t_run": 155.27,
+   "d_cm": 0.11,
+   "cam": [
+    62.8,
+    14.81,
+    93.7
+   ],
+   "own": [
+    62.91,
+    14.79,
+    -103.15
+   ]
+  },
+  {
+   "kind": "points_reassigned",
+   "robot": "Bravo",
+   "words": "Bravo is held (heard again, but no plan fits it back in (Bravo left without a route)): its points not done go to the robots still running: Alpha (points P25, P26, P27, P28, P29, P30, P31, P32, P33, P34, P35, P36, P37, P38, P39, P40, P05, P06, P07, P08, P09, P10, P11, P12, P13, P14, P15, P16, P17, P18, P19, P20 to Alpha)",
+   "t_run": 178.56
+  },
+  {
+   "kind": "cam_guard",
+   "robot": "Alpha",
+   "words": "Alpha: the camera and its own pose disagreed by 6.4 cm for 1.0 s: its pose was set to the camera's (the camera is trusted), the run goes on",
+   "t_run": 202.22,
+   "d_cm": 6.4,
+   "cam": [
+    179.14,
+    68.62,
+    -19.0
+   ],
+   "own": [
+    185.54,
+    68.45,
+    -22.69
+   ]
+  },
+  {
+   "kind": "points_reassigned",
+   "robot": "Alpha",
+   "words": "Alpha is held (it drove 40 cm with no camera seeing it (the limit is 40 cm)): its points not done go to the robots still running: Bravo (points P27, P28, P29, P30, P31, P32, P33, P34, P35, P36, P37, P38, P39, P40, P05, P06, P07, P08, P09, P10, P11, P12, P13, P14, P15, P16, P17, P18, P19, P20 to Bravo)",
+   "t_run": 269.69
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "30 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 269.69
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "31 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 270.93
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "31 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 286.38
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "32 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 287.75
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "32 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 287.75
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "32 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 291.38
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "33 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 292.6
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "33 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 308.42
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "34 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 309.67
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "34 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 309.67
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "34 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 313.42
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "35 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 314.64
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "35 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 318.43
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "36 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 319.76
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "36 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 323.44
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "37 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 325.08
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "37 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 325.08
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "37 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 339.47
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "38 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 341.07
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "38 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 341.07
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "38 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 344.47
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "39 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 345.96
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "39 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 349.48
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "40 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 351.18
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "40 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 354.49
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "41 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 356.06
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "41 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 359.49
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "42 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 360.86
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "42 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 364.51
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "43 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 366.31
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "43 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 369.51
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "44 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 370.75
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "44 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 374.51
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "45 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 376.36
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "45 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 391.11
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "46 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 392.45
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "46 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 392.45
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "46 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 396.11
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "47 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 397.8
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "47 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 401.12
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "48 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 402.61
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "48 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 406.13
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "49 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 408.04
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "49 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 408.04
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "49 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 411.13
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "50 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 412.76
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "50 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 416.14
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "51 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 418.06
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "51 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 421.14
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "52 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 422.49
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "52 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 426.15
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "53 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 427.77
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "53 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 431.16
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "54 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 432.94
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "54 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 436.18
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "55 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 438.0
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "55 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 438.0
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "55 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 441.19
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "56 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 442.54
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "56 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 446.19
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "57 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 447.94
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "57 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 463.23
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "58 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 464.81
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "58 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 464.81
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "58 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 468.24
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "59 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 469.67
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "59 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 473.25
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "60 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 475.04
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "60 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 478.25
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "61 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 479.98
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "61 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 483.26
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "62 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 484.82
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "62 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 488.26
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "63 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 489.97
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "63 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 493.27
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "64 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 494.79
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "64 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 498.28
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "65 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 499.94
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "65 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 503.28
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "66 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 504.93
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "66 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 507.28
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "66 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 508.28
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "67 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 509.48
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "67 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 513.29
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "68 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 515.22
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "68 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 518.3
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "69 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 520.02
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "69 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 535.68
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "70 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 537.44
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "70 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 537.44
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "70 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 540.68
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "71 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 542.35
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "71 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 545.69
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "72 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 547.49
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "72 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 550.7
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "73 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 552.07
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "73 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 552.07
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "73 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 555.7
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "74 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 557.07
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "74 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 560.7
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "75 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 561.94
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "75 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 565.71
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "76 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 566.98
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "76 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 570.72
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "77 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 571.97
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "77 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 575.72
+  },
+  {
+   "kind": "replan_failed",
+   "robot": null,
+   "words": "no new plan (no robots in the map): everyone stands where they are and the plan is made again in 3 s",
+   "t_run": 576.17
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "77 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 579.18
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "77 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 580.73
+  },
+  {
+   "kind": "replan_failed",
+   "robot": null,
+   "words": "no new plan (no robots in the map): everyone stands where they are and the plan is made again in 3 s",
+   "t_run": 581.36
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "77 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 584.37
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "77 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 585.73
+  },
+  {
+   "kind": "replan_failed",
+   "robot": null,
+   "words": "no new plan (no robots in the map): everyone stands where they are and the plan is made again in 3 s",
+   "t_run": 586.39
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "77 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 589.4
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "77 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 590.73
+  },
+  {
+   "kind": "replan_failed",
+   "robot": null,
+   "words": "no new plan (no robots in the map): everyone stands where they are and the plan is made again in 3 s",
+   "t_run": 591.29
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "77 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 594.3
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "77 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 595.74
+  },
+  {
+   "kind": "replan_failed",
+   "robot": null,
+   "words": "no new plan (no robots in the map): everyone stands where they are and the plan is made again in 3 s",
+   "t_run": 596.23
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "77 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 599.24
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "77 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 600.74
+  },
+  {
+   "kind": "replan_failed",
+   "robot": null,
+   "words": "no new plan (no robots in the map): everyone stands where they are and the plan is made again in 3 s",
+   "t_run": 601.33
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "77 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 604.33
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "77 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 605.75
+  },
+  {
+   "kind": "replan_failed",
+   "robot": null,
+   "words": "no new plan (no robots in the map): everyone stands where they are and the plan is made again in 3 s",
+   "t_run": 606.46
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "77 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 609.47
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "77 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 610.75
+  },
+  {
+   "kind": "replan_failed",
+   "robot": null,
+   "words": "no new plan (no robots in the map): everyone stands where they are and the plan is made again in 3 s",
+   "t_run": 611.33
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "77 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 614.33
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "77 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 615.75
+  },
+  {
+   "kind": "replan_failed",
+   "robot": null,
+   "words": "no new plan (no robots in the map): everyone stands where they are and the plan is made again in 3 s",
+   "t_run": 616.36
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "77 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 619.37
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "77 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 620.76
+  },
+  {
+   "kind": "replan_failed",
+   "robot": null,
+   "words": "no new plan (no robots in the map): everyone stands where they are and the plan is made again in 3 s",
+   "t_run": 621.37
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "77 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 624.38
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "77 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 625.76
+  },
+  {
+   "kind": "replan_failed",
+   "robot": null,
+   "words": "no new plan (no robots in the map): everyone stands where they are and the plan is made again in 3 s",
+   "t_run": 626.33
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "77 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 629.33
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "77 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 630.76
+  },
+  {
+   "kind": "replan_failed",
+   "robot": null,
+   "words": "no new plan (no robots in the map): everyone stands where they are and the plan is made again in 3 s",
+   "t_run": 631.29
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "77 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 634.3
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "77 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 635.77
+  },
+  {
+   "kind": "replan_failed",
+   "robot": null,
+   "words": "no new plan (no robots in the map): everyone stands where they are and the plan is made again in 3 s",
+   "t_run": 636.29
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "77 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 639.3
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "77 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 640.78
+  },
+  {
+   "kind": "replan_failed",
+   "robot": null,
+   "words": "no new plan (no robots in the map): everyone stands where they are and the plan is made again in 3 s",
+   "t_run": 641.26
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "77 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 644.26
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "77 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 645.78
+  },
+  {
+   "kind": "replan_failed",
+   "robot": null,
+   "words": "no new plan (no robots in the map): everyone stands where they are and the plan is made again in 3 s",
+   "t_run": 646.33
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "77 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 649.33
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "77 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 650.79
+  },
+  {
+   "kind": "replan_failed",
+   "robot": null,
+   "words": "no new plan (no robots in the map): everyone stands where they are and the plan is made again in 3 s",
+   "t_run": 651.31
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "77 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 654.31
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "77 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 655.79
+  },
+  {
+   "kind": "replan_failed",
+   "robot": null,
+   "words": "no new plan (no robots in the map): everyone stands where they are and the plan is made again in 3 s",
+   "t_run": 656.26
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "77 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 659.26
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "77 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 660.8
+  },
+  {
+   "kind": "replan_failed",
+   "robot": null,
+   "words": "no new plan (no robots in the map): everyone stands where they are and the plan is made again in 3 s",
+   "t_run": 661.31
+  }
+ ],
+ "points": [
+  {
+   "robot": "Bravo",
+   "point": "point P21",
+   "t_run": 13.69,
+   "dwell_s": 3.0,
+   "n_fixes": 18,
+   "t_abs": 1793965246.016,
+   "x": 215.68,
+   "y": 106.45,
+   "plus_minus_cm": 1.4,
+   "source": "one camera (overhead)",
+   "two_camera_share": 0.0,
+   "since_fix_cm": 0.0,
+   "since_fix_s": 0.0,
+   "own_x": 215.25,
+   "own_y": 106.06,
+   "own_vs_camera_cm": 0.58,
+   "words": "point P21 (Bravo): \u00b11.4 cm, one camera (overhead)",
+   "truth_err_cm": 0.53,
+   "within": true
+  },
+  {
+   "robot": "Bravo",
+   "point": "point P22",
+   "t_run": 23.52,
+   "dwell_s": 3.03,
+   "n_fixes": 18,
+   "t_abs": 1793965255.845,
+   "x": 244.13,
+   "y": 82.89,
+   "plus_minus_cm": 1.4,
+   "source": "one camera (overhead)",
+   "two_camera_share": 0.0,
+   "since_fix_cm": 0.0,
+   "since_fix_s": 0.0,
+   "own_x": 243.87,
+   "own_y": 82.55,
+   "own_vs_camera_cm": 0.43,
+   "words": "point P22 (Bravo): \u00b11.4 cm, one camera (overhead)",
+   "truth_err_cm": 0.81,
+   "within": true
+  },
+  {
+   "robot": "Alpha",
+   "point": "point P01",
+   "t_run": 24.73,
+   "dwell_s": 1.62,
+   "n_fixes": 10,
+   "t_abs": 1793965257.058,
+   "x": 36.46,
+   "y": 33.92,
+   "plus_minus_cm": 1.4,
+   "source": "one camera (overhead)",
+   "two_camera_share": 0.0,
+   "since_fix_cm": 0.0,
+   "since_fix_s": 0.0,
+   "own_x": 36.46,
+   "own_y": 33.92,
+   "own_vs_camera_cm": 0.0,
+   "words": "point P01 (Alpha): \u00b11.4 cm, one camera (overhead)",
+   "truth_err_cm": 3.54,
+   "within": false
+  },
+  {
+   "robot": "Bravo",
+   "point": "point P23",
+   "t_run": 32.14,
+   "dwell_s": 3.0,
+   "n_fixes": 0,
+   "t_abs": 1793965264.471,
+   "x": 277.49,
+   "y": 101.62,
+   "plus_minus_cm": 9.4,
+   "source": "odometry only",
+   "two_camera_share": 0.0,
+   "since_fix_cm": 113.4,
+   "since_fix_s": 33.2,
+   "own_x": 277.49,
+   "own_y": 101.62,
+   "words": "point P23 (Bravo): \u00b19.4 cm, odometry for 113 cm since the last camera fix (33 s ago)",
+   "truth_err_cm": 0.86,
+   "within": true
+  },
+  {
+   "robot": "Alpha",
+   "point": "point P02",
+   "t_run": 35.06,
+   "dwell_s": 3.01,
+   "n_fixes": 19,
+   "t_abs": 1793965267.387,
+   "x": 73.45,
+   "y": 53.43,
+   "plus_minus_cm": 1.4,
+   "source": "one camera (overhead)",
+   "two_camera_share": 0.0,
+   "since_fix_cm": 0.0,
+   "since_fix_s": 0.0,
+   "own_x": 75.57,
+   "own_y": 53.96,
+   "own_vs_camera_cm": 2.19,
+   "words": "point P02 (Alpha): \u00b11.4 cm, one camera (overhead)",
+   "truth_err_cm": 1.92,
+   "within": false
+  },
+  {
+   "robot": "Alpha",
+   "point": "point P03",
+   "t_run": 48.94,
+   "dwell_s": 3.05,
+   "n_fixes": 19,
+   "t_abs": 1793965281.263,
+   "x": 18.1,
+   "y": 79.67,
+   "plus_minus_cm": 1.4,
+   "source": "one camera (overhead)",
+   "two_camera_share": 0.0,
+   "since_fix_cm": 0.0,
+   "since_fix_s": 0.0,
+   "own_x": 17.77,
+   "own_y": 82.59,
+   "own_vs_camera_cm": 2.94,
+   "words": "point P03 (Alpha): \u00b11.4 cm, one camera (overhead)",
+   "truth_err_cm": 3.55,
+   "within": false
+  },
+  {
+   "robot": "Alpha",
+   "point": "point P04",
+   "t_run": 64.51,
+   "dwell_s": 3.0,
+   "n_fixes": 19,
+   "t_abs": 1793965296.832,
+   "x": 62.9,
+   "y": 14.81,
+   "plus_minus_cm": 1.4,
+   "source": "one camera (overhead)",
+   "two_camera_share": 0.0,
+   "since_fix_cm": 0.0,
+   "since_fix_s": 0.0,
+   "own_x": 63.47,
+   "own_y": 13.33,
+   "own_vs_camera_cm": 1.59,
+   "words": "point P04 (Alpha): \u00b11.4 cm, one camera (overhead)",
+   "truth_err_cm": 3.48,
+   "within": false
+  },
+  {
+   "robot": "Bravo",
+   "point": "point P24",
+   "t_run": 74.49,
+   "dwell_s": 3.01,
+   "n_fixes": 19,
+   "t_abs": 1793965306.814,
+   "x": 227.52,
+   "y": 19.27,
+   "plus_minus_cm": 1.4,
+   "source": "one camera (overhead)",
+   "two_camera_share": 0.0,
+   "since_fix_cm": 0.0,
+   "since_fix_s": 0.0,
+   "own_x": 228.01,
+   "own_y": 19.05,
+   "own_vs_camera_cm": 0.54,
+   "words": "point P24 (Bravo): \u00b11.4 cm, one camera (overhead)",
+   "truth_err_cm": 0.89,
+   "within": true
+  },
+  {
+   "robot": "Alpha",
+   "point": "point P25",
+   "t_run": 217.48,
+   "dwell_s": 3.0,
+   "n_fixes": 0,
+   "t_abs": 1793965449.807,
+   "x": 276.9,
+   "y": 66.62,
+   "plus_minus_cm": 8.8,
+   "source": "odometry only",
+   "two_camera_share": 0.0,
+   "since_fix_cm": 104.7,
+   "since_fix_s": 15.3,
+   "own_x": 276.9,
+   "own_y": 66.62,
+   "words": "point P25 (Alpha): \u00b18.8 cm, odometry for 105 cm since the last camera fix (15 s ago)",
+   "truth_err_cm": 2.36,
+   "within": true
+  },
+  {
+   "robot": "Alpha",
+   "point": "point P26",
+   "t_run": 256.14,
+   "dwell_s": 3.01,
+   "n_fixes": 19,
+   "t_abs": 1793965488.463,
+   "x": 227.06,
+   "y": 52.47,
+   "plus_minus_cm": 1.4,
+   "source": "one camera (overhead)",
+   "two_camera_share": 0.0,
+   "since_fix_cm": 0.0,
+   "since_fix_s": 0.0,
+   "own_x": 227.32,
+   "own_y": 51.96,
+   "own_vs_camera_cm": 0.57,
+   "words": "point P26 (Alpha): \u00b11.4 cm, one camera (overhead)",
+   "truth_err_cm": 5.39,
+   "within": false
+  }
+ ],
+ "points_skipped": [
+  {
+   "robot": "Bravo",
+   "point": "point P29",
+   "why": "cannot be reached: point (261.6, 124.5): no room to turn there (0.0 cm clear, needs 8.2)",
+   "t_run": 270.93
+  }
+ ],
+ "points_reassigned": [
+  {
+   "point": "point P05",
+   "frm": "Alpha",
+   "to": "Bravo",
+   "t_run": 74.54
+  },
+  {
+   "point": "point P06",
+   "frm": "Alpha",
+   "to": "Bravo",
+   "t_run": 74.54
+  },
+  {
+   "point": "point P07",
+   "frm": "Alpha",
+   "to": "Bravo",
+   "t_run": 74.54
+  },
+  {
+   "point": "point P08",
+   "frm": "Alpha",
+   "to": "Bravo",
+   "t_run": 74.54
+  },
+  {
+   "point": "point P09",
+   "frm": "Alpha",
+   "to": "Bravo",
+   "t_run": 74.54
+  },
+  {
+   "point": "point P10",
+   "frm": "Alpha",
+   "to": "Bravo",
+   "t_run": 74.54
+  },
+  {
+   "point": "point P11",
+   "frm": "Alpha",
+   "to": "Bravo",
+   "t_run": 74.54
+  },
+  {
+   "point": "point P12",
+   "frm": "Alpha",
+   "to": "Bravo",
+   "t_run": 74.54
+  },
+  {
+   "point": "point P13",
+   "frm": "Alpha",
+   "to": "Bravo",
+   "t_run": 74.54
+  },
+  {
+   "point": "point P14",
+   "frm": "Alpha",
+   "to": "Bravo",
+   "t_run": 74.54
+  },
+  {
+   "point": "point P15",
+   "frm": "Alpha",
+   "to": "Bravo",
+   "t_run": 74.54
+  },
+  {
+   "point": "point P16",
+   "frm": "Alpha",
+   "to": "Bravo",
+   "t_run": 74.54
+  },
+  {
+   "point": "point P17",
+   "frm": "Alpha",
+   "to": "Bravo",
+   "t_run": 74.54
+  },
+  {
+   "point": "point P18",
+   "frm": "Alpha",
+   "to": "Bravo",
+   "t_run": 74.54
+  },
+  {
+   "point": "point P19",
+   "frm": "Alpha",
+   "to": "Bravo",
+   "t_run": 74.54
+  },
+  {
+   "point": "point P20",
+   "frm": "Alpha",
+   "to": "Bravo",
+   "t_run": 74.54
+  },
+  {
+   "point": "point P25",
+   "frm": "Bravo",
+   "to": "Alpha",
+   "t_run": 178.56
+  },
+  {
+   "point": "point P26",
+   "frm": "Bravo",
+   "to": "Alpha",
+   "t_run": 178.56
+  },
+  {
+   "point": "point P27",
+   "frm": "Bravo",
+   "to": "Alpha",
+   "t_run": 178.56
+  },
+  {
+   "point": "point P28",
+   "frm": "Bravo",
+   "to": "Alpha",
+   "t_run": 178.56
+  },
+  {
+   "point": "point P29",
+   "frm": "Bravo",
+   "to": "Alpha",
+   "t_run": 178.56
+  },
+  {
+   "point": "point P30",
+   "frm": "Bravo",
+   "to": "Alpha",
+   "t_run": 178.56
+  },
+  {
+   "point": "point P31",
+   "frm": "Bravo",
+   "to": "Alpha",
+   "t_run": 178.56
+  },
+  {
+   "point": "point P32",
+   "frm": "Bravo",
+   "to": "Alpha",
+   "t_run": 178.56
+  },
+  {
+   "point": "point P33",
+   "frm": "Bravo",
+   "to": "Alpha",
+   "t_run": 178.56
+  },
+  {
+   "point": "point P34",
+   "frm": "Bravo",
+   "to": "Alpha",
+   "t_run": 178.56
+  },
+  {
+   "point": "point P35",
+   "frm": "Bravo",
+   "to": "Alpha",
+   "t_run": 178.56
+  },
+  {
+   "point": "point P36",
+   "frm": "Bravo",
+   "to": "Alpha",
+   "t_run": 178.56
+  },
+  {
+   "point": "point P37",
+   "frm": "Bravo",
+   "to": "Alpha",
+   "t_run": 178.56
+  },
+  {
+   "point": "point P38",
+   "frm": "Bravo",
+   "to": "Alpha",
+   "t_run": 178.56
+  },
+  {
+   "point": "point P39",
+   "frm": "Bravo",
+   "to": "Alpha",
+   "t_run": 178.56
+  },
+  {
+   "point": "point P40",
+   "frm": "Bravo",
+   "to": "Alpha",
+   "t_run": 178.56
+  },
+  {
+   "point": "point P05",
+   "frm": "Bravo",
+   "to": "Alpha",
+   "t_run": 178.56
+  },
+  {
+   "point": "point P06",
+   "frm": "Bravo",
+   "to": "Alpha",
+   "t_run": 178.56
+  },
+  {
+   "point": "point P07",
+   "frm": "Bravo",
+   "to": "Alpha",
+   "t_run": 178.56
+  },
+  {
+   "point": "point P08",
+   "frm": "Bravo",
+   "to": "Alpha",
+   "t_run": 178.56
+  },
+  {
+   "point": "point P09",
+   "frm": "Bravo",
+   "to": "Alpha",
+   "t_run": 178.56
+  },
+  {
+   "point": "point P10",
+   "frm": "Bravo",
+   "to": "Alpha",
+   "t_run": 178.56
+  },
+  {
+   "point": "point P11",
+   "frm": "Bravo",
+   "to": "Alpha",
+   "t_run": 178.56
+  },
+  {
+   "point": "point P12",
+   "frm": "Bravo",
+   "to": "Alpha",
+   "t_run": 178.56
+  },
+  {
+   "point": "point P13",
+   "frm": "Bravo",
+   "to": "Alpha",
+   "t_run": 178.56
+  },
+  {
+   "point": "point P14",
+   "frm": "Bravo",
+   "to": "Alpha",
+   "t_run": 178.56
+  },
+  {
+   "point": "point P15",
+   "frm": "Bravo",
+   "to": "Alpha",
+   "t_run": 178.56
+  },
+  {
+   "point": "point P16",
+   "frm": "Bravo",
+   "to": "Alpha",
+   "t_run": 178.56
+  },
+  {
+   "point": "point P17",
+   "frm": "Bravo",
+   "to": "Alpha",
+   "t_run": 178.56
+  },
+  {
+   "point": "point P18",
+   "frm": "Bravo",
+   "to": "Alpha",
+   "t_run": 178.56
+  },
+  {
+   "point": "point P19",
+   "frm": "Bravo",
+   "to": "Alpha",
+   "t_run": 178.56
+  },
+  {
+   "point": "point P20",
+   "frm": "Bravo",
+   "to": "Alpha",
+   "t_run": 178.56
+  },
+  {
+   "point": "point P27",
+   "frm": "Alpha",
+   "to": "Bravo",
+   "t_run": 269.69
+  },
+  {
+   "point": "point P28",
+   "frm": "Alpha",
+   "to": "Bravo",
+   "t_run": 269.69
+  },
+  {
+   "point": "point P29",
+   "frm": "Alpha",
+   "to": "Bravo",
+   "t_run": 269.69
+  },
+  {
+   "point": "point P30",
+   "frm": "Alpha",
+   "to": "Bravo",
+   "t_run": 269.69
+  },
+  {
+   "point": "point P31",
+   "frm": "Alpha",
+   "to": "Bravo",
+   "t_run": 269.69
+  },
+  {
+   "point": "point P32",
+   "frm": "Alpha",
+   "to": "Bravo",
+   "t_run": 269.69
+  },
+  {
+   "point": "point P33",
+   "frm": "Alpha",
+   "to": "Bravo",
+   "t_run": 269.69
+  },
+  {
+   "point": "point P34",
+   "frm": "Alpha",
+   "to": "Bravo",
+   "t_run": 269.69
+  },
+  {
+   "point": "point P35",
+   "frm": "Alpha",
+   "to": "Bravo",
+   "t_run": 269.69
+  },
+  {
+   "point": "point P36",
+   "frm": "Alpha",
+   "to": "Bravo",
+   "t_run": 269.69
+  },
+  {
+   "point": "point P37",
+   "frm": "Alpha",
+   "to": "Bravo",
+   "t_run": 269.69
+  },
+  {
+   "point": "point P38",
+   "frm": "Alpha",
+   "to": "Bravo",
+   "t_run": 269.69
+  },
+  {
+   "point": "point P39",
+   "frm": "Alpha",
+   "to": "Bravo",
+   "t_run": 269.69
+  },
+  {
+   "point": "point P40",
+   "frm": "Alpha",
+   "to": "Bravo",
+   "t_run": 269.69
+  },
+  {
+   "point": "point P05",
+   "frm": "Alpha",
+   "to": "Bravo",
+   "t_run": 269.69
+  },
+  {
+   "point": "point P06",
+   "frm": "Alpha",
+   "to": "Bravo",
+   "t_run": 269.69
+  },
+  {
+   "point": "point P07",
+   "frm": "Alpha",
+   "to": "Bravo",
+   "t_run": 269.69
+  },
+  {
+   "point": "point P08",
+   "frm": "Alpha",
+   "to": "Bravo",
+   "t_run": 269.69
+  },
+  {
+   "point": "point P09",
+   "frm": "Alpha",
+   "to": "Bravo",
+   "t_run": 269.69
+  },
+  {
+   "point": "point P10",
+   "frm": "Alpha",
+   "to": "Bravo",
+   "t_run": 269.69
+  },
+  {
+   "point": "point P11",
+   "frm": "Alpha",
+   "to": "Bravo",
+   "t_run": 269.69
+  },
+  {
+   "point": "point P12",
+   "frm": "Alpha",
+   "to": "Bravo",
+   "t_run": 269.69
+  },
+  {
+   "point": "point P13",
+   "frm": "Alpha",
+   "to": "Bravo",
+   "t_run": 269.69
+  },
+  {
+   "point": "point P14",
+   "frm": "Alpha",
+   "to": "Bravo",
+   "t_run": 269.69
+  },
+  {
+   "point": "point P15",
+   "frm": "Alpha",
+   "to": "Bravo",
+   "t_run": 269.69
+  },
+  {
+   "point": "point P16",
+   "frm": "Alpha",
+   "to": "Bravo",
+   "t_run": 269.69
+  },
+  {
+   "point": "point P17",
+   "frm": "Alpha",
+   "to": "Bravo",
+   "t_run": 269.69
+  },
+  {
+   "point": "point P18",
+   "frm": "Alpha",
+   "to": "Bravo",
+   "t_run": 269.69
+  },
+  {
+   "point": "point P19",
+   "frm": "Alpha",
+   "to": "Bravo",
+   "t_run": 269.69
+  },
+  {
+   "point": "point P20",
+   "frm": "Alpha",
+   "to": "Bravo",
+   "t_run": 269.69
+  }
+ ],
+ "sim": {
+  "min_body_gap_cm": 6.58,
+  "min_body_gap_at": [
+   "Alpha",
+   "Bravo",
+   251.23
+  ],
+  "collision": false,
+  "min_open_edge_cm": 5.0,
+  "min_open_edge_at": [
+   "Alpha",
+   94.68
+  ],
+  "hung": []
+ },
+ "line_check": {
+  "Alpha": {
+   "p95_cm": 1.4,
+   "within_pct": 98.8,
+   "misses": {
+    "misses": 17,
+    "single": 0,
+    "runs": 1,
+    "in_runs": 17,
+    "longest": 17,
+    "longest_s": 2.67
+   },
+   "sure_share_pct": 100.0,
+   "camera_vs_truth": {
+    "n": 1406,
+    "median_cm": 3.48,
+    "p95_cm": 9.36,
+    "max_cm": 12.56,
+    "within_gate_pct": 14.6
+   }
+  },
+  "Bravo": {
+   "p95_cm": 0.47,
+   "within_pct": 100.0,
+   "misses": {
+    "misses": 0,
+    "single": 0,
+    "runs": 0,
+    "in_runs": 0,
+    "longest": 0,
+    "longest_s": 0.0
+   },
+   "sure_share_pct": 100.0,
+   "camera_vs_truth": {
+    "n": 1869,
+    "median_cm": 0.96,
+    "p95_cm": 6.36,
+    "max_cm": 7.4,
+    "within_gate_pct": 87.2
+   }
+  }
+ },
+ "closest_by_camera": {
+  "centres_cm": 22.63,
+  "bodies_cm": 13.13,
+  "robots": [
+   "Alpha",
+   "Bravo"
+  ],
+  "t": 1793965485.4281
+ },
+ "camera": {
+  "frames": {
+   "overhead": 6760
+  },
+  "robots": {
+   "Alpha": {
+    "reads": 2864,
+    "fixes": 1444,
+    "refused_size": 0,
+    "refused_jump": 0,
+    "both": 0,
+    "overhead": 2864
+   },
+   "Bravo": {
+    "reads": 3861,
+    "fixes": 1963,
+    "refused_size": 0,
+    "refused_jump": 0,
+    "both": 0,
+    "overhead": 3861
+   }
+  },
+  "farm": null
+ },
+ "frames": "overhead: 7174 pictures in, 7174 kept at the tracking rate (1031 MB), clips {'events': 155, 'clips': 44, 'stills': 155, 'thumbs': 10, 'mb': 805.5} (in /tmp/claude-0/-home-claude/fff6dc9c-5876-54f9-92a7-a08483d3d5c7/scratchpad/reh/mc/school-exp-2/runs/20261106-063910-experiment-sim-cameras/frames)",
+ "reached": {
+  "Alpha": [
+   "sync wiggle 1 turn",
+   "sync wiggle 2 stop",
+   "sync wiggle 3 turn back",
+   "sync wiggle 4 stop",
+   "point P01",
+   "at point P01",
+   "point P02",
+   "at point P02",
+   "point P03",
+   "at point P03",
+   "point P04",
+   "at point P04",
+   "home",
+   "point P25",
+   "at point P25",
+   "point P26",
+   "at point P26"
+  ],
+  "Bravo": [
+   "sync wiggle 1 turn",
+   "sync wiggle 2 stop",
+   "sync wiggle 3 turn back",
+   "sync wiggle 4 stop",
+   "point P21",
+   "at point P21",
+   "point P22",
+   "at point P22",
+   "point P23",
+   "at point P23",
+   "point P24",
+   "at point P24"
+  ]
+ },
+ "experiment": {
+  "id": "e1",
+  "name": "Experiment 1: in order",
+  "order_kind": "inorder",
+  "is_experiment": true,
+  "swap_halves": false,
+  "seed": 20261103,
+  "middle_x_in": 78.0,
+  "cross_points_each": 0,
+  "traded": {},
+  "orders": {
+   "Alpha": [
+    "P01",
+    "P02",
+    "P03",
+    "P04",
+    "P05",
+    "P06",
+    "P07",
+    "P08",
+    "P09",
+    "P10",
+    "P11",
+    "P12",
+    "P13",
+    "P14",
+    "P15",
+    "P16",
+    "P17",
+    "P18",
+    "P19",
+    "P20"
+   ],
+   "Bravo": [
+    "P21",
+    "P22",
+    "P23",
+    "P24",
+    "P25",
+    "P26",
+    "P27",
+    "P28",
+    "P29",
+    "P30",
+    "P31",
+    "P32",
+    "P33",
+    "P34",
+    "P35",
+    "P36",
+    "P37",
+    "P38",
+    "P39",
+    "P40"
+   ]
+  },
+  "speed": {
+   "cruise_cms": 10.0,
+   "turn_dps": 60.0,
+   "confirm_cms": 5.0
+  },
+  "version": "2026-11-06a",
+  "crossings": {
+   "Alpha": 0,
+   "Bravo": 0
+  },
+  "halves": {
+   "Alpha": [
+    1,
+    2
+   ],
+   "Bravo": [
+    3,
+    4
+   ]
+  },
+  "robots_split": "site zones",
+  "swap_words": "run 1 at this site: halves as usual (every other run)",
+  "tracking": "tags"
+ },
+ "speed_pinned": {
+  "cruise_cms": 10.0,
+  "turn_dps": 60.0,
+  "confirm_cms": 5.0
+ },
+ "sync_wiggle": {
+  "Alpha": {
+   "parts": [
+    [
+     "sync wiggle 1 turn",
+     1793965232.35,
+     1793965234.011
+    ],
+    [
+     "sync wiggle 2 stop",
+     1793965234.011,
+     1793965235.013
+    ],
+    [
+     "sync wiggle 3 turn back",
+     1793965235.013,
+     1793965236.624
+    ],
+    [
+     "sync wiggle 4 stop",
+     1793965236.624,
+     1793965237.635
+    ]
+   ],
+   "start": 1793965232.35,
+   "end": 1793965237.635
+  },
+  "Bravo": {
+   "parts": [
+    [
+     "sync wiggle 1 turn",
+     1793965232.35,
+     1793965234.021
+    ],
+    [
+     "sync wiggle 2 stop",
+     1793965234.021,
+     1793965235.024
+    ],
+    [
+     "sync wiggle 3 turn back",
+     1793965235.024,
+     1793965236.738
+    ],
+    [
+     "sync wiggle 4 stop",
+     1793965236.738,
+     1793965237.74
+    ]
+   ],
+   "start": 1793965232.35,
+   "end": 1793965237.74
+  }
+ },
+ "exports": {
+  "version": "2026-11-03a",
+  "camera_track": {
+   "file": "/tmp/claude-0/-home-claude/fff6dc9c-5876-54f9-92a7-a08483d3d5c7/scratchpad/reh/mc/school-exp-2/runs/20261106-063910-experiment-sim-cameras/run/camera_track.csv",
+   "rows": {
+    "Alpha": 2864,
+    "Bravo": 3861
+   }
+  },
+  "odometry_raw": {
+   "file": "/tmp/claude-0/-home-claude/fff6dc9c-5876-54f9-92a7-a08483d3d5c7/scratchpad/reh/mc/school-exp-2/runs/20261106-063910-experiment-sim-cameras/run/odometry_raw.csv",
+   "rows": {
+    "Bravo": 28031,
+    "Alpha": 22397
+   },
+   "anchors": {
+    "Bravo": [
+     "segment 1 anchored on its own pose (244.2, 82.3, 92.2 deg) at ms 345962"
+    ],
+    "Alpha": [
+     "segment 1 anchored on its own pose (62.9, 14.8, -103.1 deg) at ms 317873",
+     "segment 2 anchored on its own pose (147.4, 82.5, 91.0 deg) at ms 163499"
+    ]
+   }
+  }
+ },
+ "camera_moved": [],
+ "pose_timeline": {
+  "file": "/tmp/claude-0/-home-claude/fff6dc9c-5876-54f9-92a7-a08483d3d5c7/scratchpad/reh/mc/school-exp-2/runs/20261106-063910-experiment-sim-cameras/pose_timeline.csv",
+  "rows": {
+   "Bravo, camera tag": 1963,
+   "Alpha, camera tag": 1444,
+   "Alpha, robot's own pose": 1803,
+   "Bravo, robot's own pose": 5367
+  }
+ },
+ "refit": {
+  "background": true,
+  "folder": "/tmp/claude-0/-home-claude/fff6dc9c-5876-54f9-92a7-a08483d3d5c7/scratchpad/reh/mc/school-exp-2/runs/20261106-063910-experiment-sim-cameras/tagcal_refit",
+  "state": "running"
+ }
+}

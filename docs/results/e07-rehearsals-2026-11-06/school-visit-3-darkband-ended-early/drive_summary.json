@@ -1,0 +1,43 @@
+{
+ "name": "school-visit-3-darkband",
+ "room": "school",
+ "kind": "visit",
+ "adv": {
+  "practice_robots": 3,
+  "practice_dark": "70,60,110,130"
+ },
+ "start_error": null,
+ "ended_s": 190.9,
+ "timed_out": false,
+ "status": {
+  "running": false,
+  "kind": "visit",
+  "title": "Visit points",
+  "practice": true,
+  "lines": [
+   "improvement try: done at 101 s instead of 101 s, not kept",
+   "Bravo: its recovery path is RESERVED: the others re-plan round it (they do not just check their next steps) and carry on",
+   "Bravo: it drove 41 cm with no camera seeing it (the limit is 40 cm): RECOVERING: it turns to face where the camera last read it and drives 50 cm straight there, forwards (clear of the edges and of the others' paths, checked)",
+   "Alpha still held: its points were handed over and are done, so the run ends without waiting for it",
+   "Charlie done: already finished",
+   "new plan in 0.60 s (first safe plan, robots told 0.5 s ahead; a shorter one is searched for next); everyone done about 0 s after the event",
+   "improvement try: done at 81 s instead of 81 s, not kept",
+   "all robots done"
+  ],
+  "elapsed_s": 196.0,
+  "points": 18,
+  "words": "Visit points ended.",
+  "folder": "/tmp/claude-0/-home-claude/fff6dc9c-5876-54f9-92a7-a08483d3d5c7/scratchpad/reh/mc/school-visit-3-darkband/runs/20261106-063216-visit-sim-cameras"
+ },
+ "robots": {
+  "n": 3,
+  "names": [
+   "Alpha",
+   "Bravo",
+   "Charlie"
+  ],
+  "words": "Found 3 robots: Alpha, Bravo, Charlie"
+ },
+ "where": "This looks like the school conference table (its reference tags 20, 21, 23, 24, 25 are on the table and the table measures 396 x 167 cm, its size).",
+ "folder": "/tmp/claude-0/-home-claude/fff6dc9c-5876-54f9-92a7-a08483d3d5c7/scratchpad/reh/mc/school-visit-3-darkband/runs/20261106-063216-visit-sim-cameras"
+}

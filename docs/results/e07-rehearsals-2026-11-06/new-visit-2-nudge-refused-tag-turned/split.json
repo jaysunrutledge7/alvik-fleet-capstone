@@ -1,0 +1,45 @@
+{
+ "mode": "auto",
+ "robots": {
+  "Bravo": [
+   157.0,
+   65.99
+  ],
+  "Alpha": [
+   57.99,
+   65.99
+  ]
+ },
+ "orders": {
+  "Bravo": [
+   "P06",
+   "P07",
+   "P08",
+   "P09",
+   "P10"
+  ],
+  "Alpha": [
+   "P01",
+   "P02",
+   "P03",
+   "P04",
+   "P05"
+  ]
+ },
+ "skipped": {},
+ "words": [
+  "table shared between 2 robots over the readable area (10 of 10 points; Bravo 5, Alpha 5)"
+ ],
+ "homes": {
+  "Bravo": [
+   157.0,
+   65.99,
+   90.0
+  ],
+  "Alpha": [
+   57.99,
+   65.99,
+   90.0
+  ]
+ }
+}

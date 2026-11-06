@@ -1,0 +1,43 @@
+{
+ "name": "school-visit-3-darkband",
+ "room": "school",
+ "kind": "visit",
+ "adv": {
+  "practice_robots": 3,
+  "practice_dark": "70,60,110,130"
+ },
+ "start_error": null,
+ "ended_s": 185.5,
+ "timed_out": false,
+ "status": {
+  "running": false,
+  "kind": "visit",
+  "title": "Visit points",
+  "practice": true,
+  "lines": [
+   "  Charlie 4/7  Alpha 0/7",
+   "Alpha is held: restarted mid-run (boot 971D, was 108A): it lost its calibration and its steps. It is a fixed obstacle where it stopped until it is heard again (then it rejoins); the others re-plan and carry on",
+   "Alpha still held: its points were handed over and are done, so the run ends without waiting for it",
+   "Alpha is talking again: checking it (boot ID, camera) before it rejoins",
+   "Charlie done: already finished",
+   "new plan in 0.35 s (first safe plan, robots told 0.5 s ahead; a shorter one is searched for next); everyone done about 0 s after the event",
+   "improvement try: done at 77 s instead of 76 s, not kept",
+   "all robots done"
+  ],
+  "elapsed_s": 191.0,
+  "points": 17,
+  "words": "Visit points ended.",
+  "folder": "/tmp/claude-0/-home-claude/fff6dc9c-5876-54f9-92a7-a08483d3d5c7/scratchpad/reh/mc/school-visit-3-darkband/runs/20261106-062050-visit-sim-cameras"
+ },
+ "robots": {
+  "n": 3,
+  "names": [
+   "Alpha",
+   "Bravo",
+   "Charlie"
+  ],
+  "words": "Found 3 robots: Alpha, Bravo, Charlie"
+ },
+ "where": "This looks like the school conference table (its reference tags 20, 21, 23, 24, 25 are on the table and the table measures 396 x 167 cm, its size).",
+ "folder": "/tmp/claude-0/-home-claude/fff6dc9c-5876-54f9-92a7-a08483d3d5c7/scratchpad/reh/mc/school-visit-3-darkband/runs/20261106-062050-visit-sim-cameras"
+}

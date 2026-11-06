@@ -1,0 +1,771 @@
+{"t": 1793964994.146, "event": "facing_check", "ok": true, "seconds": 1.5, "robots": {"Bravo": {"heading": 0.76, "off": -89.2, "how": "its roof tag (overhead 8 reads)"}, "Alpha": {"heading": -88.94, "off": -178.9, "how": "its roof tag (overhead 8 reads)"}}}
+{"t": 1793964994.347, "event": "bridge_seed", "robots": {"Bravo": [127.48, 73.55, 0.76], "Alpha": [16.58, 16.49, -88.94]}}
+{"t": 1793964998.54, "event": "message", "text": "floor check: Bravo: stop limit 12.0 cm (the usual; floor check: no floor in reach of the stop (nothing under 40 cm in its path))"}
+{"t": 1793964998.54, "event": "floor_check", "robot": "Bravo", "limit_cm": 12.0, "rule": "cap", "ceiling_cm": 12.0, "floor": {"n": 30, "zones": {}, "floor_cm": null, "lowest_cm": null, "median_cm": null, "why": "no floor in reach of the stop (nothing under 40 cm in its path)"}, "words": "Bravo: stop limit 12.0 cm (the usual; floor check: no floor in reach of the stop (nothing under 40 cm in its path))"}
+{"t": 1793964998.54, "event": "message", "text": "floor check: Alpha: stop limit 12.0 cm (the usual; floor check: no floor in reach of the stop (nothing under 40 cm in its path))"}
+{"t": 1793964998.54, "event": "floor_check", "robot": "Alpha", "limit_cm": 12.0, "rule": "cap", "ceiling_cm": 12.0, "floor": {"n": 28, "zones": {}, "floor_cm": null, "lowest_cm": null, "median_cm": null, "why": "no floor in reach of the stop (nothing under 40 cm in its path)"}, "words": "Alpha: stop limit 12.0 cm (the usual; floor check: no floor in reach of the stop (nothing under 40 cm in its path))"}
+{"t": 1793964998.546, "event": "cam_fit_read", "path": "/tmp/claude-0/-home-claude/fff6dc9c-5876-54f9-92a7-a08483d3d5c7/scratchpad/reh/mc/new-visit-2/runs/20261106-063538-visit-sim-cameras/tagcal/site_fit.json", "rms_px": {"overhead": {"stickers": 1.358, "tags": 0.052, "tag_reads": 12, "ref": 0.045, "ref_tags": 5}, "side": {"stickers": 1.338, "tags": 0.045, "tag_reads": 12, "ref": 0.059, "ref_tags": 5}}}
+{"t": 1793964999.469, "event": "straighten_run", "steps": {"Bravo": ["its start heading"], "Alpha": ["its start heading"]}}
+{"t": 1793964999.469, "event": "step_sent", "robot": "Bravo", "id": 1, "i": 0, "plan": 0, "text": "fs 1 T 90.00 -"}
+{"t": 1793964999.469, "event": "step_sent", "robot": "Alpha", "id": 1, "i": 0, "plan": 0, "text": "fs 1 T 90.00 -"}
+{"t": 1793964999.489, "event": "step_report", "robot": "Alpha", "id": 1, "state": "queued", "x": 16.54, "y": 16.54, "th": -88.93, "front_cm": 147.9, "info": ""}
+{"t": 1793964999.489, "event": "step_report", "robot": "Alpha", "id": 1, "state": "started", "x": 16.54, "y": 16.54, "th": -88.93, "front_cm": 147.9, "info": ""}
+{"t": 1793964999.489, "event": "step_report", "robot": "Bravo", "id": 1, "state": "queued", "x": 127.43, "y": 73.6, "th": 0.76, "front_cm": 93.7, "info": ""}
+{"t": 1793964999.489, "event": "step_report", "robot": "Bravo", "id": 1, "state": "started", "x": 127.43, "y": 73.6, "th": 0.76, "front_cm": 93.7, "info": ""}
+{"t": 1793965001.111, "event": "step_report", "robot": "Bravo", "id": 1, "state": "done", "x": 127.43, "y": 73.6, "th": 89.19, "front_cm": 203.8, "info": ""}
+{"t": 1793965002.237, "event": "step_report", "robot": "Alpha", "id": 1, "state": "done", "x": 16.54, "y": 16.54, "th": 89.23, "front_cm": 131.0, "info": ""}
+{"t": 1793965002.237, "event": "straighten_done", "ok": true, "words": "done in 2.8 s"}
+{"t": 1793965003.899, "event": "runend", "robot": "Alpha", "result": "stopped:stop command"}
+{"t": 1793965003.899, "event": "runend", "robot": "Bravo", "result": "stopped:stop command"}
+{"t": 1793965005.75, "event": "facing_check", "ok": true, "seconds": 1.5, "robots": {"Bravo": {"heading": 89.13, "off": -0.9, "how": "its roof tag (overhead 8 reads)"}, "Alpha": {"heading": 89.92, "off": -0.1, "how": "its roof tag (overhead 8 reads)"}}}
+{"t": 1793965005.951, "event": "bridge_seed", "robots": {"Bravo": [127.48, 73.54, 89.13], "Alpha": [16.55, 16.5, 89.92]}}
+{"t": 1793965008.702, "event": "straighten", "tries": [{"measured": {"Bravo": [127.43, 73.6, 0.76], "Alpha": [16.54, 16.54, -88.94]}, "side_only": {"Bravo": false, "Alpha": false}, "start": {"Bravo": [127.99, 73.99, 90.0], "Alpha": [16.99, 16.99, 90.0]}, "steps": {"Bravo": ["its start heading"], "Alpha": ["its start heading"]}, "run": "done in 2.8 s", "words": ["Bravo was 89 deg off: turned to face the y = 91 side", "Alpha was 179 deg off (backwards): turned to face the y = 91 side"]}, {"measured": {"Bravo": [127.43, 73.59, 89.13], "Alpha": [16.5, 16.55, 89.92]}, "side_only": {"Bravo": false, "Alpha": false}, "start": {"Bravo": [127.99, 73.99, 90.0], "Alpha": [16.99, 16.99, 90.0]}, "recheck": ["Bravo: re-check 0.7 cm and 1 deg off its start (allowed 3 cm, 8 deg): ready", "Alpha: re-check 0.7 cm and 0 deg off its start (allowed 3 cm, 8 deg): ready"]}], "result": "ready after 1 correction(s)"}
+{"t": 1793965008.707, "event": "message", "text": "plan plan-c892854c0c started: 2 robots, 45 steps, planned 43.1 s"}
+{"t": 1793965008.709, "event": "step_sent", "robot": "Bravo", "id": 2, "i": 0, "plan": 0, "text": "fs 2 W 3000"}
+{"t": 1793965008.709, "event": "step_sent", "robot": "Alpha", "id": 2, "i": 0, "plan": 0, "text": "fs 2 W 3000"}
+{"t": 1793965008.742, "event": "step_report", "robot": "Bravo", "id": 2, "state": "queued", "x": 127.43, "y": 73.59, "th": 89.13, "front_cm": 205.6, "info": ""}
+{"t": 1793965008.742, "event": "step_report", "robot": "Bravo", "id": 2, "state": "started", "x": 127.43, "y": 73.59, "th": 89.13, "front_cm": 205.6, "info": ""}
+{"t": 1793965008.742, "event": "labelled_step", "robot": "Bravo", "plan": 0, "i": 0, "label": "at point P08", "phase": "pause", "state": "started", "t_run": 0.02, "pose": [127.43, 73.59, 89.13], "front_cm": 205.6, "info": "", "cam": [127.43, 73.59, 89.2], "to": [127.99, 73.99, 90.0], "frm": [127.99, 73.99, 90.0]}
+{"t": 1793965008.742, "event": "step_report", "robot": "Alpha", "id": 2, "state": "queued", "x": 16.5, "y": 16.55, "th": 89.93, "front_cm": 128.3, "info": ""}
+{"t": 1793965008.742, "event": "step_report", "robot": "Alpha", "id": 2, "state": "started", "x": 16.5, "y": 16.55, "th": 89.93, "front_cm": 128.3, "info": ""}
+{"t": 1793965008.742, "event": "labelled_step", "robot": "Alpha", "plan": 0, "i": 0, "label": "at point P01", "phase": "pause", "state": "started", "t_run": 0.02, "pose": [16.5, 16.55, 89.93], "front_cm": 128.3, "info": "", "cam": [16.5, 16.55, 89.9], "to": [16.99, 16.99, 90.0], "frm": [16.99, 16.99, 90.0]}
+{"t": 1793965008.742, "event": "step_sent", "robot": "Bravo", "id": 3, "i": 1, "plan": 0, "text": "fs 3 T -180.00 -"}
+{"t": 1793965008.742, "event": "step_sent", "robot": "Alpha", "id": 3, "i": 1, "plan": 0, "text": "fs 3 T 0.02 -"}
+{"t": 1793965008.753, "event": "step_report", "robot": "Bravo", "id": 3, "state": "queued", "x": 127.43, "y": 73.59, "th": 89.13, "front_cm": 205.6, "info": ""}
+{"t": 1793965008.763, "event": "step_report", "robot": "Alpha", "id": 3, "state": "queued", "x": 16.5, "y": 16.55, "th": 89.93, "front_cm": 128.6, "info": ""}
+{"t": 1793965011.741, "event": "step_report", "robot": "Bravo", "id": 2, "state": "done", "x": 127.43, "y": 73.59, "th": 89.09, "front_cm": 200.5, "info": ""}
+{"t": 1793965011.741, "event": "point_confidence", "robot": "Bravo", "point": "point P08", "t_run": 3.02, "dwell_s": 3.0, "n_fixes": 19, "t_abs": 1793965011.73, "x": 127.44, "y": 73.59, "plus_minus_cm": 1.0, "source": "one camera (overhead)", "two_camera_share": 0.0, "since_fix_cm": 0.0, "since_fix_s": 0.0, "own_x": 127.43, "own_y": 73.59, "own_vs_camera_cm": 0.01, "words": "point P08 (Bravo): \u00b11.0 cm, one camera (overhead)"}
+{"t": 1793965011.741, "event": "message", "text": "POINT point P08 (Bravo): \u00b11.0 cm, one camera (overhead)"}
+{"t": 1793965011.741, "event": "labelled_step", "robot": "Bravo", "plan": 0, "i": 0, "label": "at point P08", "phase": "pause", "state": "done", "t_run": 3.02, "pose": [127.43, 73.59, 89.09], "front_cm": 200.5, "info": "", "cam": [127.44, 73.59, 89.1], "to": [127.99, 73.99, 90.0], "frm": [127.99, 73.99, 90.0]}
+{"t": 1793965011.741, "event": "step_report", "robot": "Bravo", "id": 3, "state": "started", "x": 127.43, "y": 73.59, "th": 89.09, "front_cm": 200.5, "info": ""}
+{"t": 1793965011.741, "event": "step_report", "robot": "Alpha", "id": 2, "state": "done", "x": 16.5, "y": 16.55, "th": 90.06, "front_cm": 134.1, "info": ""}
+{"t": 1793965011.742, "event": "point_confidence", "robot": "Alpha", "point": "point P01", "t_run": 3.02, "dwell_s": 3.0, "n_fixes": 19, "t_abs": 1793965011.732, "x": 16.51, "y": 16.55, "plus_minus_cm": 1.0, "source": "one camera (overhead)", "two_camera_share": 0.0, "since_fix_cm": 0.0, "since_fix_s": 0.0, "own_x": 16.5, "own_y": 16.55, "own_vs_camera_cm": 0.01, "words": "point P01 (Alpha): \u00b11.0 cm, one camera (overhead)"}
+{"t": 1793965011.742, "event": "message", "text": "POINT point P01 (Alpha): \u00b11.0 cm, one camera (overhead)"}
+{"t": 1793965011.742, "event": "labelled_step", "robot": "Alpha", "plan": 0, "i": 0, "label": "at point P01", "phase": "pause", "state": "done", "t_run": 3.02, "pose": [16.5, 16.55, 90.06], "front_cm": 134.1, "info": "", "cam": [16.51, 16.55, 89.9], "to": [16.99, 16.99, 90.0], "frm": [16.99, 16.99, 90.0]}
+{"t": 1793965011.742, "event": "step_report", "robot": "Alpha", "id": 3, "state": "started", "x": 16.5, "y": 16.55, "th": 90.06, "front_cm": 134.1, "info": ""}
+{"t": 1793965013.398, "event": "step_report", "robot": "Bravo", "id": 3, "state": "done", "x": 127.43, "y": 73.59, "th": 179.16, "front_cm": 189.8, "info": ""}
+{"t": 1793965013.399, "event": "turn_pause", "robot": "Bravo", "i": 2, "plan": 0, "label": "", "since_turn_s": 0.003, "added_s": 0.0, "how": "one camera (overhead)", "d_cm": 0.03, "fixes": 2, "result": "agreed", "t_run": 4.69}
+{"t": 1793965013.399, "event": "step_sent", "robot": "Bravo", "id": 4, "i": 2, "plan": 0, "text": "fs 4 D 127.99 73.99 115.66 73.99 -180.00 10.00 0 -"}
+{"t": 1793965013.423, "event": "step_report", "robot": "Bravo", "id": 4, "state": "queued", "x": 127.43, "y": 73.59, "th": 179.18, "front_cm": 189.8, "info": ""}
+{"t": 1793965013.423, "event": "step_report", "robot": "Bravo", "id": 4, "state": "started", "x": 127.43, "y": 73.59, "th": 179.18, "front_cm": 189.8, "info": ""}
+{"t": 1793965013.424, "event": "step_sent", "robot": "Bravo", "id": 5, "i": 3, "plan": 0, "text": "fs 5 D 115.66 73.99 103.34 73.99 -180.00 10.00 0 -"}
+{"t": 1793965013.435, "event": "step_report", "robot": "Bravo", "id": 5, "state": "queued", "x": 127.42, "y": 73.59, "th": 179.19, "front_cm": 194.4, "info": ""}
+{"t": 1793965013.447, "event": "step_report", "robot": "Alpha", "id": 3, "state": "done", "x": 16.5, "y": 16.55, "th": 0.82, "front_cm": 91.5, "info": ""}
+{"t": 1793965013.448, "event": "turn_pause", "robot": "Alpha", "i": 2, "plan": 0, "label": "", "since_turn_s": 0.003, "added_s": 0.0, "how": "one camera (overhead)", "d_cm": 0.03, "fixes": 3, "result": "agreed", "t_run": 4.74}
+{"t": 1793965013.448, "event": "step_sent", "robot": "Alpha", "id": 4, "i": 2, "plan": 0, "text": "fs 4 D 16.99 16.99 29.33 16.99 0.02 10.00 0 -"}
+{"t": 1793965013.461, "event": "step_report", "robot": "Alpha", "id": 4, "state": "queued", "x": 16.5, "y": 16.55, "th": 0.81, "front_cm": 91.5, "info": ""}
+{"t": 1793965013.461, "event": "step_report", "robot": "Alpha", "id": 4, "state": "started", "x": 16.5, "y": 16.55, "th": 0.81, "front_cm": 91.5, "info": ""}
+{"t": 1793965013.461, "event": "step_sent", "robot": "Alpha", "id": 5, "i": 3, "plan": 0, "text": "fs 5 D 29.33 16.99 41.66 17.00 0.02 10.00 0 -"}
+{"t": 1793965013.471, "event": "step_report", "robot": "Alpha", "id": 5, "state": "queued", "x": 16.5, "y": 16.55, "th": 0.81, "front_cm": 91.5, "info": ""}
+{"t": 1793965013.973, "event": "cam_guard_start", "robot": "Alpha", "d_cm": 6.67, "dth_deg": 0.7, "cam": [13.89, 16.54, 0.5], "own": [20.56, 16.63, 1.24]}
+{"t": 1793965014.046, "event": "cam_guard_start", "robot": "Bravo", "d_cm": 7.15, "dth_deg": 0.0, "cam": [127.37, 68.81, 178.9], "own": [122.14, 73.69, 178.91]}
+{"t": 1793965014.261, "event": "step_report", "robot": "Alpha", "id": 4, "state": "failed", "x": 23.37, "y": 16.69, "th": 1.14, "front_cm": 84.5, "info": "plywood edge at 23.4 16.7 1.1 bottom"}
+{"t": 1793965014.261, "event": "step_failed", "robot": "Alpha", "i": 2, "info": "plywood edge at 23.4 16.7 1.1 bottom"}
+{"t": 1793965014.261, "event": "trip", "robot": "Alpha", "i": 2, "kind": "drop", "info": "plywood edge at 23.4 16.7 1.1 bottom", "obstacle": {"id": "edge-by-Alpha-1", "shape": "polygon", "points": [[18.99, -23.41], [18.29, 56.59], [43.29, 56.81], [43.99, -23.19]], "source": "edge_guard", "cue": "drop", "time": "2026-11-06T06:36:54", "why": "drop trip (discovered edge)"}, "back_off": "refused: nothing shows a safe way out (no trail behind, no camera room, tilted: no turn): it holds; the camera or a person is needed"}
+{"t": 1793965014.261, "event": "message", "text": "Alpha: its edge guard stopped it (plywood edge at 23.4 16.7 1.1 bottom): kept out; backing away is NOT safe (nothing shows a safe way out (no trail behind, no camera room, tilted: no turn): it holds; the camera or a person is needed): it is held where it stands"}
+{"t": 1793965014.262, "event": "message", "text": "Alpha is held: drop trip, no safe way back. It is a fixed obstacle where it stopped until it is heard again (then it rejoins); the others re-plan and carry on"}
+{"t": 1793965014.262, "event": "robot_out", "robot": "Alpha", "why": "drop trip, no safe way back", "obstacle": {"id": "out-Alpha", "shape": "polygon", "points": [[11.9, 21.34], [12.09, 11.85], [12.59, 9.31], [14.03, 7.16], [16.18, 5.72], [18.72, 5.22], [46.41, 5.62], [48.95, 6.13], [51.1, 7.57], [52.53, 9.72], [53.04, 12.25], [53.04, 21.75], [52.53, 24.29], [51.09, 26.44], [48.94, 27.87], [46.41, 28.38], [36.91, 28.38], [24.58, 28.37], [18.53, 27.97], [15.99, 27.47], [13.84, 26.03], [12.4, 23.88]], "source": "robot_out", "time": "2026-11-06T06:36:54", "gap_cm": 6.5, "odometry_pm_cm": 0.0}, "pose": [23.37, 16.69, 1.14], "kind": "restarted"}
+{"t": 1793965014.262, "event": "control", "robot": "Alpha", "text": "halt"}
+{"t": 1793965014.267, "event": "points_reassigned", "robot": "Alpha", "why": "drop trip, no safe way back", "to": {"Bravo": ["point P03", "point P04", "point P02"]}}
+{"t": 1793965014.267, "event": "keep_going", "kind": "points_reassigned", "robot": "Alpha", "words": "Alpha is held (drop trip, no safe way back): its points not done go to the robots still running: Bravo (points P03, P04, P02 to Bravo)", "t_run": 5.56}
+{"t": 1793965014.267, "event": "message", "text": "KEEP GOING: Alpha is held (drop trip, no safe way back): its points not done go to the robots still running: Bravo (points P03, P04, P02 to Bravo)"}
+{"t": 1793965014.274, "event": "control", "robot": "Bravo", "text": "hold 4"}
+{"t": 1793965014.277, "event": "robot_back", "robot": "Alpha", "why": "drop trip, no safe way back", "rejoins": true}
+{"t": 1793965014.277, "event": "message", "text": "Alpha is talking again: checking it (boot ID, camera) before it rejoins"}
+{"t": 1793965014.289, "event": "step_report", "robot": "Bravo", "id": 5, "state": "dropped", "x": 119.71, "y": 73.73, "th": 179.02, "front_cm": 177.7, "info": "hold"}
+{"t": 1793965014.289, "event": "step_report", "robot": "Bravo", "id": 4, "state": "held", "x": 119.71, "y": 73.73, "th": 179.02, "front_cm": 177.7, "info": ""}
+{"t": 1793965014.537, "event": "cam_guard_start", "robot": "Bravo", "d_cm": 12.46, "dth_deg": 0.1, "cam": [127.3, 65.52, 179.1], "own": [117.96, 73.76, 179.19]}
+{"t": 1793965014.561, "event": "replan", "t_run": 5.56, "source": "robot_out", "cpu_s": 0.278, "budget_s": 2.0, "events": [{"robot": "Bravo", "action": "continues", "reason": "path clear for the next 2.0 s; carries on 1 step(s), then holds"}], "new_makespan_s": 66.8, "stranded": [], "obstacle": {"id": "out-Alpha", "shape": "polygon", "points": [[11.9, 21.34], [12.09, 11.85], [12.59, 9.31], [14.03, 7.16], [16.18, 5.72], [18.72, 5.22], [46.41, 5.62], [48.95, 6.13], [51.1, 7.57], [52.53, 9.72], [53.04, 12.25], [53.04, 21.75], [52.53, 24.29], [51.09, 26.44], [48.94, 27.87], [46.41, 28.38], [36.91, 28.38], [24.58, 28.37], [18.53, 27.97], [15.99, 27.47], [13.84, 26.03], [12.4, 23.88]], "source": "robot_out", "time": "2026-11-06T06:36:54", "gap_cm": 6.5, "odometry_pm_cm": 0.0}, "states": {"Bravo": {"pose": [121.08, 73.71, 3.1232666964438525], "step": 2, "in_progress": true, "dwell_left_s": null, "ended": null}}, "old_plan": 0}
+{"t": 1793965014.561, "event": "message", "text": "Bravo continues: path clear for the next 2.0 s; carries on 1 step(s), then holds"}
+{"t": 1793965014.561, "event": "message", "text": "new plan in 0.28 s (first safe plan, robots told 0.5 s ahead; a shorter one is searched for next); everyone done about 67 s after the event"}
+{"t": 1793965014.564, "event": "point_skipped", "robot": "Bravo", "point": "point P03", "why": "point (54.0, 17.0): no room to turn there (1.0 cm clear, needs 8.2)"}
+{"t": 1793965014.564, "event": "message", "text": "Bravo: point P03 cannot be reached (point (54.0, 17.0): no room to turn there (1.0 cm clear, needs 8.2)): skipped, listed in the summary; on to the next"}
+{"t": 1793965014.57, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965014.697, "event": "step_report", "robot": "Bravo", "id": 4, "state": "done", "x": 115.82, "y": 73.78, "th": 179.68, "front_cm": 180.9, "info": ""}
+{"t": 1793965014.698, "event": "heading_bad", "robot": "Bravo", "kind": "heading_bad", "err_deg": 89.8, "moved_cm": 9.6, "in_a_row": 1}
+{"t": 1793965014.775, "event": "step_sent", "robot": "Bravo", "id": 6, "i": 1, "plan": 1, "text": "fs 6 D 115.66 73.99 103.34 73.99 -180.00 10.00 0 -"}
+{"t": 1793965014.792, "event": "step_report", "robot": "Bravo", "id": 6, "state": "queued", "x": 115.64, "y": 73.78, "th": 179.72, "front_cm": 180.1, "info": ""}
+{"t": 1793965014.792, "event": "step_report", "robot": "Bravo", "id": 6, "state": "started", "x": 115.64, "y": 73.78, "th": 179.72, "front_cm": 180.1, "info": ""}
+{"t": 1793965014.8, "event": "step_sent", "robot": "Bravo", "id": 7, "i": 2, "plan": 1, "text": "fs 7 D 103.34 73.99 91.01 73.99 -180.00 10.00 0 -"}
+{"t": 1793965014.816, "event": "step_report", "robot": "Bravo", "id": 7, "state": "queued", "x": 115.62, "y": 73.78, "th": 179.71, "front_cm": 180.1, "info": ""}
+{"t": 1793965014.871, "event": "replan", "t_run": 5.86, "source": "improve", "cpu_s": 0.301, "budget_s": 6.0, "events": [{"robot": "Bravo", "action": "continues", "reason": "path clear for the next 2.0 s; carries on 4 step(s), then holds"}], "new_makespan_s": 66.5, "stranded": [], "obstacle": null, "states": {"Bravo": {"pose": [117.96, 73.76, 3.127455486648639], "step": 0, "in_progress": true, "dwell_left_s": null, "ended": null}}, "old_plan": 1, "kept": false}
+{"t": 1793965014.872, "event": "message", "text": "improvement try: done at 72 s instead of 72 s, not kept"}
+{"t": 1793965014.872, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965015.18, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965015.261, "event": "message", "text": "Alpha restarted or its run ended (boot 45BF, was 45BF): everyone holds while it is checked again"}
+{"t": 1793965015.261, "event": "control", "robot": "Bravo", "text": "halt"}
+{"t": 1793965015.261, "event": "recheck_start", "robot": "Alpha", "boot": "45BF"}
+{"t": 1793965015.761, "event": "step_report", "robot": "Bravo", "id": 7, "state": "dropped", "x": 111.77, "y": 73.82, "th": 179.39, "front_cm": 177.3, "info": "halt"}
+{"t": 1793965015.761, "event": "step_report", "robot": "Bravo", "id": 0, "state": "halted", "x": 111.77, "y": 73.82, "th": 179.39, "front_cm": 177.3, "info": ""}
+{"t": 1793965015.761, "event": "step_report", "robot": "Bravo", "id": 6, "state": "failed", "x": 111.77, "y": 73.82, "th": 179.39, "front_cm": 177.3, "info": "halted"}
+{"t": 1793965015.761, "event": "step_failed", "robot": "Bravo", "i": 1, "info": "halted"}
+{"t": 1793965016.784, "event": "message", "text": "Bravo: Bravo follow: nothing from the laptop for 1508 ms; standing still"}
+{"t": 1793965016.935, "event": "runend", "robot": "Alpha", "result": "stopped:stop command"}
+{"t": 1793965016.935, "event": "message", "text": "Alpha: run 45BF-2: stopped (stop command)"}
+{"t": 1793965018.902, "event": "facing_check", "ok": true, "seconds": 1.5, "robots": {"Alpha": {"heading": 0.7, "off": 0.2, "how": "its roof tag (overhead 6 reads)"}}}
+{"t": 1793965019.103, "event": "bridge_seed", "robots": {"Alpha": [9.48, 16.51, 0.7]}}
+{"t": 1793965020.752, "event": "message", "text": "Alpha: Alpha follow: ready for steps (needs fpose or a camera fix first)"}
+{"t": 1793965020.787, "event": "message", "text": "Alpha: Alpha follow: nothing from the laptop for 1646 ms; standing still"}
+{"t": 1793965022.114, "event": "message", "text": "floor check: Alpha: stop limit 12.0 cm (the usual; floor check: no floor in reach of the stop (nothing under 40 cm in its path))"}
+{"t": 1793965022.114, "event": "floor_check", "robot": "Alpha", "limit_cm": 12.0, "rule": "cap", "ceiling_cm": 12.0, "floor": {"n": 32, "zones": {}, "floor_cm": null, "lowest_cm": null, "median_cm": null, "why": "no floor in reach of the stop (nothing under 40 cm in its path)"}, "words": "Alpha: stop limit 12.0 cm (the usual; floor check: no floor in reach of the stop (nothing under 40 cm in its path))"}
+{"t": 1793965022.114, "event": "recheck_done", "robot": "Alpha", "ok": true, "words": "boot 45BF: facing checked, settings read back, floor checked"}
+{"t": 1793965022.175, "event": "control", "robot": "Alpha", "text": "halt"}
+{"t": 1793965022.176, "event": "robot_rejoined", "robot": "Alpha", "why": "restarted, checked again: boot 45BF: facing checked, settings read back, floor checked", "was": "drop trip, no safe way back", "t_run": 13.47, "cam": [9.46, 16.5, 0.5]}
+{"t": 1793965022.176, "event": "message", "text": "Alpha rejoins (restarted, checked again: boot 45BF: facing checked, settings read back, floor checked): its pose set from the camera (9.5, 16.5); everyone re-plans from where they are"}
+{"t": 1793965022.182, "event": "message", "text": "  Bravo 1/39  Alpha 0/0"}
+{"t": 1793965022.182, "event": "waiting", "robot": "Bravo", "why": "step 1 failed, waiting for a re-plan"}
+{"t": 1793965022.182, "event": "message", "text": "    Bravo: step 1 failed, waiting for a re-plan"}
+{"t": 1793965022.182, "event": "waiting", "robot": "Alpha", "why": "its halt is not acknowledged"}
+{"t": 1793965022.182, "event": "message", "text": "    Alpha: its halt is not acknowledged"}
+{"t": 1793965022.195, "event": "step_report", "robot": "Alpha", "id": 0, "state": "halted", "x": 0.0, "y": 0.0, "th": 0.06, "front_cm": 87.1, "info": ""}
+{"t": 1793965022.196, "event": "cam_guard_reset", "robot": "Bravo", "d_cm": 22.46, "cam": [127.23, 57.81, 179.4], "own": [111.48, 73.82, 179.26], "n": 1}
+{"t": 1793965022.196, "event": "keep_going", "kind": "cam_guard", "robot": "Bravo", "words": "Bravo: the camera and its own pose disagreed by 22.5 cm for 1.0 s: its pose was set to the camera's (the camera is trusted), the run goes on", "t_run": 13.49, "d_cm": 22.46, "cam": [127.23, 57.81, 179.4], "own": [111.48, 73.82, 179.26]}
+{"t": 1793965022.196, "event": "message", "text": "KEEP GOING: Bravo: the camera and its own pose disagreed by 22.5 cm for 1.0 s: its pose was set to the camera's (the camera is trusted), the run goes on"}
+{"t": 1793965022.196, "event": "control", "robot": "Bravo", "text": "halt"}
+{"t": 1793965022.196, "event": "message", "text": "WARNING: Bravo: camera and its own pose disagree by 22.5 cm: halted, its pose set from the camera, and the others re-plan round it"}
+{"t": 1793965022.206, "event": "step_report", "robot": "Bravo", "id": 0, "state": "halted", "x": 111.48, "y": 73.82, "th": 179.26, "front_cm": 174.8, "info": ""}
+{"t": 1793965022.21, "event": "control", "robot": "Bravo", "text": "halt"}
+{"t": 1793965022.21, "event": "control", "robot": "Alpha", "text": "halt"}
+{"t": 1793965022.21, "event": "keep_going", "kind": "replan_failed", "robot": null, "words": "no new plan (robot Alpha is boxed in at (9.5, 16.5): move it by hand): everyone stands where they are and the plan is made again in 3 s", "t_run": 13.5}
+{"t": 1793965022.21, "event": "message", "text": "KEEP GOING: no new plan (robot Alpha is boxed in at (9.5, 16.5): move it by hand): everyone stands where they are and the plan is made again in 3 s"}
+{"t": 1793965022.221, "event": "step_report", "robot": "Alpha", "id": 0, "state": "halted", "x": 9.46, "y": 16.5, "th": 0.5, "front_cm": 84.9, "info": ""}
+{"t": 1793965022.221, "event": "step_report", "robot": "Bravo", "id": 0, "state": "halted", "x": 127.23, "y": 57.81, "th": 179.4, "front_cm": 174.8, "info": ""}
+{"t": 1793965025.249, "event": "control", "robot": "Bravo", "text": "halt"}
+{"t": 1793965025.25, "event": "control", "robot": "Alpha", "text": "halt"}
+{"t": 1793965025.25, "event": "keep_going", "kind": "replan_failed", "robot": null, "words": "no new plan (robot Alpha is boxed in at (9.5, 16.5): move it by hand): everyone stands where they are and the plan is made again in 3 s", "t_run": 16.54}
+{"t": 1793965025.262, "event": "step_report", "robot": "Alpha", "id": 0, "state": "halted", "x": 9.46, "y": 16.5, "th": 0.6, "front_cm": 83.8, "info": ""}
+{"t": 1793965025.273, "event": "step_report", "robot": "Bravo", "id": 0, "state": "halted", "x": 127.23, "y": 57.81, "th": 179.36, "front_cm": 176.3, "info": ""}
+{"t": 1793965028.274, "event": "control", "robot": "Bravo", "text": "halt"}
+{"t": 1793965028.274, "event": "control", "robot": "Alpha", "text": "halt"}
+{"t": 1793965028.274, "event": "keep_going", "kind": "replan_failed", "robot": null, "words": "no new plan (robot Alpha is boxed in at (9.5, 16.5): move it by hand): everyone stands where they are and the plan is made again in 3 s", "t_run": 19.57}
+{"t": 1793965028.341, "event": "step_report", "robot": "Alpha", "id": 0, "state": "halted", "x": 9.46, "y": 16.5, "th": 0.68, "front_cm": 84.0, "info": ""}
+{"t": 1793965028.341, "event": "step_report", "robot": "Bravo", "id": 0, "state": "halted", "x": 127.23, "y": 57.81, "th": 179.27, "front_cm": 170.8, "info": ""}
+{"t": 1793965031.302, "event": "control", "robot": "Bravo", "text": "halt"}
+{"t": 1793965031.302, "event": "control", "robot": "Alpha", "text": "halt"}
+{"t": 1793965031.302, "event": "keep_going", "kind": "replan_failed_out", "robot": "Alpha", "words": "Alpha could not be planned 4 times in a row (no new plan (robot Alpha is boxed in at (9.5, 16.5): move it by hand)): it is set out where it stands; the others go on", "t_run": 22.59}
+{"t": 1793965031.302, "event": "message", "text": "KEEP GOING: Alpha could not be planned 4 times in a row (no new plan (robot Alpha is boxed in at (9.5, 16.5): move it by hand)): it is set out where it stands; the others go on"}
+{"t": 1793965031.303, "event": "message", "text": "Alpha is out: no plan could be made for it (no new plan (robot Alpha is boxed in at (9.5, 16.5): move it by hand)). It is now a fixed obstacle where it stopped; the others re-plan and carry on"}
+{"t": 1793965031.303, "event": "robot_out", "robot": "Alpha", "why": "no plan could be made for it (no new plan (robot Alpha is boxed in at (9.5, 16.5): move it by hand))", "obstacle": {"id": "out-Alpha", "shape": "polygon", "points": [[-1.98, 21.19], [-1.85, 11.69], [-1.35, 9.15], [0.09, 7.0], [2.24, 5.56], [4.77, 5.06], [14.27, 5.19], [16.81, 5.69], [18.96, 7.13], [20.4, 9.28], [20.9, 11.81], [20.77, 21.31], [20.27, 23.85], [18.83, 26.0], [16.68, 27.44], [14.15, 27.94], [4.65, 27.81], [2.11, 27.31], [-0.04, 25.87], [-1.48, 23.72]], "source": "robot_out", "time": "2026-11-06T06:37:11", "gap_cm": 6.5, "odometry_pm_cm": 0.0}, "pose": [9.46, 16.5, 0.76], "kind": "out"}
+{"t": 1793965031.303, "event": "control", "robot": "Alpha", "text": "halt"}
+{"t": 1793965031.325, "event": "robot_back", "robot": "Alpha", "why": "no plan could be made for it (no new plan (robot Alpha is boxed in at (9.5, 16.5): move it by hand))", "rejoins": false}
+{"t": 1793965031.326, "event": "message", "text": "Alpha is talking again (no plan could be made for it (no new plan (robot Alpha is boxed in at (9.5, 16.5): move it by hand))); it stays out of this run, as a fixed obstacle"}
+{"t": 1793965031.326, "event": "step_report", "robot": "Bravo", "id": 0, "state": "halted", "x": 127.23, "y": 57.81, "th": 179.24, "front_cm": 174.6, "info": ""}
+{"t": 1793965031.445, "event": "replan", "t_run": 22.6, "source": "robot_out", "cpu_s": 0.123, "budget_s": 2.0, "events": [{"robot": "Bravo", "action": "continues", "reason": "path clear for the next 2.0 s; carries on 1 step(s), then holds"}], "new_makespan_s": 77.9, "stranded": [], "obstacle": {"id": "out-Alpha", "shape": "polygon", "points": [[-1.98, 21.19], [-1.85, 11.69], [-1.35, 9.15], [0.09, 7.0], [2.24, 5.56], [4.77, 5.06], [14.27, 5.19], [16.81, 5.69], [18.96, 7.13], [20.4, 9.28], [20.9, 11.81], [20.77, 21.31], [20.27, 23.85], [18.83, 26.0], [16.68, 27.44], [14.15, 27.94], [4.65, 27.81], [2.11, 27.31], [-0.04, 25.87], [-1.48, 23.72]], "source": "robot_out", "time": "2026-11-06T06:37:11", "gap_cm": 6.5, "odometry_pm_cm": 0.0}, "states": {"Bravo": {"pose": [127.23, 57.81, 3.1281536183494367], "step": 1, "in_progress": true, "dwell_left_s": null, "ended": null}}, "old_plan": 1}
+{"t": 1793965031.445, "event": "message", "text": "Bravo continues: path clear for the next 2.0 s; carries on 1 step(s), then holds"}
+{"t": 1793965031.445, "event": "message", "text": "new plan in 0.12 s (first safe plan, robots told 0.5 s ahead; a shorter one is searched for next); everyone done about 78 s after the event"}
+{"t": 1793965031.453, "event": "step_sent", "robot": "Bravo", "id": 8, "i": 0, "plan": 2, "text": "fs 8 D 127.23 57.81 103.34 73.99 -180.00 10.00 0 -"}
+{"t": 1793965031.463, "event": "step_report", "robot": "Bravo", "id": 8, "state": "queued", "x": 127.23, "y": 57.81, "th": 179.24, "front_cm": 172.4, "info": ""}
+{"t": 1793965031.463, "event": "step_report", "robot": "Bravo", "id": 8, "state": "started", "x": 127.23, "y": 57.81, "th": 179.24, "front_cm": 172.4, "info": ""}
+{"t": 1793965031.613, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965031.699, "event": "replan", "t_run": 22.74, "source": "improve", "cpu_s": 0.239, "budget_s": 6.0, "events": [{"robot": "Bravo", "action": "continues", "reason": "path clear for the next 2.0 s; carries on 3 step(s), then holds"}], "new_makespan_s": 77.9, "stranded": [], "obstacle": null, "states": {"Bravo": {"pose": [127.23, 57.81, 3.1283281512746366], "step": 0, "in_progress": false, "dwell_left_s": null, "ended": null}}, "old_plan": 2, "kept": false}
+{"t": 1793965031.699, "event": "message", "text": "improvement try: done at 101 s instead of 100 s, not kept"}
+{"t": 1793965031.804, "event": "step_sent", "robot": "Bravo", "id": 9, "i": 1, "plan": 2, "text": "fs 9 D 103.34 73.99 91.01 73.99 -180.00 10.00 0 -"}
+{"t": 1793965031.824, "event": "step_report", "robot": "Bravo", "id": 9, "state": "queued", "x": 124.72, "y": 58.01, "th": 173.55, "front_cm": 170.7, "info": ""}
+{"t": 1793965031.918, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965032.07, "event": "cam_guard_start", "robot": "Bravo", "d_cm": 6.12, "dth_deg": 0.1, "cam": [126.77, 53.27, 172.7], "own": [123.15, 58.2, 172.61]}
+{"t": 1793965032.185, "event": "message", "text": "  Bravo 0/42"}
+{"t": 1793965032.185, "event": "waiting", "robot": "Bravo", "why": "step 0 started"}
+{"t": 1793965032.226, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965032.526, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965032.578, "event": "heading_relearned", "robot": "Bravo", "change_deg": 90.0, "yaw_fix": 90.0, "kind": "heading_relearned", "old_deg": 0.0, "new_deg": 90.0, "err_deg": 87.4, "moved_cm": 9.5}
+{"t": 1793965032.578, "event": "message", "text": "Bravo: HEADING RE-LEARNED: two stretches in a row it moved +90 deg from where its roof tag says it faces: its tag's headings are corrected by +90 deg from now on (observed); its pose is set again"}
+{"t": 1793965032.836, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965033.137, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965033.44, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965033.747, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965034.057, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965034.36, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965034.671, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965034.973, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965035.278, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965035.587, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965035.62, "event": "step_report", "robot": "Bravo", "id": 8, "state": "done", "x": 103.5, "y": 39.38, "th": 177.59, "front_cm": 177.0, "info": ""}
+{"t": 1793965035.62, "event": "step_report", "robot": "Bravo", "id": 9, "state": "started", "x": 103.5, "y": 39.38, "th": 177.59, "front_cm": 177.0, "info": ""}
+{"t": 1793965035.62, "event": "labelled_step", "robot": "Bravo", "plan": 2, "i": 1, "label": "point P06", "phase": "travel", "state": "started", "t_run": 26.91, "pose": [103.5, 39.38, 177.59], "front_cm": 177.0, "info": "", "cam": [104.19, 38.81, 176.6], "to": [91.01, 73.99, -180.0], "frm": [103.34, 73.99, -180.0]}
+{"t": 1793965035.621, "event": "step_sent", "robot": "Bravo", "id": 10, "i": 2, "plan": 2, "text": "fs 10 W 3000"}
+{"t": 1793965035.642, "event": "step_report", "robot": "Bravo", "id": 10, "state": "queued", "x": 103.37, "y": 39.39, "th": 177.71, "front_cm": 176.2, "info": ""}
+{"t": 1793965035.894, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965036.206, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965036.505, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965036.811, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965036.949, "event": "step_report", "robot": "Bravo", "id": 9, "state": "done", "x": 91.19, "y": 40.79, "th": 177.5, "front_cm": 167.4, "info": ""}
+{"t": 1793965036.95, "event": "labelled_step", "robot": "Bravo", "plan": 2, "i": 1, "label": "point P06", "phase": "travel", "state": "done", "t_run": 28.23, "pose": [91.19, 40.79, 177.5], "front_cm": 167.4, "info": "", "cam": [91.97, 40.19, 176.6], "to": [91.01, 73.99, -180.0], "frm": [103.34, 73.99, -180.0]}
+{"t": 1793965036.95, "event": "step_report", "robot": "Bravo", "id": 10, "state": "started", "x": 91.19, "y": 40.79, "th": 177.5, "front_cm": 167.4, "info": ""}
+{"t": 1793965036.95, "event": "labelled_step", "robot": "Bravo", "plan": 2, "i": 2, "label": "at point P06", "phase": "pause", "state": "started", "t_run": 28.23, "pose": [91.19, 40.79, 177.5], "front_cm": 167.4, "info": "", "cam": [91.97, 40.19, 176.6], "to": [91.01, 73.99, -180.0], "frm": [91.01, 73.99, -180.0]}
+{"t": 1793965036.95, "event": "step_sent", "robot": "Bravo", "id": 11, "i": 3, "plan": 2, "text": "fs 11 T -90.00 46.00"}
+{"t": 1793965036.97, "event": "step_report", "robot": "Bravo", "id": 11, "state": "queued", "x": 91.11, "y": 40.79, "th": 177.66, "front_cm": 169.3, "info": ""}
+{"t": 1793965037.115, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965037.415, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965037.721, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965038.029, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965038.334, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965038.636, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965038.945, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965039.249, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965039.559, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965039.861, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965039.943, "event": "step_report", "robot": "Bravo", "id": 10, "state": "done", "x": 90.99, "y": 40.8, "th": 177.82, "front_cm": 165.0, "info": ""}
+{"t": 1793965039.944, "event": "point_confidence", "robot": "Bravo", "point": "point P06", "t_run": 31.23, "dwell_s": 3.0, "n_fixes": 19, "t_abs": 1793965039.941, "x": 91.27, "y": 40.22, "plus_minus_cm": 1.0, "source": "one camera (overhead)", "two_camera_share": 0.0, "since_fix_cm": 0.0, "since_fix_s": 0.0, "own_x": 90.99, "own_y": 40.8, "own_vs_camera_cm": 0.64, "words": "point P06 (Bravo): \u00b11.0 cm, one camera (overhead)"}
+{"t": 1793965039.944, "event": "message", "text": "POINT point P06 (Bravo): \u00b11.0 cm, one camera (overhead)"}
+{"t": 1793965039.944, "event": "labelled_step", "robot": "Bravo", "plan": 2, "i": 2, "label": "at point P06", "phase": "pause", "state": "done", "t_run": 31.23, "pose": [90.99, 40.8, 177.82], "front_cm": 165.0, "info": "", "cam": [91.27, 40.22, 178.0], "to": [91.01, 73.99, -180.0], "frm": [91.01, 73.99, -180.0]}
+{"t": 1793965039.944, "event": "step_report", "robot": "Bravo", "id": 11, "state": "started", "x": 90.99, "y": 40.8, "th": 177.82, "front_cm": 165.0, "info": ""}
+{"t": 1793965040.171, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965040.481, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965040.783, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965041.086, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965041.388, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965041.615, "event": "step_report", "robot": "Bravo", "id": 11, "state": "done", "x": 91.0, "y": 40.8, "th": -90.85, "front_cm": 155.7, "info": ""}
+{"t": 1793965041.616, "event": "turn_pause", "robot": "Bravo", "i": 4, "plan": 2, "label": "", "since_turn_s": 0.005, "added_s": 0.0, "how": "one camera (overhead)", "d_cm": 0.63, "fixes": 2, "result": "agreed", "t_run": 32.91}
+{"t": 1793965041.616, "event": "step_sent", "robot": "Bravo", "id": 12, "i": 4, "plan": 2, "text": "fs 12 D 91.01 73.99 91.01 59.74 -90.00 10.00 0 -"}
+{"t": 1793965041.626, "event": "step_report", "robot": "Bravo", "id": 12, "state": "queued", "x": 91.0, "y": 40.8, "th": -90.84, "front_cm": 155.0, "info": ""}
+{"t": 1793965041.627, "event": "step_report", "robot": "Bravo", "id": 12, "state": "started", "x": 91.0, "y": 40.8, "th": -90.84, "front_cm": 155.0, "info": ""}
+{"t": 1793965041.627, "event": "step_report", "robot": "Bravo", "id": 12, "state": "done", "x": 91.0, "y": 40.8, "th": -90.84, "front_cm": 155.0, "info": ""}
+{"t": 1793965041.627, "event": "did_not_move", "robot": "Bravo", "i": 4, "took_s": 0.0, "length_cm": 14.2, "verdict": "impossible", "score": 0.0, "used": ["time"], "words": "14 cm in 0.00 s is not physically possible: a robot-side refusal or failure"}
+{"t": 1793965041.627, "event": "message", "text": "Bravo: step 4 (14 cm) reported done in 0.00 s: 14 cm in 0.00 s is not physically possible: a robot-side refusal or failure: counted as NOT done; re-planning from where it is (never the same step unchanged)"}
+{"t": 1793965041.627, "event": "step_failed", "robot": "Bravo", "i": 4, "info": "done without moving"}
+{"t": 1793965041.627, "event": "message", "text": "Bravo: step 4 (drive) failed: done without moving; re-planning from where it is"}
+{"t": 1793965041.694, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965041.791, "event": "replan", "t_run": 32.92, "source": "retry", "cpu_s": 0.159, "budget_s": 2.0, "events": [{"robot": "Bravo", "action": "stopped", "reason": "its step failed"}], "new_makespan_s": 69.1, "stranded": [], "obstacle": null, "states": {"Bravo": {"pose": [91.0, 40.8, -1.5854570925116491], "step": 4, "in_progress": true, "dwell_left_s": null, "ended": "done without moving"}}, "old_plan": 2}
+{"t": 1793965041.791, "event": "message", "text": "Bravo stopped: its step failed"}
+{"t": 1793965041.791, "event": "message", "text": "new plan in 0.16 s (first safe plan, robots told 0.5 s ahead; a shorter one is searched for next); everyone done about 69 s after the event"}
+{"t": 1793965041.794, "event": "step_sent", "robot": "Bravo", "id": 13, "i": 0, "plan": 3, "text": "fs 13 D 91.00 40.80 91.01 59.74 -90.00 10.00 0 -"}
+{"t": 1793965041.822, "event": "step_report", "robot": "Bravo", "id": 13, "state": "queued", "x": 91.0, "y": 40.8, "th": -90.81, "front_cm": 156.5, "info": ""}
+{"t": 1793965041.822, "event": "step_report", "robot": "Bravo", "id": 13, "state": "started", "x": 91.0, "y": 40.8, "th": -90.81, "front_cm": 156.5, "info": ""}
+{"t": 1793965041.822, "event": "step_report", "robot": "Bravo", "id": 13, "state": "done", "x": 91.0, "y": 40.8, "th": -90.81, "front_cm": 156.5, "info": ""}
+{"t": 1793965041.822, "event": "did_not_move", "robot": "Bravo", "i": 0, "took_s": 0.0, "length_cm": 18.9, "verdict": "impossible", "score": 0.0, "used": ["time"], "words": "19 cm in 0.00 s is not physically possible: a robot-side refusal or failure"}
+{"t": 1793965041.823, "event": "message", "text": "Bravo: step 0 (19 cm) reported done in 0.00 s: 19 cm in 0.00 s is not physically possible: a robot-side refusal or failure: counted as NOT done; re-planning from where it is (never the same step unchanged)"}
+{"t": 1793965041.823, "event": "step_failed", "robot": "Bravo", "i": 0, "info": "done without moving"}
+{"t": 1793965041.823, "event": "message", "text": "Bravo: step 0 (drive) failed: done without moving; re-planning from where it is"}
+{"t": 1793965042.021, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965042.167, "event": "replan", "t_run": 33.09, "source": "improve", "cpu_s": 0.37, "budget_s": 6.0, "events": [{"robot": "Bravo", "action": "continues", "reason": "path clear for the next 2.0 s; carries on 4 step(s), then holds"}], "new_makespan_s": 69.1, "stranded": [], "obstacle": null, "states": {"Bravo": {"pose": [91.0, 40.8, -1.58510802666125], "step": 0, "in_progress": false, "dwell_left_s": null, "ended": null}}, "old_plan": 3, "kept": false}
+{"t": 1793965042.167, "event": "message", "text": "improvement try: done at 102 s instead of 102 s, not kept"}
+{"t": 1793965042.196, "event": "message", "text": "  Bravo 0/38"}
+{"t": 1793965042.196, "event": "waiting", "robot": "Bravo", "why": "step 0 failed, waiting for a re-plan"}
+{"t": 1793965042.196, "event": "message", "text": "    Bravo: step 0 failed, waiting for a re-plan"}
+{"t": 1793965042.308, "event": "replan", "t_run": 33.46, "source": "retry", "cpu_s": 0.13, "budget_s": 2.0, "events": [{"robot": "Bravo", "action": "stopped", "reason": "its step failed"}], "new_makespan_s": 69.1, "stranded": [], "obstacle": null, "states": {"Bravo": {"pose": [91.0, 40.8, -1.5852825595864495], "step": 0, "in_progress": true, "dwell_left_s": null, "ended": "done without moving"}}, "old_plan": 3}
+{"t": 1793965042.308, "event": "message", "text": "Bravo stopped: its step failed"}
+{"t": 1793965042.308, "event": "message", "text": "new plan in 0.13 s (first safe plan, robots told 0.5 s ahead; a shorter one is searched for next); everyone done about 69 s after the event"}
+{"t": 1793965042.336, "event": "step_sent", "robot": "Bravo", "id": 14, "i": 0, "plan": 4, "text": "fs 14 D 91.00 40.80 91.01 59.74 -90.00 10.00 0 -"}
+{"t": 1793965042.336, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965042.355, "event": "step_report", "robot": "Bravo", "id": 14, "state": "queued", "x": 91.0, "y": 40.8, "th": -90.84, "front_cm": 154.6, "info": ""}
+{"t": 1793965042.356, "event": "step_report", "robot": "Bravo", "id": 14, "state": "started", "x": 91.0, "y": 40.8, "th": -90.84, "front_cm": 154.6, "info": ""}
+{"t": 1793965042.356, "event": "step_report", "robot": "Bravo", "id": 14, "state": "done", "x": 91.0, "y": 40.8, "th": -90.84, "front_cm": 154.6, "info": ""}
+{"t": 1793965042.356, "event": "did_not_move", "robot": "Bravo", "i": 0, "took_s": 0.0, "length_cm": 18.9, "verdict": "impossible", "score": 0.0, "used": ["time"], "words": "19 cm in 0.00 s is not physically possible: a robot-side refusal or failure"}
+{"t": 1793965042.356, "event": "message", "text": "Bravo: step 0 (19 cm) reported done in 0.00 s: 19 cm in 0.00 s is not physically possible: a robot-side refusal or failure: counted as NOT done; re-planning from where it is (never the same step unchanged)"}
+{"t": 1793965042.356, "event": "message", "text": "Bravo: 3 moves failed at 91, 41: a hazard, kept out for everyone"}
+{"t": 1793965042.357, "event": "step_failed", "robot": "Bravo", "i": 0, "info": "done without moving"}
+{"t": 1793965042.357, "event": "message", "text": "Bravo: step 0 (drive) failed: done without moving; re-planning from where it is"}
+{"t": 1793965042.526, "event": "replan", "t_run": 33.6, "source": "improve", "cpu_s": 0.204, "budget_s": 6.0, "events": [{"robot": "Bravo", "action": "continues", "reason": "path clear for the next 2.0 s; carries on 4 step(s), then holds"}], "new_makespan_s": 69.1, "stranded": [], "obstacle": null, "states": {"Bravo": {"pose": [91.0, 40.8, -1.5852825595864495], "step": 0, "in_progress": false, "dwell_left_s": null, "ended": null}}, "old_plan": 4, "kept": false}
+{"t": 1793965042.526, "event": "message", "text": "improvement try: done at 103 s instead of 103 s, not kept"}
+{"t": 1793965042.527, "event": "control", "robot": "Bravo", "text": "halt"}
+{"t": 1793965042.539, "event": "step_report", "robot": "Bravo", "id": 0, "state": "halted", "x": 91.0, "y": 40.8, "th": -90.83, "front_cm": 154.3, "info": ""}
+{"t": 1793965042.641, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965042.95, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965042.985, "event": "replan", "t_run": 33.82, "source": "retry", "cpu_s": 0.455, "budget_s": 2.0, "events": [{"robot": "Bravo", "action": "stopped", "reason": "its step failed"}], "new_makespan_s": 77.0, "stranded": [], "obstacle": null, "states": {"Bravo": {"pose": [91.0, 40.8, -1.5852825595864495], "step": 0, "in_progress": true, "dwell_left_s": null, "ended": "done without moving"}}, "old_plan": 4}
+{"t": 1793965042.985, "event": "message", "text": "Bravo stopped: its step failed"}
+{"t": 1793965042.986, "event": "message", "text": "new plan in 0.46 s (first safe plan, robots told 0.5 s ahead; a shorter one is searched for next); everyone done about 77 s after the event"}
+{"t": 1793965042.996, "event": "step_sent", "robot": "Bravo", "id": 15, "i": 0, "plan": 5, "text": "fs 15 W 0"}
+{"t": 1793965043.006, "event": "step_report", "robot": "Bravo", "id": 15, "state": "queued", "x": 91.0, "y": 40.8, "th": -90.84, "front_cm": 154.7, "info": ""}
+{"t": 1793965043.006, "event": "step_report", "robot": "Bravo", "id": 15, "state": "started", "x": 91.0, "y": 40.8, "th": -90.84, "front_cm": 154.7, "info": ""}
+{"t": 1793965043.006, "event": "step_report", "robot": "Bravo", "id": 15, "state": "done", "x": 91.0, "y": 40.8, "th": -90.84, "front_cm": 154.7, "info": ""}
+{"t": 1793965043.027, "event": "step_sent", "robot": "Bravo", "id": 16, "i": 1, "plan": 5, "text": "fs 16 D 91.00 40.80 91.22 55.80 -90.83 5.00 1 -"}
+{"t": 1793965043.059, "event": "step_report", "robot": "Bravo", "id": 16, "state": "queued", "x": 91.0, "y": 40.8, "th": -90.84, "front_cm": 155.0, "info": ""}
+{"t": 1793965043.059, "event": "step_report", "robot": "Bravo", "id": 16, "state": "started", "x": 91.0, "y": 40.8, "th": -90.84, "front_cm": 155.0, "info": ""}
+{"t": 1793965043.06, "event": "step_sent", "robot": "Bravo", "id": 17, "i": 2, "plan": 5, "text": "fs 17 T -24.85 4.30"}
+{"t": 1793965043.12, "event": "step_report", "robot": "Bravo", "id": 17, "state": "queued", "x": 91.0, "y": 40.83, "th": -90.84, "front_cm": 153.8, "info": ""}
+{"t": 1793965043.261, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965043.272, "event": "replan", "t_run": 34.28, "source": "improve", "cpu_s": 0.27, "budget_s": 6.0, "events": [{"robot": "Bravo", "action": "continues", "reason": "path clear for the next 2.0 s; carries on 4 step(s), then holds"}], "new_makespan_s": 77.0, "stranded": [], "obstacle": null, "states": {"Bravo": {"pose": [91.0, 40.8, -1.5854570925116491], "step": 0, "in_progress": false, "dwell_left_s": null, "ended": null}}, "old_plan": 5, "kept": false}
+{"t": 1793965043.272, "event": "message", "text": "improvement try: done at 111 s instead of 111 s, not kept"}
+{"t": 1793965043.563, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965043.867, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965044.167, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965044.476, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965044.783, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965045.09, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965045.391, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965045.693, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965046.001, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965046.084, "event": "step_report", "robot": "Bravo", "id": 16, "state": "done", "x": 91.21, "y": 55.63, "th": -90.8, "front_cm": 168.9, "info": ""}
+{"t": 1793965046.084, "event": "step_report", "robot": "Bravo", "id": 17, "state": "started", "x": 91.21, "y": 55.63, "th": -90.8, "front_cm": 168.9, "info": ""}
+{"t": 1793965046.301, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965046.608, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965046.909, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965047.211, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965047.448, "event": "step_report", "robot": "Bravo", "id": 17, "state": "done", "x": 91.2, "y": 55.87, "th": -25.69, "front_cm": 180.9, "info": ""}
+{"t": 1793965047.453, "event": "turn_pause", "robot": "Bravo", "i": 3, "plan": 5, "label": "", "since_turn_s": 0.012, "added_s": 0.0, "how": "one camera (overhead)", "d_cm": 0.75, "fixes": 3, "result": "agreed", "t_run": 38.75}
+{"t": 1793965047.453, "event": "step_sent", "robot": "Bravo", "id": 18, "i": 3, "plan": 5, "text": "fs 18 D 91.22 55.80 100.50 51.50 -24.85 10.00 0 -"}
+{"t": 1793965047.463, "event": "step_report", "robot": "Bravo", "id": 18, "state": "queued", "x": 91.2, "y": 55.87, "th": -25.66, "front_cm": 180.9, "info": ""}
+{"t": 1793965047.463, "event": "step_report", "robot": "Bravo", "id": 18, "state": "started", "x": 91.2, "y": 55.87, "th": -25.66, "front_cm": 180.9, "info": ""}
+{"t": 1793965047.463, "event": "step_sent", "robot": "Bravo", "id": 19, "i": 4, "plan": 5, "text": "fs 19 T -57.99 -"}
+{"t": 1793965047.473, "event": "step_report", "robot": "Bravo", "id": 19, "state": "queued", "x": 91.2, "y": 55.87, "th": -25.66, "front_cm": 180.9, "info": ""}
+{"t": 1793965047.517, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965047.82, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965048.122, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965048.424, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965048.601, "event": "step_report", "robot": "Bravo", "id": 18, "state": "done", "x": 100.34, "y": 51.59, "th": -24.94, "front_cm": 167.7, "info": ""}
+{"t": 1793965048.602, "event": "step_report", "robot": "Bravo", "id": 19, "state": "started", "x": 100.34, "y": 51.59, "th": -24.94, "front_cm": 167.7, "info": ""}
+{"t": 1793965048.729, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965049.037, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965049.347, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965049.599, "event": "step_report", "robot": "Bravo", "id": 19, "state": "done", "x": 100.63, "y": 51.44, "th": -57.1, "front_cm": 192.2, "info": ""}
+{"t": 1793965049.599, "event": "turn_pause", "robot": "Bravo", "i": 5, "plan": 5, "label": "", "since_turn_s": 0.004, "added_s": 0.0, "how": "one camera (overhead)", "d_cm": 0.66, "fixes": 2, "result": "agreed", "t_run": 40.89}
+{"t": 1793965049.599, "event": "step_sent", "robot": "Bravo", "id": 20, "i": 5, "plan": 5, "text": "fs 20 D 100.50 51.50 105.50 43.50 -57.99 10.00 0 -"}
+{"t": 1793965049.62, "event": "step_report", "robot": "Bravo", "id": 20, "state": "queued", "x": 100.63, "y": 51.44, "th": -57.13, "front_cm": 192.2, "info": ""}
+{"t": 1793965049.62, "event": "step_report", "robot": "Bravo", "id": 20, "state": "started", "x": 100.63, "y": 51.44, "th": -57.13, "front_cm": 192.2, "info": ""}
+{"t": 1793965049.62, "event": "step_sent", "robot": "Bravo", "id": 21, "i": 6, "plan": 5, "text": "fs 21 T -100.30 -"}
+{"t": 1793965049.64, "event": "step_report", "robot": "Bravo", "id": 21, "state": "queued", "x": 100.63, "y": 51.44, "th": -57.15, "front_cm": 190.0, "info": ""}
+{"t": 1793965049.651, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965049.956, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965050.266, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965050.567, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965050.661, "event": "step_report", "robot": "Bravo", "id": 20, "state": "done", "x": 105.47, "y": 43.67, "th": -58.13, "front_cm": 182.4, "info": ""}
+{"t": 1793965050.661, "event": "step_report", "robot": "Bravo", "id": 21, "state": "started", "x": 105.47, "y": 43.67, "th": -58.13, "front_cm": 182.4, "info": ""}
+{"t": 1793965050.875, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965051.185, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965051.499, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965051.771, "event": "step_report", "robot": "Bravo", "id": 21, "state": "done", "x": 105.63, "y": 43.39, "th": -99.47, "front_cm": 154.9, "info": ""}
+{"t": 1793965051.771, "event": "turn_pause", "robot": "Bravo", "i": 7, "plan": 5, "label": "", "since_turn_s": 0.004, "added_s": 0.0, "how": "one camera (overhead)", "d_cm": 0.56, "fixes": 3, "result": "agreed", "t_run": 43.06}
+{"t": 1793965051.771, "event": "step_sent", "robot": "Bravo", "id": 22, "i": 7, "plan": 5, "text": "fs 22 D 105.50 43.50 103.50 32.50 -100.30 10.00 0 -"}
+{"t": 1793965051.781, "event": "step_report", "robot": "Bravo", "id": 22, "state": "queued", "x": 105.63, "y": 43.39, "th": -99.48, "front_cm": 154.9, "info": ""}
+{"t": 1793965051.781, "event": "step_report", "robot": "Bravo", "id": 22, "state": "started", "x": 105.63, "y": 43.39, "th": -99.48, "front_cm": 154.9, "info": ""}
+{"t": 1793965051.781, "event": "step_sent", "robot": "Bravo", "id": 23, "i": 8, "plan": 5, "text": "fs 23 T -128.86 -"}
+{"t": 1793965051.792, "event": "step_report", "robot": "Bravo", "id": 23, "state": "queued", "x": 105.63, "y": 43.39, "th": -99.5, "front_cm": 154.9, "info": ""}
+{"t": 1793965051.802, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965052.112, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965052.205, "event": "message", "text": "  Bravo 7/45"}
+{"t": 1793965052.205, "event": "waiting", "robot": "Bravo", "why": "step 7 started"}
+{"t": 1793965052.42, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965052.725, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965052.995, "event": "step_report", "robot": "Bravo", "id": 22, "state": "done", "x": 103.63, "y": 32.67, "th": -100.48, "front_cm": 149.2, "info": ""}
+{"t": 1793965052.995, "event": "step_report", "robot": "Bravo", "id": 23, "state": "started", "x": 103.63, "y": 32.67, "th": -100.48, "front_cm": 149.2, "info": ""}
+{"t": 1793965053.027, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965053.328, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965053.635, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965053.929, "event": "step_report", "robot": "Bravo", "id": 23, "state": "done", "x": 103.56, "y": 32.35, "th": -128.0, "front_cm": 177.5, "info": ""}
+{"t": 1793965053.929, "event": "turn_pause", "robot": "Bravo", "i": 9, "plan": 5, "label": "", "since_turn_s": 0.01, "added_s": 0.0, "how": "one camera (overhead)", "d_cm": 0.49, "fixes": 3, "result": "agreed", "t_run": 45.22}
+{"t": 1793965053.929, "event": "step_sent", "robot": "Bravo", "id": 24, "i": 9, "plan": 5, "text": "fs 24 D 103.50 32.50 97.25 24.75 -128.86 10.00 0 -"}
+{"t": 1793965053.939, "event": "step_report", "robot": "Bravo", "id": 24, "state": "queued", "x": 103.56, "y": 32.34, "th": -128.01, "front_cm": 177.5, "info": ""}
+{"t": 1793965053.94, "event": "step_report", "robot": "Bravo", "id": 24, "state": "started", "x": 103.56, "y": 32.34, "th": -128.01, "front_cm": 177.5, "info": ""}
+{"t": 1793965053.94, "event": "step_sent", "robot": "Bravo", "id": 25, "i": 10, "plan": 5, "text": "fs 25 D 97.25 24.75 91.01 17.00 -128.86 10.00 0 -"}
+{"t": 1793965053.94, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965053.961, "event": "step_report", "robot": "Bravo", "id": 25, "state": "queued", "x": 103.56, "y": 32.34, "th": -128.04, "front_cm": 177.5, "info": ""}
+{"t": 1793965054.248, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965054.556, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965054.865, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965055.029, "event": "step_report", "robot": "Bravo", "id": 24, "state": "done", "x": 97.45, "y": 24.84, "th": -129.06, "front_cm": 177.0, "info": ""}
+{"t": 1793965055.03, "event": "step_report", "robot": "Bravo", "id": 25, "state": "started", "x": 97.45, "y": 24.84, "th": -129.06, "front_cm": 177.0, "info": ""}
+{"t": 1793965055.03, "event": "labelled_step", "robot": "Bravo", "plan": 5, "i": 10, "label": "point P05", "phase": "travel", "state": "started", "t_run": 46.32, "pose": [97.45, 24.84, -129.06], "front_cm": 177.0, "info": "", "cam": [98.78, 25.68, -128.9], "to": [91.01, 17.0, -128.86], "frm": [97.25, 24.75, -128.86]}
+{"t": 1793965055.031, "event": "step_sent", "robot": "Bravo", "id": 26, "i": 11, "plan": 5, "text": "fs 26 W 3000"}
+{"t": 1793965055.052, "event": "step_report", "robot": "Bravo", "id": 26, "state": "queued", "x": 97.4, "y": 24.77, "th": -129.05, "front_cm": 177.0, "info": ""}
+{"t": 1793965055.165, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965055.465, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965055.77, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965056.077, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965056.125, "event": "step_report", "robot": "Bravo", "id": 25, "state": "done", "x": 91.17, "y": 17.12, "th": -129.01, "front_cm": 164.8, "info": ""}
+{"t": 1793965056.125, "event": "labelled_step", "robot": "Bravo", "plan": 5, "i": 10, "label": "point P05", "phase": "travel", "state": "done", "t_run": 47.41, "pose": [91.17, 17.12, -129.01], "front_cm": 164.8, "info": "", "cam": [92.11, 17.37, -128.7], "to": [91.01, 17.0, -128.86], "frm": [97.25, 24.75, -128.86]}
+{"t": 1793965056.125, "event": "step_report", "robot": "Bravo", "id": 26, "state": "started", "x": 91.17, "y": 17.12, "th": -129.01, "front_cm": 164.8, "info": ""}
+{"t": 1793965056.125, "event": "labelled_step", "robot": "Bravo", "plan": 5, "i": 11, "label": "at point P05", "phase": "pause", "state": "started", "t_run": 47.41, "pose": [91.17, 17.12, -129.01], "front_cm": 164.8, "info": "", "cam": [92.11, 17.37, -128.7], "to": [91.01, 17.0, -128.86], "frm": [91.01, 17.0, -128.86]}
+{"t": 1793965056.129, "event": "step_sent", "robot": "Bravo", "id": 27, "i": 12, "plan": 5, "text": "fs 27 T -0.00 -"}
+{"t": 1793965056.139, "event": "step_report", "robot": "Bravo", "id": 27, "state": "queued", "x": 91.11, "y": 17.04, "th": -129.0, "front_cm": 164.8, "info": ""}
+{"t": 1793965056.38, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965056.691, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965056.996, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965057.296, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965057.608, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965057.908, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965058.209, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965058.517, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965058.826, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965059.131, "event": "step_report", "robot": "Bravo", "id": 26, "state": "done", "x": 91.05, "y": 16.97, "th": -129.05, "front_cm": 162.2, "info": ""}
+{"t": 1793965059.131, "event": "point_confidence", "robot": "Bravo", "point": "point P05", "t_run": 50.42, "dwell_s": 3.01, "n_fixes": 18, "t_abs": 1793965059.124, "x": 91.48, "y": 16.6, "plus_minus_cm": 1.0, "source": "one camera (overhead)", "two_camera_share": 0.0, "since_fix_cm": 0.0, "since_fix_s": 0.0, "own_x": 91.05, "own_y": 16.97, "own_vs_camera_cm": 0.57, "words": "point P05 (Bravo): \u00b11.0 cm, one camera (overhead)"}
+{"t": 1793965059.131, "event": "message", "text": "POINT point P05 (Bravo): \u00b11.0 cm, one camera (overhead)"}
+{"t": 1793965059.132, "event": "labelled_step", "robot": "Bravo", "plan": 5, "i": 11, "label": "at point P05", "phase": "pause", "state": "done", "t_run": 50.42, "pose": [91.05, 16.97, -129.05], "front_cm": 162.2, "info": "", "cam": [91.46, 16.61, -128.5], "to": [91.01, 17.0, -128.86], "frm": [91.01, 17.0, -128.86]}
+{"t": 1793965059.132, "event": "step_report", "robot": "Bravo", "id": 27, "state": "started", "x": 91.05, "y": 16.97, "th": -129.05, "front_cm": 162.2, "info": ""}
+{"t": 1793965059.133, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965059.437, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965059.747, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965060.052, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965060.361, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965060.667, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965060.971, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965061.168, "event": "step_report", "robot": "Bravo", "id": 27, "state": "done", "x": 91.05, "y": 16.97, "th": -0.87, "front_cm": 164.5, "info": ""}
+{"t": 1793965061.168, "event": "turn_pause", "robot": "Bravo", "i": 13, "plan": 5, "label": "", "since_turn_s": 0.004, "added_s": 0.0, "how": "one camera (overhead)", "d_cm": 0.56, "fixes": 2, "result": "agreed", "t_run": 52.46}
+{"t": 1793965061.168, "event": "step_sent", "robot": "Bravo", "id": 28, "i": 13, "plan": 5, "text": "fs 28 D 91.01 17.00 103.34 17.00 0.00 10.00 0 -"}
+{"t": 1793965061.189, "event": "step_report", "robot": "Bravo", "id": 28, "state": "queued", "x": 91.05, "y": 16.97, "th": -0.85, "front_cm": 164.5, "info": ""}
+{"t": 1793965061.189, "event": "step_report", "robot": "Bravo", "id": 28, "state": "started", "x": 91.05, "y": 16.97, "th": -0.85, "front_cm": 164.5, "info": ""}
+{"t": 1793965061.19, "event": "step_sent", "robot": "Bravo", "id": 29, "i": 14, "plan": 5, "text": "fs 29 D 103.34 17.00 115.66 17.00 0.00 10.00 0 -"}
+{"t": 1793965061.201, "event": "step_report", "robot": "Bravo", "id": 29, "state": "queued", "x": 91.06, "y": 16.97, "th": -0.82, "front_cm": 164.5, "info": ""}
+{"t": 1793965061.274, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965061.583, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965061.891, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965062.201, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965062.211, "event": "message", "text": "  Bravo 13/45"}
+{"t": 1793965062.211, "event": "waiting", "robot": "Bravo", "why": "step 13 started"}
+{"t": 1793965062.503, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965062.524, "event": "step_report", "robot": "Bravo", "id": 28, "state": "done", "x": 103.18, "y": 16.96, "th": -0.03, "front_cm": 155.6, "info": ""}
+{"t": 1793965062.524, "event": "step_report", "robot": "Bravo", "id": 29, "state": "started", "x": 103.18, "y": 16.96, "th": -0.03, "front_cm": 155.6, "info": ""}
+{"t": 1793965062.524, "event": "step_sent", "robot": "Bravo", "id": 30, "i": 15, "plan": 5, "text": "fs 30 D 115.66 17.00 127.99 17.00 0.00 10.00 0 -"}
+{"t": 1793965062.545, "event": "step_report", "robot": "Bravo", "id": 30, "state": "queued", "x": 103.27, "y": 16.96, "th": -0.03, "front_cm": 155.6, "info": ""}
+{"t": 1793965062.808, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965063.115, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965063.419, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965063.729, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965063.845, "event": "step_report", "robot": "Bravo", "id": 29, "state": "done", "x": 115.47, "y": 16.96, "th": -0.03, "front_cm": 141.7, "info": ""}
+{"t": 1793965063.845, "event": "step_report", "robot": "Bravo", "id": 30, "state": "started", "x": 115.47, "y": 16.96, "th": -0.03, "front_cm": 141.7, "info": ""}
+{"t": 1793965063.845, "event": "labelled_step", "robot": "Bravo", "plan": 5, "i": 15, "label": "point P07", "phase": "travel", "state": "started", "t_run": 55.13, "pose": [115.47, 16.96, -0.03], "front_cm": 141.7, "info": "", "cam": [115.19, 16.75, 0.5], "to": [127.99, 17.0, 0.0], "frm": [115.66, 17.0, 0.0]}
+{"t": 1793965063.846, "event": "step_sent", "robot": "Bravo", "id": 31, "i": 16, "plan": 5, "text": "fs 31 W 3000"}
+{"t": 1793965063.866, "event": "step_report", "robot": "Bravo", "id": 31, "state": "queued", "x": 115.57, "y": 16.96, "th": -0.03, "front_cm": 141.7, "info": ""}
+{"t": 1793965064.032, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965064.336, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965064.635, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965064.94, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965065.173, "event": "step_report", "robot": "Bravo", "id": 30, "state": "done", "x": 127.8, "y": 16.97, "th": -0.04, "front_cm": 131.1, "info": ""}
+{"t": 1793965065.174, "event": "labelled_step", "robot": "Bravo", "plan": 5, "i": 15, "label": "point P07", "phase": "travel", "state": "done", "t_run": 56.46, "pose": [127.8, 16.97, -0.04], "front_cm": 131.1, "info": "", "cam": [125.89, 16.83, 0.3], "to": [127.99, 17.0, 0.0], "frm": [115.66, 17.0, 0.0]}
+{"t": 1793965065.174, "event": "step_report", "robot": "Bravo", "id": 31, "state": "started", "x": 127.8, "y": 16.97, "th": -0.04, "front_cm": 131.1, "info": ""}
+{"t": 1793965065.174, "event": "labelled_step", "robot": "Bravo", "plan": 5, "i": 16, "label": "at point P07", "phase": "pause", "state": "started", "t_run": 56.46, "pose": [127.8, 16.97, -0.04], "front_cm": 131.1, "info": "", "cam": [125.89, 16.83, 0.3], "to": [127.99, 17.0, 0.0], "frm": [127.99, 17.0, 0.0]}
+{"t": 1793965065.175, "event": "step_sent", "robot": "Bravo", "id": 32, "i": 17, "plan": 5, "text": "fs 32 T -180.00 79.60"}
+{"t": 1793965065.196, "event": "step_report", "robot": "Bravo", "id": 32, "state": "queued", "x": 127.9, "y": 16.97, "th": -0.04, "front_cm": 131.1, "info": ""}
+{"t": 1793965065.241, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965065.548, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965065.856, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965066.163, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965066.469, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965066.776, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965067.086, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965067.392, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965067.696, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965068.001, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965068.174, "event": "step_report", "robot": "Bravo", "id": 31, "state": "done", "x": 128.0, "y": 16.97, "th": -0.05, "front_cm": 126.5, "info": ""}
+{"t": 1793965068.174, "event": "point_confidence", "robot": "Bravo", "point": "point P07", "t_run": 59.46, "dwell_s": 3.0, "n_fixes": 19, "t_abs": 1793965068.169, "x": 128.04, "y": 16.84, "plus_minus_cm": 1.0, "source": "one camera (overhead)", "two_camera_share": 0.0, "since_fix_cm": 0.0, "since_fix_s": 0.0, "own_x": 128.0, "own_y": 16.97, "own_vs_camera_cm": 0.14, "words": "point P07 (Bravo): \u00b11.0 cm, one camera (overhead)"}
+{"t": 1793965068.174, "event": "message", "text": "POINT point P07 (Bravo): \u00b11.0 cm, one camera (overhead)"}
+{"t": 1793965068.174, "event": "labelled_step", "robot": "Bravo", "plan": 5, "i": 16, "label": "at point P07", "phase": "pause", "state": "done", "t_run": 59.46, "pose": [128.0, 16.97, -0.05], "front_cm": 126.5, "info": "", "cam": [128.03, 16.84, 0.4], "to": [127.99, 17.0, 0.0], "frm": [127.99, 17.0, 0.0]}
+{"t": 1793965068.174, "event": "step_report", "robot": "Bravo", "id": 32, "state": "started", "x": 128.0, "y": 16.97, "th": -0.05, "front_cm": 126.5, "info": ""}
+{"t": 1793965068.307, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965068.617, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965068.917, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965069.236, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965069.545, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965069.852, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965070.156, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965070.465, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965070.773, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965070.886, "event": "step_report", "robot": "Bravo", "id": 32, "state": "done", "x": 128.0, "y": 16.97, "th": -179.17, "front_cm": 111.8, "info": ""}
+{"t": 1793965070.887, "event": "turn_pause", "robot": "Bravo", "i": 18, "plan": 5, "label": "", "since_turn_s": 0.006, "added_s": 0.0, "how": "one camera (overhead)", "d_cm": 0.15, "fixes": 2, "result": "agreed", "t_run": 62.18}
+{"t": 1793965070.887, "event": "step_sent", "robot": "Bravo", "id": 33, "i": 18, "plan": 5, "text": "fs 33 D 127.99 17.00 113.19 17.00 -180.00 10.00 0 64.80"}
+{"t": 1793965070.907, "event": "step_report", "robot": "Bravo", "id": 33, "state": "queued", "x": 128.0, "y": 16.97, "th": -179.19, "front_cm": 110.1, "info": ""}
+{"t": 1793965070.907, "event": "step_report", "robot": "Bravo", "id": 33, "state": "started", "x": 128.0, "y": 16.97, "th": -179.19, "front_cm": 110.1, "info": ""}
+{"t": 1793965070.908, "event": "step_sent", "robot": "Bravo", "id": 34, "i": 19, "plan": 5, "text": "fs 34 D 113.19 17.00 98.39 17.00 -180.00 10.00 0 50.00"}
+{"t": 1793965070.918, "event": "step_report", "robot": "Bravo", "id": 34, "state": "queued", "x": 128.0, "y": 16.97, "th": -179.21, "front_cm": 110.1, "info": ""}
+{"t": 1793965071.075, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965071.377, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965071.682, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965071.985, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965072.215, "event": "message", "text": "  Bravo 18/45"}
+{"t": 1793965072.215, "event": "waiting", "robot": "Bravo", "why": "step 18 started"}
+{"t": 1793965072.29, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965072.494, "event": "step_report", "robot": "Bravo", "id": 33, "state": "done", "x": 113.36, "y": 16.98, "th": 179.9, "front_cm": 94.3, "info": ""}
+{"t": 1793965072.494, "event": "step_report", "robot": "Bravo", "id": 34, "state": "started", "x": 113.36, "y": 16.98, "th": 179.9, "front_cm": 94.3, "info": ""}
+{"t": 1793965072.495, "event": "step_sent", "robot": "Bravo", "id": 35, "i": 20, "plan": 5, "text": "fs 35 D 98.39 17.00 83.60 17.00 -180.00 10.00 0 35.20"}
+{"t": 1793965072.505, "event": "step_report", "robot": "Bravo", "id": 35, "state": "queued", "x": 113.31, "y": 16.98, "th": 179.9, "front_cm": 94.3, "info": ""}
+{"t": 1793965072.59, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965072.894, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965073.199, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965073.506, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965073.808, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965074.073, "event": "step_report", "robot": "Bravo", "id": 34, "state": "done", "x": 98.56, "y": 17.01, "th": 179.93, "front_cm": 81.1, "info": ""}
+{"t": 1793965074.073, "event": "step_report", "robot": "Bravo", "id": 35, "state": "started", "x": 98.56, "y": 17.01, "th": 179.93, "front_cm": 81.1, "info": ""}
+{"t": 1793965074.074, "event": "step_sent", "robot": "Bravo", "id": 36, "i": 21, "plan": 5, "text": "fs 36 D 83.60 17.00 68.80 17.00 -180.00 10.00 0 20.40"}
+{"t": 1793965074.094, "event": "step_report", "robot": "Bravo", "id": 36, "state": "queued", "x": 98.45, "y": 17.01, "th": 179.93, "front_cm": 81.1, "info": ""}
+{"t": 1793965074.116, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965074.424, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965074.728, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965075.031, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965075.335, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965075.639, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965075.649, "event": "step_report", "robot": "Bravo", "id": 35, "state": "done", "x": 83.76, "y": 17.02, "th": 179.94, "front_cm": 65.2, "info": ""}
+{"t": 1793965075.649, "event": "step_report", "robot": "Bravo", "id": 36, "state": "started", "x": 83.76, "y": 17.02, "th": 179.94, "front_cm": 65.2, "info": ""}
+{"t": 1793965075.65, "event": "step_sent", "robot": "Bravo", "id": 37, "i": 22, "plan": 5, "text": "fs 37 D 68.80 17.00 54.00 17.00 -180.00 10.00 0 5.60"}
+{"t": 1793965075.67, "event": "step_report", "robot": "Bravo", "id": 37, "state": "queued", "x": 83.64, "y": 17.02, "th": 179.94, "front_cm": 65.2, "info": ""}
+{"t": 1793965075.945, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965076.253, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965076.56, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965076.861, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965077.166, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965077.213, "event": "step_report", "robot": "Bravo", "id": 36, "state": "done", "x": 68.97, "y": 17.03, "th": 179.95, "front_cm": 50.3, "info": ""}
+{"t": 1793965077.213, "event": "step_report", "robot": "Bravo", "id": 37, "state": "started", "x": 68.97, "y": 17.03, "th": 179.95, "front_cm": 50.3, "info": ""}
+{"t": 1793965077.213, "event": "labelled_step", "robot": "Bravo", "plan": 5, "i": 22, "label": "point P03", "phase": "travel", "state": "started", "t_run": 68.5, "pose": [68.97, 17.03, 179.95], "front_cm": 50.3, "info": "", "cam": [70.06, 16.15, -179.3], "to": [54.0, 17.0, -180.0], "frm": [68.8, 17.0, -180.0]}
+{"t": 1793965077.214, "event": "step_sent", "robot": "Bravo", "id": 38, "i": 23, "plan": 5, "text": "fs 38 W 3000"}
+{"t": 1793965077.224, "event": "step_report", "robot": "Bravo", "id": 38, "state": "queued", "x": 68.92, "y": 17.03, "th": 179.95, "front_cm": 50.3, "info": ""}
+{"t": 1793965077.472, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965077.773, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965078.077, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965078.389, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965078.69, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965078.782, "event": "step_report", "robot": "Bravo", "id": 37, "state": "done", "x": 54.2, "y": 17.03, "th": 179.94, "front_cm": 35.7, "info": ""}
+{"t": 1793965078.783, "event": "labelled_step", "robot": "Bravo", "plan": 5, "i": 22, "label": "point P03", "phase": "travel", "state": "done", "t_run": 70.07, "pose": [54.2, 17.03, 179.94], "front_cm": 35.7, "info": "", "cam": [55.97, 15.97, -179.2], "to": [54.0, 17.0, -180.0], "frm": [68.8, 17.0, -180.0]}
+{"t": 1793965078.783, "event": "step_report", "robot": "Bravo", "id": 38, "state": "started", "x": 54.2, "y": 17.03, "th": 179.94, "front_cm": 35.7, "info": ""}
+{"t": 1793965078.783, "event": "labelled_step", "robot": "Bravo", "plan": 5, "i": 23, "label": "at point P03", "phase": "pause", "state": "started", "t_run": 70.07, "pose": [54.2, 17.03, 179.94], "front_cm": 35.7, "info": "", "cam": [55.97, 15.97, -179.2], "to": [54.0, 17.0, -180.0], "frm": [54.0, 17.0, -180.0]}
+{"t": 1793965078.783, "event": "step_sent", "robot": "Bravo", "id": 39, "i": 24, "plan": 5, "text": "fs 39 T 90.00 5.60"}
+{"t": 1793965078.793, "event": "step_report", "robot": "Bravo", "id": 39, "state": "queued", "x": 54.15, "y": 17.03, "th": 179.94, "front_cm": 35.7, "info": ""}
+{"t": 1793965078.992, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965079.295, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965079.604, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965079.906, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965080.216, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965080.526, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965080.827, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965081.128, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965081.437, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965081.747, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965081.79, "event": "step_report", "robot": "Bravo", "id": 38, "state": "done", "x": 54.0, "y": 17.03, "th": 179.9, "front_cm": 35.7, "info": ""}
+{"t": 1793965081.791, "event": "point_confidence", "robot": "Bravo", "point": "point P03", "t_run": 73.08, "dwell_s": 3.0, "n_fixes": 18, "t_abs": 1793965081.783, "x": 54.8, "y": 15.96, "plus_minus_cm": 1.0, "source": "one camera (overhead)", "two_camera_share": 0.0, "since_fix_cm": 0.0, "since_fix_s": 0.0, "own_x": 54.0, "own_y": 17.03, "own_vs_camera_cm": 1.34, "words": "point P03 (Bravo): \u00b11.0 cm, one camera (overhead)"}
+{"t": 1793965081.791, "event": "message", "text": "POINT point P03 (Bravo): \u00b11.0 cm, one camera (overhead)"}
+{"t": 1793965081.791, "event": "labelled_step", "robot": "Bravo", "plan": 5, "i": 23, "label": "at point P03", "phase": "pause", "state": "done", "t_run": 73.08, "pose": [54.0, 17.03, 179.9], "front_cm": 35.7, "info": "", "cam": [54.8, 15.96, -179.3], "to": [54.0, 17.0, -180.0], "frm": [54.0, 17.0, -180.0]}
+{"t": 1793965081.791, "event": "step_report", "robot": "Bravo", "id": 39, "state": "started", "x": 54.0, "y": 17.03, "th": 179.9, "front_cm": 35.7, "info": ""}
+{"t": 1793965082.052, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965082.218, "event": "message", "text": "  Bravo 24/45"}
+{"t": 1793965082.218, "event": "waiting", "robot": "Bravo", "why": "step 24 started"}
+{"t": 1793965082.361, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965082.666, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965082.969, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965083.272, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965083.455, "event": "step_report", "robot": "Bravo", "id": 39, "state": "done", "x": 54.0, "y": 17.03, "th": 90.84, "front_cm": 149.7, "info": ""}
+{"t": 1793965083.455, "event": "turn_pause", "robot": "Bravo", "i": 25, "plan": 5, "label": "", "since_turn_s": 0.007, "added_s": 0.0, "how": "one camera (overhead)", "d_cm": 1.32, "fixes": 3, "result": "agreed", "t_run": 74.75}
+{"t": 1793965083.455, "event": "step_sent", "robot": "Bravo", "id": 40, "i": 25, "plan": 5, "text": "fs 40 D 54.00 17.00 54.00 31.25 90.00 10.00 0 -"}
+{"t": 1793965083.476, "event": "step_report", "robot": "Bravo", "id": 40, "state": "queued", "x": 54.0, "y": 17.03, "th": 90.82, "front_cm": 149.7, "info": ""}
+{"t": 1793965083.476, "event": "step_report", "robot": "Bravo", "id": 40, "state": "started", "x": 54.0, "y": 17.03, "th": 90.82, "front_cm": 149.7, "info": ""}
+{"t": 1793965083.476, "event": "step_sent", "robot": "Bravo", "id": 41, "i": 26, "plan": 5, "text": "fs 41 D 54.00 31.25 54.00 45.49 90.00 10.00 0 -"}
+{"t": 1793965083.486, "event": "step_report", "robot": "Bravo", "id": 41, "state": "queued", "x": 54.0, "y": 17.03, "th": 90.81, "front_cm": 149.7, "info": ""}
+{"t": 1793965083.579, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965083.88, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965084.185, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965084.49, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965084.805, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965085.006, "event": "step_report", "robot": "Bravo", "id": 40, "state": "done", "x": 54.0, "y": 31.1, "th": 89.93, "front_cm": 135.7, "info": ""}
+{"t": 1793965085.007, "event": "step_report", "robot": "Bravo", "id": 41, "state": "started", "x": 54.0, "y": 31.1, "th": 89.93, "front_cm": 135.7, "info": ""}
+{"t": 1793965085.007, "event": "step_sent", "robot": "Bravo", "id": 42, "i": 27, "plan": 5, "text": "fs 42 D 54.00 45.49 54.00 59.74 90.00 10.00 0 -"}
+{"t": 1793965085.029, "event": "step_report", "robot": "Bravo", "id": 42, "state": "queued", "x": 54.0, "y": 31.18, "th": 89.93, "front_cm": 135.7, "info": ""}
+{"t": 1793965085.112, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965085.413, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965085.714, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965086.024, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965086.327, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965086.515, "event": "step_report", "robot": "Bravo", "id": 41, "state": "done", "x": 54.02, "y": 45.29, "th": 89.93, "front_cm": 127.0, "info": ""}
+{"t": 1793965086.516, "event": "step_report", "robot": "Bravo", "id": 42, "state": "started", "x": 54.02, "y": 45.29, "th": 89.93, "front_cm": 127.0, "info": ""}
+{"t": 1793965086.516, "event": "step_sent", "robot": "Bravo", "id": 43, "i": 28, "plan": 5, "text": "fs 43 D 54.00 59.74 54.00 73.99 90.00 10.00 0 -"}
+{"t": 1793965086.526, "event": "step_report", "robot": "Bravo", "id": 43, "state": "queued", "x": 54.02, "y": 45.33, "th": 89.93, "front_cm": 127.0, "info": ""}
+{"t": 1793965086.632, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965086.935, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965087.239, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965087.545, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965087.845, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965088.036, "event": "step_report", "robot": "Bravo", "id": 42, "state": "done", "x": 54.02, "y": 59.56, "th": 89.95, "front_cm": 108.4, "info": ""}
+{"t": 1793965088.036, "event": "step_report", "robot": "Bravo", "id": 43, "state": "started", "x": 54.02, "y": 59.56, "th": 89.95, "front_cm": 108.4, "info": ""}
+{"t": 1793965088.036, "event": "labelled_step", "robot": "Bravo", "plan": 5, "i": 28, "label": "point P04", "phase": "travel", "state": "started", "t_run": 79.33, "pose": [54.02, 59.56, 89.95], "front_cm": 108.4, "info": "", "cam": [54.11, 56.52, 91.0], "to": [54.0, 73.99, 90.0], "frm": [54.0, 59.74, 90.0]}
+{"t": 1793965088.039, "event": "step_sent", "robot": "Bravo", "id": 44, "i": 29, "plan": 5, "text": "fs 44 W 3000"}
+{"t": 1793965088.05, "event": "step_report", "robot": "Bravo", "id": 44, "state": "queued", "x": 54.02, "y": 59.61, "th": 89.95, "front_cm": 108.4, "info": ""}
+{"t": 1793965088.154, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965088.455, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965088.76, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965089.069, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965089.376, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965089.565, "event": "step_report", "robot": "Bravo", "id": 43, "state": "done", "x": 54.03, "y": 73.82, "th": 89.95, "front_cm": 96.6, "info": ""}
+{"t": 1793965089.565, "event": "labelled_step", "robot": "Bravo", "plan": 5, "i": 28, "label": "point P04", "phase": "travel", "state": "done", "t_run": 80.85, "pose": [54.03, 73.82, 89.95], "front_cm": 96.6, "info": "", "cam": [53.87, 70.44, 91.0], "to": [54.0, 73.99, 90.0], "frm": [54.0, 59.74, 90.0]}
+{"t": 1793965089.565, "event": "step_report", "robot": "Bravo", "id": 44, "state": "started", "x": 54.03, "y": 73.82, "th": 89.95, "front_cm": 96.6, "info": ""}
+{"t": 1793965089.565, "event": "labelled_step", "robot": "Bravo", "plan": 5, "i": 29, "label": "at point P04", "phase": "pause", "state": "started", "t_run": 80.85, "pose": [54.03, 73.82, 89.95], "front_cm": 96.6, "info": "", "cam": [53.87, 70.44, 91.0], "to": [54.0, 73.99, 90.0], "frm": [54.0, 73.99, 90.0]}
+{"t": 1793965089.566, "event": "step_sent", "robot": "Bravo", "id": 45, "i": 30, "plan": 5, "text": "fs 45 T -180.00 -"}
+{"t": 1793965089.587, "event": "step_report", "robot": "Bravo", "id": 45, "state": "queued", "x": 54.03, "y": 73.92, "th": 89.95, "front_cm": 92.4, "info": ""}
+{"t": 1793965089.677, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965089.977, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965090.284, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965090.589, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965090.896, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965091.197, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965091.499, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965091.805, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965092.108, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965092.226, "event": "message", "text": "  Bravo 29/45"}
+{"t": 1793965092.226, "event": "waiting", "robot": "Bravo", "why": "step 29 started"}
+{"t": 1793965092.409, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965092.565, "event": "step_report", "robot": "Bravo", "id": 44, "state": "done", "x": 54.03, "y": 74.01, "th": 89.91, "front_cm": 93.5, "info": ""}
+{"t": 1793965092.566, "event": "point_confidence", "robot": "Bravo", "point": "point P04", "t_run": 83.85, "dwell_s": 3.0, "n_fixes": 18, "t_abs": 1793965092.56, "x": 53.84, "y": 72.37, "plus_minus_cm": 1.0, "source": "one camera (overhead)", "two_camera_share": 0.0, "since_fix_cm": 0.0, "since_fix_s": 0.0, "own_x": 54.03, "own_y": 74.01, "own_vs_camera_cm": 1.65, "words": "point P04 (Bravo): \u00b11.0 cm, one camera (overhead)"}
+{"t": 1793965092.566, "event": "message", "text": "POINT point P04 (Bravo): \u00b11.0 cm, one camera (overhead)"}
+{"t": 1793965092.566, "event": "labelled_step", "robot": "Bravo", "plan": 5, "i": 29, "label": "at point P04", "phase": "pause", "state": "done", "t_run": 83.85, "pose": [54.03, 74.01, 89.91], "front_cm": 93.5, "info": "", "cam": [53.84, 72.37, 91.0], "to": [54.0, 73.99, 90.0], "frm": [54.0, 73.99, 90.0]}
+{"t": 1793965092.566, "event": "step_report", "robot": "Bravo", "id": 45, "state": "started", "x": 54.03, "y": 74.01, "th": 89.91, "front_cm": 93.5, "info": ""}
+{"t": 1793965092.711, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965093.011, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965093.314, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965093.618, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965093.926, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965094.183, "event": "step_report", "robot": "Bravo", "id": 45, "state": "done", "x": 54.03, "y": 74.01, "th": 179.11, "front_cm": 128.3, "info": ""}
+{"t": 1793965094.235, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965094.541, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965094.843, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965095.146, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965095.452, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965095.756, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965096.06, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965096.367, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965096.676, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965096.98, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965097.182, "event": "turn_pause", "robot": "Bravo", "i": 31, "plan": 5, "label": "", "since_turn_s": 3.004, "added_s": 2.999, "how": "one camera (overhead)", "d_cm": 1.66, "fixes": 20, "result": "timed out", "t_run": 88.47}
+{"t": 1793965097.182, "event": "message", "text": "Bravo: after its turn the camera did not agree within 1.5 cm in 3 s (one camera (overhead), 1.7 cm apart): driving on, as before the pause"}
+{"t": 1793965097.182, "event": "step_sent", "robot": "Bravo", "id": 46, "i": 31, "plan": 5, "text": "fs 46 D 54.00 73.99 41.67 73.99 -180.00 10.00 0 -"}
+{"t": 1793965097.203, "event": "step_report", "robot": "Bravo", "id": 46, "state": "queued", "x": 54.03, "y": 74.01, "th": 179.12, "front_cm": 127.1, "info": ""}
+{"t": 1793965097.203, "event": "step_report", "robot": "Bravo", "id": 46, "state": "started", "x": 54.03, "y": 74.01, "th": 179.12, "front_cm": 127.1, "info": ""}
+{"t": 1793965097.203, "event": "step_sent", "robot": "Bravo", "id": 47, "i": 32, "plan": 5, "text": "fs 47 D 41.67 73.99 29.33 73.99 -180.00 10.00 0 -"}
+{"t": 1793965097.213, "event": "step_report", "robot": "Bravo", "id": 47, "state": "queued", "x": 54.03, "y": 74.01, "th": 179.13, "front_cm": 127.1, "info": ""}
+{"t": 1793965097.288, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965097.592, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965097.893, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965098.193, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965098.499, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965098.551, "event": "step_report", "robot": "Bravo", "id": 46, "state": "done", "x": 41.86, "y": 74.03, "th": 179.97, "front_cm": 118.2, "info": ""}
+{"t": 1793965098.551, "event": "step_report", "robot": "Bravo", "id": 47, "state": "started", "x": 41.86, "y": 74.03, "th": 179.97, "front_cm": 118.2, "info": ""}
+{"t": 1793965098.552, "event": "step_sent", "robot": "Bravo", "id": 48, "i": 33, "plan": 5, "text": "fs 48 D 29.33 73.99 17.00 73.99 -180.00 10.00 0 -"}
+{"t": 1793965098.572, "event": "step_report", "robot": "Bravo", "id": 48, "state": "queued", "x": 41.77, "y": 74.03, "th": 179.97, "front_cm": 116.8, "info": ""}
+{"t": 1793965098.81, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965099.115, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965099.419, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965099.721, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965099.871, "event": "step_report", "robot": "Bravo", "id": 47, "state": "done", "x": 29.52, "y": 74.02, "th": 179.96, "front_cm": 103.0, "info": ""}
+{"t": 1793965099.872, "event": "step_report", "robot": "Bravo", "id": 48, "state": "started", "x": 29.52, "y": 74.02, "th": 179.96, "front_cm": 103.0, "info": ""}
+{"t": 1793965099.872, "event": "labelled_step", "robot": "Bravo", "plan": 5, "i": 33, "label": "point P02", "phase": "travel", "state": "started", "t_run": 91.16, "pose": [29.52, 74.02, 179.96], "front_cm": 103.0, "info": "", "cam": [30.88, 71.97, -179.0], "to": [17.0, 73.99, -180.0], "frm": [29.33, 73.99, -180.0]}
+{"t": 1793965099.872, "event": "step_sent", "robot": "Bravo", "id": 49, "i": 34, "plan": 5, "text": "fs 49 W 3000"}
+{"t": 1793965099.882, "event": "step_report", "robot": "Bravo", "id": 49, "state": "queued", "x": 29.47, "y": 74.02, "th": 179.96, "front_cm": 103.0, "info": ""}
+{"t": 1793965100.028, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965100.329, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965100.633, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965100.936, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965101.202, "event": "step_report", "robot": "Bravo", "id": 48, "state": "done", "x": 17.19, "y": 74.02, "th": 179.96, "front_cm": 92.5, "info": ""}
+{"t": 1793965101.202, "event": "labelled_step", "robot": "Bravo", "plan": 5, "i": 33, "label": "point P02", "phase": "travel", "state": "done", "t_run": 92.49, "pose": [17.19, 74.02, 179.96], "front_cm": 92.5, "info": "", "cam": [18.54, 71.76, -179.2], "to": [17.0, 73.99, -180.0], "frm": [29.33, 73.99, -180.0]}
+{"t": 1793965101.203, "event": "step_report", "robot": "Bravo", "id": 49, "state": "started", "x": 17.19, "y": 74.02, "th": 179.96, "front_cm": 92.5, "info": ""}
+{"t": 1793965101.203, "event": "labelled_step", "robot": "Bravo", "plan": 5, "i": 34, "label": "at point P02", "phase": "pause", "state": "started", "t_run": 92.49, "pose": [17.19, 74.02, 179.96], "front_cm": 92.5, "info": "", "cam": [18.54, 71.76, -179.2], "to": [17.0, 73.99, -180.0], "frm": [17.0, 73.99, -180.0]}
+{"t": 1793965101.203, "event": "step_sent", "robot": "Bravo", "id": 50, "i": 35, "plan": 5, "text": "fs 50 T 0.00 -"}
+{"t": 1793965101.213, "event": "step_report", "robot": "Bravo", "id": 50, "state": "queued", "x": 17.12, "y": 74.02, "th": 179.96, "front_cm": 92.5, "info": ""}
+{"t": 1793965101.245, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965101.55, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965101.854, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965102.154, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965102.227, "event": "message", "text": "  Bravo 34/45"}
+{"t": 1793965102.227, "event": "waiting", "robot": "Bravo", "why": "step 34 started"}
+{"t": 1793965102.457, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965102.766, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965103.07, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965103.373, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965103.682, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965103.993, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965104.2, "event": "step_report", "robot": "Bravo", "id": 49, "state": "done", "x": 16.99, "y": 74.02, "th": 179.97, "front_cm": 92.8, "info": ""}
+{"t": 1793965104.2, "event": "point_confidence", "robot": "Bravo", "point": "point P02", "t_run": 95.49, "dwell_s": 3.0, "n_fixes": 17, "t_abs": 1793965104.199, "x": 17.2, "y": 71.75, "plus_minus_cm": 1.0, "source": "one camera (overhead)", "two_camera_share": 0.0, "since_fix_cm": 0.0, "since_fix_s": 0.0, "own_x": 16.99, "own_y": 74.02, "own_vs_camera_cm": 2.28, "words": "point P02 (Bravo): \u00b11.0 cm, one camera (overhead)"}
+{"t": 1793965104.2, "event": "message", "text": "POINT point P02 (Bravo): \u00b11.0 cm, one camera (overhead)"}
+{"t": 1793965104.201, "event": "labelled_step", "robot": "Bravo", "plan": 5, "i": 34, "label": "at point P02", "phase": "pause", "state": "done", "t_run": 95.49, "pose": [16.99, 74.02, 179.97], "front_cm": 92.8, "info": "", "cam": [17.19, 71.74, -179.1], "to": [17.0, 73.99, -180.0], "frm": [17.0, 73.99, -180.0]}
+{"t": 1793965104.201, "event": "step_report", "robot": "Bravo", "id": 50, "state": "started", "x": 16.99, "y": 74.02, "th": 179.97, "front_cm": 92.8, "info": ""}
+{"t": 1793965104.294, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965104.602, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965104.91, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965105.216, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965105.52, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965105.824, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965106.127, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965106.43, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965106.736, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965106.901, "event": "step_report", "robot": "Bravo", "id": 50, "state": "done", "x": 17.0, "y": 74.02, "th": 0.83, "front_cm": 235.6, "info": ""}
+{"t": 1793965107.038, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965107.345, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965107.653, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965107.963, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965108.266, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965108.574, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965108.877, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965109.18, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965109.482, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965109.784, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965109.899, "event": "turn_pause", "robot": "Bravo", "i": 36, "plan": 5, "label": "", "since_turn_s": 3.008, "added_s": 2.998, "how": "one camera (overhead)", "d_cm": 2.26, "fixes": 20, "result": "timed out", "t_run": 101.19}
+{"t": 1793965109.899, "event": "message", "text": "Bravo: after its turn the camera did not agree within 1.5 cm in 3 s (one camera (overhead), 2.3 cm apart): driving on, as before the pause"}
+{"t": 1793965109.899, "event": "step_sent", "robot": "Bravo", "id": 51, "i": 36, "plan": 5, "text": "fs 51 D 17.00 73.99 30.87 73.99 0.00 10.00 0 -"}
+{"t": 1793965109.91, "event": "step_report", "robot": "Bravo", "id": 51, "state": "queued", "x": 17.0, "y": 74.02, "th": 0.79, "front_cm": 241.9, "info": ""}
+{"t": 1793965109.91, "event": "step_report", "robot": "Bravo", "id": 51, "state": "started", "x": 17.0, "y": 74.02, "th": 0.79, "front_cm": 241.9, "info": ""}
+{"t": 1793965109.91, "event": "step_sent", "robot": "Bravo", "id": 52, "i": 37, "plan": 5, "text": "fs 52 D 30.87 73.99 44.75 73.99 0.00 10.00 0 -"}
+{"t": 1793965109.92, "event": "step_report", "robot": "Bravo", "id": 52, "state": "queued", "x": 17.0, "y": 74.02, "th": 0.79, "front_cm": 241.9, "info": ""}
+{"t": 1793965110.087, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965110.395, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965110.709, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965111.017, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965111.319, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965111.413, "event": "step_report", "robot": "Bravo", "id": 51, "state": "done", "x": 30.7, "y": 74.01, "th": -0.1, "front_cm": 231.5, "info": ""}
+{"t": 1793965111.413, "event": "step_report", "robot": "Bravo", "id": 52, "state": "started", "x": 30.7, "y": 74.01, "th": -0.1, "front_cm": 231.5, "info": ""}
+{"t": 1793965111.413, "event": "step_sent", "robot": "Bravo", "id": 53, "i": 38, "plan": 5, "text": "fs 53 D 44.75 73.99 58.62 73.99 0.00 10.00 0 -"}
+{"t": 1793965111.423, "event": "step_report", "robot": "Bravo", "id": 53, "state": "queued", "x": 30.8, "y": 74.01, "th": -0.09, "front_cm": 231.5, "info": ""}
+{"t": 1793965111.624, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965111.926, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965112.23, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965112.23, "event": "message", "text": "  Bravo 37/45"}
+{"t": 1793965112.23, "event": "waiting", "robot": "Bravo", "why": "step 37 started"}
+{"t": 1793965112.54, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965112.85, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965112.882, "event": "step_report", "robot": "Bravo", "id": 52, "state": "done", "x": 44.54, "y": 73.99, "th": -0.07, "front_cm": 211.1, "info": ""}
+{"t": 1793965112.882, "event": "step_report", "robot": "Bravo", "id": 53, "state": "started", "x": 44.54, "y": 73.99, "th": -0.07, "front_cm": 211.1, "info": ""}
+{"t": 1793965112.882, "event": "step_sent", "robot": "Bravo", "id": 54, "i": 39, "plan": 5, "text": "fs 54 D 58.62 73.99 72.50 73.99 0.00 10.00 0 -"}
+{"t": 1793965112.903, "event": "step_report", "robot": "Bravo", "id": 54, "state": "queued", "x": 44.63, "y": 73.98, "th": -0.07, "front_cm": 216.1, "info": ""}
+{"t": 1793965113.155, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965113.459, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965113.761, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965114.061, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965114.363, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965114.373, "event": "step_report", "robot": "Bravo", "id": 53, "state": "done", "x": 58.45, "y": 73.97, "th": -0.06, "front_cm": 197.3, "info": ""}
+{"t": 1793965114.374, "event": "step_report", "robot": "Bravo", "id": 54, "state": "started", "x": 58.45, "y": 73.97, "th": -0.06, "front_cm": 197.3, "info": ""}
+{"t": 1793965114.374, "event": "step_sent", "robot": "Bravo", "id": 55, "i": 40, "plan": 5, "text": "fs 55 D 72.50 73.99 86.37 73.99 0.00 10.00 0 -"}
+{"t": 1793965114.384, "event": "step_report", "robot": "Bravo", "id": 55, "state": "queued", "x": 58.56, "y": 73.97, "th": -0.05, "front_cm": 197.3, "info": ""}
+{"t": 1793965114.67, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965114.971, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965115.278, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965115.587, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965115.849, "event": "step_report", "robot": "Bravo", "id": 54, "state": "done", "x": 72.33, "y": 73.97, "th": -0.05, "front_cm": 184.1, "info": ""}
+{"t": 1793965115.849, "event": "step_report", "robot": "Bravo", "id": 55, "state": "started", "x": 72.33, "y": 73.97, "th": -0.05, "front_cm": 184.1, "info": ""}
+{"t": 1793965115.85, "event": "step_sent", "robot": "Bravo", "id": 56, "i": 41, "plan": 5, "text": "fs 56 D 86.37 73.99 100.24 73.99 0.00 10.00 0 -"}
+{"t": 1793965115.86, "event": "step_report", "robot": "Bravo", "id": 56, "state": "queued", "x": 72.42, "y": 73.97, "th": -0.05, "front_cm": 184.1, "info": ""}
+{"t": 1793965115.892, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965116.203, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965116.505, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965116.811, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965117.113, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965117.332, "event": "step_report", "robot": "Bravo", "id": 55, "state": "done", "x": 86.21, "y": 73.96, "th": -0.05, "front_cm": 172.9, "info": ""}
+{"t": 1793965117.332, "event": "step_report", "robot": "Bravo", "id": 56, "state": "started", "x": 86.21, "y": 73.96, "th": -0.05, "front_cm": 172.9, "info": ""}
+{"t": 1793965117.333, "event": "step_sent", "robot": "Bravo", "id": 57, "i": 42, "plan": 5, "text": "fs 57 D 100.24 73.99 114.12 73.99 0.00 10.00 0 -"}
+{"t": 1793965117.343, "event": "step_report", "robot": "Bravo", "id": 57, "state": "queued", "x": 86.29, "y": 73.96, "th": -0.05, "front_cm": 172.9, "info": ""}
+{"t": 1793965117.423, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965117.725, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965118.032, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965118.338, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965118.638, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965118.809, "event": "step_report", "robot": "Bravo", "id": 56, "state": "done", "x": 100.06, "y": 73.96, "th": -0.04, "front_cm": 157.3, "info": ""}
+{"t": 1793965118.81, "event": "step_report", "robot": "Bravo", "id": 57, "state": "started", "x": 100.06, "y": 73.96, "th": -0.04, "front_cm": 157.3, "info": ""}
+{"t": 1793965118.81, "event": "step_sent", "robot": "Bravo", "id": 58, "i": 43, "plan": 5, "text": "fs 58 D 114.12 73.99 127.99 73.99 0.00 10.00 0 -"}
+{"t": 1793965118.821, "event": "step_report", "robot": "Bravo", "id": 58, "state": "queued", "x": 100.15, "y": 73.96, "th": -0.04, "front_cm": 157.3, "info": ""}
+{"t": 1793965118.948, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965119.251, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965119.554, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965119.862, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965120.167, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965120.293, "event": "step_report", "robot": "Bravo", "id": 57, "state": "done", "x": 113.96, "y": 73.96, "th": -0.04, "front_cm": 144.9, "info": ""}
+{"t": 1793965120.294, "event": "step_report", "robot": "Bravo", "id": 58, "state": "started", "x": 113.96, "y": 73.96, "th": -0.04, "front_cm": 144.9, "info": ""}
+{"t": 1793965120.294, "event": "step_sent", "robot": "Bravo", "id": 59, "i": 44, "plan": 5, "text": "fs 59 T 90.00 -"}
+{"t": 1793965120.305, "event": "step_report", "robot": "Bravo", "id": 59, "state": "queued", "x": 114.04, "y": 73.96, "th": -0.04, "front_cm": 148.0, "info": ""}
+{"t": 1793965120.472, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965120.783, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965121.088, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965121.39, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965121.695, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965121.769, "event": "step_report", "robot": "Bravo", "id": 58, "state": "done", "x": 127.82, "y": 73.96, "th": -0.04, "front_cm": 130.6, "info": ""}
+{"t": 1793965121.769, "event": "step_report", "robot": "Bravo", "id": 59, "state": "started", "x": 127.82, "y": 73.96, "th": -0.04, "front_cm": 130.6, "info": ""}
+{"t": 1793965121.769, "event": "labelled_step", "robot": "Bravo", "plan": 5, "i": 44, "label": "home", "phase": "travel", "state": "started", "t_run": 113.06, "pose": [127.82, 73.96, -0.04], "front_cm": 130.6, "info": "", "cam": [126.35, 73.82, 1.0], "to": [127.99, 73.99, 90.0], "frm": [127.99, 73.99, 0.0]}
+{"t": 1793965122.003, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965122.236, "event": "message", "text": "  Bravo 44/45"}
+{"t": 1793965122.236, "event": "waiting", "robot": "Bravo", "why": "step 44 started"}
+{"t": 1793965122.305, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965122.606, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965122.912, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965123.217, "event": "control_resent", "robot": "Alpha", "text": "halt"}
+{"t": 1793965123.406, "event": "step_report", "robot": "Bravo", "id": 59, "state": "done", "x": 128.14, "y": 73.98, "th": 89.13, "front_cm": 94.5, "info": ""}
+{"t": 1793965123.406, "event": "labelled_step", "robot": "Bravo", "plan": 5, "i": 44, "label": "home", "phase": "travel", "state": "done", "t_run": 114.69, "pose": [128.14, 73.98, 89.13], "front_cm": 94.5, "info": "", "cam": [127.18, 73.84, 86.7], "to": [127.99, 73.99, 90.0], "frm": [127.99, 73.99, 0.0]}
+{"t": 1793965123.406, "event": "message", "text": "all robots done"}

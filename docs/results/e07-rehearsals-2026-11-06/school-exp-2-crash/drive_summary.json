@@ -1,0 +1,41 @@
+{
+ "name": "school-exp-2",
+ "room": "school",
+ "kind": "experiment",
+ "adv": {
+  "allow_half_table": true
+ },
+ "start_error": null,
+ "ended_s": 135.5,
+ "timed_out": false,
+ "status": {
+  "running": false,
+  "kind": "experiment",
+  "title": "Experiment routes",
+  "practice": true,
+  "lines": [
+   "  Alpha 3/140  Bravo 5/123",
+   "POINT point P23 (Bravo): \u00b19.4 cm, odometry for 113 cm since the last camera fix (40 s ago)",
+   "Bravo: Bravo follow: nothing from the laptop for 5362 ms; standing still",
+   "POINT point P02 (Alpha): \u00b11.4 cm, one camera (overhead)",
+   "Bravo: Bravo follow: nothing from the laptop for 1503 ms; standing still",
+   "Bravo: after its turn the camera did not agree within 1.5 cm in 3 s (no fix, no fix): driving on, as before the pause",
+   "Bravo: its recovery path is RESERVED: the others re-plan round it (they do not just check their next steps) and carry on",
+   "Bravo: it drove 41 cm with no camera seeing it (the limit is 40 cm): RECOVERING: it turns to face where the camera last read it and drives 42 cm straight there, forwards (clear of the edges and of the others' paths, checked)"
+  ],
+  "elapsed_s": 141.0,
+  "points": 5,
+  "words": "Experiment routes ended.",
+  "folder": "/tmp/claude-0/-home-claude/fff6dc9c-5876-54f9-92a7-a08483d3d5c7/scratchpad/reh/mc/school-exp-2/runs/20261106-062736-experiment-sim-cameras"
+ },
+ "robots": {
+  "n": 2,
+  "names": [
+   "Alpha",
+   "Bravo"
+  ],
+  "words": "Found 2 robots: Alpha, Bravo"
+ },
+ "where": "This looks like the school conference table (its reference tags 20, 21, 23, 24, 25 are on the table and the table measures 396 x 167 cm, its size).",
+ "folder": "/tmp/claude-0/-home-claude/fff6dc9c-5876-54f9-92a7-a08483d3d5c7/scratchpad/reh/mc/school-exp-2/runs/20261106-062736-experiment-sim-cameras"
+}

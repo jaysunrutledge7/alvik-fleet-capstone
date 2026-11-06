@@ -1,0 +1,40 @@
+{
+ "name": "school-exp-refused-plain",
+ "room": "school",
+ "kind": "experiment",
+ "adv": {},
+ "start_error": null,
+ "ended_s": 50.1,
+ "timed_out": false,
+ "status": {
+  "running": false,
+  "kind": "experiment",
+  "title": "Experiment routes",
+  "practice": true,
+  "lines": [
+   "06:17:02 ROBOTS FOUND: 2 (Alpha,Bravo)",
+   "06:17:02 TAG HEADINGS (observed by the nudge): Alpha +90 deg, Bravo -180 deg",
+   "06:17:02 TAGS from the wiggle (simulator): Alpha = tag 1, Bravo = tag 0",
+   "06:17:02 P09: (17, 57.5) in used instead of the sheet's (17, 37.5) in (confirmed by Jay-Sun 3 Nov (spreadsheet correct))",
+   "06:17:02 P10: (33, 37.5) in used instead of the sheet's (33, 27.5) in (confirmed by Jay-Sun 3 Nov (spreadsheet correct))",
+   "06:17:02 speeds pinned for this site: drive 10 cm/s, turn 60 deg/s, final approach 5 cm/s",
+   "06:17:05 mission production e1 on a 396 x 168 cm table, robots Alpha, Bravo: planned in 2.5 s, done in 270 s, closest 62.1 cm",
+   "06:17:05 NOT STARTED: experiment e1 assigns points the camera cannot read (Alpha: P04, P19; Bravo: P22, P23, P24, P25, P26, P27, P29, P30, P31, P32, P33, P34, P35, P36, P37, P38, P39, P40): with one camera only half the table is seen, and a run on half the table needs Dr. Sodhi's OK (Jay-Sun 5 Nov). With that OK: --allow-half-table; or plug in camera 2. Nothing moved."
+  ],
+  "elapsed_s": 55.0,
+  "points": null,
+  "words": "Not started, nothing moved: this route uses points the camera cannot read (with one camera it sees only the TV-end half of the table). Jay-Sun's agreement: half the table needs Dr. Sodhi's OK. With his OK, open Advanced and tick 'Experiments may use the half the camera cannot read', then press Experiment routes again; or plug in camera 2.",
+  "folder": "/tmp/claude-0/-home-claude/fff6dc9c-5876-54f9-92a7-a08483d3d5c7/scratchpad/reh/mc/school-exp-refused-plain/runs/20261106-061619-experiment-sim-cameras",
+  "refused": true
+ },
+ "robots": {
+  "n": 2,
+  "names": [
+   "Alpha",
+   "Bravo"
+  ],
+  "words": "Found 2 robots: Alpha, Bravo"
+ },
+ "where": "This looks like the school conference table (its reference tags 20, 21, 23, 24, 25 are on the table and the table measures 396 x 167 cm, its size).",
+ "folder": "/tmp/claude-0/-home-claude/fff6dc9c-5876-54f9-92a7-a08483d3d5c7/scratchpad/reh/mc/school-exp-refused-plain/runs/20261106-061619-experiment-sim-cameras"
+}

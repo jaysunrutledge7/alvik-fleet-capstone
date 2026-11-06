@@ -1,0 +1,30 @@
+Free roam: /tmp/claude-0/-home-claude/fff6dc9c-5876-54f9-92a7-a08483d3d5c7/scratchpad/reh/mc/home-freeroam/runs/20261106-060403-freeroam-sim (seed 63044, battery floor 10 %, lost: reckon)
+Waiting for the robots: Left, Center, Right ...
+  Left: safety layers on and read back (tilt stop 5 deg, edge guard 3)
+[    0.0] Left    safety armed: safe_edge 3, edge_bot_cm 11, tilt_stop_deg 5, tilt_ms 300, safe_lift 1
+  Center: safety layers on and read back (tilt stop 5 deg, edge guard 3)
+[    0.0] Center  safety armed: safe_edge 3, edge_bot_cm 11, tilt_stop_deg 5, tilt_ms 300, safe_lift 1
+  Right: safety layers on and read back (tilt stop 5 deg, edge guard 3)
+[    0.0] Right   safety armed: safe_edge 3, edge_bot_cm 11, tilt_stop_deg 5, tilt_ms 300, safe_lift 1
+  Left: firmware 2026-11-05d, battery 51%: speed and steer changes while driving, watchdog on; motion: CURVES (never stops on purpose)
+[    0.0] Left    firmware: 2026-11-05d (fspd/fsteer/watchdog)
+  Center: firmware 2026-11-05d, battery 69%: speed and steer changes while driving, watchdog on; motion: CURVES (never stops on purpose)
+[    0.0] Center  firmware: 2026-11-05d (fspd/fsteer/watchdog)
+  Right: firmware 2026-11-05d, battery 34%: speed and steer changes while driving, watchdog on; motion: CURVES (never stops on purpose)
+[    0.0] Right   firmware: 2026-11-05d (fspd/fsteer/watchdog)
+Waiting for the camera and each robot's own pose ...
+[    0.0] Left    motion: curves (continuous: firmware 2026-11-05d)
+  Left joins at 30.6, 55.1 (facing 110 deg)
+[    0.0] Center  motion: curves (continuous: firmware 2026-11-05d)
+  Center joins at 75.1, 35.1 (facing -76 deg)
+[    0.0] Right   motion: curves (continuous: firmware 2026-11-05d)
+  Right joins at 87.8, 74.6 (facing 148 deg)
+Free roam: Center, Left, Right, until each is at 10 % or 0.1 h. Ctrl+C (or ./run-fleet-pi.sh freeroam-stop) stops every robot.
+Board assumed: x 0 to 122 cm, y 0 to 122 cm (122 x 122 cm, from the simulator's board). Moves end 16 cm or more inside it (90 x 90 cm usable); turns on the spot 9.2 cm in. Walls or objects inside it are found during the run: each front stop or edge-guard stop becomes a keep-out (events: keep-out; keepouts.csv).
+[   60.0] Left move 30% 19 moves; Center move 48% 23 moves; Right move 13% 20 moves
+[  120.0] Left move 0% 34 moves; Center move 17% 43 moves; Right move 3% 34 moves
+
+The run ends: the time cap (0.1 h).
+[  180.0] -       end: the time cap (0.1 h)
+Report: /tmp/claude-0/-home-claude/fff6dc9c-5876-54f9-92a7-a08483d3d5c7/scratchpad/reh/mc/home-freeroam/runs/20261106-060403-freeroam-sim/report.md
+Free roam folder: /tmp/claude-0/-home-claude/fff6dc9c-5876-54f9-92a7-a08483d3d5c7/scratchpad/reh/mc/home-freeroam/runs/20261106-060403-freeroam-sim

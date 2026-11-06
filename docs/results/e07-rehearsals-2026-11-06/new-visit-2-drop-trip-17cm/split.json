@@ -1,0 +1,46 @@
+{
+ "mode": "auto",
+ "robots": {
+  "Bravo": [
+   127.99,
+   73.99
+  ],
+  "Alpha": [
+   16.99,
+   16.99
+  ]
+ },
+ "orders": {
+  "Bravo": [
+   "P05",
+   "P06",
+   "P07",
+   "P08"
+  ],
+  "Alpha": [
+   "P01",
+   "P02",
+   "P03",
+   "P04"
+  ]
+ },
+ "skipped": {
+  "P09": "the camera does not read tags there: read rate 10 % (camera model: a tag needs 14 px to read)",
+  "P10": "the camera does not read tags there: read rate 10 % (camera model: a tag needs 14 px to read)"
+ },
+ "words": [
+  "table shared between 2 robots over the readable area (8 of 10 points; Bravo 4, Alpha 4)"
+ ],
+ "homes": {
+  "Bravo": [
+   127.99,
+   73.99,
+   90.0
+  ],
+  "Alpha": [
+   16.99,
+   16.99,
+   90.0
+  ]
+ }
+}

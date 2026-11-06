@@ -1,0 +1,70 @@
+No calibration saved by the camera setup page (/root/.config/mirlt/overhead_calib missing): using yesterday's roam1 calibration tools/experiment/data/overhead_floorcal_roam1.json. If the overhead camera has moved, run ./run-fleet-pi.sh setup first.
+No side camera calibration saved (/root/.config/mirlt/side_calib missing): tracking with the overhead camera alone. To use both cameras: ./run-fleet-pi.sh setup, part 2 (side camera).
+Dry run: the simulated board is up (robots at Left (52, 85, -96 deg), Center (89, 39, -5 deg), Right (41, 44, 32 deg); turns off: none)
+
+====================================================================================================
+L0  status: firmware, battery, edge guard, camera, every robot found by its lights
+====================================================================================================
+Robots heard: Center, Left, Right
+Battery floor: 25 % (the default)
+  Left: firmware 2026-11-05d, battery 95%
+  Right: firmware 2026-11-05d, battery 92%
+  Center: firmware 2026-11-05d, battery 97%
+Overhead camera: 15 pictures a second
+Side camera: 15 pictures a second (side camera 127.0.0.1:8766 (lag 0.040 s), calibration /home/claude/alvik-fleet-capstone/logs/20261106-ladder-dryrun/sim/side_camera.json)
+Finding each robot by its lights (nothing moves) ...
+  Left: body seen by both cameras
+  Left faces -97 deg by its lights (both cameras (overhead -97, side -97)): used as its heading
+  Right: body seen by both cameras
+  Right faces 33 deg by its lights (both cameras (overhead 32, side 33)): used as its heading
+  Center: body seen by both cameras
+  Center faces -7 deg by its lights (both cameras (overhead -6, side -7)): used as its heading
+  overhead camera tracking: 13 ms a picture (90%: 30 ms), 0.07 s behind at most, 0 pictures dropped of 13
+  side camera tracking: 23 ms a picture (90%: 30 ms), 0.07 s behind at most, 6 pictures dropped of 13
+Lighting check (before anything moves):
+  overhead camera: fine (robots 56 grey levels from the board, 3 of 3 found)
+  side camera: fine (3 of 3 robots found, 72 grey levels from the board)
+  Left at (51.9, 84.6), 37 cm from the y = 122 edge
+  Right at (41.4, 45.1), 41 cm from the x = 0 edge
+  Center at (89.2, 39.3), 33 cm from the x = 122 edge
+
+L0 PASS: found and fine: Left, Right, Center
+    Look at: the robots' firmware lines above; the live picture (http://100.122.222.75:8000)
+No calibration saved by the camera setup page (/root/.config/mirlt/overhead_calib missing): using yesterday's roam1 calibration tools/experiment/data/overhead_floorcal_roam1.json. If the overhead camera has moved, run ./run-fleet-pi.sh setup first.
+No side camera calibration saved (/root/.config/mirlt/side_calib missing): tracking with the overhead camera alone. To use both cameras: ./run-fleet-pi.sh setup, part 2 (side camera).
+
+====================================================================================================
+L1  calibrate each robot alone (the camera checks its room first)  [Left, Right, Center]
+====================================================================================================
+  Left: body seen by both cameras
+  Left faces -97 deg by its lights (kept heading -97: agrees)
+  Right: body seen by both cameras
+  Right faces 33 deg by its lights (kept heading 33: agrees)
+  Center: body seen by both cameras
+  Center faces -7 deg by its lights (kept heading -7: agrees)
+  overhead camera tracking: 12 ms a picture (90%: 18 ms), 0.02 s behind at most, 0 pictures dropped of 12
+  side camera tracking: 17 ms a picture (90%: 26 ms), 0.03 s behind at most, 6 pictures dropped of 12
+  Left: not calibrated yet today: full calibration (about 65 s)
+    room to roll (camera: (51.9, 84.5), 38 cm from the y = 122 edge; heading -97 deg (its lights (facing check: both cameras (overhead -97, side -97)))): rolls allowed: +0:15, +45:15, +90:15, +135:15, +180:15, -135:15, -90:15, -45:15 (deg from where it faces : cm); the longest, 15.0 cm, towards -y on the board
+    calibrating alone (about 65 s) ...
+    the camera watched its 15 cm roll: it now faces -98 deg (towards -y on the board)
+    Left: done in 62 s; the camera has it at (51.9, 84.5), 0.0 cm from where it started
+    its roll: 15.0 cm at +0 deg from where it faced, towards -y on the board
+    noted: Left calibrated today at 06:27, boot B6A3 (kept on this power-on until a restart)
+  Right: not calibrated yet today: full calibration (about 65 s)
+    room to roll (camera: (41.4, 44.9), 41 cm from the x = 0 edge; heading 33 deg (its lights (facing check: both cameras (overhead 32, side 33)))): rolls allowed: +0:15, +45:15, +90:15, +135:15, +180:15, -135:15, -90:15, -45:15 (deg from where it faces : cm); the longest, 15.0 cm, towards +x +y on the board
+    calibrating alone (about 65 s) ...
+    the camera watched its 15 cm roll: it now faces 30 deg (towards +x +y on the board)
+    Right: done in 61 s; the camera has it at (41.6, 44.8), 0.2 cm from where it started
+    its roll: 15.0 cm at +0 deg from where it faced, towards +x +y on the board
+    noted: Right calibrated today at 06:28, boot E3AC (kept on this power-on until a restart)
+  Center: not calibrated yet today: full calibration (about 65 s)
+    room to roll (camera: (89.2, 39.1), 33 cm from the x = 122 edge; heading -7 deg (its lights (facing check: both cameras (overhead -6, side -7)))): rolls allowed: +0:15, +45:15, +90:15, +135:15, +180:15, -135:15, -90:15, -45:15 (deg from where it faces : cm); the longest, 15.0 cm, towards +x on the board
+    calibrating alone (about 65 s) ...
+    the camera watched its 15 cm roll: it now faces -15 deg (towards +x on the board)
+    Center: done in 63 s; the camera has it at (89.2, 39.1), 0.0 cm from where it started
+    its roll: 15.0 cm at +0 deg from where it faced, towards +x on the board
+    noted: Center calibrated today at 06:29, boot 46F6 (kept on this power-on until a restart)
+
+L1 PASS: calibrated: Left, Right, Center
+    Look at: the CALIB lines in /home/claude/alvik-fleet-capstone/logs/20261106-ladder-dryrun/062629-L1; the live picture

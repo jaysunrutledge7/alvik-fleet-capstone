@@ -1,0 +1,39 @@
+{
+ "name": "home-calibrate",
+ "room": "home",
+ "kind": "calibrate",
+ "adv": {},
+ "start_error": null,
+ "ended_s": 245.6,
+ "timed_out": false,
+ "status": {
+  "running": false,
+  "kind": "calibrate",
+  "title": "Calibrate",
+  "practice": true,
+  "lines": [
+   "    room to roll (camera: (89.2, 39.1), 33 cm from the x = 122 edge; heading -7 deg (its lights (facing check: both cameras (overhead -6, side -7)))): rolls allowed: +0:15, +45:15, +90:15, +135:15, +180:15, -135:15, -90:15, -45:15 (deg from where it faces : cm); the longest, 15.0 cm, towards +x on the board",
+   "    calibrating alone (about 65 s) ...",
+   "    the camera watched its 15 cm roll: it now faces -15 deg (towards +x on the board)",
+   "    Center: done in 63 s; the camera has it at (89.2, 39.1), 0.0 cm from where it started",
+   "    its roll: 15.0 cm at +0 deg from where it faced, towards +x on the board",
+   "    noted: Center calibrated today at 06:29, boot 46F6 (kept on this power-on until a restart)",
+   "L1 PASS: calibrated: Left, Right, Center",
+   "    Look at: the CALIB lines in /home/claude/alvik-fleet-capstone/logs/20261106-ladder-dryrun/062629-L1; the live picture"
+  ],
+  "elapsed_s": 251.0,
+  "points": null,
+  "words": "Calibrate ended.",
+  "folder": "/tmp/claude-0/-home-claude/fff6dc9c-5876-54f9-92a7-a08483d3d5c7/scratchpad/reh/mc/home-calibrate/runs/20261106-062600-calibrate-sim"
+ },
+ "robots": {
+  "n": 2,
+  "names": [
+   "Left",
+   "Center"
+  ],
+  "words": "Practice: 2 simulated robots (Left, Center); each run finds them by their lights"
+ },
+ "where": "This looks like home (the 4 x 4 ft board) (the table measures 122 x 122 cm, its size and its cameras USB 2.0 Camera and EMEET SmartCam C950 plugged in).",
+ "folder": "/tmp/claude-0/-home-claude/fff6dc9c-5876-54f9-92a7-a08483d3d5c7/scratchpad/reh/mc/home-calibrate/runs/20261106-062600-calibrate-sim"
+}

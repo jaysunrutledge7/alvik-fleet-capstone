@@ -1,0 +1,39 @@
+{
+ "name": "new-visit-2",
+ "room": "new",
+ "kind": "visit",
+ "adv": {},
+ "start_error": null,
+ "ended_s": 115.5,
+ "timed_out": false,
+ "status": {
+  "running": false,
+  "kind": "visit",
+  "title": "Visit points",
+  "practice": true,
+  "lines": [
+   "POINT point P02 (Alpha): \u00b11.0 cm, one camera (overhead)",
+   "Bravo: Bravo follow: nothing from the laptop for 4616 ms; standing still",
+   "Bravo: Bravo follow: nothing from the laptop for 1502 ms; standing still",
+   "Bravo: after its turn the camera did not agree within 1.5 cm in 3 s (no fix, no fix): driving on, as before the pause",
+   "Bravo: no camera sees it: driving on its own wheels and gyro (at most 40 cm)",
+   "  Bravo 21/24  Alpha 24/25",
+   "Bravo: seen again after 22 cm with no camera; its own pose was 0.5 cm off",
+   "all robots done"
+  ],
+  "elapsed_s": 121.0,
+  "points": 10,
+  "words": "Visit points ended.",
+  "folder": "/tmp/claude-0/-home-claude/fff6dc9c-5876-54f9-92a7-a08483d3d5c7/scratchpad/reh/mc/new-visit-2/runs/20261106-071748-visit-sim-cameras"
+ },
+ "robots": {
+  "n": 2,
+  "names": [
+   "Alpha",
+   "Bravo"
+  ],
+  "words": "Found 2 robots: Alpha, Bravo"
+ },
+ "where": "A new area: nothing here matches a known table well enough (home -6.5, school-conference -7.0). The cameras measure it; nothing needs typing. Its own site: new-1106.",
+ "folder": "/tmp/claude-0/-home-claude/fff6dc9c-5876-54f9-92a7-a08483d3d5c7/scratchpad/reh/mc/new-visit-2/runs/20261106-071748-visit-sim-cameras"
+}

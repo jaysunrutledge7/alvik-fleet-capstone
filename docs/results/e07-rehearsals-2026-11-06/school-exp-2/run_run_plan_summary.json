@@ -1,0 +1,5683 @@
+{
+ "observe": {
+  "trips": [],
+  "recoveries": [
+   {
+    "robot": "Bravo",
+    "back_cm": 41.6,
+    "blind_cm": 40.6,
+    "why": "it drove 41 cm with no camera seeing it (the limit is 40 cm)"
+   },
+   {
+    "robot": "Bravo",
+    "back_cm": 50.0,
+    "blind_cm": 40.7,
+    "why": "it drove 41 cm with no camera seeing it (the limit is 40 cm)"
+   },
+   {
+    "robot": "Alpha",
+    "back_cm": 41.0,
+    "blind_cm": 40.1,
+    "why": "it drove 40 cm with no camera seeing it (the limit is 40 cm)"
+   },
+   {
+    "robot": "Bravo",
+    "back_cm": 50.0,
+    "blind_cm": 40.9,
+    "why": "it drove 41 cm with no camera seeing it (the limit is 40 cm)"
+   },
+   {
+    "robot": "Bravo",
+    "back_cm": 43.6,
+    "blind_cm": 48.8,
+    "why": "it drove 49 cm with no camera seeing it (the limit is 40 cm)"
+   },
+   {
+    "robot": "Bravo",
+    "back_cm": 19.0,
+    "blind_cm": 73.3,
+    "why": "it drove 73 cm with no camera seeing it (the limit is 40 cm)"
+   },
+   {
+    "robot": "Bravo",
+    "back_cm": 50.0,
+    "blind_cm": 40.6,
+    "why": "it drove 41 cm with no camera seeing it (the limit is 40 cm)"
+   },
+   {
+    "robot": "Bravo",
+    "back_cm": 50.0,
+    "blind_cm": 40.7,
+    "why": "it drove 41 cm with no camera seeing it (the limit is 40 cm)"
+   },
+   {
+    "robot": "Bravo",
+    "back_cm": 28.1,
+    "blind_cm": 63.6,
+    "why": "it drove 64 cm with no camera seeing it (the limit is 40 cm)"
+   },
+   {
+    "robot": "Bravo",
+    "back_cm": 50.0,
+    "blind_cm": 40.5,
+    "why": "it drove 41 cm with no camera seeing it (the limit is 40 cm)"
+   },
+   {
+    "robot": "Bravo",
+    "back_cm": 42.8,
+    "blind_cm": 49.8,
+    "why": "it drove 50 cm with no camera seeing it (the limit is 40 cm)"
+   },
+   {
+    "robot": "Bravo",
+    "back_cm": 19.7,
+    "blind_cm": 72.8,
+    "why": "it drove 73 cm with no camera seeing it (the limit is 40 cm)"
+   },
+   {
+    "robot": "Bravo",
+    "back_cm": 50.0,
+    "blind_cm": 40.7,
+    "why": "it drove 41 cm with no camera seeing it (the limit is 40 cm)"
+   },
+   {
+    "robot": "Bravo",
+    "back_cm": 45.2,
+    "blind_cm": 46.1,
+    "why": "it drove 46 cm with no camera seeing it (the limit is 40 cm)"
+   },
+   {
+    "robot": "Bravo",
+    "back_cm": 20.2,
+    "blind_cm": 71.1,
+    "why": "it drove 71 cm with no camera seeing it (the limit is 40 cm)"
+   },
+   {
+    "robot": "Bravo",
+    "back_cm": 50.0,
+    "blind_cm": 40.2,
+    "why": "it drove 40 cm with no camera seeing it (the limit is 40 cm)"
+   },
+   {
+    "robot": "Bravo",
+    "back_cm": 50.0,
+    "blind_cm": 40.3,
+    "why": "it drove 40 cm with no camera seeing it (the limit is 40 cm)"
+   },
+   {
+    "robot": "Bravo",
+    "back_cm": 24.7,
+    "blind_cm": 66.2,
+    "why": "it drove 66 cm with no camera seeing it (the limit is 40 cm)"
+   },
+   {
+    "robot": "Bravo",
+    "back_cm": 50.0,
+    "blind_cm": 40.9,
+    "why": "it drove 41 cm with no camera seeing it (the limit is 40 cm)"
+   },
+   {
+    "robot": "Bravo",
+    "back_cm": 50.0,
+    "blind_cm": 41.4,
+    "why": "it drove 41 cm with no camera seeing it (the limit is 40 cm)"
+   },
+   {
+    "robot": "Bravo",
+    "back_cm": 34.9,
+    "blind_cm": 59.7,
+    "why": "it drove 60 cm with no camera seeing it (the limit is 40 cm)"
+   },
+   {
+    "robot": "Bravo",
+    "back_cm": 10.9,
+    "blind_cm": 83.7,
+    "why": "it drove 84 cm with no camera seeing it (the limit is 40 cm)"
+   },
+   {
+    "robot": "Bravo",
+    "back_cm": 50.0,
+    "blind_cm": 40.2,
+    "why": "it drove 40 cm with no camera seeing it (the limit is 40 cm)"
+   },
+   {
+    "robot": "Bravo",
+    "back_cm": 46.2,
+    "blind_cm": 45.0,
+    "why": "it drove 45 cm with no camera seeing it (the limit is 40 cm)"
+   },
+   {
+    "robot": "Bravo",
+    "back_cm": 21.5,
+    "blind_cm": 69.7,
+    "why": "it drove 70 cm with no camera seeing it (the limit is 40 cm)"
+   }
+  ],
+  "heading_relearned": [],
+  "surface_marks": [],
+  "did_not_move": 6,
+  "skipped": [
+   {
+    "robot": "Bravo",
+    "point": "point P29",
+    "why": "cannot be reached: point (261.6, 124.5): no room to turn there (0.0 cm clear, needs 8.2)",
+    "t_run": 270.93
+   }
+  ]
+ },
+ "plan_id_first": "plan-2abc06a3a0",
+ "plans": 66,
+ "result": "every robot is out (none heard again within 90 s)",
+ "duration_s": 665.62,
+ "planned_makespan_s": 270.3,
+ "resends": {
+  "Alpha": 23,
+  "Bravo": 0
+ },
+ "steps_sent": {
+  "Alpha": 94,
+  "Bravo": 141
+ },
+ "fixes_sent": {
+  "Alpha": 829,
+  "Bravo": 1168
+ },
+ "fixes_held_no_pose": {
+  "Alpha": 7,
+  "Bravo": 7
+ },
+ "warnings": [
+  "Alpha: the camera and its own pose disagreed by 6.4 cm for 1.0 s: its pose was set to the camera's (the camera is trusted), the run goes on",
+  "Alpha: camera and own pose disagreed 6.4 cm: pose reset from the camera",
+  "Alpha is held (restarted mid-run (boot 4C01, was D386): it lost its calibration and its steps): its points not done go to the robots still running: Bravo (points P05, P06, P07, P08, P09, P10, P11, P12, P13, P14, P15, P16, P17, P18, P19, P20 to Bravo)",
+  "Alpha: camera and own pose disagreed 0.1 cm: pose reset from the camera",
+  "Bravo is held (heard again, but no plan fits it back in (Bravo left without a route)): its points not done go to the robots still running: Alpha (points P25, P26, P27, P28, P29, P30, P31, P32, P33, P34, P35, P36, P37, P38, P39, P40, P05, P06, P07, P08, P09, P10, P11, P12, P13, P14, P15, P16, P17, P18, P19, P20 to Alpha)",
+  "Bravo: no plan fits it back in (Bravo left without a route); checked again in 10 s",
+  "Alpha: camera and own pose disagreed 6.4 cm: pose reset from the camera",
+  "Alpha: it drove 40 cm with no camera seeing it (the limit is 40 cm)",
+  "30 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+  "Alpha: cannot rejoin yet: the camera's position of it is 25.1 s old; checked again in 10 s",
+  "Alpha: cannot rejoin yet: the camera's position of it is 47.1 s old; checked again in 20 s",
+  "Alpha: cannot rejoin yet: the camera's position of it is 78.2 s old; checked again in 40 s",
+  "Alpha: cannot rejoin yet: the camera's position of it is 129.8 s old; checked again in 60 s",
+  "Alpha: cannot rejoin yet: the camera's position of it is 201.9 s old; checked again in 60 s",
+  "Alpha: cannot rejoin yet: the camera's position of it is 274.4 s old; checked again in 60 s",
+  "no new plan (no robots in the map): everyone stands where they are and the plan is made again in 3 s"
+ ],
+ "held_at_start": {},
+ "fixes_used_rejected": {
+  "Alpha": [
+   "0",
+   "0"
+  ],
+  "Bravo": [
+   "0",
+   "839"
+  ]
+ },
+ "replans": [
+  {
+   "t_run": 22.27,
+   "source": "retry",
+   "cpu_s": 0.75,
+   "budget_s": 2.0,
+   "events": [
+    {
+     "robot": "Alpha",
+     "action": "continues",
+     "reason": "path clear for the next 2.0 s; carries on 1 step(s), then holds"
+    },
+    {
+     "robot": "Bravo",
+     "action": "continues",
+     "reason": "path clear for the next 2.0 s; carries on 1 step(s), then holds"
+    }
+   ],
+   "new_makespan_s": 246.7,
+   "stranded": [],
+   "obstacle": null,
+   "states": {
+    "Alpha": {
+     "pose": [
+      36.46,
+      33.92,
+      -2.733534674473519
+     ],
+     "step": 14,
+     "in_progress": true,
+     "dwell_left_s": 1.5059709548950195,
+     "ended": null
+    },
+    "Bravo": {
+     "pose": [
+      243.87,
+      82.55,
+      -0.6867870606597687
+     ],
+     "step": 13,
+     "in_progress": true,
+     "dwell_left_s": 1.2171924114227295,
+     "ended": null
+    }
+   },
+   "old_plan": 0
+  },
+  {
+   "t_run": 23.1,
+   "source": "improve",
+   "cpu_s": 2.075,
+   "budget_s": 6.0,
+   "events": [
+    {
+     "robot": "Alpha",
+     "action": "continues",
+     "reason": "path clear for the next 2.0 s; carries on 3 step(s), then holds"
+    },
+    {
+     "robot": "Bravo",
+     "action": "continues",
+     "reason": "path clear for the next 2.0 s; carries on 6 step(s), then holds"
+    }
+   ],
+   "new_makespan_s": 246.7,
+   "stranded": [],
+   "obstacle": null,
+   "states": {
+    "Alpha": {
+     "pose": [
+      36.46,
+      33.92,
+      -2.734058273249117
+     ],
+     "step": 0,
+     "in_progress": false,
+     "dwell_left_s": null,
+     "ended": null
+    },
+    "Bravo": {
+     "pose": [
+      243.87,
+      82.55,
+      -0.6864379948093697
+     ],
+     "step": 0,
+     "in_progress": true,
+     "dwell_left_s": 0.0,
+     "ended": null
+    }
+   },
+   "old_plan": 1,
+   "kept": false
+  },
+  {
+   "t_run": 38.23,
+   "source": "robot_out",
+   "cpu_s": 0.698,
+   "budget_s": 2.0,
+   "events": [
+    {
+     "robot": "Alpha",
+     "action": "continues",
+     "reason": "path clear for the next 2.0 s; carries on 1 step(s), then holds"
+    }
+   ],
+   "new_makespan_s": 231.8,
+   "stranded": [],
+   "obstacle": {
+    "id": "out-Bravo",
+    "shape": "polygon",
+    "points": [
+     [
+      241.76,
+      76.38
+     ],
+     [
+      242.9,
+      70.61
+     ],
+     [
+      246.17,
+      65.72
+     ],
+     [
+      251.06,
+      62.45
+     ],
+     [
+      259.21,
+      57.56
+     ],
+     [
+      264.98,
+      56.42
+     ],
+     [
+      270.75,
+      57.56
+     ],
+     [
+      275.64,
+      60.83
+     ],
+     [
+      278.91,
+      65.72
+     ],
+     [
+      290.53,
+      85.06
+     ],
+     [
+      297.95,
+      97.46
+     ],
+     [
+      299.09,
+      103.23
+     ],
+     [
+      297.95,
+      109.0
+     ],
+     [
+      294.68,
+      113.89
+     ],
+     [
+      289.79,
+      117.16
+     ],
+     [
+      281.64,
+      122.05
+     ],
+     [
+      275.87,
+      123.19
+     ],
+     [
+      270.1,
+      122.05
+     ],
+     [
+      265.21,
+      118.78
+     ],
+     [
+      261.94,
+      113.89
+     ],
+     [
+      254.86,
+      102.1
+     ],
+     [
+      249.97,
+      93.95
+     ],
+     [
+      242.9,
+      82.15
+     ]
+    ],
+    "source": "robot_out",
+    "time": "2026-11-06T06:41:10",
+    "gap_cm": 14.79,
+    "odometry_pm_cm": 8.29
+   },
+   "states": {
+    "Alpha": {
+     "pose": [
+      75.58,
+      53.96,
+      2.669481090925327
+     ],
+     "step": 7,
+     "in_progress": false,
+     "dwell_left_s": null,
+     "ended": null
+    }
+   },
+   "old_plan": 1
+  },
+  {
+   "t_run": 38.95,
+   "source": "improve",
+   "cpu_s": 0.908,
+   "budget_s": 6.0,
+   "events": [
+    {
+     "robot": "Alpha",
+     "action": "continues",
+     "reason": "path clear for the next 2.0 s; carries on 5 step(s), then holds"
+    }
+   ],
+   "new_makespan_s": 231.8,
+   "stranded": [],
+   "obstacle": null,
+   "states": {
+    "Alpha": {
+     "pose": [
+      75.58,
+      53.96,
+      2.6689574921497283
+     ],
+     "step": 0,
+     "in_progress": false,
+     "dwell_left_s": null,
+     "ended": null
+    }
+   },
+   "old_plan": 2,
+   "kept": false
+  },
+  {
+   "t_run": 47.57,
+   "source": "retry",
+   "cpu_s": 0.986,
+   "budget_s": 2.0,
+   "events": [
+    {
+     "robot": "Alpha",
+     "action": "continues",
+     "reason": "path clear for the next 2.0 s; carries on 1 step(s), then holds"
+    },
+    {
+     "robot": "Bravo",
+     "action": "continues",
+     "reason": "path clear for the next 2.0 s; carries on 1 step(s), then holds"
+    }
+   ],
+   "new_makespan_s": 223.3,
+   "stranded": [],
+   "obstacle": null,
+   "states": {
+    "Alpha": {
+     "pose": [
+      17.77,
+      82.59,
+      2.6799530664372933
+     ],
+     "step": 5,
+     "in_progress": true,
+     "dwell_left_s": 1.3188138008117676,
+     "ended": null
+    },
+    "Bravo": {
+     "pose": [
+      237.71,
+      80.85,
+      -2.7209683038591597
+     ],
+     "step": 7,
+     "in_progress": true,
+     "dwell_left_s": null,
+     "ended": null
+    }
+   },
+   "old_plan": 2
+  },
+  {
+   "t_run": 48.63,
+   "source": "improve",
+   "cpu_s": 1.839,
+   "budget_s": 6.0,
+   "events": [
+    {
+     "robot": "Alpha",
+     "action": "continues",
+     "reason": "path clear for the next 2.0 s; carries on 5 step(s), then holds"
+    },
+    {
+     "robot": "Bravo",
+     "action": "continues",
+     "reason": "path clear for the next 2.0 s; carries on 3 step(s), then holds"
+    }
+   ],
+   "new_makespan_s": 222.0,
+   "stranded": [],
+   "obstacle": null,
+   "states": {
+    "Alpha": {
+     "pose": [
+      17.77,
+      82.59,
+      2.679254934736495
+     ],
+     "step": 0,
+     "in_progress": true,
+     "dwell_left_s": 0.0,
+     "ended": null
+    },
+    "Bravo": {
+     "pose": [
+      237.63,
+      80.82,
+      -2.7204447050835614
+     ],
+     "step": 0,
+     "in_progress": false,
+     "dwell_left_s": null,
+     "ended": null
+    }
+   },
+   "old_plan": 3,
+   "kept": false
+  },
+  {
+   "t_run": 50.68,
+   "source": "retry",
+   "cpu_s": 0.951,
+   "budget_s": 2.0,
+   "events": [
+    {
+     "robot": "Alpha",
+     "action": "continues",
+     "reason": "path clear for the next 2.0 s; carries on 1 step(s), then holds"
+    },
+    {
+     "robot": "Bravo",
+     "action": "stopped",
+     "reason": "its step failed"
+    }
+   ],
+   "new_makespan_s": 219.9,
+   "stranded": [],
+   "obstacle": null,
+   "states": {
+    "Alpha": {
+     "pose": [
+      17.77,
+      82.59,
+      -1.4395475670449231
+     ],
+     "step": 1,
+     "in_progress": true,
+     "dwell_left_s": null,
+     "ended": null
+    },
+    "Bravo": {
+     "pose": [
+      237.63,
+      80.82,
+      -2.124240232602298
+     ],
+     "step": 0,
+     "in_progress": true,
+     "dwell_left_s": null,
+     "ended": "done without moving"
+    }
+   },
+   "old_plan": 3
+  },
+  {
+   "t_run": 51.76,
+   "source": "retry",
+   "cpu_s": 0.793,
+   "budget_s": 2.0,
+   "events": [
+    {
+     "robot": "Alpha",
+     "action": "continues",
+     "reason": "path clear for the next 2.0 s; carries on 1 step(s), then holds"
+    },
+    {
+     "robot": "Bravo",
+     "action": "stopped",
+     "reason": "its step failed"
+    }
+   ],
+   "new_makespan_s": 219.3,
+   "stranded": [],
+   "obstacle": null,
+   "states": {
+    "Alpha": {
+     "pose": [
+      17.77,
+      82.59,
+      -1.0002481943179502
+     ],
+     "step": 1,
+     "in_progress": false,
+     "dwell_left_s": null,
+     "ended": null
+    },
+    "Bravo": {
+     "pose": [
+      237.63,
+      80.82,
+      -2.1238911667518994
+     ],
+     "step": 0,
+     "in_progress": false,
+     "dwell_left_s": null,
+     "ended": null
+    }
+   },
+   "old_plan": 4
+  },
+  {
+   "t_run": 52.63,
+   "source": "retry",
+   "cpu_s": 0.923,
+   "budget_s": 2.0,
+   "events": [
+    {
+     "robot": "Alpha",
+     "action": "continues",
+     "reason": "path clear for the next 2.0 s; carries on 1 step(s), then holds"
+    },
+    {
+     "robot": "Bravo",
+     "action": "stopped",
+     "reason": "its step failed"
+    }
+   ],
+   "new_makespan_s": 219.3,
+   "stranded": [],
+   "obstacle": null,
+   "states": {
+    "Alpha": {
+     "pose": [
+      17.77,
+      82.59,
+      -1.000597260168349
+     ],
+     "step": 0,
+     "in_progress": false,
+     "dwell_left_s": null,
+     "ended": null
+    },
+    "Bravo": {
+     "pose": [
+      237.63,
+      80.82,
+      -2.123542100901501
+     ],
+     "step": 0,
+     "in_progress": false,
+     "dwell_left_s": null,
+     "ended": null
+    }
+   },
+   "old_plan": 5
+  },
+  {
+   "t_run": 53.63,
+   "source": "improve",
+   "cpu_s": 1.769,
+   "budget_s": 6.0,
+   "events": [
+    {
+     "robot": "Alpha",
+     "action": "continues",
+     "reason": "path clear for the next 2.0 s; carries on 5 step(s), then holds"
+    },
+    {
+     "robot": "Bravo",
+     "action": "continues",
+     "reason": "path clear for the next 2.0 s; carries on 4 step(s), then holds"
+    }
+   ],
+   "new_makespan_s": 218.6,
+   "stranded": [],
+   "obstacle": null,
+   "states": {
+    "Alpha": {
+     "pose": [
+      21.76,
+      76.5,
+      -0.9876818237035911
+     ],
+     "step": 0,
+     "in_progress": true,
+     "dwell_left_s": null,
+     "ended": null
+    },
+    "Bravo": {
+     "pose": [
+      237.63,
+      80.82,
+      -2.123193035051102
+     ],
+     "step": 0,
+     "in_progress": false,
+     "dwell_left_s": null,
+     "ended": null
+    }
+   },
+   "old_plan": 6,
+   "kept": false
+  },
+  {
+   "t_run": 74.54,
+   "source": "robot_out",
+   "cpu_s": 1.105,
+   "budget_s": 2.0,
+   "events": [
+    {
+     "robot": "Bravo",
+     "action": "continues",
+     "reason": "path clear for the next 2.0 s; carries on 1 step(s), then holds"
+    }
+   ],
+   "new_makespan_s": 397.3,
+   "stranded": [],
+   "obstacle": {
+    "id": "out-Alpha",
+    "shape": "polygon",
+    "points": [
+     [
+      45.36,
+      28.43
+     ],
+     [
+      45.87,
+      25.9
+     ],
+     [
+      54.72,
+      4.61
+     ],
+     [
+      56.15,
+      2.46
+     ],
+     [
+      58.3,
+      1.03
+     ],
+     [
+      58.43,
+      1.0
+     ],
+     [
+      60.97,
+      0.49
+     ],
+     [
+      63.5,
+      1.0
+     ],
+     [
+      72.19,
+      4.58
+     ],
+     [
+      74.34,
+      6.01
+     ],
+     [
+      75.77,
+      8.16
+     ],
+     [
+      75.84,
+      8.27
+     ],
+     [
+      76.35,
+      10.81
+     ],
+     [
+      75.84,
+      13.34
+     ],
+     [
+      72.22,
+      22.05
+     ],
+     [
+      66.87,
+      34.66
+     ],
+     [
+      65.43,
+      36.81
+     ],
+     [
+      63.28,
+      38.24
+     ],
+     [
+      60.74,
+      38.75
+     ],
+     [
+      58.21,
+      38.24
+     ],
+     [
+      49.45,
+      34.56
+     ],
+     [
+      47.3,
+      33.12
+     ],
+     [
+      45.87,
+      30.97
+     ]
+    ],
+    "source": "robot_out",
+    "time": "2026-11-06T06:41:46",
+    "gap_cm": 6.5,
+    "odometry_pm_cm": 0.0
+   },
+   "states": {
+    "Bravo": {
+     "pose": [
+      228.01,
+      19.05,
+      -1.9521507683556576
+     ],
+     "step": 12,
+     "in_progress": true,
+     "dwell_left_s": null,
+     "ended": null
+    }
+   },
+   "old_plan": 6
+  },
+  {
+   "t_run": 75.65,
+   "source": "improve",
+   "cpu_s": 1.504,
+   "budget_s": 6.0,
+   "events": [
+    {
+     "robot": "Bravo",
+     "action": "continues",
+     "reason": "path clear for the next 2.0 s; carries on 5 step(s), then holds"
+    }
+   ],
+   "new_makespan_s": 395.7,
+   "stranded": [],
+   "obstacle": null,
+   "states": {
+    "Bravo": {
+     "pose": [
+      228.01,
+      19.04,
+      -0.3553490357060455
+     ],
+     "step": 0,
+     "in_progress": true,
+     "dwell_left_s": null,
+     "ended": null
+    }
+   },
+   "old_plan": 7,
+   "kept": false
+  },
+  {
+   "t_run": 154.25,
+   "source": "retry",
+   "cpu_s": 1.658,
+   "budget_s": 2.0,
+   "events": [
+    {
+     "robot": "Bravo",
+     "action": "continues",
+     "reason": "path clear for the next 2.0 s; carries on 1 step(s), then holds"
+    },
+    {
+     "robot": "Alpha",
+     "action": "holds",
+     "reason": "was waiting for a route; gets one now"
+    }
+   ],
+   "new_makespan_s": 394.4,
+   "stranded": [],
+   "obstacle": null,
+   "states": {
+    "Alpha": {
+     "pose": [
+      62.91,
+      14.79,
+      -1.7994344588061537
+     ],
+     "step": 0,
+     "in_progress": false,
+     "dwell_left_s": null,
+     "ended": null
+    },
+    "Bravo": {
+     "pose": [
+      228.78,
+      19.79,
+      0.7723081940074908
+     ],
+     "step": 1,
+     "in_progress": true,
+     "dwell_left_s": null,
+     "ended": null
+    }
+   },
+   "old_plan": 7
+  },
+  {
+   "t_run": 156.08,
+   "source": "retry",
+   "cpu_s": 1.172,
+   "budget_s": 2.0,
+   "events": [
+    {
+     "robot": "Bravo",
+     "action": "continues",
+     "reason": "path clear for the next 2.0 s; carries on 1 step(s), then holds"
+    },
+    {
+     "robot": "Alpha",
+     "action": "continues",
+     "reason": "path clear for the next 2.0 s; carries on 1 step(s), then holds"
+    }
+   ],
+   "new_makespan_s": 394.4,
+   "stranded": [],
+   "obstacle": null,
+   "states": {
+    "Alpha": {
+     "pose": [
+      62.8,
+      14.81,
+      1.634675377417889
+     ],
+     "step": 0,
+     "in_progress": false,
+     "dwell_left_s": null,
+     "ended": null
+    },
+    "Bravo": {
+     "pose": [
+      228.78,
+      19.79,
+      0.7719591281570919
+     ],
+     "step": 0,
+     "in_progress": false,
+     "dwell_left_s": null,
+     "ended": null
+    }
+   },
+   "old_plan": 8
+  },
+  {
+   "t_run": 157.41,
+   "source": "improve",
+   "cpu_s": 4.254,
+   "budget_s": 6.0,
+   "events": [
+    {
+     "robot": "Bravo",
+     "action": "continues",
+     "reason": "path clear for the next 2.0 s; carries on 5 step(s), then holds"
+    },
+    {
+     "robot": "Alpha",
+     "action": "continues",
+     "reason": "path clear for the next 2.0 s; carries on 5 step(s), then holds"
+    }
+   ],
+   "new_makespan_s": 393.4,
+   "stranded": [],
+   "obstacle": null,
+   "states": {
+    "Alpha": {
+     "pose": [
+      62.8,
+      14.81,
+      1.633104581091094
+     ],
+     "step": 1,
+     "in_progress": false,
+     "dwell_left_s": null,
+     "ended": null
+    },
+    "Bravo": {
+     "pose": [
+      235.69,
+      26.53,
+      0.7740535232594852
+     ],
+     "step": 0,
+     "in_progress": true,
+     "dwell_left_s": null,
+     "ended": null
+    }
+   },
+   "old_plan": 9,
+   "kept": false
+  },
+  {
+   "t_run": 163.11,
+   "source": "robot_out",
+   "cpu_s": 0.308,
+   "budget_s": 2.0,
+   "events": [
+    {
+     "robot": "Alpha",
+     "action": "continues",
+     "reason": "path clear for the next 2.0 s; carries on 1 step(s), then holds"
+    }
+   ],
+   "new_makespan_s": 10.3,
+   "stranded": [],
+   "obstacle": {
+    "id": "out-Bravo",
+    "shape": "polygon",
+    "points": [
+     [
+      243.55,
+      57.24
+     ],
+     [
+      244.83,
+      50.8
+     ],
+     [
+      248.48,
+      45.34
+     ],
+     [
+      255.11,
+      38.54
+     ],
+     [
+      260.57,
+      34.89
+     ],
+     [
+      267.0,
+      33.61
+     ],
+     [
+      273.44,
+      34.89
+     ],
+     [
+      278.9,
+      38.54
+     ],
+     [
+      288.67,
+      48.06
+     ],
+     [
+      295.47,
+      54.69
+     ],
+     [
+      299.12,
+      60.15
+     ],
+     [
+      300.4,
+      66.58
+     ],
+     [
+      299.12,
+      73.02
+     ],
+     [
+      295.47,
+      78.48
+     ],
+     [
+      288.84,
+      85.28
+     ],
+     [
+      283.38,
+      88.93
+     ],
+     [
+      276.95,
+      90.21
+     ],
+     [
+      270.51,
+      88.93
+     ],
+     [
+      265.05,
+      85.28
+     ],
+     [
+      263.41,
+      83.71
+     ],
+     [
+      256.61,
+      77.08
+     ],
+     [
+      248.48,
+      69.13
+     ],
+     [
+      244.83,
+      63.67
+     ]
+    ],
+    "source": "robot_out",
+    "time": "2026-11-06T06:43:15",
+    "gap_cm": 16.5,
+    "odometry_pm_cm": 10.0
+   },
+   "states": {
+    "Alpha": {
+     "pose": [
+      87.14,
+      49.27,
+      0.9553932325416961
+     ],
+     "step": 5,
+     "in_progress": true,
+     "dwell_left_s": null,
+     "ended": null
+    }
+   },
+   "old_plan": 9
+  },
+  {
+   "t_run": 163.44,
+   "source": "improve",
+   "cpu_s": 0.279,
+   "budget_s": 6.0,
+   "events": [
+    {
+     "robot": "Alpha",
+     "action": "continues",
+     "reason": "path clear for the next 2.0 s; carries on 5 step(s), then holds"
+    }
+   ],
+   "new_makespan_s": 10.0,
+   "stranded": [],
+   "obstacle": null,
+   "states": {
+    "Alpha": {
+     "pose": [
+      88.79,
+      51.62,
+      0.9562658971676932
+     ],
+     "step": 0,
+     "in_progress": true,
+     "dwell_left_s": null,
+     "ended": null
+    }
+   },
+   "old_plan": 10,
+   "kept": false
+  },
+  {
+   "t_run": 178.56,
+   "source": "robot_out",
+   "cpu_s": 0.997,
+   "budget_s": 2.0,
+   "events": [
+    {
+     "robot": "Alpha",
+     "action": "holds",
+     "reason": "was waiting for a route; gets one now"
+    }
+   ],
+   "new_makespan_s": 411.5,
+   "stranded": [],
+   "obstacle": {
+    "id": "out-Bravo",
+    "shape": "polygon",
+    "points": [
+     [
+      226.16,
+      30.81
+     ],
+     [
+      226.66,
+      28.27
+     ],
+     [
+      228.1,
+      26.12
+     ],
+     [
+      234.75,
+      19.34
+     ],
+     [
+      236.9,
+      17.9
+     ],
+     [
+      239.43,
+      17.4
+     ],
+     [
+      241.97,
+      17.9
+     ],
+     [
+      244.12,
+      19.34
+     ],
+     [
+      250.9,
+      25.99
+     ],
+     [
+      252.34,
+      28.14
+     ],
+     [
+      252.84,
+      30.67
+     ],
+     [
+      252.34,
+      33.21
+     ],
+     [
+      250.9,
+      35.36
+     ],
+     [
+      244.25,
+      42.14
+     ],
+     [
+      242.1,
+      43.58
+     ],
+     [
+      239.57,
+      44.08
+     ],
+     [
+      237.03,
+      43.58
+     ],
+     [
+      234.88,
+      42.14
+     ],
+     [
+      228.1,
+      35.49
+     ],
+     [
+      226.66,
+      33.34
+     ]
+    ],
+    "source": "robot_out",
+    "time": "2026-11-06T06:43:30",
+    "gap_cm": 6.5,
+    "odometry_pm_cm": 0.0
+   },
+   "states": {
+    "Alpha": {
+     "pose": [
+      150.0,
+      82.59,
+      1.5531685013497538
+     ],
+     "step": 7,
+     "in_progress": false,
+     "dwell_left_s": null,
+     "ended": null
+    }
+   },
+   "old_plan": 10
+  },
+  {
+   "t_run": 179.57,
+   "source": "improve",
+   "cpu_s": 1.451,
+   "budget_s": 6.0,
+   "events": [
+    {
+     "robot": "Alpha",
+     "action": "continues",
+     "reason": "path clear for the next 2.0 s; carries on 5 step(s), then holds"
+    }
+   ],
+   "new_makespan_s": 411.5,
+   "stranded": [],
+   "obstacle": null,
+   "states": {
+    "Alpha": {
+     "pose": [
+      150.0,
+      82.59,
+      1.5517722379481584
+     ],
+     "step": 0,
+     "in_progress": false,
+     "dwell_left_s": null,
+     "ended": null
+    }
+   },
+   "old_plan": 11,
+   "kept": false
+  },
+  {
+   "t_run": 202.17,
+   "source": "retry",
+   "cpu_s": 0.806,
+   "budget_s": 2.0,
+   "events": [
+    {
+     "robot": "Alpha",
+     "action": "continues",
+     "reason": "path clear for the next 2.0 s; carries on 1 step(s), then holds"
+    },
+    {
+     "robot": "Bravo",
+     "action": "holds",
+     "reason": "was waiting for a route; gets one now"
+    }
+   ],
+   "new_makespan_s": 404.9,
+   "stranded": [],
+   "obstacle": null,
+   "states": {
+    "Alpha": {
+     "pose": [
+      185.54,
+      68.45,
+      -0.3960152072775134
+     ],
+     "step": 4,
+     "in_progress": true,
+     "dwell_left_s": null,
+     "ended": null
+    },
+    "Bravo": {
+     "pose": [
+      239.03,
+      30.28,
+      -2.3666664657043106
+     ],
+     "step": 0,
+     "in_progress": false,
+     "dwell_left_s": null,
+     "ended": null
+    }
+   },
+   "old_plan": 11
+  },
+  {
+   "t_run": 203.1,
+   "source": "retry",
+   "cpu_s": 0.836,
+   "budget_s": 2.0,
+   "events": [
+    {
+     "robot": "Alpha",
+     "action": "continues",
+     "reason": "path clear for the next 2.0 s; carries on 1 step(s), then holds"
+    },
+    {
+     "robot": "Bravo",
+     "action": "done",
+     "reason": "already finished"
+    }
+   ],
+   "new_makespan_s": 405.5,
+   "stranded": [],
+   "obstacle": null,
+   "states": {
+    "Alpha": {
+     "pose": [
+      179.14,
+      68.62,
+      -0.3324852225049198
+     ],
+     "step": 0,
+     "in_progress": false,
+     "dwell_left_s": null,
+     "ended": null
+    },
+    "Bravo": {
+     "pose": [
+      239.03,
+      30.28,
+      -2.3666664657043106
+     ],
+     "step": 0,
+     "in_progress": false,
+     "dwell_left_s": null,
+     "ended": null
+    }
+   },
+   "old_plan": 12
+  },
+  {
+   "t_run": 204.15,
+   "source": "improve",
+   "cpu_s": 1.469,
+   "budget_s": 6.0,
+   "events": [
+    {
+     "robot": "Alpha",
+     "action": "continues",
+     "reason": "path clear for the next 2.0 s; carries on 6 step(s), then holds"
+    },
+    {
+     "robot": "Bravo",
+     "action": "done",
+     "reason": "already finished"
+    }
+   ],
+   "new_makespan_s": 404.8,
+   "stranded": [],
+   "obstacle": null,
+   "states": {
+    "Alpha": {
+     "pose": [
+      185.77,
+      66.67,
+      -0.2853613327010729
+     ],
+     "step": 0,
+     "in_progress": true,
+     "dwell_left_s": null,
+     "ended": null
+    },
+    "Bravo": {
+     "pose": [
+      239.03,
+      30.28,
+      -2.3668409986295105
+     ],
+     "step": 0,
+     "in_progress": false,
+     "dwell_left_s": null,
+     "ended": null
+    }
+   },
+   "old_plan": 13,
+   "kept": false
+  },
+  {
+   "t_run": 223.83,
+   "source": "robot_out",
+   "cpu_s": 0.433,
+   "budget_s": 2.0,
+   "events": [
+    {
+     "robot": "Bravo",
+     "action": "done",
+     "reason": "already finished"
+    }
+   ],
+   "new_makespan_s": 0.0,
+   "stranded": [],
+   "obstacle": {
+    "id": "out-Alpha",
+    "shape": "polygon",
+    "points": [
+     [
+      231.62,
+      62.58
+     ],
+     [
+      232.73,
+      57.0
+     ],
+     [
+      235.41,
+      47.89
+     ],
+     [
+      238.57,
+      43.16
+     ],
+     [
+      243.3,
+      40.0
+     ],
+     [
+      248.89,
+      38.89
+     ],
+     [
+      254.47,
+      40.0
+     ],
+     [
+      281.89,
+      48.01
+     ],
+     [
+      288.34,
+      49.98
+     ],
+     [
+      293.07,
+      53.14
+     ],
+     [
+      296.23,
+      57.87
+     ],
+     [
+      297.34,
+      63.46
+     ],
+     [
+      296.23,
+      69.04
+     ],
+     [
+      293.55,
+      78.15
+     ],
+     [
+      290.39,
+      82.88
+     ],
+     [
+      285.66,
+      86.04
+     ],
+     [
+      280.07,
+      87.15
+     ],
+     [
+      274.49,
+      86.04
+     ],
+     [
+      265.38,
+      83.36
+     ],
+     [
+      253.0,
+      79.71
+     ],
+     [
+      240.62,
+      76.06
+     ],
+     [
+      235.89,
+      72.9
+     ],
+     [
+      232.73,
+      68.17
+     ]
+    ],
+    "source": "robot_out",
+    "time": "2026-11-06T06:44:16",
+    "gap_cm": 14.3,
+    "odometry_pm_cm": 7.81
+   },
+   "states": {
+    "Bravo": {
+     "pose": [
+      239.03,
+      30.28,
+      -2.3680627291059064
+     ],
+     "step": 0,
+     "in_progress": false,
+     "dwell_left_s": null,
+     "ended": null
+    }
+   },
+   "old_plan": 13
+  },
+  {
+   "t_run": 224.27,
+   "source": "improve",
+   "cpu_s": 0.261,
+   "budget_s": 6.0,
+   "events": [
+    {
+     "robot": "Bravo",
+     "action": "done",
+     "reason": "already finished"
+    }
+   ],
+   "new_makespan_s": 0.0,
+   "stranded": [],
+   "obstacle": null,
+   "states": {
+    "Bravo": {
+     "pose": [
+      239.03,
+      30.28,
+      -2.3680627291059064
+     ],
+     "step": 0,
+     "in_progress": false,
+     "dwell_left_s": null,
+     "ended": null
+    }
+   },
+   "old_plan": 14,
+   "kept": false
+  },
+  {
+   "t_run": 232.73,
+   "source": "retry",
+   "cpu_s": 0.858,
+   "budget_s": 2.0,
+   "events": [
+    {
+     "robot": "Bravo",
+     "action": "done",
+     "reason": "already finished"
+    },
+    {
+     "robot": "Alpha",
+     "action": "continues",
+     "reason": "path clear for the next 2.0 s; carries on 1 step(s), then holds"
+    }
+   ],
+   "new_makespan_s": 390.7,
+   "stranded": [],
+   "obstacle": null,
+   "states": {
+    "Alpha": {
+     "pose": [
+      227.87,
+      66.45,
+      3.1206487025658616
+     ],
+     "step": 10,
+     "in_progress": true,
+     "dwell_left_s": null,
+     "ended": null
+    },
+    "Bravo": {
+     "pose": [
+      239.03,
+      30.28,
+      -2.367539130330308
+     ],
+     "step": 0,
+     "in_progress": false,
+     "dwell_left_s": null,
+     "ended": null
+    }
+   },
+   "old_plan": 14
+  },
+  {
+   "t_run": 233.78,
+   "source": "improve",
+   "cpu_s": 1.662,
+   "budget_s": 6.0,
+   "events": [
+    {
+     "robot": "Bravo",
+     "action": "done",
+     "reason": "already finished"
+    },
+    {
+     "robot": "Alpha",
+     "action": "continues",
+     "reason": "path clear for the next 2.0 s; carries on 3 step(s), then holds"
+    }
+   ],
+   "new_makespan_s": 390.7,
+   "stranded": [],
+   "obstacle": null,
+   "states": {
+    "Alpha": {
+     "pose": [
+      227.82,
+      66.45,
+      3.119776037939864
+     ],
+     "step": 0,
+     "in_progress": false,
+     "dwell_left_s": null,
+     "ended": null
+    },
+    "Bravo": {
+     "pose": [
+      239.03,
+      30.28,
+      -2.3677136632555076
+     ],
+     "step": 0,
+     "in_progress": false,
+     "dwell_left_s": null,
+     "ended": null
+    }
+   },
+   "old_plan": 15,
+   "kept": false
+  },
+  {
+   "t_run": 235.59,
+   "source": "retry",
+   "cpu_s": 1.185,
+   "budget_s": 2.0,
+   "events": [
+    {
+     "robot": "Bravo",
+     "action": "done",
+     "reason": "already finished"
+    },
+    {
+     "robot": "Alpha",
+     "action": "stopped",
+     "reason": "its step failed"
+    }
+   ],
+   "new_makespan_s": 390.7,
+   "stranded": [],
+   "obstacle": null,
+   "states": {
+    "Alpha": {
+     "pose": [
+      227.81,
+      66.45,
+      -2.8705430207550737
+     ],
+     "step": 0,
+     "in_progress": true,
+     "dwell_left_s": null,
+     "ended": "done without moving"
+    },
+    "Bravo": {
+     "pose": [
+      239.03,
+      30.28,
+      -2.367539130330308
+     ],
+     "step": 0,
+     "in_progress": false,
+     "dwell_left_s": null,
+     "ended": null
+    }
+   },
+   "old_plan": 15
+  },
+  {
+   "t_run": 236.92,
+   "source": "retry",
+   "cpu_s": 1.261,
+   "budget_s": 2.0,
+   "events": [
+    {
+     "robot": "Bravo",
+     "action": "done",
+     "reason": "already finished"
+    },
+    {
+     "robot": "Alpha",
+     "action": "stopped",
+     "reason": "its step failed"
+    }
+   ],
+   "new_makespan_s": 390.7,
+   "stranded": [],
+   "obstacle": null,
+   "states": {
+    "Alpha": {
+     "pose": [
+      227.81,
+      66.45,
+      -2.872462882932268
+     ],
+     "step": 0,
+     "in_progress": false,
+     "dwell_left_s": null,
+     "ended": null
+    },
+    "Bravo": {
+     "pose": [
+      239.03,
+      30.28,
+      -2.3677136632555076
+     ],
+     "step": 0,
+     "in_progress": false,
+     "dwell_left_s": null,
+     "ended": null
+    }
+   },
+   "old_plan": 16
+  },
+  {
+   "t_run": 238.34,
+   "source": "retry",
+   "cpu_s": 1.272,
+   "budget_s": 2.0,
+   "events": [
+    {
+     "robot": "Bravo",
+     "action": "done",
+     "reason": "already finished"
+    },
+    {
+     "robot": "Alpha",
+     "action": "stopped",
+     "reason": "its step failed"
+    }
+   ],
+   "new_makespan_s": 396.6,
+   "stranded": [],
+   "obstacle": null,
+   "states": {
+    "Alpha": {
+     "pose": [
+      227.81,
+      66.45,
+      -2.8745572780346604
+     ],
+     "step": 0,
+     "in_progress": false,
+     "dwell_left_s": null,
+     "ended": null
+    },
+    "Bravo": {
+     "pose": [
+      239.03,
+      30.28,
+      -2.3678881961807066
+     ],
+     "step": 0,
+     "in_progress": false,
+     "dwell_left_s": null,
+     "ended": null
+    }
+   },
+   "old_plan": 17
+  },
+  {
+   "t_run": 239.74,
+   "source": "improve",
+   "cpu_s": 1.805,
+   "budget_s": 6.0,
+   "events": [
+    {
+     "robot": "Bravo",
+     "action": "done",
+     "reason": "already finished"
+    },
+    {
+     "robot": "Alpha",
+     "action": "continues",
+     "reason": "path clear for the next 2.0 s; carries on 4 step(s), then holds"
+    }
+   ],
+   "new_makespan_s": 396.6,
+   "stranded": [],
+   "obstacle": null,
+   "states": {
+    "Alpha": {
+     "pose": [
+      227.81,
+      66.45,
+      -2.8764771402118545
+     ],
+     "step": 0,
+     "in_progress": false,
+     "dwell_left_s": null,
+     "ended": null
+    },
+    "Bravo": {
+     "pose": [
+      239.03,
+      30.28,
+      -2.3677136632555076
+     ],
+     "step": 0,
+     "in_progress": false,
+     "dwell_left_s": null,
+     "ended": null
+    }
+   },
+   "old_plan": 18,
+   "kept": false
+  },
+  {
+   "t_run": 269.69,
+   "source": "robot_out",
+   "cpu_s": 1.22,
+   "budget_s": 2.0,
+   "events": [
+    {
+     "robot": "Bravo",
+     "action": "holds",
+     "reason": "was waiting for a route; gets one now"
+    }
+   ],
+   "new_makespan_s": 380.0,
+   "stranded": [],
+   "obstacle": {
+    "id": "out-Alpha",
+    "shape": "polygon",
+    "points": [
+     [
+      222.72,
+      125.57
+     ],
+     [
+      225.21,
+      110.84
+     ],
+     [
+      226.8,
+      101.47
+     ],
+     [
+      229.3,
+      86.75
+     ],
+     [
+      230.58,
+      80.32
+     ],
+     [
+      234.22,
+      74.86
+     ],
+     [
+      239.68,
+      71.21
+     ],
+     [
+      246.12,
+      69.93
+     ],
+     [
+      255.49,
+      71.52
+     ],
+     [
+      261.92,
+      72.8
+     ],
+     [
+      267.38,
+      76.44
+     ],
+     [
+      271.03,
+      81.9
+     ],
+     [
+      272.31,
+      88.34
+     ],
+     [
+      272.07,
+      90.39
+     ],
+     [
+      270.46,
+      99.76
+     ],
+     [
+      265.73,
+      127.16
+     ],
+     [
+      264.45,
+      133.59
+     ],
+     [
+      260.81,
+      139.05
+     ],
+     [
+      255.35,
+      142.7
+     ],
+     [
+      248.91,
+      143.98
+     ],
+     [
+      239.54,
+      142.39
+     ],
+     [
+      233.11,
+      141.11
+     ],
+     [
+      227.65,
+      137.47
+     ],
+     [
+      224.0,
+      132.01
+     ]
+    ],
+    "source": "robot_out",
+    "time": "2026-11-06T06:45:02",
+    "gap_cm": 16.5,
+    "odometry_pm_cm": 10.0
+   },
+   "states": {
+    "Bravo": {
+     "pose": [
+      239.03,
+      30.28,
+      -2.3678881961807066
+     ],
+     "step": 0,
+     "in_progress": false,
+     "dwell_left_s": null,
+     "ended": null
+    }
+   },
+   "old_plan": 18
+  },
+  {
+   "t_run": 286.38,
+   "source": "retry",
+   "cpu_s": 1.349,
+   "budget_s": 2.0,
+   "events": [
+    {
+     "robot": "Bravo",
+     "action": "continues",
+     "reason": "path clear for the next 2.0 s; carries on 1 step(s), then holds"
+    }
+   ],
+   "new_makespan_s": 380.0,
+   "stranded": [],
+   "obstacle": null,
+   "states": {
+    "Bravo": {
+     "pose": [
+      239.03,
+      30.28,
+      -2.367190064479909
+     ],
+     "step": 0,
+     "in_progress": false,
+     "dwell_left_s": null,
+     "ended": null
+    }
+   },
+   "old_plan": 19
+  },
+  {
+   "t_run": 291.38,
+   "source": "retry",
+   "cpu_s": 1.203,
+   "budget_s": 2.0,
+   "events": [
+    {
+     "robot": "Bravo",
+     "action": "continues",
+     "reason": "path clear for the next 2.0 s; carries on 1 step(s), then holds"
+    }
+   ],
+   "new_makespan_s": 375.6,
+   "stranded": [],
+   "obstacle": null,
+   "states": {
+    "Bravo": {
+     "pose": [
+      244.12,
+      36.34,
+      0.8691739674931761
+     ],
+     "step": 2,
+     "in_progress": true,
+     "dwell_left_s": null,
+     "ended": null
+    }
+   },
+   "old_plan": 20
+  },
+  {
+   "t_run": 308.42,
+   "source": "retry",
+   "cpu_s": 1.228,
+   "budget_s": 2.0,
+   "events": [
+    {
+     "robot": "Bravo",
+     "action": "continues",
+     "reason": "path clear for the next 2.0 s; carries on 1 step(s), then holds"
+    }
+   ],
+   "new_makespan_s": 371.6,
+   "stranded": [],
+   "obstacle": null,
+   "states": {
+    "Bravo": {
+     "pose": [
+      270.14,
+      67.11,
+      0.8677777040915806
+     ],
+     "step": 3,
+     "in_progress": true,
+     "dwell_left_s": null,
+     "ended": null
+    }
+   },
+   "old_plan": 21
+  },
+  {
+   "t_run": 313.42,
+   "source": "retry",
+   "cpu_s": 1.203,
+   "budget_s": 2.0,
+   "events": [
+    {
+     "robot": "Bravo",
+     "action": "continues",
+     "reason": "path clear for the next 2.0 s; carries on 1 step(s), then holds"
+    }
+   ],
+   "new_makespan_s": 371.5,
+   "stranded": [],
+   "obstacle": null,
+   "states": {
+    "Bravo": {
+     "pose": [
+      270.93,
+      68.01,
+      -2.2636920398366454
+     ],
+     "step": 0,
+     "in_progress": true,
+     "dwell_left_s": null,
+     "ended": null
+    }
+   },
+   "old_plan": 22
+  },
+  {
+   "t_run": 318.43,
+   "source": "retry",
+   "cpu_s": 1.312,
+   "budget_s": 2.0,
+   "events": [
+    {
+     "robot": "Bravo",
+     "action": "continues",
+     "reason": "path clear for the next 2.0 s; carries on 1 step(s), then holds"
+    }
+   ],
+   "new_makespan_s": 373.9,
+   "stranded": [],
+   "obstacle": null,
+   "states": {
+    "Bravo": {
+     "pose": [
+      255.61,
+      49.6,
+      -2.26526283616344
+     ],
+     "step": 0,
+     "in_progress": false,
+     "dwell_left_s": null,
+     "ended": null
+    }
+   },
+   "old_plan": 23
+  },
+  {
+   "t_run": 323.44,
+   "source": "retry",
+   "cpu_s": 1.622,
+   "budget_s": 2.0,
+   "events": [
+    {
+     "robot": "Bravo",
+     "action": "continues",
+     "reason": "path clear for the next 2.0 s; carries on 1 step(s), then holds"
+    }
+   ],
+   "new_makespan_s": 376.2,
+   "stranded": [],
+   "obstacle": null,
+   "states": {
+    "Bravo": {
+     "pose": [
+      240.33,
+      31.29,
+      -2.2664845666398366
+     ],
+     "step": 0,
+     "in_progress": false,
+     "dwell_left_s": null,
+     "ended": null
+    }
+   },
+   "old_plan": 24
+  },
+  {
+   "t_run": 339.47,
+   "source": "retry",
+   "cpu_s": 1.579,
+   "budget_s": 2.0,
+   "events": [
+    {
+     "robot": "Bravo",
+     "action": "continues",
+     "reason": "path clear for the next 2.0 s; carries on 1 step(s), then holds"
+    }
+   ],
+   "new_makespan_s": 376.5,
+   "stranded": [],
+   "obstacle": null,
+   "states": {
+    "Bravo": {
+     "pose": [
+      238.95,
+      29.62,
+      -0.33964107243809655
+     ],
+     "step": 0,
+     "in_progress": true,
+     "dwell_left_s": null,
+     "ended": null
+    }
+   },
+   "old_plan": 25
+  },
+  {
+   "t_run": 344.48,
+   "source": "retry",
+   "cpu_s": 1.466,
+   "budget_s": 2.0,
+   "events": [
+    {
+     "robot": "Bravo",
+     "action": "continues",
+     "reason": "path clear for the next 2.0 s; carries on 1 step(s), then holds"
+    }
+   ],
+   "new_makespan_s": 374.7,
+   "stranded": [],
+   "obstacle": null,
+   "states": {
+    "Bravo": {
+     "pose": [
+      250.39,
+      43.51,
+      0.878424212528746
+     ],
+     "step": 0,
+     "in_progress": true,
+     "dwell_left_s": null,
+     "ended": null
+    }
+   },
+   "old_plan": 26
+  },
+  {
+   "t_run": 349.48,
+   "source": "retry",
+   "cpu_s": 1.676,
+   "budget_s": 2.0,
+   "events": [
+    {
+     "robot": "Bravo",
+     "action": "continues",
+     "reason": "path clear for the next 2.0 s; carries on 1 step(s), then holds"
+    }
+   ],
+   "new_makespan_s": 373.1,
+   "stranded": [],
+   "obstacle": null,
+   "states": {
+    "Bravo": {
+     "pose": [
+      260.34,
+      55.43,
+      0.8712683625955694
+     ],
+     "step": 0,
+     "in_progress": true,
+     "dwell_left_s": null,
+     "ended": null
+    }
+   },
+   "old_plan": 27
+  },
+  {
+   "t_run": 354.49,
+   "source": "retry",
+   "cpu_s": 1.555,
+   "budget_s": 2.0,
+   "events": [
+    {
+     "robot": "Bravo",
+     "action": "continues",
+     "reason": "path clear for the next 2.0 s; carries on 2 step(s), then holds"
+    }
+   ],
+   "new_makespan_s": 371.3,
+   "stranded": [],
+   "obstacle": null,
+   "states": {
+    "Bravo": {
+     "pose": [
+      272.12,
+      69.42,
+      2.6841418566420794
+     ],
+     "step": 0,
+     "in_progress": true,
+     "dwell_left_s": null,
+     "ended": null
+    }
+   },
+   "old_plan": 28
+  },
+  {
+   "t_run": 359.49,
+   "source": "retry",
+   "cpu_s": 1.344,
+   "budget_s": 2.0,
+   "events": [
+    {
+     "robot": "Bravo",
+     "action": "continues",
+     "reason": "path clear for the next 2.0 s; carries on 1 step(s), then holds"
+    }
+   ],
+   "new_makespan_s": 372.9,
+   "stranded": [],
+   "obstacle": null,
+   "states": {
+    "Bravo": {
+     "pose": [
+      261.7,
+      57.23,
+      -2.277305608002201
+     ],
+     "step": 0,
+     "in_progress": false,
+     "dwell_left_s": null,
+     "ended": null
+    }
+   },
+   "old_plan": 29
+  },
+  {
+   "t_run": 364.51,
+   "source": "retry",
+   "cpu_s": 1.787,
+   "budget_s": 2.0,
+   "events": [
+    {
+     "robot": "Bravo",
+     "action": "continues",
+     "reason": "path clear for the next 2.0 s; carries on 1 step(s), then holds"
+    }
+   ],
+   "new_makespan_s": 375.3,
+   "stranded": [],
+   "obstacle": null,
+   "states": {
+    "Bravo": {
+     "pose": [
+      245.82,
+      38.64,
+      -2.2780037397029993
+     ],
+     "step": 0,
+     "in_progress": false,
+     "dwell_left_s": null,
+     "ended": null
+    }
+   },
+   "old_plan": 30
+  },
+  {
+   "t_run": 369.51,
+   "source": "retry",
+   "cpu_s": 1.211,
+   "budget_s": 2.0,
+   "events": [
+    {
+     "robot": "Bravo",
+     "action": "continues",
+     "reason": "path clear for the next 2.0 s; carries on 1 step(s), then holds"
+    }
+   ],
+   "new_makespan_s": 376.0,
+   "stranded": [],
+   "obstacle": null,
+   "states": {
+    "Bravo": {
+     "pose": [
+      241.69,
+      33.83,
+      0.8609709200088027
+     ],
+     "step": 0,
+     "in_progress": true,
+     "dwell_left_s": null,
+     "ended": null
+    }
+   },
+   "old_plan": 31
+  },
+  {
+   "t_run": 374.51,
+   "source": "retry",
+   "cpu_s": 1.833,
+   "budget_s": 2.0,
+   "events": [
+    {
+     "robot": "Bravo",
+     "action": "continues",
+     "reason": "path clear for the next 2.0 s; carries on 1 step(s), then holds"
+    }
+   ],
+   "new_makespan_s": 374.7,
+   "stranded": [],
+   "obstacle": null,
+   "states": {
+    "Bravo": {
+     "pose": [
+      250.14,
+      43.63,
+      0.8607963870836033
+     ],
+     "step": 0,
+     "in_progress": true,
+     "dwell_left_s": null,
+     "ended": null
+    }
+   },
+   "old_plan": 32
+  },
+  {
+   "t_run": 391.11,
+   "source": "retry",
+   "cpu_s": 1.322,
+   "budget_s": 2.0,
+   "events": [
+    {
+     "robot": "Bravo",
+     "action": "continues",
+     "reason": "path clear for the next 2.0 s; carries on 1 step(s), then holds"
+    }
+   ],
+   "new_makespan_s": 371.7,
+   "stranded": [],
+   "obstacle": null,
+   "states": {
+    "Bravo": {
+     "pose": [
+      269.72,
+      66.64,
+      0.8646361114379908
+     ],
+     "step": 0,
+     "in_progress": true,
+     "dwell_left_s": null,
+     "ended": null
+    }
+   },
+   "old_plan": 33
+  },
+  {
+   "t_run": 396.11,
+   "source": "retry",
+   "cpu_s": 1.67,
+   "budget_s": 2.0,
+   "events": [
+    {
+     "robot": "Bravo",
+     "action": "continues",
+     "reason": "path clear for the next 2.0 s; carries on 2 step(s), then holds"
+    }
+   ],
+   "new_makespan_s": 371.3,
+   "stranded": [],
+   "obstacle": null,
+   "states": {
+    "Bravo": {
+     "pose": [
+      271.86,
+      69.12,
+      -2.2621212435098506
+     ],
+     "step": 0,
+     "in_progress": true,
+     "dwell_left_s": null,
+     "ended": null
+    }
+   },
+   "old_plan": 34
+  },
+  {
+   "t_run": 401.12,
+   "source": "retry",
+   "cpu_s": 1.47,
+   "budget_s": 2.0,
+   "events": [
+    {
+     "robot": "Bravo",
+     "action": "continues",
+     "reason": "path clear for the next 2.0 s; carries on 1 step(s), then holds"
+    }
+   ],
+   "new_makespan_s": 373.7,
+   "stranded": [],
+   "obstacle": null,
+   "states": {
+    "Bravo": {
+     "pose": [
+      256.52,
+      50.79,
+      -2.2677062971162325
+     ],
+     "step": 0,
+     "in_progress": false,
+     "dwell_left_s": null,
+     "ended": null
+    }
+   },
+   "old_plan": 35
+  },
+  {
+   "t_run": 406.13,
+   "source": "retry",
+   "cpu_s": 1.894,
+   "budget_s": 2.0,
+   "events": [
+    {
+     "robot": "Bravo",
+     "action": "continues",
+     "reason": "path clear for the next 2.0 s; carries on 1 step(s), then holds"
+    }
+   ],
+   "new_makespan_s": 376.2,
+   "stranded": [],
+   "obstacle": null,
+   "states": {
+    "Bravo": {
+     "pose": [
+      240.81,
+      32.05,
+      -2.269102560517828
+     ],
+     "step": 0,
+     "in_progress": false,
+     "dwell_left_s": null,
+     "ended": null
+    }
+   },
+   "old_plan": 36
+  },
+  {
+   "t_run": 411.13,
+   "source": "retry",
+   "cpu_s": 1.6,
+   "budget_s": 2.0,
+   "events": [
+    {
+     "robot": "Bravo",
+     "action": "continues",
+     "reason": "path clear for the next 2.0 s; carries on 1 step(s), then holds"
+    }
+   ],
+   "new_makespan_s": 376.5,
+   "stranded": [],
+   "obstacle": null,
+   "states": {
+    "Bravo": {
+     "pose": [
+      238.8,
+      29.65,
+      -0.35657076618244155
+     ],
+     "step": 0,
+     "in_progress": true,
+     "dwell_left_s": null,
+     "ended": null
+    }
+   },
+   "old_plan": 37
+  },
+  {
+   "t_run": 416.14,
+   "source": "retry",
+   "cpu_s": 1.908,
+   "budget_s": 2.0,
+   "events": [
+    {
+     "robot": "Bravo",
+     "action": "continues",
+     "reason": "path clear for the next 2.0 s; carries on 1 step(s), then holds"
+    }
+   ],
+   "new_makespan_s": 374.7,
+   "stranded": [],
+   "obstacle": null,
+   "states": {
+    "Bravo": {
+     "pose": [
+      250.18,
+      43.34,
+      0.8754571528003556
+     ],
+     "step": 0,
+     "in_progress": true,
+     "dwell_left_s": null,
+     "ended": null
+    }
+   },
+   "old_plan": 38
+  },
+  {
+   "t_run": 421.14,
+   "source": "retry",
+   "cpu_s": 1.341,
+   "budget_s": 2.0,
+   "events": [
+    {
+     "robot": "Bravo",
+     "action": "continues",
+     "reason": "path clear for the next 2.0 s; carries on 1 step(s), then holds"
+    }
+   ],
+   "new_makespan_s": 372.7,
+   "stranded": [],
+   "obstacle": null,
+   "states": {
+    "Bravo": {
+     "pose": [
+      263.08,
+      58.71,
+      0.870744763819971
+     ],
+     "step": 0,
+     "in_progress": true,
+     "dwell_left_s": null,
+     "ended": null
+    }
+   },
+   "old_plan": 39
+  },
+  {
+   "t_run": 426.15,
+   "source": "retry",
+   "cpu_s": 1.597,
+   "budget_s": 2.0,
+   "events": [
+    {
+     "robot": "Bravo",
+     "action": "continues",
+     "reason": "path clear for the next 2.0 s; carries on 1 step(s), then holds"
+    }
+   ],
+   "new_makespan_s": 371.5,
+   "stranded": [],
+   "obstacle": null,
+   "states": {
+    "Bravo": {
+     "pose": [
+      270.61,
+      67.64,
+      -2.4181536786381437
+     ],
+     "step": 0,
+     "in_progress": true,
+     "dwell_left_s": null,
+     "ended": null
+    }
+   },
+   "old_plan": 40
+  },
+  {
+   "t_run": 431.16,
+   "source": "retry",
+   "cpu_s": 1.759,
+   "budget_s": 2.0,
+   "events": [
+    {
+     "robot": "Bravo",
+     "action": "continues",
+     "reason": "path clear for the next 2.0 s; carries on 1 step(s), then holds"
+    }
+   ],
+   "new_makespan_s": 373.7,
+   "stranded": [],
+   "obstacle": null,
+   "states": {
+    "Bravo": {
+     "pose": [
+      256.54,
+      51.05,
+      -2.2739894824234117
+     ],
+     "step": 0,
+     "in_progress": false,
+     "dwell_left_s": null,
+     "ended": null
+    }
+   },
+   "old_plan": 41
+  },
+  {
+   "t_run": 436.18,
+   "source": "retry",
+   "cpu_s": 1.795,
+   "budget_s": 2.0,
+   "events": [
+    {
+     "robot": "Bravo",
+     "action": "continues",
+     "reason": "path clear for the next 2.0 s; carries on 1 step(s), then holds"
+    }
+   ],
+   "new_makespan_s": 376.1,
+   "stranded": [],
+   "obstacle": null,
+   "states": {
+    "Bravo": {
+     "pose": [
+      241.07,
+      32.83,
+      -2.2750366799746087
+     ],
+     "step": 0,
+     "in_progress": false,
+     "dwell_left_s": null,
+     "ended": null
+    }
+   },
+   "old_plan": 42
+  },
+  {
+   "t_run": 441.19,
+   "source": "retry",
+   "cpu_s": 1.342,
+   "budget_s": 2.0,
+   "events": [
+    {
+     "robot": "Bravo",
+     "action": "continues",
+     "reason": "path clear for the next 2.0 s; carries on 1 step(s), then holds"
+    }
+   ],
+   "new_makespan_s": 376.6,
+   "stranded": [],
+   "obstacle": null,
+   "states": {
+    "Bravo": {
+     "pose": [
+      237.61,
+      28.76,
+      2.84715560877835
+     ],
+     "step": 0,
+     "in_progress": true,
+     "dwell_left_s": null,
+     "ended": null
+    }
+   },
+   "old_plan": 43
+  },
+  {
+   "t_run": 446.2,
+   "source": "retry",
+   "cpu_s": 1.733,
+   "budget_s": 2.0,
+   "events": [
+    {
+     "robot": "Bravo",
+     "action": "continues",
+     "reason": "path clear for the next 2.0 s; carries on 1 step(s), then holds"
+    }
+   ],
+   "new_makespan_s": 375.1,
+   "stranded": [],
+   "obstacle": null,
+   "states": {
+    "Bravo": {
+     "pose": [
+      247.39,
+      40.28,
+      0.8660323748395863
+     ],
+     "step": 0,
+     "in_progress": true,
+     "dwell_left_s": null,
+     "ended": null
+    }
+   },
+   "old_plan": 44
+  },
+  {
+   "t_run": 463.23,
+   "source": "retry",
+   "cpu_s": 1.545,
+   "budget_s": 2.0,
+   "events": [
+    {
+     "robot": "Bravo",
+     "action": "continues",
+     "reason": "path clear for the next 2.0 s; carries on 1 step(s), then holds"
+    }
+   ],
+   "new_makespan_s": 373.3,
+   "stranded": [],
+   "obstacle": null,
+   "states": {
+    "Bravo": {
+     "pose": [
+      259.03,
+      53.99,
+      0.8594001236820079
+     ],
+     "step": 0,
+     "in_progress": true,
+     "dwell_left_s": null,
+     "ended": null
+    }
+   },
+   "old_plan": 45
+  },
+  {
+   "t_run": 468.24,
+   "source": "retry",
+   "cpu_s": 1.413,
+   "budget_s": 2.0,
+   "events": [
+    {
+     "robot": "Bravo",
+     "action": "continues",
+     "reason": "path clear for the next 2.0 s; carries on 1 step(s), then holds"
+    }
+   ],
+   "new_makespan_s": 371.5,
+   "stranded": [],
+   "obstacle": null,
+   "states": {
+    "Bravo": {
+     "pose": [
+      270.43,
+      67.43,
+      -1.2620475821170998
+     ],
+     "step": 0,
+     "in_progress": true,
+     "dwell_left_s": null,
+     "ended": null
+    }
+   },
+   "old_plan": 46
+  },
+  {
+   "t_run": 473.25,
+   "source": "retry",
+   "cpu_s": 1.774,
+   "budget_s": 2.0,
+   "events": [
+    {
+     "robot": "Bravo",
+     "action": "continues",
+     "reason": "path clear for the next 2.0 s; carries on 1 step(s), then holds"
+    }
+   ],
+   "new_makespan_s": 373.3,
+   "stranded": [],
+   "obstacle": null,
+   "states": {
+    "Bravo": {
+     "pose": [
+      259.52,
+      54.12,
+      -2.257757920379865
+     ],
+     "step": 0,
+     "in_progress": false,
+     "dwell_left_s": null,
+     "ended": null
+    }
+   },
+   "old_plan": 47
+  },
+  {
+   "t_run": 478.26,
+   "source": "retry",
+   "cpu_s": 1.703,
+   "budget_s": 2.0,
+   "events": [
+    {
+     "robot": "Bravo",
+     "action": "continues",
+     "reason": "path clear for the next 2.0 s; carries on 1 step(s), then holds"
+    }
+   ],
+   "new_makespan_s": 375.6,
+   "stranded": [],
+   "obstacle": null,
+   "states": {
+    "Bravo": {
+     "pose": [
+      244.42,
+      35.7,
+      -2.257583387454665
+     ],
+     "step": 0,
+     "in_progress": false,
+     "dwell_left_s": null,
+     "ended": null
+    }
+   },
+   "old_plan": 48
+  },
+  {
+   "t_run": 483.26,
+   "source": "retry",
+   "cpu_s": 1.548,
+   "budget_s": 2.0,
+   "events": [
+    {
+     "robot": "Bravo",
+     "action": "continues",
+     "reason": "path clear for the next 2.0 s; carries on 1 step(s), then holds"
+    }
+   ],
+   "new_makespan_s": 376.3,
+   "stranded": [],
+   "obstacle": null,
+   "states": {
+    "Bravo": {
+     "pose": [
+      240.57,
+      31.02,
+      0.9004153611038747
+     ],
+     "step": 0,
+     "in_progress": true,
+     "dwell_left_s": null,
+     "ended": null
+    }
+   },
+   "old_plan": 49
+  },
+  {
+   "t_run": 488.26,
+   "source": "retry",
+   "cpu_s": 1.69,
+   "budget_s": 2.0,
+   "events": [
+    {
+     "robot": "Bravo",
+     "action": "continues",
+     "reason": "path clear for the next 2.0 s; carries on 1 step(s), then holds"
+    }
+   ],
+   "new_makespan_s": 374.5,
+   "stranded": [],
+   "obstacle": null,
+   "states": {
+    "Bravo": {
+     "pose": [
+      251.25,
+      44.36,
+      0.8840092661351279
+     ],
+     "step": 0,
+     "in_progress": true,
+     "dwell_left_s": null,
+     "ended": null
+    }
+   },
+   "old_plan": 50
+  },
+  {
+   "t_run": 493.27,
+   "source": "retry",
+   "cpu_s": 1.5,
+   "budget_s": 2.0,
+   "events": [
+    {
+     "robot": "Bravo",
+     "action": "continues",
+     "reason": "path clear for the next 2.0 s; carries on 1 step(s), then holds"
+    }
+   ],
+   "new_makespan_s": 371.4,
+   "stranded": [],
+   "obstacle": null,
+   "states": {
+    "Bravo": {
+     "pose": [
+      271.18,
+      68.27,
+      0.8710938296703699
+     ],
+     "step": 0,
+     "in_progress": true,
+     "dwell_left_s": null,
+     "ended": null
+    }
+   },
+   "old_plan": 51
+  },
+  {
+   "t_run": 498.28,
+   "source": "retry",
+   "cpu_s": 1.635,
+   "budget_s": 2.0,
+   "events": [
+    {
+     "robot": "Bravo",
+     "action": "continues",
+     "reason": "path clear for the next 2.0 s; carries on 1 step(s), then holds"
+    }
+   ],
+   "new_makespan_s": 372.2,
+   "stranded": [],
+   "obstacle": null,
+   "states": {
+    "Bravo": {
+     "pose": [
+      266.14,
+      62.06,
+      -2.2572343216042667
+     ],
+     "step": 0,
+     "in_progress": false,
+     "dwell_left_s": null,
+     "ended": null
+    }
+   },
+   "old_plan": 52
+  },
+  {
+   "t_run": 503.28,
+   "source": "retry",
+   "cpu_s": 1.61,
+   "budget_s": 2.0,
+   "events": [
+    {
+     "robot": "Bravo",
+     "action": "continues",
+     "reason": "path clear for the next 2.0 s; carries on 1 step(s), then holds"
+    }
+   ],
+   "new_makespan_s": 374.7,
+   "stranded": [],
+   "obstacle": null,
+   "states": {
+    "Bravo": {
+     "pose": [
+      250.76,
+      43.29,
+      -2.257059788679067
+     ],
+     "step": 0,
+     "in_progress": false,
+     "dwell_left_s": null,
+     "ended": null
+    }
+   },
+   "old_plan": 53
+  },
+  {
+   "t_run": 508.28,
+   "source": "retry",
+   "cpu_s": 1.181,
+   "budget_s": 2.0,
+   "events": [
+    {
+     "robot": "Bravo",
+     "action": "continues",
+     "reason": "path clear for the next 2.0 s; carries on 1 step(s), then holds"
+    }
+   ],
+   "new_makespan_s": 376.6,
+   "stranded": [],
+   "obstacle": null,
+   "states": {
+    "Bravo": {
+     "pose": [
+      238.38,
+      28.29,
+      -1.0042624515975371
+     ],
+     "step": 0,
+     "in_progress": true,
+     "dwell_left_s": null,
+     "ended": null
+    }
+   },
+   "old_plan": 54
+  },
+  {
+   "t_run": 513.29,
+   "source": "retry",
+   "cpu_s": 1.906,
+   "budget_s": 2.0,
+   "events": [
+    {
+     "robot": "Bravo",
+     "action": "continues",
+     "reason": "path clear for the next 2.0 s; carries on 1 step(s), then holds"
+    }
+   ],
+   "new_makespan_s": 376.6,
+   "stranded": [],
+   "obstacle": null,
+   "states": {
+    "Bravo": {
+     "pose": [
+      238.39,
+      28.29,
+      0.6771877497737998
+     ],
+     "step": 0,
+     "in_progress": true,
+     "dwell_left_s": null,
+     "ended": null
+    }
+   },
+   "old_plan": 55
+  },
+  {
+   "t_run": 518.3,
+   "source": "retry",
+   "cpu_s": 1.694,
+   "budget_s": 2.0,
+   "events": [
+    {
+     "robot": "Bravo",
+     "action": "continues",
+     "reason": "path clear for the next 2.0 s; carries on 1 step(s), then holds"
+    }
+   ],
+   "new_makespan_s": 374.3,
+   "stranded": [],
+   "obstacle": null,
+   "states": {
+    "Bravo": {
+     "pose": [
+      252.67,
+      46.09,
+      0.8834856673595296
+     ],
+     "step": 0,
+     "in_progress": true,
+     "dwell_left_s": null,
+     "ended": null
+    }
+   },
+   "old_plan": 56
+  },
+  {
+   "t_run": 535.68,
+   "source": "retry",
+   "cpu_s": 1.748,
+   "budget_s": 2.0,
+   "events": [
+    {
+     "robot": "Bravo",
+     "action": "continues",
+     "reason": "path clear for the next 2.0 s; carries on 1 step(s), then holds"
+    }
+   ],
+   "new_makespan_s": 372.5,
+   "stranded": [],
+   "obstacle": null,
+   "states": {
+    "Bravo": {
+     "pose": [
+      264.52,
+      60.35,
+      0.8662069077647858
+     ],
+     "step": 0,
+     "in_progress": true,
+     "dwell_left_s": null,
+     "ended": null
+    }
+   },
+   "old_plan": 57
+  },
+  {
+   "t_run": 540.68,
+   "source": "retry",
+   "cpu_s": 1.648,
+   "budget_s": 2.0,
+   "events": [
+    {
+     "robot": "Bravo",
+     "action": "continues",
+     "reason": "path clear for the next 2.0 s; carries on 1 step(s), then holds"
+    }
+   ],
+   "new_makespan_s": 371.6,
+   "stranded": [],
+   "obstacle": null,
+   "states": {
+    "Bravo": {
+     "pose": [
+      270.23,
+      67.13,
+      -2.521302637431009
+     ],
+     "step": 0,
+     "in_progress": true,
+     "dwell_left_s": null,
+     "ended": null
+    }
+   },
+   "old_plan": 58
+  },
+  {
+   "t_run": 545.69,
+   "source": "retry",
+   "cpu_s": 1.793,
+   "budget_s": 2.0,
+   "events": [
+    {
+     "robot": "Bravo",
+     "action": "continues",
+     "reason": "path clear for the next 2.0 s; carries on 1 step(s), then holds"
+    }
+   ],
+   "new_makespan_s": 373.6,
+   "stranded": [],
+   "obstacle": null,
+   "states": {
+    "Bravo": {
+     "pose": [
+      257.05,
+      51.46,
+      -2.2694516263682267
+     ],
+     "step": 0,
+     "in_progress": false,
+     "dwell_left_s": null,
+     "ended": null
+    }
+   },
+   "old_plan": 59
+  },
+  {
+   "t_run": 550.7,
+   "source": "retry",
+   "cpu_s": 1.353,
+   "budget_s": 2.0,
+   "events": [
+    {
+     "robot": "Bravo",
+     "action": "continues",
+     "reason": "path clear for the next 2.0 s; carries on 1 step(s), then holds"
+    }
+   ],
+   "new_makespan_s": 376.1,
+   "stranded": [],
+   "obstacle": null,
+   "states": {
+    "Bravo": {
+     "pose": [
+      241.33,
+      32.75,
+      -2.2701497580690244
+     ],
+     "step": 0,
+     "in_progress": false,
+     "dwell_left_s": null,
+     "ended": null
+    }
+   },
+   "old_plan": 60
+  },
+  {
+   "t_run": 555.7,
+   "source": "retry",
+   "cpu_s": 1.331,
+   "budget_s": 2.0,
+   "events": [
+    {
+     "robot": "Bravo",
+     "action": "continues",
+     "reason": "path clear for the next 2.0 s; carries on 1 step(s), then holds"
+    }
+   ],
+   "new_makespan_s": 376.7,
+   "stranded": [],
+   "obstacle": null,
+   "states": {
+    "Bravo": {
+     "pose": [
+      237.11,
+      27.74,
+      -2.217964413434394
+     ],
+     "step": 0,
+     "in_progress": true,
+     "dwell_left_s": null,
+     "ended": null
+    }
+   },
+   "old_plan": 61
+  },
+  {
+   "t_run": 560.7,
+   "source": "retry",
+   "cpu_s": 1.219,
+   "budget_s": 2.0,
+   "events": [
+    {
+     "robot": "Bravo",
+     "action": "continues",
+     "reason": "path clear for the next 2.0 s; carries on 1 step(s), then holds"
+    }
+   ],
+   "new_makespan_s": 376.0,
+   "stranded": [],
+   "obstacle": null,
+   "states": {
+    "Bravo": {
+     "pose": [
+      241.48,
+      32.95,
+      0.8780751466783472
+     ],
+     "step": 0,
+     "in_progress": true,
+     "dwell_left_s": null,
+     "ended": null
+    }
+   },
+   "old_plan": 62
+  },
+  {
+   "t_run": 565.71,
+   "source": "retry",
+   "cpu_s": 1.254,
+   "budget_s": 2.0,
+   "events": [
+    {
+     "robot": "Bravo",
+     "action": "continues",
+     "reason": "path clear for the next 2.0 s; carries on 1 step(s), then holds"
+    }
+   ],
+   "new_makespan_s": 374.7,
+   "stranded": [],
+   "obstacle": null,
+   "states": {
+    "Bravo": {
+     "pose": [
+      250.17,
+      43.38,
+      0.8717919613711677
+     ],
+     "step": 0,
+     "in_progress": true,
+     "dwell_left_s": null,
+     "ended": null
+    }
+   },
+   "old_plan": 63
+  },
+  {
+   "t_run": 570.72,
+   "source": "retry",
+   "cpu_s": 1.236,
+   "budget_s": 2.0,
+   "events": [
+    {
+     "robot": "Bravo",
+     "action": "continues",
+     "reason": "path clear for the next 2.0 s; carries on 1 step(s), then holds"
+    }
+   ],
+   "new_makespan_s": 371.9,
+   "stranded": [],
+   "obstacle": null,
+   "states": {
+    "Bravo": {
+     "pose": [
+      268.38,
+      65.0,
+      0.869523033343575
+     ],
+     "step": 0,
+     "in_progress": true,
+     "dwell_left_s": null,
+     "ended": null
+    }
+   },
+   "old_plan": 64
+  }
+ ],
+ "dockings_reported": [],
+ "boards_not_visited": {},
+ "sensor_obstacles": 0,
+ "sensor_stops": [],
+ "robots_out": [
+  {
+   "robot": "Bravo",
+   "why": "recovering (it drove 41 cm with no camera seeing it (the limit is 40 cm))",
+   "t_run": 38.23
+  },
+  {
+   "robot": "Alpha",
+   "why": "restarted mid-run (boot 4C01, was D386): it lost its calibration and its steps",
+   "t_run": 74.53
+  },
+  {
+   "robot": "Bravo",
+   "why": "recovering (it drove 41 cm with no camera seeing it (the limit is 40 cm))",
+   "t_run": 163.11
+  },
+  {
+   "robot": "Bravo",
+   "why": "heard again, but no plan fits it back in (Bravo left without a route)",
+   "t_run": 178.56
+  },
+  {
+   "robot": "Alpha",
+   "why": "recovering (it drove 40 cm with no camera seeing it (the limit is 40 cm))",
+   "t_run": 223.82
+  },
+  {
+   "robot": "Alpha",
+   "why": "it drove 40 cm with no camera seeing it (the limit is 40 cm)",
+   "t_run": 269.69
+  },
+  {
+   "robot": "Bravo",
+   "why": "nothing heard from it for 4.0 s (battery dead or WiFi gone)",
+   "t_run": 573.94
+  }
+ ],
+ "plans_refused": 0,
+ "front_stop": {
+  "readings": 3,
+  "stop_cm": {
+   "Alpha": 12.0,
+   "Bravo": 12.0
+  },
+  "unconfirmed": {
+   "added": 0
+  },
+  "no_plan_drops": 0
+ },
+ "rejoins": [
+  {
+   "robot": "Bravo",
+   "why": "seen again after its straight recovery",
+   "was": "recovering (it drove 41 cm with no camera seeing it (the limit is 40 cm))",
+   "t_run": 47.57,
+   "cam": [
+    237.71,
+    80.85,
+    -155.9
+   ]
+  },
+  {
+   "robot": "Alpha",
+   "why": "restarted, checked again: boot 4C01: facing checked, calibrated, settings read back, floor checked",
+   "was": "restarted mid-run (boot 4C01, was D386): it lost its calibration and its steps",
+   "t_run": 154.25,
+   "cam": [
+    62.91,
+    14.79,
+    -103.1
+   ]
+  },
+  {
+   "robot": "Bravo",
+   "why": "seen again after its straight recovery",
+   "was": "recovering (it drove 41 cm with no camera seeing it (the limit is 40 cm))",
+   "t_run": 176.0,
+   "cam": [
+    239.55,
+    30.78,
+    -135.6
+   ]
+  },
+  {
+   "robot": "Bravo",
+   "why": "restarted, checked again: boot 45BF: facing checked, settings read back, floor checked",
+   "was": "heard again, but no plan fits it back in (Bravo left without a route)",
+   "t_run": 202.17,
+   "cam": [
+    239.03,
+    30.28,
+    -135.6
+   ]
+  },
+  {
+   "robot": "Alpha",
+   "why": "seen again after its straight recovery",
+   "was": "recovering (it drove 40 cm with no camera seeing it (the limit is 40 cm))",
+   "t_run": 232.73,
+   "cam": [
+    227.87,
+    66.45,
+    178.8
+   ]
+  }
+ ],
+ "confirm_checks": [],
+ "battery": {
+  "Alpha": 94,
+  "Bravo": 90
+ },
+ "boot": {
+  "Alpha": "4C01",
+  "Bravo": "45BF"
+ },
+ "start_checks": {
+  "Alpha": {
+   "firmware": "2026-11-05d",
+   "battery": 96,
+   "boot": "D386",
+   "restarted": false,
+   "stop_limit": {
+    "limit_cm": 12.0,
+    "rule": "cap",
+    "floor_cm": null,
+    "ceiling_cm": 12.0
+   },
+   "place_cm": 2.48,
+   "heading_deg": 0.95,
+   "heading_rule": "measured (facing check); straightened if off"
+  },
+  "Bravo": {
+   "firmware": "2026-11-05d",
+   "battery": 91,
+   "boot": "45BF",
+   "restarted": false,
+   "stop_limit": {
+    "limit_cm": 12.0,
+    "rule": "cap",
+    "floor_cm": null,
+    "ceiling_cm": 12.0
+   },
+   "place_cm": 0.44,
+   "heading_deg": 2.22,
+   "heading_rule": "measured (facing check); straightened if off"
+  },
+  "facing": {
+   "Alpha": {
+    "heading": 90.95,
+    "off": 0.9,
+    "ok": true
+   },
+   "Bravo": {
+    "heading": 92.22,
+    "off": 2.2,
+    "ok": true
+   }
+  },
+  "settings_resent": 0,
+  "plan_gap": {
+   "closest_cm": 62.1,
+   "pair": [
+    "Alpha",
+    "Bravo"
+   ],
+   "t": 260.2,
+   "start_cm": 80.54,
+   "judged_cm": 62.1,
+   "judged_pair": [
+    "Alpha",
+    "Bravo"
+   ],
+   "judged_t": 260.2
+  },
+  "facing-rejoin-Alpha": {
+   "Alpha": {
+    "heading": null,
+    "off": null,
+    "ok": false
+   }
+  },
+  "facing-rejoin-Bravo": {
+   "Bravo": {
+    "heading": -135.67,
+    "off": -0.1,
+    "ok": true
+   }
+  }
+ },
+ "straighten": {
+  "tries": [
+   {
+    "measured": {
+     "Alpha": [
+      147.38,
+      82.45,
+      90.95
+     ],
+     "Bravo": [
+      244.21,
+      82.32,
+      92.22
+     ]
+    },
+    "side_only": {
+     "Alpha": false,
+     "Bravo": false
+    },
+    "start": {
+     "Alpha": [
+      149.86,
+      82.55,
+      90.0
+     ],
+     "Bravo": [
+      243.84,
+      82.55,
+      90.0
+     ]
+    }
+   }
+  ],
+  "result": "ready after 0 correction(s)"
+ },
+ "blind": [
+  {
+   "robot": "Bravo",
+   "dist_cm": 29.83,
+   "blind_s": 8.51,
+   "err_cm": 0.42,
+   "cam": [
+    245.61,
+    63.53
+   ],
+   "own": [
+    246.02,
+    63.61
+   ],
+   "src": "overhead",
+   "t_run": 66.43
+  },
+  {
+   "robot": "Alpha",
+   "dist_cm": 22.26,
+   "blind_s": 7.98,
+   "err_cm": 1.21,
+   "cam": [
+    239.65,
+    61.51
+   ],
+   "own": [
+    240.85,
+    61.34
+   ],
+   "src": "overhead",
+   "t_run": 249.94
+  },
+  {
+   "robot": "Bravo",
+   "dist_cm": 73.32,
+   "blind_s": 32.75,
+   "err_cm": 0.7,
+   "cam": [
+    238.96,
+    30.69
+   ],
+   "own": [
+    239.36,
+    30.12
+   ],
+   "src": "overhead",
+   "t_run": 323.75
+  },
+  {
+   "robot": "Bravo",
+   "dist_cm": 63.62,
+   "blind_s": 22.93,
+   "err_cm": 1.52,
+   "cam": [
+    241.13,
+    32.91
+   ],
+   "own": [
+    240.03,
+    31.86
+   ],
+   "src": "overhead",
+   "t_run": 366.32
+  },
+  {
+   "robot": "Bravo",
+   "dist_cm": 72.83,
+   "blind_s": 37.2,
+   "err_cm": 0.27,
+   "cam": [
+    238.98,
+    30.28
+   ],
+   "own": [
+    239.15,
+    30.07
+   ],
+   "src": "overhead",
+   "t_run": 406.73
+  },
+  {
+   "robot": "Bravo",
+   "dist_cm": 71.08,
+   "blind_s": 22.35,
+   "err_cm": 1.64,
+   "cam": [
+    239.09,
+    29.76
+   ],
+   "own": [
+    237.71,
+    28.88
+   ],
+   "src": "overhead",
+   "t_run": 437.18
+  },
+  {
+   "robot": "Bravo",
+   "dist_cm": 66.21,
+   "blind_s": 34.68,
+   "err_cm": 1.18,
+   "cam": [
+    239.85,
+    29.46
+   ],
+   "own": [
+    238.82,
+    28.89
+   ],
+   "src": "overhead",
+   "t_run": 480.0
+  },
+  {
+   "robot": "Bravo",
+   "dist_cm": 83.72,
+   "blind_s": 23.75,
+   "err_cm": 0.9,
+   "cam": [
+    239.02,
+    29.26
+   ],
+   "own": [
+    238.55,
+    28.49
+   ],
+   "src": "overhead",
+   "t_run": 507.28
+  },
+  {
+   "robot": "Bravo",
+   "dist_cm": 69.69,
+   "blind_s": 35.7,
+   "err_cm": 1.2,
+   "cam": [
+    238.31,
+    27.32
+   ],
+   "own": [
+    237.32,
+    27.99
+   ],
+   "src": "overhead",
+   "t_run": 552.01
+  }
+ ],
+ "on_problem": "keep_going",
+ "lost_robot_points": "reassign",
+ "kept_going": [
+  {
+   "kind": "cam_guard",
+   "robot": "Alpha",
+   "words": "Alpha: the camera and its own pose disagreed by 6.4 cm for 1.0 s: its pose was set to the camera's (the camera is trusted), the run goes on",
+   "t_run": 21.76,
+   "d_cm": 6.39,
+   "cam": [
+    36.46,
+    33.92,
+    -156.6
+   ],
+   "own": [
+    30.44,
+    31.77,
+    -157.03
+   ]
+  },
+  {
+   "kind": "points_reassigned",
+   "robot": "Alpha",
+   "words": "Alpha is held (restarted mid-run (boot 4C01, was D386): it lost its calibration and its steps): its points not done go to the robots still running: Bravo (points P05, P06, P07, P08, P09, P10, P11, P12, P13, P14, P15, P16, P17, P18, P19, P20 to Bravo)",
+   "t_run": 74.54
+  },
+  {
+   "kind": "cam_guard",
+   "robot": "Alpha",
+   "words": "Alpha: the camera and its own pose disagreed by 0.1 cm for 1.0 s: its pose was set to the camera's (the camera is trusted), the run goes on",
+   "t_run": 155.27,
+   "d_cm": 0.11,
+   "cam": [
+    62.8,
+    14.81,
+    93.7
+   ],
+   "own": [
+    62.91,
+    14.79,
+    -103.15
+   ]
+  },
+  {
+   "kind": "points_reassigned",
+   "robot": "Bravo",
+   "words": "Bravo is held (heard again, but no plan fits it back in (Bravo left without a route)): its points not done go to the robots still running: Alpha (points P25, P26, P27, P28, P29, P30, P31, P32, P33, P34, P35, P36, P37, P38, P39, P40, P05, P06, P07, P08, P09, P10, P11, P12, P13, P14, P15, P16, P17, P18, P19, P20 to Alpha)",
+   "t_run": 178.56
+  },
+  {
+   "kind": "cam_guard",
+   "robot": "Alpha",
+   "words": "Alpha: the camera and its own pose disagreed by 6.4 cm for 1.0 s: its pose was set to the camera's (the camera is trusted), the run goes on",
+   "t_run": 202.22,
+   "d_cm": 6.4,
+   "cam": [
+    179.14,
+    68.62,
+    -19.0
+   ],
+   "own": [
+    185.54,
+    68.45,
+    -22.69
+   ]
+  },
+  {
+   "kind": "points_reassigned",
+   "robot": "Alpha",
+   "words": "Alpha is held (it drove 40 cm with no camera seeing it (the limit is 40 cm)): its points not done go to the robots still running: Bravo (points P27, P28, P29, P30, P31, P32, P33, P34, P35, P36, P37, P38, P39, P40, P05, P06, P07, P08, P09, P10, P11, P12, P13, P14, P15, P16, P17, P18, P19, P20 to Bravo)",
+   "t_run": 269.69
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "30 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 269.69
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "31 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 270.93
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "31 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 286.38
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "32 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 287.75
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "32 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 287.75
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "32 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 291.38
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "33 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 292.6
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "33 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 308.42
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "34 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 309.67
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "34 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 309.67
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "34 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 313.42
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "35 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 314.64
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "35 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 318.43
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "36 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 319.76
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "36 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 323.44
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "37 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 325.08
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "37 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 325.08
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "37 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 339.47
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "38 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 341.07
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "38 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 341.07
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "38 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 344.47
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "39 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 345.96
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "39 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 349.48
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "40 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 351.18
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "40 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 354.49
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "41 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 356.06
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "41 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 359.49
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "42 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 360.86
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "42 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 364.51
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "43 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 366.31
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "43 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 369.51
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "44 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 370.75
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "44 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 374.51
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "45 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 376.36
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "45 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 391.11
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "46 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 392.45
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "46 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 392.45
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "46 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 396.11
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "47 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 397.8
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "47 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 401.12
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "48 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 402.61
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "48 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 406.13
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "49 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 408.04
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "49 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 408.04
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "49 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 411.13
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "50 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 412.76
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "50 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 416.14
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "51 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 418.06
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "51 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 421.14
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "52 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 422.49
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "52 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 426.15
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "53 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 427.77
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "53 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 431.16
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "54 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 432.94
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "54 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 436.18
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "55 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 438.0
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "55 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 438.0
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "55 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 441.19
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "56 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 442.54
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "56 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 446.19
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "57 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 447.94
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "57 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 463.23
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "58 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 464.81
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "58 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 464.81
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "58 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 468.24
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "59 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 469.67
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "59 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 473.25
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "60 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 475.04
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "60 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 478.25
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "61 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 479.98
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "61 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 483.26
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "62 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 484.82
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "62 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 488.26
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "63 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 489.97
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "63 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 493.27
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "64 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 494.79
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "64 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 498.28
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "65 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 499.94
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "65 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 503.28
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "66 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 504.93
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "66 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 507.28
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "66 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 508.28
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "67 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 509.48
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "67 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 513.29
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "68 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 515.22
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "68 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 518.3
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "69 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 520.02
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "69 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 535.68
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "70 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 537.44
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "70 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 537.44
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "70 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 540.68
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "71 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 542.35
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "71 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 545.69
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "72 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 547.49
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "72 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 550.7
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "73 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 552.07
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "73 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 552.07
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "73 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 555.7
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "74 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 557.07
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "74 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 560.7
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "75 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 561.94
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "75 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 565.71
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "76 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 566.98
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "76 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 570.72
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "77 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 571.97
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "77 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 575.72
+  },
+  {
+   "kind": "replan_failed",
+   "robot": null,
+   "words": "no new plan (no robots in the map): everyone stands where they are and the plan is made again in 3 s",
+   "t_run": 576.17
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "77 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 579.18
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "77 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 580.73
+  },
+  {
+   "kind": "replan_failed",
+   "robot": null,
+   "words": "no new plan (no robots in the map): everyone stands where they are and the plan is made again in 3 s",
+   "t_run": 581.36
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "77 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 584.37
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "77 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 585.73
+  },
+  {
+   "kind": "replan_failed",
+   "robot": null,
+   "words": "no new plan (no robots in the map): everyone stands where they are and the plan is made again in 3 s",
+   "t_run": 586.39
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "77 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 589.4
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "77 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 590.73
+  },
+  {
+   "kind": "replan_failed",
+   "robot": null,
+   "words": "no new plan (no robots in the map): everyone stands where they are and the plan is made again in 3 s",
+   "t_run": 591.29
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "77 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 594.3
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "77 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 595.74
+  },
+  {
+   "kind": "replan_failed",
+   "robot": null,
+   "words": "no new plan (no robots in the map): everyone stands where they are and the plan is made again in 3 s",
+   "t_run": 596.23
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "77 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 599.24
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "77 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 600.74
+  },
+  {
+   "kind": "replan_failed",
+   "robot": null,
+   "words": "no new plan (no robots in the map): everyone stands where they are and the plan is made again in 3 s",
+   "t_run": 601.33
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "77 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 604.33
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "77 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 605.75
+  },
+  {
+   "kind": "replan_failed",
+   "robot": null,
+   "words": "no new plan (no robots in the map): everyone stands where they are and the plan is made again in 3 s",
+   "t_run": 606.46
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "77 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 609.47
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "77 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 610.75
+  },
+  {
+   "kind": "replan_failed",
+   "robot": null,
+   "words": "no new plan (no robots in the map): everyone stands where they are and the plan is made again in 3 s",
+   "t_run": 611.33
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "77 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 614.33
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "77 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 615.75
+  },
+  {
+   "kind": "replan_failed",
+   "robot": null,
+   "words": "no new plan (no robots in the map): everyone stands where they are and the plan is made again in 3 s",
+   "t_run": 616.36
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "77 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 619.37
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "77 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 620.76
+  },
+  {
+   "kind": "replan_failed",
+   "robot": null,
+   "words": "no new plan (no robots in the map): everyone stands where they are and the plan is made again in 3 s",
+   "t_run": 621.37
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "77 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 624.38
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "77 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 625.76
+  },
+  {
+   "kind": "replan_failed",
+   "robot": null,
+   "words": "no new plan (no robots in the map): everyone stands where they are and the plan is made again in 3 s",
+   "t_run": 626.33
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "77 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 629.33
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "77 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 630.76
+  },
+  {
+   "kind": "replan_failed",
+   "robot": null,
+   "words": "no new plan (no robots in the map): everyone stands where they are and the plan is made again in 3 s",
+   "t_run": 631.29
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "77 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 634.3
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "77 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 635.77
+  },
+  {
+   "kind": "replan_failed",
+   "robot": null,
+   "words": "no new plan (no robots in the map): everyone stands where they are and the plan is made again in 3 s",
+   "t_run": 636.29
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "77 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 639.3
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "77 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 640.78
+  },
+  {
+   "kind": "replan_failed",
+   "robot": null,
+   "words": "no new plan (no robots in the map): everyone stands where they are and the plan is made again in 3 s",
+   "t_run": 641.26
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "77 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 644.26
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "77 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 645.78
+  },
+  {
+   "kind": "replan_failed",
+   "robot": null,
+   "words": "no new plan (no robots in the map): everyone stands where they are and the plan is made again in 3 s",
+   "t_run": 646.33
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "77 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 649.33
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "77 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 650.79
+  },
+  {
+   "kind": "replan_failed",
+   "robot": null,
+   "words": "no new plan (no robots in the map): everyone stands where they are and the plan is made again in 3 s",
+   "t_run": 651.31
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "77 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 654.31
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "77 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 655.79
+  },
+  {
+   "kind": "replan_failed",
+   "robot": null,
+   "words": "no new plan (no robots in the map): everyone stands where they are and the plan is made again in 3 s",
+   "t_run": 656.26
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "77 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 659.26
+  },
+  {
+   "kind": "out_of_replans",
+   "robot": null,
+   "words": "77 re-plans so far (the cap): the run goes on; from now on re-plans are at least 5 s apart",
+   "t_run": 660.8
+  },
+  {
+   "kind": "replan_failed",
+   "robot": null,
+   "words": "no new plan (no robots in the map): everyone stands where they are and the plan is made again in 3 s",
+   "t_run": 661.31
+  }
+ ],
+ "points": [
+  {
+   "robot": "Bravo",
+   "point": "point P21",
+   "t_run": 13.69,
+   "dwell_s": 3.0,
+   "n_fixes": 18,
+   "t_abs": 1793965246.016,
+   "x": 215.68,
+   "y": 106.45,
+   "plus_minus_cm": 1.4,
+   "source": "one camera (overhead)",
+   "two_camera_share": 0.0,
+   "since_fix_cm": 0.0,
+   "since_fix_s": 0.0,
+   "own_x": 215.25,
+   "own_y": 106.06,
+   "own_vs_camera_cm": 0.58,
+   "words": "point P21 (Bravo): \u00b11.4 cm, one camera (overhead)"
+  },
+  {
+   "robot": "Bravo",
+   "point": "point P22",
+   "t_run": 23.52,
+   "dwell_s": 3.03,
+   "n_fixes": 18,
+   "t_abs": 1793965255.845,
+   "x": 244.13,
+   "y": 82.89,
+   "plus_minus_cm": 1.4,
+   "source": "one camera (overhead)",
+   "two_camera_share": 0.0,
+   "since_fix_cm": 0.0,
+   "since_fix_s": 0.0,
+   "own_x": 243.87,
+   "own_y": 82.55,
+   "own_vs_camera_cm": 0.43,
+   "words": "point P22 (Bravo): \u00b11.4 cm, one camera (overhead)"
+  },
+  {
+   "robot": "Alpha",
+   "point": "point P01",
+   "t_run": 24.73,
+   "dwell_s": 1.62,
+   "n_fixes": 10,
+   "t_abs": 1793965257.058,
+   "x": 36.46,
+   "y": 33.92,
+   "plus_minus_cm": 1.4,
+   "source": "one camera (overhead)",
+   "two_camera_share": 0.0,
+   "since_fix_cm": 0.0,
+   "since_fix_s": 0.0,
+   "own_x": 36.46,
+   "own_y": 33.92,
+   "own_vs_camera_cm": 0.0,
+   "words": "point P01 (Alpha): \u00b11.4 cm, one camera (overhead)"
+  },
+  {
+   "robot": "Bravo",
+   "point": "point P23",
+   "t_run": 32.14,
+   "dwell_s": 3.0,
+   "n_fixes": 0,
+   "t_abs": 1793965264.471,
+   "x": 277.49,
+   "y": 101.62,
+   "plus_minus_cm": 9.4,
+   "source": "odometry only",
+   "two_camera_share": 0.0,
+   "since_fix_cm": 113.4,
+   "since_fix_s": 33.2,
+   "own_x": 277.49,
+   "own_y": 101.62,
+   "words": "point P23 (Bravo): \u00b19.4 cm, odometry for 113 cm since the last camera fix (33 s ago)"
+  },
+  {
+   "robot": "Alpha",
+   "point": "point P02",
+   "t_run": 35.06,
+   "dwell_s": 3.01,
+   "n_fixes": 19,
+   "t_abs": 1793965267.387,
+   "x": 73.45,
+   "y": 53.43,
+   "plus_minus_cm": 1.4,
+   "source": "one camera (overhead)",
+   "two_camera_share": 0.0,
+   "since_fix_cm": 0.0,
+   "since_fix_s": 0.0,
+   "own_x": 75.57,
+   "own_y": 53.96,
+   "own_vs_camera_cm": 2.19,
+   "words": "point P02 (Alpha): \u00b11.4 cm, one camera (overhead)"
+  },
+  {
+   "robot": "Alpha",
+   "point": "point P03",
+   "t_run": 48.94,
+   "dwell_s": 3.05,
+   "n_fixes": 19,
+   "t_abs": 1793965281.263,
+   "x": 18.1,
+   "y": 79.67,
+   "plus_minus_cm": 1.4,
+   "source": "one camera (overhead)",
+   "two_camera_share": 0.0,
+   "since_fix_cm": 0.0,
+   "since_fix_s": 0.0,
+   "own_x": 17.77,
+   "own_y": 82.59,
+   "own_vs_camera_cm": 2.94,
+   "words": "point P03 (Alpha): \u00b11.4 cm, one camera (overhead)"
+  },
+  {
+   "robot": "Alpha",
+   "point": "point P04",
+   "t_run": 64.51,
+   "dwell_s": 3.0,
+   "n_fixes": 19,
+   "t_abs": 1793965296.832,
+   "x": 62.9,
+   "y": 14.81,
+   "plus_minus_cm": 1.4,
+   "source": "one camera (overhead)",
+   "two_camera_share": 0.0,
+   "since_fix_cm": 0.0,
+   "since_fix_s": 0.0,
+   "own_x": 63.47,
+   "own_y": 13.33,
+   "own_vs_camera_cm": 1.59,
+   "words": "point P04 (Alpha): \u00b11.4 cm, one camera (overhead)"
+  },
+  {
+   "robot": "Bravo",
+   "point": "point P24",
+   "t_run": 74.49,
+   "dwell_s": 3.01,
+   "n_fixes": 19,
+   "t_abs": 1793965306.814,
+   "x": 227.52,
+   "y": 19.27,
+   "plus_minus_cm": 1.4,
+   "source": "one camera (overhead)",
+   "two_camera_share": 0.0,
+   "since_fix_cm": 0.0,
+   "since_fix_s": 0.0,
+   "own_x": 228.01,
+   "own_y": 19.05,
+   "own_vs_camera_cm": 0.54,
+   "words": "point P24 (Bravo): \u00b11.4 cm, one camera (overhead)"
+  },
+  {
+   "robot": "Alpha",
+   "point": "point P25",
+   "t_run": 217.48,
+   "dwell_s": 3.0,
+   "n_fixes": 0,
+   "t_abs": 1793965449.807,
+   "x": 276.9,
+   "y": 66.62,
+   "plus_minus_cm": 8.8,
+   "source": "odometry only",
+   "two_camera_share": 0.0,
+   "since_fix_cm": 104.7,
+   "since_fix_s": 15.3,
+   "own_x": 276.9,
+   "own_y": 66.62,
+   "words": "point P25 (Alpha): \u00b18.8 cm, odometry for 105 cm since the last camera fix (15 s ago)"
+  },
+  {
+   "robot": "Alpha",
+   "point": "point P26",
+   "t_run": 256.14,
+   "dwell_s": 3.01,
+   "n_fixes": 19,
+   "t_abs": 1793965488.463,
+   "x": 227.06,
+   "y": 52.47,
+   "plus_minus_cm": 1.4,
+   "source": "one camera (overhead)",
+   "two_camera_share": 0.0,
+   "since_fix_cm": 0.0,
+   "since_fix_s": 0.0,
+   "own_x": 227.32,
+   "own_y": 51.96,
+   "own_vs_camera_cm": 0.57,
+   "words": "point P26 (Alpha): \u00b11.4 cm, one camera (overhead)"
+  }
+ ],
+ "points_skipped": [
+  {
+   "robot": "Bravo",
+   "point": "point P29",
+   "why": "cannot be reached: point (261.6, 124.5): no room to turn there (0.0 cm clear, needs 8.2)",
+   "t_run": 270.93
+  }
+ ],
+ "points_reassigned": [
+  {
+   "point": "point P05",
+   "frm": "Alpha",
+   "to": "Bravo",
+   "t_run": 74.54
+  },
+  {
+   "point": "point P06",
+   "frm": "Alpha",
+   "to": "Bravo",
+   "t_run": 74.54
+  },
+  {
+   "point": "point P07",
+   "frm": "Alpha",
+   "to": "Bravo",
+   "t_run": 74.54
+  },
+  {
+   "point": "point P08",
+   "frm": "Alpha",
+   "to": "Bravo",
+   "t_run": 74.54
+  },
+  {
+   "point": "point P09",
+   "frm": "Alpha",
+   "to": "Bravo",
+   "t_run": 74.54
+  },
+  {
+   "point": "point P10",
+   "frm": "Alpha",
+   "to": "Bravo",
+   "t_run": 74.54
+  },
+  {
+   "point": "point P11",
+   "frm": "Alpha",
+   "to": "Bravo",
+   "t_run": 74.54
+  },
+  {
+   "point": "point P12",
+   "frm": "Alpha",
+   "to": "Bravo",
+   "t_run": 74.54
+  },
+  {
+   "point": "point P13",
+   "frm": "Alpha",
+   "to": "Bravo",
+   "t_run": 74.54
+  },
+  {
+   "point": "point P14",
+   "frm": "Alpha",
+   "to": "Bravo",
+   "t_run": 74.54
+  },
+  {
+   "point": "point P15",
+   "frm": "Alpha",
+   "to": "Bravo",
+   "t_run": 74.54
+  },
+  {
+   "point": "point P16",
+   "frm": "Alpha",
+   "to": "Bravo",
+   "t_run": 74.54
+  },
+  {
+   "point": "point P17",
+   "frm": "Alpha",
+   "to": "Bravo",
+   "t_run": 74.54
+  },
+  {
+   "point": "point P18",
+   "frm": "Alpha",
+   "to": "Bravo",
+   "t_run": 74.54
+  },
+  {
+   "point": "point P19",
+   "frm": "Alpha",
+   "to": "Bravo",
+   "t_run": 74.54
+  },
+  {
+   "point": "point P20",
+   "frm": "Alpha",
+   "to": "Bravo",
+   "t_run": 74.54
+  },
+  {
+   "point": "point P25",
+   "frm": "Bravo",
+   "to": "Alpha",
+   "t_run": 178.56
+  },
+  {
+   "point": "point P26",
+   "frm": "Bravo",
+   "to": "Alpha",
+   "t_run": 178.56
+  },
+  {
+   "point": "point P27",
+   "frm": "Bravo",
+   "to": "Alpha",
+   "t_run": 178.56
+  },
+  {
+   "point": "point P28",
+   "frm": "Bravo",
+   "to": "Alpha",
+   "t_run": 178.56
+  },
+  {
+   "point": "point P29",
+   "frm": "Bravo",
+   "to": "Alpha",
+   "t_run": 178.56
+  },
+  {
+   "point": "point P30",
+   "frm": "Bravo",
+   "to": "Alpha",
+   "t_run": 178.56
+  },
+  {
+   "point": "point P31",
+   "frm": "Bravo",
+   "to": "Alpha",
+   "t_run": 178.56
+  },
+  {
+   "point": "point P32",
+   "frm": "Bravo",
+   "to": "Alpha",
+   "t_run": 178.56
+  },
+  {
+   "point": "point P33",
+   "frm": "Bravo",
+   "to": "Alpha",
+   "t_run": 178.56
+  },
+  {
+   "point": "point P34",
+   "frm": "Bravo",
+   "to": "Alpha",
+   "t_run": 178.56
+  },
+  {
+   "point": "point P35",
+   "frm": "Bravo",
+   "to": "Alpha",
+   "t_run": 178.56
+  },
+  {
+   "point": "point P36",
+   "frm": "Bravo",
+   "to": "Alpha",
+   "t_run": 178.56
+  },
+  {
+   "point": "point P37",
+   "frm": "Bravo",
+   "to": "Alpha",
+   "t_run": 178.56
+  },
+  {
+   "point": "point P38",
+   "frm": "Bravo",
+   "to": "Alpha",
+   "t_run": 178.56
+  },
+  {
+   "point": "point P39",
+   "frm": "Bravo",
+   "to": "Alpha",
+   "t_run": 178.56
+  },
+  {
+   "point": "point P40",
+   "frm": "Bravo",
+   "to": "Alpha",
+   "t_run": 178.56
+  },
+  {
+   "point": "point P05",
+   "frm": "Bravo",
+   "to": "Alpha",
+   "t_run": 178.56
+  },
+  {
+   "point": "point P06",
+   "frm": "Bravo",
+   "to": "Alpha",
+   "t_run": 178.56
+  },
+  {
+   "point": "point P07",
+   "frm": "Bravo",
+   "to": "Alpha",
+   "t_run": 178.56
+  },
+  {
+   "point": "point P08",
+   "frm": "Bravo",
+   "to": "Alpha",
+   "t_run": 178.56
+  },
+  {
+   "point": "point P09",
+   "frm": "Bravo",
+   "to": "Alpha",
+   "t_run": 178.56
+  },
+  {
+   "point": "point P10",
+   "frm": "Bravo",
+   "to": "Alpha",
+   "t_run": 178.56
+  },
+  {
+   "point": "point P11",
+   "frm": "Bravo",
+   "to": "Alpha",
+   "t_run": 178.56
+  },
+  {
+   "point": "point P12",
+   "frm": "Bravo",
+   "to": "Alpha",
+   "t_run": 178.56
+  },
+  {
+   "point": "point P13",
+   "frm": "Bravo",
+   "to": "Alpha",
+   "t_run": 178.56
+  },
+  {
+   "point": "point P14",
+   "frm": "Bravo",
+   "to": "Alpha",
+   "t_run": 178.56
+  },
+  {
+   "point": "point P15",
+   "frm": "Bravo",
+   "to": "Alpha",
+   "t_run": 178.56
+  },
+  {
+   "point": "point P16",
+   "frm": "Bravo",
+   "to": "Alpha",
+   "t_run": 178.56
+  },
+  {
+   "point": "point P17",
+   "frm": "Bravo",
+   "to": "Alpha",
+   "t_run": 178.56
+  },
+  {
+   "point": "point P18",
+   "frm": "Bravo",
+   "to": "Alpha",
+   "t_run": 178.56
+  },
+  {
+   "point": "point P19",
+   "frm": "Bravo",
+   "to": "Alpha",
+   "t_run": 178.56
+  },
+  {
+   "point": "point P20",
+   "frm": "Bravo",
+   "to": "Alpha",
+   "t_run": 178.56
+  },
+  {
+   "point": "point P27",
+   "frm": "Alpha",
+   "to": "Bravo",
+   "t_run": 269.69
+  },
+  {
+   "point": "point P28",
+   "frm": "Alpha",
+   "to": "Bravo",
+   "t_run": 269.69
+  },
+  {
+   "point": "point P29",
+   "frm": "Alpha",
+   "to": "Bravo",
+   "t_run": 269.69
+  },
+  {
+   "point": "point P30",
+   "frm": "Alpha",
+   "to": "Bravo",
+   "t_run": 269.69
+  },
+  {
+   "point": "point P31",
+   "frm": "Alpha",
+   "to": "Bravo",
+   "t_run": 269.69
+  },
+  {
+   "point": "point P32",
+   "frm": "Alpha",
+   "to": "Bravo",
+   "t_run": 269.69
+  },
+  {
+   "point": "point P33",
+   "frm": "Alpha",
+   "to": "Bravo",
+   "t_run": 269.69
+  },
+  {
+   "point": "point P34",
+   "frm": "Alpha",
+   "to": "Bravo",
+   "t_run": 269.69
+  },
+  {
+   "point": "point P35",
+   "frm": "Alpha",
+   "to": "Bravo",
+   "t_run": 269.69
+  },
+  {
+   "point": "point P36",
+   "frm": "Alpha",
+   "to": "Bravo",
+   "t_run": 269.69
+  },
+  {
+   "point": "point P37",
+   "frm": "Alpha",
+   "to": "Bravo",
+   "t_run": 269.69
+  },
+  {
+   "point": "point P38",
+   "frm": "Alpha",
+   "to": "Bravo",
+   "t_run": 269.69
+  },
+  {
+   "point": "point P39",
+   "frm": "Alpha",
+   "to": "Bravo",
+   "t_run": 269.69
+  },
+  {
+   "point": "point P40",
+   "frm": "Alpha",
+   "to": "Bravo",
+   "t_run": 269.69
+  },
+  {
+   "point": "point P05",
+   "frm": "Alpha",
+   "to": "Bravo",
+   "t_run": 269.69
+  },
+  {
+   "point": "point P06",
+   "frm": "Alpha",
+   "to": "Bravo",
+   "t_run": 269.69
+  },
+  {
+   "point": "point P07",
+   "frm": "Alpha",
+   "to": "Bravo",
+   "t_run": 269.69
+  },
+  {
+   "point": "point P08",
+   "frm": "Alpha",
+   "to": "Bravo",
+   "t_run": 269.69
+  },
+  {
+   "point": "point P09",
+   "frm": "Alpha",
+   "to": "Bravo",
+   "t_run": 269.69
+  },
+  {
+   "point": "point P10",
+   "frm": "Alpha",
+   "to": "Bravo",
+   "t_run": 269.69
+  },
+  {
+   "point": "point P11",
+   "frm": "Alpha",
+   "to": "Bravo",
+   "t_run": 269.69
+  },
+  {
+   "point": "point P12",
+   "frm": "Alpha",
+   "to": "Bravo",
+   "t_run": 269.69
+  },
+  {
+   "point": "point P13",
+   "frm": "Alpha",
+   "to": "Bravo",
+   "t_run": 269.69
+  },
+  {
+   "point": "point P14",
+   "frm": "Alpha",
+   "to": "Bravo",
+   "t_run": 269.69
+  },
+  {
+   "point": "point P15",
+   "frm": "Alpha",
+   "to": "Bravo",
+   "t_run": 269.69
+  },
+  {
+   "point": "point P16",
+   "frm": "Alpha",
+   "to": "Bravo",
+   "t_run": 269.69
+  },
+  {
+   "point": "point P17",
+   "frm": "Alpha",
+   "to": "Bravo",
+   "t_run": 269.69
+  },
+  {
+   "point": "point P18",
+   "frm": "Alpha",
+   "to": "Bravo",
+   "t_run": 269.69
+  },
+  {
+   "point": "point P19",
+   "frm": "Alpha",
+   "to": "Bravo",
+   "t_run": 269.69
+  },
+  {
+   "point": "point P20",
+   "frm": "Alpha",
+   "to": "Bravo",
+   "t_run": 269.69
+  }
+ ],
+ "turn_pause": {
+  "on": true,
+  "robots": {
+   "Bravo": {
+    "pauses": 8,
+    "added_s": 6.02,
+    "both": 0,
+    "one_camera": 6,
+    "timed_out": 2,
+    "longest_s": 3.007
+   },
+   "Alpha": {
+    "pauses": 13,
+    "added_s": 17.98,
+    "both": 0,
+    "one_camera": 7,
+    "timed_out": 6,
+    "longest_s": 3.001
+   }
+  }
+ },
+ "mirror": {
+  "on": false
+ },
+ "simulator": {
+  "dockings": [],
+  "min_body_gap_cm": 6.58,
+  "min_body_gap_at": [
+   "Alpha",
+   "Bravo",
+   251.23
+  ],
+  "min_static_clearance_cm": Infinity,
+  "min_static_at": null,
+  "collision": false,
+  "events": [
+   {
+    "kind": "robot_restart",
+    "robot": "Alpha",
+    "t": 70.0,
+    "boot_s": 3.0
+   },
+   {
+    "kind": "wifi_drop_start",
+    "robot": "Alpha",
+    "t": 70.0
+   },
+   {
+    "kind": "wifi_drop_end",
+    "robot": "Alpha",
+    "t": 73.01
+   }
+  ],
+  "packets_lost": {
+   "Alpha": {
+    "to_robot": 28,
+    "from_robot": 86
+   },
+   "Bravo": {
+    "to_robot": 0,
+    "from_robot": 0
+   }
+  },
+  "robot_runs": {
+   "Alpha": [
+    {
+     "run": "D386-1",
+     "exp": "follow",
+     "result": "stopped:restarted"
+    },
+    {
+     "run": "4C01-2",
+     "exp": "calib",
+     "result": "done"
+    },
+    {
+     "run": "4C01-3",
+     "exp": "follow",
+     "result": "stopped:stop command"
+    },
+    {
+     "run": "4C01-4",
+     "exp": "follow",
+     "result": "stopped:stop command"
+    },
+    {
+     "run": "4C01-5",
+     "exp": "follow",
+     "result": "stopped:stop command"
+    },
+    {
+     "run": "4C01-6",
+     "exp": "follow",
+     "result": "stopped:stop command"
+    },
+    {
+     "run": "4C01-7",
+     "exp": "follow",
+     "result": "stopped:stop command"
+    },
+    {
+     "run": "4C01-8",
+     "exp": "follow",
+     "result": "stopped:stop command"
+    }
+   ],
+   "Bravo": [
+    {
+     "run": "45BF-1",
+     "exp": "follow",
+     "result": "stopped:stop command"
+    }
+   ]
+  },
+  "tof_sees_robots": true,
+  "seed": 1,
+  "true_sides": {
+   "x_min": {
+    "kind": "open",
+    "source": "conference table (Nick: no walls)"
+   },
+   "x_max": {
+    "kind": "open",
+    "source": "conference table (Nick: no walls)"
+   },
+   "y_min": {
+    "kind": "open",
+    "source": "conference table (Nick: no walls)"
+   },
+   "y_max": {
+    "kind": "open",
+    "source": "conference table (Nick: no walls)"
+   }
+  },
+  "min_open_edge_cm": 5.0,
+  "min_open_edge_at": [
+   "Alpha",
+   94.68
+  ],
+  "hung": [],
+  "min_com_open_edge_cm": {
+   "Alpha": 10.23,
+   "Bravo": 18.03
+  },
+  "edge_trips": {
+   "Alpha": [],
+   "Bravo": []
+  },
+  "edge_misses": {
+   "Alpha": [],
+   "Bravo": []
+  },
+  "board_cm": [
+   0.0,
+   0.0,
+   396.2,
+   167.6
+  ],
+  "drop_cm": 74.0
+ }
+}

@@ -1,0 +1,127 @@
+{
+ "dockings": [],
+ "min_body_gap_cm": 31.89,
+ "min_body_gap_at": [
+  "Bravo",
+  "Alpha",
+  84.22
+ ],
+ "min_static_clearance_cm": Infinity,
+ "min_static_at": null,
+ "collision": false,
+ "events": [
+  {
+   "kind": "robot_restart",
+   "robot": "Alpha",
+   "t": 70.0,
+   "boot_s": 3.0
+  },
+  {
+   "kind": "wifi_drop_start",
+   "robot": "Alpha",
+   "t": 70.01
+  },
+  {
+   "kind": "wifi_drop_end",
+   "robot": "Alpha",
+   "t": 73.0
+  }
+ ],
+ "packets_lost": {
+  "Bravo": {
+   "to_robot": 0,
+   "from_robot": 0
+  },
+  "Alpha": {
+   "to_robot": 10,
+   "from_robot": 86
+  }
+ },
+ "robot_runs": {
+  "Bravo": [
+   {
+    "run": "D386-1",
+    "exp": "follow",
+    "result": "stopped:stop command"
+   },
+   {
+    "run": "D386-2",
+    "exp": "follow",
+    "result": "stopped:stop command"
+   }
+  ],
+  "Alpha": [
+   {
+    "run": "45BF-1",
+    "exp": "follow",
+    "result": "stopped:stop command"
+   },
+   {
+    "run": "45BF-2",
+    "exp": "follow",
+    "result": "stopped:stop command"
+   },
+   {
+    "run": "45BF-3",
+    "exp": "follow",
+    "result": "stopped:restarted"
+   }
+  ]
+ },
+ "tof_sees_robots": true,
+ "seed": 1,
+ "true_sides": {
+  "x_min": {
+   "kind": "open",
+   "source": "conference table (Nick: no walls)"
+  },
+  "x_max": {
+   "kind": "open",
+   "source": "conference table (Nick: no walls)"
+  },
+  "y_min": {
+   "kind": "open",
+   "source": "conference table (Nick: no walls)"
+  },
+  "y_max": {
+   "kind": "open",
+   "source": "conference table (Nick: no walls)"
+  }
+ },
+ "min_open_edge_cm": 4.71,
+ "min_open_edge_at": [
+  "Alpha",
+  15.07
+ ],
+ "hung": [],
+ "min_com_open_edge_cm": {
+  "Bravo": 15.07,
+  "Alpha": 8.0
+ },
+ "edge_trips": {
+  "Bravo": [],
+  "Alpha": [
+   {
+    "t": 14.77,
+    "cue": "bottom",
+    "axle_in_cm": 9.78,
+    "pose": [
+     9.78,
+     16.47,
+     180.4
+    ]
+   }
+  ]
+ },
+ "edge_misses": {
+  "Bravo": [],
+  "Alpha": []
+ },
+ "board_cm": [
+  0.0,
+  0.0,
+  182.0,
+  91.0
+ ],
+ "drop_cm": 74.0
+}

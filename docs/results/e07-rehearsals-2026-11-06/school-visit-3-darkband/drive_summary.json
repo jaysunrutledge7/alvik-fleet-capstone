@@ -1,0 +1,43 @@
+{
+ "name": "school-visit-3-darkband",
+ "room": "school",
+ "kind": "visit",
+ "adv": {
+  "practice_robots": 3,
+  "practice_dark": "70,60,110,130"
+ },
+ "start_error": null,
+ "ended_s": 290.5,
+ "timed_out": false,
+ "status": {
+  "running": false,
+  "kind": "visit",
+  "title": "Visit points",
+  "practice": true,
+  "lines": [
+   "new plan in 0.18 s (first safe plan, robots told 0.5 s ahead; a shorter one is searched for next); everyone done about 22 s after the event",
+   "improvement try: done at 184 s instead of 184 s, not kept",
+   "  Bravo 4/15  Charlie 2/2  Alpha 4/6",
+   "POINT point P17 (Bravo): \u00b11.4 cm, one camera (overhead)",
+   "Bravo: no camera sees it: driving on its own wheels and gyro (at most 40 cm)",
+   "  Bravo 11/15  Charlie 2/2  Alpha 6/6",
+   "Bravo: seen again after 23 cm with no camera; its own pose was 0.7 cm off",
+   "all robots done"
+  ],
+  "elapsed_s": 296.0,
+  "points": 20,
+  "words": "Visit points ended.",
+  "folder": "/tmp/claude-0/-home-claude/fff6dc9c-5876-54f9-92a7-a08483d3d5c7/scratchpad/reh/mc/school-visit-3-darkband/runs/20261106-065312-visit-sim-cameras"
+ },
+ "robots": {
+  "n": 3,
+  "names": [
+   "Alpha",
+   "Bravo",
+   "Charlie"
+  ],
+  "words": "Found 3 robots: Alpha, Bravo, Charlie"
+ },
+ "where": "This looks like the school conference table (its reference tags 20, 21, 23, 24, 25 are on the table and the table measures 396 x 167 cm, its size).",
+ "folder": "/tmp/claude-0/-home-claude/fff6dc9c-5876-54f9-92a7-a08483d3d5c7/scratchpad/reh/mc/school-visit-3-darkband/runs/20261106-065312-visit-sim-cameras"
+}

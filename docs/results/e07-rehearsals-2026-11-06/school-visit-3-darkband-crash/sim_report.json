@@ -1,0 +1,98 @@
+{
+ "dockings": [],
+ "min_body_gap_cm": 21.1,
+ "min_body_gap_at": [
+  "Charlie",
+  "Bravo",
+  57.03
+ ],
+ "min_static_clearance_cm": Infinity,
+ "min_static_at": null,
+ "collision": false,
+ "events": [],
+ "packets_lost": {
+  "Charlie": {
+   "to_robot": 0,
+   "from_robot": 0
+  },
+  "Bravo": {
+   "to_robot": 0,
+   "from_robot": 0
+  },
+  "Alpha": {
+   "to_robot": 0,
+   "from_robot": 0
+  }
+ },
+ "robot_runs": {
+  "Charlie": [
+   {
+    "run": "D386-1",
+    "exp": "follow",
+    "result": "stopped:stop command"
+   }
+  ],
+  "Bravo": [
+   {
+    "run": "45BF-1",
+    "exp": "follow",
+    "result": "stopped:stop command"
+   }
+  ],
+  "Alpha": [
+   {
+    "run": "108A-1",
+    "exp": "follow",
+    "result": "stopped:stop command"
+   }
+  ]
+ },
+ "tof_sees_robots": true,
+ "seed": 1,
+ "true_sides": {
+  "x_min": {
+   "kind": "open",
+   "source": "conference table (Nick: no walls)"
+  },
+  "x_max": {
+   "kind": "open",
+   "source": "conference table (Nick: no walls)"
+  },
+  "y_min": {
+   "kind": "open",
+   "source": "conference table (Nick: no walls)"
+  },
+  "y_max": {
+   "kind": "open",
+   "source": "conference table (Nick: no walls)"
+  }
+ },
+ "min_open_edge_cm": 8.53,
+ "min_open_edge_at": [
+  "Bravo",
+  18.28
+ ],
+ "hung": [],
+ "min_com_open_edge_cm": {
+  "Charlie": 15.4,
+  "Bravo": 14.64,
+  "Alpha": 16.62
+ },
+ "edge_trips": {
+  "Charlie": [],
+  "Bravo": [],
+  "Alpha": []
+ },
+ "edge_misses": {
+  "Charlie": [],
+  "Bravo": [],
+  "Alpha": []
+ },
+ "board_cm": [
+  0.0,
+  0.0,
+  396.2,
+  167.6
+ ],
+ "drop_cm": 74.0
+}

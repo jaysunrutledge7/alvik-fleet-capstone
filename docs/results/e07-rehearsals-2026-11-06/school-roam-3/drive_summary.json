@@ -1,0 +1,295 @@
+{
+ "name": "school-roam-3",
+ "room": "school",
+ "kind": "freeroam",
+ "adv": {
+  "practice_robots": 3
+ },
+ "start_error": null,
+ "ended_s": 315.8,
+ "timed_out": false,
+ "status": {
+  "running": false,
+  "kind": "freeroam",
+  "title": "Free roam",
+  "practice": true,
+  "lines": [
+   "POINT point P20 (Alpha): \u00b110.6 cm, odometry for 132 cm since the last camera fix (18 s ago)",
+   "  Bravo 14/16  Charlie 13/21  Alpha 14/20",
+   "POINT point P07 (Bravo): \u00b11.4 cm, one camera (overhead)",
+   "Alpha: seen again after 4 cm with no camera; its own pose was 4.7 cm off: set to the camera's, and it steers back onto its planned line",
+   "POINT point P08 (Charlie): \u00b11.4 cm, one camera (overhead)",
+   "POINT point P11 (Alpha): \u00b11.4 cm, one camera (overhead)",
+   "  Bravo 16/16  Charlie 20/21  Alpha 20/20",
+   "all robots done"
+  ],
+  "elapsed_s": 321.0,
+  "points": [
+   {
+    "robot": "Alpha",
+    "point": "point P11",
+    "plus_minus_cm": 1.4,
+    "source": "one camera (overhead)",
+    "words": "point P11 (Alpha): \u00b11.4 cm, one camera (overhead)"
+   },
+   {
+    "robot": "Bravo",
+    "point": "point P07",
+    "plus_minus_cm": 1.4,
+    "source": "one camera (overhead)",
+    "words": "point P07 (Bravo): \u00b11.4 cm, one camera (overhead)"
+   },
+   {
+    "robot": "Bravo",
+    "point": "point P16",
+    "plus_minus_cm": 1.4,
+    "source": "one camera (overhead)",
+    "words": "point P16 (Bravo): \u00b11.4 cm, one camera (overhead)"
+   },
+   {
+    "robot": "Alpha",
+    "point": "point P15",
+    "plus_minus_cm": 1.4,
+    "source": "one camera (overhead)",
+    "words": "point P15 (Alpha): \u00b11.4 cm, one camera (overhead)"
+   },
+   {
+    "robot": "Charlie",
+    "point": "point P05",
+    "plus_minus_cm": 1.4,
+    "source": "one camera (overhead)",
+    "words": "point P05 (Charlie): \u00b11.4 cm, one camera (overhead)"
+   },
+   {
+    "robot": "Alpha",
+    "point": "point P28",
+    "plus_minus_cm": 1.4,
+    "source": "one camera (overhead)",
+    "words": "point P28 (Alpha): \u00b11.4 cm, one camera (overhead)"
+   },
+   {
+    "robot": "Charlie",
+    "point": "point P06",
+    "plus_minus_cm": 1.4,
+    "source": "one camera (overhead)",
+    "words": "point P06 (Charlie): \u00b11.4 cm, one camera (overhead)"
+   },
+   {
+    "robot": "Bravo",
+    "point": "point P14",
+    "plus_minus_cm": 1.4,
+    "source": "one camera (overhead)",
+    "words": "point P14 (Bravo): \u00b11.4 cm, one camera (overhead)"
+   },
+   {
+    "robot": "Charlie",
+    "point": "point P05",
+    "plus_minus_cm": 1.4,
+    "source": "one camera (overhead)",
+    "words": "point P05 (Charlie): \u00b11.4 cm, one camera (overhead)"
+   },
+   {
+    "robot": "Alpha",
+    "point": "point P11",
+    "plus_minus_cm": 1.4,
+    "source": "one camera (overhead)",
+    "words": "point P11 (Alpha): \u00b11.4 cm, one camera (overhead)"
+   },
+   {
+    "robot": "Bravo",
+    "point": "point P18",
+    "plus_minus_cm": 1.4,
+    "source": "one camera (overhead)",
+    "words": "point P18 (Bravo): \u00b11.4 cm, one camera (overhead)"
+   },
+   {
+    "robot": "Charlie",
+    "point": "point P03",
+    "plus_minus_cm": 1.4,
+    "source": "one camera (overhead)",
+    "words": "point P03 (Charlie): \u00b11.4 cm, one camera (overhead)"
+   },
+   {
+    "robot": "Alpha",
+    "point": "point P20",
+    "plus_minus_cm": 18.0,
+    "source": "odometry only",
+    "words": "point P20 (Alpha): \u00b118.0 cm, odometry for 238 cm since the last camera fix (42 s ago)"
+   },
+   {
+    "robot": "Charlie",
+    "point": "point P08",
+    "plus_minus_cm": 1.4,
+    "source": "one camera (overhead)",
+    "words": "point P08 (Charlie): \u00b11.4 cm, one camera (overhead)"
+   },
+   {
+    "robot": "Bravo",
+    "point": "point P17",
+    "plus_minus_cm": 1.4,
+    "source": "one camera (overhead)",
+    "words": "point P17 (Bravo): \u00b11.4 cm, one camera (overhead)"
+   },
+   {
+    "robot": "Alpha",
+    "point": "point P12",
+    "plus_minus_cm": 1.4,
+    "source": "one camera (overhead)",
+    "words": "point P12 (Alpha): \u00b11.4 cm, one camera (overhead)"
+   },
+   {
+    "robot": "Bravo",
+    "point": "point P07",
+    "plus_minus_cm": 1.4,
+    "source": "one camera (overhead)",
+    "words": "point P07 (Bravo): \u00b11.4 cm, one camera (overhead)"
+   },
+   {
+    "robot": "Charlie",
+    "point": "point P09",
+    "plus_minus_cm": 1.4,
+    "source": "one camera (overhead)",
+    "words": "point P09 (Charlie): \u00b11.4 cm, one camera (overhead)"
+   },
+   {
+    "robot": "Alpha",
+    "point": "point P21",
+    "plus_minus_cm": 1.4,
+    "source": "one camera (overhead)",
+    "words": "point P21 (Alpha): \u00b11.4 cm, one camera (overhead)"
+   },
+   {
+    "robot": "Bravo",
+    "point": "point P10",
+    "plus_minus_cm": 1.4,
+    "source": "one camera (overhead)",
+    "words": "point P10 (Bravo): \u00b11.4 cm, one camera (overhead)"
+   },
+   {
+    "robot": "Alpha",
+    "point": "point P12",
+    "plus_minus_cm": 1.4,
+    "source": "one camera (overhead)",
+    "words": "point P12 (Alpha): \u00b11.4 cm, one camera (overhead)"
+   },
+   {
+    "robot": "Bravo",
+    "point": "point P13",
+    "plus_minus_cm": 1.4,
+    "source": "one camera (overhead)",
+    "words": "point P13 (Bravo): \u00b11.4 cm, one camera (overhead)"
+   },
+   {
+    "robot": "Charlie",
+    "point": "point P02",
+    "plus_minus_cm": 1.4,
+    "source": "one camera (overhead)",
+    "words": "point P02 (Charlie): \u00b11.4 cm, one camera (overhead)"
+   },
+   {
+    "robot": "Charlie",
+    "point": "point P01",
+    "plus_minus_cm": 1.4,
+    "source": "one camera (overhead)",
+    "words": "point P01 (Charlie): \u00b11.4 cm, one camera (overhead)"
+   },
+   {
+    "robot": "Bravo",
+    "point": "point P17",
+    "plus_minus_cm": 1.4,
+    "source": "one camera (overhead)",
+    "words": "point P17 (Bravo): \u00b11.4 cm, one camera (overhead)"
+   },
+   {
+    "robot": "Charlie",
+    "point": "point P02",
+    "plus_minus_cm": 1.4,
+    "source": "one camera (overhead)",
+    "words": "point P02 (Charlie): \u00b11.4 cm, one camera (overhead)"
+   },
+   {
+    "robot": "Alpha",
+    "point": "point P15",
+    "plus_minus_cm": 1.4,
+    "source": "one camera (overhead)",
+    "words": "point P15 (Alpha): \u00b11.4 cm, one camera (overhead)"
+   },
+   {
+    "robot": "Bravo",
+    "point": "point P14",
+    "plus_minus_cm": 1.4,
+    "source": "one camera (overhead)",
+    "words": "point P14 (Bravo): \u00b11.4 cm, one camera (overhead)"
+   },
+   {
+    "robot": "Alpha",
+    "point": "point P28",
+    "plus_minus_cm": 1.4,
+    "source": "one camera (overhead)",
+    "words": "point P28 (Alpha): \u00b11.4 cm, one camera (overhead)"
+   },
+   {
+    "robot": "Charlie",
+    "point": "point P06",
+    "plus_minus_cm": 1.4,
+    "source": "one camera (overhead)",
+    "words": "point P06 (Charlie): \u00b11.4 cm, one camera (overhead)"
+   },
+   {
+    "robot": "Bravo",
+    "point": "point P18",
+    "plus_minus_cm": 1.4,
+    "source": "one camera (overhead)",
+    "words": "point P18 (Bravo): \u00b11.4 cm, one camera (overhead)"
+   },
+   {
+    "robot": "Charlie",
+    "point": "point P01",
+    "plus_minus_cm": 1.4,
+    "source": "one camera (overhead)",
+    "words": "point P01 (Charlie): \u00b11.4 cm, one camera (overhead)"
+   },
+   {
+    "robot": "Alpha",
+    "point": "point P20",
+    "plus_minus_cm": 10.6,
+    "source": "odometry only",
+    "words": "point P20 (Alpha): \u00b110.6 cm, odometry for 132 cm since the last camera fix (18 s ago)"
+   },
+   {
+    "robot": "Bravo",
+    "point": "point P07",
+    "plus_minus_cm": 1.4,
+    "source": "one camera (overhead)",
+    "words": "point P07 (Bravo): \u00b11.4 cm, one camera (overhead)"
+   },
+   {
+    "robot": "Charlie",
+    "point": "point P08",
+    "plus_minus_cm": 1.4,
+    "source": "one camera (overhead)",
+    "words": "point P08 (Charlie): \u00b11.4 cm, one camera (overhead)"
+   },
+   {
+    "robot": "Alpha",
+    "point": "point P11",
+    "plus_minus_cm": 1.4,
+    "source": "one camera (overhead)",
+    "words": "point P11 (Alpha): \u00b11.4 cm, one camera (overhead)"
+   }
+  ],
+  "words": "Free roam ended.",
+  "folder": "/tmp/claude-0/-home-claude/fff6dc9c-5876-54f9-92a7-a08483d3d5c7/scratchpad/reh/mc/school-roam-3/runs/20261106-060925-roam-sim-cameras"
+ },
+ "robots": {
+  "n": 3,
+  "names": [
+   "Alpha",
+   "Bravo",
+   "Charlie"
+  ],
+  "words": "Found 3 robots: Alpha, Bravo, Charlie"
+ },
+ "where": "This looks like the school conference table (its reference tags 20, 21, 23, 24, 25 are on the table and the table measures 396 x 167 cm, its size).",
+ "folder": "/tmp/claude-0/-home-claude/fff6dc9c-5876-54f9-92a7-a08483d3d5c7/scratchpad/reh/mc/school-roam-3/runs/20261106-060925-roam-sim-cameras"
+}

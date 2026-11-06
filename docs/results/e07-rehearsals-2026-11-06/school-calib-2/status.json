@@ -1,0 +1,74 @@
+{
+ "version": "2026-11-05h",
+ "phase": "done",
+ "robot": "AL-1DC0",
+ "tag": 2,
+ "words": "Fitted and read back on the robot: wheel_scale 0.9712, gyro_scale 1.0313; kept old: gyro_drift_dps (not pinned down: +-0.0475 (need +-0.0300)). (Claude's conclusion) Distance error per metre went from 2.95 to 0.26 cm (median), heading error per turn from 2.79 to 0.89 deg: the new values are better.",
+ "started": 1793963562.000271,
+ "dry": true,
+ "result": "finished",
+ "folder": "/tmp/claude-0/-home-claude/fff6dc9c-5876-54f9-92a7-a08483d3d5c7/scratchpad/reh/mc/school-calib-2/calib/20261106-061241-dry",
+ "cam_centre": [
+  -114.3,
+  83.8,
+  145.0
+ ],
+ "tag_h": 6.19,
+ "sim_true": {
+  "wheel_scale": 0.97,
+  "gyro_scale": 1.03,
+  "gyro_drift_dps": 0.3
+ },
+ "updated": 1793964343.8511996,
+ "robots": [
+  {
+   "name": "AL-1DC0",
+   "wifi_name": "AL-1DC0",
+   "tag": 2,
+   "spot": "P09"
+  }
+ ],
+ "wifi_name": "AL-1DC0",
+ "spot": "P09",
+ "baseline": "defaults",
+ "baseline_words": "the first calibration of AL-1DC0 on this site (not in calibrated_robots.json): an uncalibrated baseline",
+ "battery": 93,
+ "battery_start": 96,
+ "tag_heading_offset_deg": 0.0,
+ "point": "P09",
+ "fit": {
+  "wheel_scale": {
+   "sent": 0.9712,
+   "read": 0.971,
+   "ok": true
+  },
+  "gyro_scale": {
+   "sent": 1.0313,
+   "read": 1.031,
+   "ok": true
+  },
+  "gyro_drift_dps": {
+   "sent": 0.0,
+   "read": 0.0,
+   "ok": true
+  }
+ },
+ "saved": {
+  "how": "save",
+  "ok": true,
+  "words": "saved on the robot with `save` (firmware 2026-11-05a or newer) and checked: wheel_scale 0.9712 (saved), gyro_scale 1.0313 (saved), gyro_drift_dps 0.0000 (saved)",
+  "values": {
+   "wheel_scale": 0.971,
+   "gyro_scale": 1.031,
+   "gyro_drift_dps": 0.0
+  },
+  "check": "M,AL-1DC0 calibration now: wheel_scale 0.9712 (saved), gyro_scale 1.0313 (saved), gyro_drift_dps 0.0000 (saved)"
+ },
+ "battery_end": 93,
+ "ended": 1793964343.851197,
+ "closest": {
+  "edge_cm": 17.191651104459424,
+  "keepout_cm": 12.66165123856124,
+  "view_x_max": 179.49964857982084
+ }
+}

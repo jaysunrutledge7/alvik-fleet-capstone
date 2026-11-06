@@ -1,0 +1,3 @@
+WHERE: This looks like home (the 4 x 4 ft board) (the table measures 122 x 122 cm, its size and its cameras USB 2.0 Camera and EMEET SmartCam C950 plugged in).
+Connect screen opens on: dry run (FLEET_DRY=1): the simulator
+Mission Control: http://127.0.0.1:8095/  (Ctrl+C to stop)

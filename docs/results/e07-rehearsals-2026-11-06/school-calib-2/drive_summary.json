@@ -1,0 +1,39 @@
+{
+ "name": "school-calib-2",
+ "room": "school",
+ "kind": "calibrate",
+ "adv": {},
+ "start_error": null,
+ "ended_s": 785.9,
+ "timed_out": false,
+ "status": {
+  "running": false,
+  "kind": "calibrate",
+  "title": "Calibrate",
+  "practice": true,
+  "lines": [
+   "06:23:29 safety: from where the camera sees it, the leg to P12 would reach middle outlet box (13.8 cm): pose corrected first",
+   "06:23:49 safety: from where the camera sees it, the leg to P20 would reach middle outlet box (12.5 cm): pose corrected first",
+   "06:23:53 safety: after the turn, the drive to P20 would reach middle outlet box (12.5 cm): heading fixed from the camera (+1.2 deg)",
+   "06:24:57 safety: from where the camera sees it, the leg to P09 would reach the edge margin (17.7 cm from the edge, 8.6 with the leg's possible error): pose corrected first",
+   "06:25:41 AL-1DC0 parked at P09: 0.2 cm from the sticker, facing 90 deg",
+   "06:25:41 AL-1DC0 stays awake (its values stay in force); it sleeps after 30 minutes with no run (Mission Control), or by hand: python3 tools/pi/robot_sleep.py sleep",
+   "06:25:43 RESULT: Fitted and read back on the robot: wheel_scale 0.9712, gyro_scale 1.0313; kept old: gyro_drift_dps (not pinned down: +-0.0475 (need +-0.0300)). (Claude's conclusion) Distance error per metre went from 2.95 to 0.26 cm (median), heading error per turn from 2.79 to 0.89 deg: the new values are better.",
+   "06:25:43 Report: /tmp/claude-0/-home-claude/fff6dc9c-5876-54f9-92a7-a08483d3d5c7/scratchpad/reh/mc/school-calib-2/calib/20261106-061241-dry/report.md"
+  ],
+  "elapsed_s": 791.0,
+  "points": null,
+  "words": "Done: Fitted and read back on the robot: wheel_scale 0.9712, gyro_scale 1.0313; kept old: gyro_drift_dps (not pinned down: +-0.0475 (need +-0.0300)). (Claude's conclusion) Distance error per metre went from 2.95 to 0.26 cm (median), heading error per turn from 2.79 to 0.89 deg: the new values are better.",
+  "folder": "/tmp/claude-0/-home-claude/fff6dc9c-5876-54f9-92a7-a08483d3d5c7/scratchpad/reh/mc/school-calib-2/calib/20261106-061241-dry"
+ },
+ "robots": {
+  "n": 2,
+  "names": [
+   "Alpha",
+   "Bravo"
+  ],
+  "words": "Practice: 2 simulated robots (Alpha, Bravo); each run finds them by their wiggle"
+ },
+ "where": "This looks like the school conference table (its reference tags 20, 21, 23, 24, 25 are on the table and the table measures 396 x 167 cm, its size).",
+ "folder": "/tmp/claude-0/-home-claude/fff6dc9c-5876-54f9-92a7-a08483d3d5c7/scratchpad/reh/mc/school-calib-2/calib/20261106-061241-dry"
+}

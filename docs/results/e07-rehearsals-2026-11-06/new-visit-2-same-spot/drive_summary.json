@@ -1,0 +1,39 @@
+{
+ "name": "new-visit-2",
+ "room": "new",
+ "kind": "visit",
+ "adv": {},
+ "start_error": null,
+ "ended_s": 40.1,
+ "timed_out": false,
+ "status": {
+  "running": false,
+  "kind": "visit",
+  "title": "Visit points",
+  "practice": true,
+  "lines": [
+   "    plan = P.make_plan(mm, over=over, t_limit_s=t_limit_s)",
+   "  File \"/home/claude/alvik-fleet-capstone/tools/fleet/planner.py\", line 1856, in make_plan",
+   "    scheds, info = pl.plan(jobs, t_limit_s=t_limit_s, stop_at_first=stop_at_first)",
+   "                   ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^",
+   "  File \"/home/claude/alvik-fleet-capstone/tools/fleet/planner.py\", line 1529, in plan",
+   "    raise PlanError(\"no priority order gave a plan without robots meeting: the routes may be too \"",
+   "                    \"crowded (try fewer robots at once, a smaller separation, or other start spots)\")",
+   "planner.PlanError: no priority order gave a plan without robots meeting: the routes may be too crowded (try fewer robots at once, a smaller separation, or other start spots)"
+  ],
+  "elapsed_s": 45.0,
+  "points": null,
+  "words": "Visit points ended.",
+  "folder": "/tmp/claude-0/-home-claude/fff6dc9c-5876-54f9-92a7-a08483d3d5c7/scratchpad/reh/mc/new-visit-2/runs/20261106-063024-visit-sim-cameras"
+ },
+ "robots": {
+  "n": 2,
+  "names": [
+   "Alpha",
+   "Bravo"
+  ],
+  "words": "Found 2 robots: Alpha, Bravo"
+ },
+ "where": "A new area: nothing here matches a known table well enough (new-1106 -0.5, home -6.5, school-conference -7.0). The cameras measure it; nothing needs typing. Its own site: new-1106.",
+ "folder": "/tmp/claude-0/-home-claude/fff6dc9c-5876-54f9-92a7-a08483d3d5c7/scratchpad/reh/mc/new-visit-2/runs/20261106-063024-visit-sim-cameras"
+}

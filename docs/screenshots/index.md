@@ -470,3 +470,36 @@ One line per picture: what it shows (feature or problem), and where it comes fro
 - `2026-11-05/e06-feature-visit-points-one-button-card.png`: **feature.** Mission Control, Production screen: the new Visit points card (one button for every robot on the table, a simulator rehearsal, Stop). Build e06
 - `2026-11-05/e06-feature-robots-found-tags-turned-found-table-shared-terminal.png`: **feature.** Terminal: a simulator rehearsal finding 2 robots by the camera's tag count, reading back their safety layers, the 6 cm nudge finding tags turned 180 and 90 deg, the table shared over what the one camera reads and 16 points skipped with the reason. Build e06
 - `2026-11-05/e06-feature-rehearsals-no-contact-closest-robots-and-edges.png`: **feature.** Chart: the final visit-points rehearsals (school 1 / 2 / 3 robots with tags turned, camera 2 off, a dark patch, clock skew, tape, a restart; the heading watch alone; home): closest robot bodies and closest body to the table's edge, every one clear of its line, no contact. Build e06
+- `2026-11-06/e07-feature-start-screen-school-visit-2.png`: **feature.** Mission Control's new Start screen at the school (practice): where it is, robots, area, table, four big buttons, the red STOP. Build e07 (Mission Control a newcomer can run)
+- `2026-11-06/e07-feature-start-screen-phone-school-visit-2.png`: **feature.** The same Start screen at phone width. Build e07
+- `2026-11-06/e07-feature-advanced-school-visit-2.png`: **feature.** The Advanced section opened: typed values (first guesses only) and every switch, closed by default. Build e07
+- `2026-11-06/e07-feature-ended-school-visit-2.png`: **feature.** Visit points with 2 robots ended: "Found 2 robots: Alpha, Bravo", the run's last lines, the robots sent to sleep. Build e07
+- `2026-11-06/e07-feature-running-school-visit-3-darkband.png`: **feature.** Visit points with 3 robots running over a dark band (a robot's way back reserved in the others' plans). Build e07
+- `2026-11-06/e07-feature-ended-school-visit-3-darkband.png`: **feature.** The 3-robot dark-band run ended, 20 points done. Build e07
+- `2026-11-06/e07-feature-running-school-roam-3.png`: **feature.** Free roam at school with 3 robots (Alpha, Bravo, Charlie) on curves. Build e07
+- `2026-11-06/e07-feature-ended-school-roam-3.png`: **feature.** The school free roam ended. Build e07
+- `2026-11-06/e07-feature-ended-school-exp-refused-plain.png`: **feature.** Experiment routes refused before moving with one camera, said in plain words with what to press (Jay-Sun's half-table agreement). Build e07
+- `2026-11-06/e07-feature-running-half-table-experiment.png`: **feature.** Experiment e1 running with the half-table OK ticked in Advanced. Build e07
+- `2026-11-06/e07-problem-half-table-experiment-ended-every-robot-out.png`: **problem.** That half-table experiment ended "every robot is out" after 65 re-plans; robots came to 6.6 cm in the simulator (left for phase 3; the refusal stays the default). Build e07
+- `2026-11-06/e07-feature-running-school-calib-2.png`: **feature.** Calibrate from the Start screen (practice): the phase in plain words. Build e07
+- `2026-11-06/e07-feature-ended-school-calib-2.png`: **feature.** The calibration ended: values fitted and read back. Build e07
+- `2026-11-06/e07-feature-start-screen-home-freeroam.png`: **feature.** The Start screen at home: Visit points and Experiment routes grey with the reason (no points on the board). Build e07
+- `2026-11-06/e07-feature-running-home-freeroam.png`: **feature.** Home free roam running from the Start screen. Build e07
+- `2026-11-06/e07-feature-ended-home-freeroam.png`: **feature.** Home free roam ended at its time cap. Build e07
+- `2026-11-06/e07-feature-start-screen-home-calibrate.png`: **feature.** The Start screen at home before Calibrate. Build e07
+- `2026-11-06/e07-feature-advanced-home-calibrate.png`: **feature.** Advanced at home. Build e07
+- `2026-11-06/e07-feature-running-home-calibrate.png`: **feature.** Home Calibrate (the ladder's L0 + L1) running. Build e07
+- `2026-11-06/e07-feature-ended-home-calibrate.png`: **feature.** Home Calibrate ended, L1 PASS. Build e07
+- `2026-11-06/e07-feature-start-screen-new-visit-2.png`: **feature.** A new area found by itself, its own site, nothing typed. Build e07
+- `2026-11-06/e07-feature-running-new-visit-2.png`: **feature.** Visit points in the new area (points laid out on the measured table). Build e07
+- `2026-11-06/e07-feature-ended-new-visit-2.png`: **feature.** The new-area run ended, 10 points done. Build e07
+- `2026-11-06/e07-feature-start-screen-school-misnamed.png`: **feature.** The school recognised from its corner tiles although the camera is named like home's, on home's Pi, with home as the last site. Build e07
+- `2026-11-06/e07-feature-automatic-mapping-vs-typed.png`: **feature.** Chart: worst floor error of the camera model against the simulator's truth, typed tape vs cameras (e06 way, e07 edges + tile ruler, + drive, nothing typed), school and two cameras, 5 seeds each. Build e07
+- `2026-11-06/e07-feature-rehearsals-closest-approaches.png`: **feature.** Chart: the final Start-screen rehearsals' closest robot bodies and closest body to an edge (simulator truth), no contact. Build e07
+- `2026-11-06/e07-problem-points-done-shown-as-object-object.png`: **problem.** The status said "Points done: [object Object]" (fixed: the count). Build e07
+- `2026-11-06/e07-problem-refusal-said-in-command-line-words.png`: **problem.** A refused experiment ended as "Experiment routes ended." with a command-line flag as the reason (fixed: plain words). Build e07
+- `2026-11-06/e07-problem-reserved-recovery-never-released.png`: **problem.** A reserved recovery never ended (its step reports went to the wrong handler; fixed, then two more faults fixed). Build e07
+- `2026-11-06/e07-problem-school-taken-for-an-earlier-new-area.png`: **problem.** The school taken for a new area made earlier that had copied the school's tile ids (fixed). Build e07
+- `2026-11-06/e07-problem-new-area-run-stalled-small-table.png`: **problem.** The new-area run stalled: the simulator could not lay 12 stickers on a small table (fixed). Build e07
+- `2026-11-06/e07-problem-new-area-both-robots-put-on-one-spot.png`: **problem.** Both simulated robots put on one point (fixed). Build e07
+- `2026-11-06/e07-problem-new-area-robot-48cm-off-roof-heights-slid.png`: **problem.** New area: roof heights and camera heights slid together; a robot 48 cm off (fixed: roofs held when the cross-check disagrees). Build e07

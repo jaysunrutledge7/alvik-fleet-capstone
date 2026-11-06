@@ -1,0 +1,62 @@
+{
+ "how": "wiggle (wiggle_bind.py 2026-11-05b)",
+ "time": "2026-11-06T06:54:06",
+ "slots": {
+  "Bravo": 2,
+  "Charlie": 1,
+  "Alpha": 0
+ },
+ "robots": [
+  {
+   "slot": "Bravo",
+   "name_before": "Charlie",
+   "wifi_name": "Charlie",
+   "ip": "127.0.0.4",
+   "tag_id": 2,
+   "seen_cm": [
+    82.20814183479754,
+    145.76378901852013
+   ],
+   "firmware": "2026-11-05d",
+   "pin": "bound by the wiggle (no pin yet)"
+  },
+  {
+   "slot": "Charlie",
+   "name_before": "Bravo",
+   "wifi_name": "Bravo",
+   "ip": "127.0.0.3",
+   "tag_id": 1,
+   "seen_cm": [
+    29.319543983613215,
+    36.80538802547983
+   ],
+   "firmware": "2026-11-05d",
+   "pin": "bound by the wiggle (no pin yet)"
+  },
+  {
+   "slot": "Alpha",
+   "name_before": "Alpha",
+   "wifi_name": "Alpha",
+   "ip": "127.0.0.2",
+   "tag_id": 0,
+   "seen_cm": [
+    148.71101061625833,
+    87.82782804293934
+   ],
+   "firmware": "2026-11-05d",
+   "pin": "bound by the wiggle (no pin yet)"
+  }
+ ],
+ "renamed": [],
+ "aliases": {
+  "Charlie": "Bravo",
+  "Bravo": "Charlie"
+ },
+ "yaw_off": {
+  "Bravo": -90.0,
+  "Charlie": 90.0,
+  "Alpha": -180.0
+ },
+ "auto": true,
+ "empty_slots": []
+}

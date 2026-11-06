@@ -1,0 +1,39 @@
+{
+ "name": "new-visit-2",
+ "room": "new",
+ "kind": "visit",
+ "adv": {},
+ "start_error": null,
+ "ended_s": 295.6,
+ "timed_out": false,
+ "status": {
+  "running": false,
+  "kind": "visit",
+  "title": "Visit points",
+  "practice": true,
+  "lines": [
+   "  Alpha 12/23",
+   "Alpha: Alpha follow: nothing from the laptop for 5657 ms; standing still",
+   "Alpha: Alpha follow: nothing from the laptop for 1505 ms; standing still",
+   "Alpha: after its turn the camera did not agree within 1.5 cm in 3 s (no fix, no fix): driving on, as before the pause",
+   "Alpha: seen again after 11 cm with no camera; its own pose was 0.3 cm off",
+   "  Alpha 16/23",
+   "Bravo still held: its points were handed over and are done, so the run ends without waiting for it",
+   "all robots done"
+  ],
+  "elapsed_s": 301.0,
+  "points": 8,
+  "words": "Visit points ended.",
+  "folder": "/tmp/claude-0/-home-claude/fff6dc9c-5876-54f9-92a7-a08483d3d5c7/scratchpad/reh/mc/new-visit-2/runs/20261106-070653-visit-sim-cameras"
+ },
+ "robots": {
+  "n": 2,
+  "names": [
+   "Alpha",
+   "Bravo"
+  ],
+  "words": "Found 2 robots: Alpha, Bravo"
+ },
+ "where": "This looks like New area (found 06 Nov 06:58; the cameras measured it) (the table measures 182 x 91 cm, its size and 1 camera, as it uses).",
+ "folder": "/tmp/claude-0/-home-claude/fff6dc9c-5876-54f9-92a7-a08483d3d5c7/scratchpad/reh/mc/new-visit-2/runs/20261106-070653-visit-sim-cameras"
+}

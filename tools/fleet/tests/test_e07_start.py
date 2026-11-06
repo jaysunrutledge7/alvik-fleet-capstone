@@ -282,3 +282,10 @@ def test_a_new_area_made_earlier_does_not_claim_the_school_tiles(tmp_path, monke
     sites = REPO_SITES + [SI.load(name)]
     assert SD.decide(dict(SD.SIM_ROOMS["school-misnamed"]), sites)["site"] == "school-conference"
     assert SD.decide(dict(SD.SIM_ROOMS["new"]), sites)["site"] == name          # back in the same new area
+
+
+def test_unclear_cameras_alone_keep_the_last_site():
+    ev = {"camera_names": ["Some Webcam"], "n_cameras": 1, "ref_ids_seen": None, "table_cm": None, "host": "x",
+          "last": "home"}
+    r = SD.decide(ev, REPO_SITES)
+    assert r["site"] == "home" and r.get("unsure")

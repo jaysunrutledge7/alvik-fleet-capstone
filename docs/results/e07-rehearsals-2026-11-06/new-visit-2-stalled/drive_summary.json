@@ -1,0 +1,33 @@
+{
+ "name": "new-visit-2",
+ "room": "new",
+ "kind": "visit",
+ "adv": {},
+ "start_error": null,
+ "ended_s": 290.8,
+ "timed_out": false,
+ "status": {
+  "running": false,
+  "kind": "visit",
+  "title": "Visit points",
+  "practice": true,
+  "lines": [
+   "06:07:40 CAMERAS: the site's camera 2 is switched off (cameras.side.use false): camera 1 alone; the table is shared over what it reads",
+   "06:07:40 Frames go to /tmp/claude-0/-home-claude/fff6dc9c-5876-54f9-92a7-a08483d3d5c7/scratchpad/reh/mc/new-visit-2/runs/20261106-060739-visit-sim-cameras/frames ON THE PI'S CARD (no USB drive found under /media/<user>): they stop under 2 GB free. The Pi's card: 10.6 GB free (the run ends cleanly under 1 GB)."
+  ],
+  "elapsed_s": 296.0,
+  "points": null,
+  "words": "Visit points ended.",
+  "folder": "/tmp/claude-0/-home-claude/fff6dc9c-5876-54f9-92a7-a08483d3d5c7/scratchpad/reh/mc/new-visit-2/runs/20261106-060739-visit-sim-cameras"
+ },
+ "robots": {
+  "n": 2,
+  "names": [
+   "Alpha",
+   "Bravo"
+  ],
+  "words": "Practice: 2 simulated robots (Alpha, Bravo); each run finds them by their wiggle"
+ },
+ "where": "A new area: nothing here matches a known table well enough (home -6.5, school-conference -7.0). The cameras measure it; nothing needs typing. Its own site: new-1106.",
+ "folder": "/tmp/claude-0/-home-claude/fff6dc9c-5876-54f9-92a7-a08483d3d5c7/scratchpad/reh/mc/new-visit-2/runs/20261106-060739-visit-sim-cameras"
+}

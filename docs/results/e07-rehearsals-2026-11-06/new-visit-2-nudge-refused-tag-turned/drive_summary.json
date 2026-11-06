@@ -1,0 +1,39 @@
+{
+ "name": "new-visit-2",
+ "room": "new",
+ "kind": "visit",
+ "adv": {},
+ "start_error": null,
+ "ended_s": 275.6,
+ "timed_out": false,
+ "status": {
+  "running": false,
+  "kind": "visit",
+  "title": "Visit points",
+  "practice": true,
+  "lines": [
+   "Alpha: obstacle 9.2 cm ahead; zones 127.1 125.2 9.4 9.5 10.0 during drive step; re-planning around it",
+   "Alpha stopped: its distance sensor saw something ahead",
+   "new plan in 0.07 s (first safe plan, robots told 0.5 s ahead; a shorter one is searched for next); everyone done about 15 s after the event",
+   "Alpha: point P09 cannot be reached (point (157.0, 25.0): no room to turn there (0.0 cm clear, needs 8.2)): skipped, listed in the summary; on to the next",
+   "improvement try: done at 190 s instead of 190 s, not kept",
+   "  Alpha 5/11",
+   "Bravo still held: its points were handed over and are done, so the run ends without waiting for it",
+   "all robots done"
+  ],
+  "elapsed_s": 281.0,
+  "points": 8,
+  "words": "Visit points ended.",
+  "folder": "/tmp/claude-0/-home-claude/fff6dc9c-5876-54f9-92a7-a08483d3d5c7/scratchpad/reh/mc/new-visit-2/runs/20261106-071224-visit-sim-cameras"
+ },
+ "robots": {
+  "n": 2,
+  "names": [
+   "Alpha",
+   "Bravo"
+  ],
+  "words": "Found 2 robots: Alpha, Bravo"
+ },
+ "where": "A new area: nothing here matches a known table well enough (home -6.5, school-conference -7.0). The cameras measure it; nothing needs typing. Its own site: new-1106.",
+ "folder": "/tmp/claude-0/-home-claude/fff6dc9c-5876-54f9-92a7-a08483d3d5c7/scratchpad/reh/mc/new-visit-2/runs/20261106-071224-visit-sim-cameras"
+}

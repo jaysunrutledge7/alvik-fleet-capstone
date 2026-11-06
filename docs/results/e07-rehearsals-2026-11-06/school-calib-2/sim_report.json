@@ -1,0 +1,61 @@
+{
+ "dockings": [],
+ "min_body_gap_cm": Infinity,
+ "min_body_gap_at": null,
+ "min_static_clearance_cm": Infinity,
+ "min_static_at": null,
+ "collision": false,
+ "events": [],
+ "packets_lost": {
+  "AL-1DC0": {
+   "to_robot": 0,
+   "from_robot": 0
+  }
+ },
+ "robot_runs": {
+  "AL-1DC0": [
+   {
+    "run": "4C01-1",
+    "exp": "calib",
+    "result": "done"
+   }
+  ]
+ },
+ "tof_sees_robots": true,
+ "seed": 1,
+ "true_sides": {
+  "x_min": {
+   "kind": "open",
+   "source": "conference table (Nick: no walls)"
+  },
+  "x_max": {
+   "kind": "open",
+   "source": "conference table (Nick: no walls)"
+  },
+  "y_min": {
+   "kind": "open",
+   "source": "conference table (Nick: no walls)"
+  },
+  "y_max": {
+   "kind": "open",
+   "source": "conference table (Nick: no walls)"
+  }
+ },
+ "min_open_edge_cm": null,
+ "min_open_edge_at": null,
+ "hung": [],
+ "min_com_open_edge_cm": {},
+ "edge_trips": {
+  "AL-1DC0": []
+ },
+ "edge_misses": {
+  "AL-1DC0": []
+ },
+ "board_cm": [
+  0.0,
+  0.0,
+  396.2,
+  167.6
+ ],
+ "drop_cm": 74.0
+}

@@ -1,0 +1,43 @@
+{
+ "how": "wiggle (wiggle_bind.py 2026-11-05b)",
+ "time": "2026-11-06T07:13:03",
+ "slots": {
+  "Bravo": 1,
+  "Alpha": 0
+ },
+ "robots": [
+  {
+   "slot": "Bravo",
+   "name_before": "Bravo",
+   "wifi_name": "Bravo",
+   "ip": "127.0.0.3",
+   "tag_id": 1,
+   "seen_cm": [
+    156.15591783610944,
+    64.90698619838557
+   ],
+   "firmware": "2026-11-05d",
+   "pin": "bound by the wiggle (no pin yet)"
+  },
+  {
+   "slot": "Alpha",
+   "name_before": "Alpha",
+   "wifi_name": "Alpha",
+   "ip": "127.0.0.2",
+   "tag_id": 0,
+   "seen_cm": [
+    56.979305337772566,
+    71.09784140444953
+   ],
+   "firmware": "2026-11-05d",
+   "pin": "bound by the wiggle (no pin yet)"
+  }
+ ],
+ "renamed": [],
+ "aliases": {},
+ "yaw_off": {
+  "Alpha": -180.0
+ },
+ "auto": true,
+ "empty_slots": []
+}

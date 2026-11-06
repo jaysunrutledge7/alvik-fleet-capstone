@@ -1,0 +1,355 @@
+[
+ {
+  "name": "home-calibrate",
+  "kind": "calibrate",
+  "where": "This looks like home (the 4 x 4 ft board) (the table measure",
+  "start_error": null,
+  "ended_s": 245.6,
+  "robots": "Practice: 2 simulated robots (Left, Center); each run finds them by their lights",
+  "words": "Calibrate ended."
+ },
+ {
+  "name": "home-freeroam",
+  "kind": "freeroam",
+  "where": "This looks like home (the 4 x 4 ft board) (the table measure",
+  "start_error": null,
+  "ended_s": 200.5,
+  "robots": "Practice: 2 simulated robots (Left, Center); each run finds them by their wiggle",
+  "words": "Free roam ended."
+ },
+ {
+  "name": "new-visit-2",
+  "kind": "visit",
+  "where": "A new area: nothing here matches a known table well enough (",
+  "start_error": null,
+  "ended_s": 115.5,
+  "robots": "Found 2 robots: Alpha, Bravo",
+  "words": "Visit points ended.",
+  "gap": 12.03,
+  "edge": 22.62,
+  "contact": false,
+  "result": "done",
+  "points_done": 10,
+  "replans": 0,
+  "truth_err_max": 0.98,
+  "outs": [],
+  "shared": {
+   "Bravo": 5,
+   "Alpha": 5
+  },
+  "skipped": 0,
+  "events": {
+   "recover_start": 0,
+   "recover_reserved": 0,
+   "recover_end": 0,
+   "stop_lead_used": 0,
+   "surface_mark": 0,
+   "robot_out": 0,
+   "robot_rejoined": 0
+  }
+ },
+ {
+  "name": "new-visit-2-drop-trip-17cm",
+  "kind": "visit",
+  "where": "This looks like New area (found 06 Nov 06:30; the cameras me",
+  "start_error": null,
+  "ended_s": 195.6,
+  "robots": "Found 2 robots: Alpha, Bravo",
+  "words": "Visit points ended."
+ },
+ {
+  "name": "new-visit-2-no-nudge-room",
+  "kind": "visit",
+  "where": "This looks like New area (found 06 Nov 06:58; the cameras me",
+  "start_error": null,
+  "ended_s": 295.6,
+  "robots": "Found 2 robots: Alpha, Bravo",
+  "words": "Visit points ended."
+ },
+ {
+  "name": "new-visit-2-nudge-refused-tag-turned",
+  "kind": "visit",
+  "where": "A new area: nothing here matches a known table well enough (",
+  "start_error": null,
+  "ended_s": 275.6,
+  "robots": "Found 2 robots: Alpha, Bravo",
+  "words": "Visit points ended."
+ },
+ {
+  "name": "new-visit-2-roof-height-slid",
+  "kind": "visit",
+  "where": "A new area: nothing here matches a known table well enough (",
+  "start_error": null,
+  "ended_s": 245.7,
+  "robots": "Found 2 robots: Alpha, Bravo",
+  "words": "Visit points ended."
+ },
+ {
+  "name": "new-visit-2-same-spot",
+  "kind": "visit",
+  "where": "A new area: nothing here matches a known table well enough (",
+  "start_error": null,
+  "ended_s": 40.1,
+  "robots": "Found 2 robots: Alpha, Bravo",
+  "words": "Visit points ended."
+ },
+ {
+  "name": "new-visit-2-stalled",
+  "kind": "visit",
+  "where": "A new area: nothing here matches a known table well enough (",
+  "start_error": null,
+  "ended_s": 290.8,
+  "robots": "Practice: 2 simulated robots (Alpha, Bravo); each run finds them by their wiggle",
+  "words": "Visit points ended."
+ },
+ {
+  "name": "rehearsal_table.json",
+  "kind": null,
+  "where": "",
+  "start_error": null,
+  "ended_s": null,
+  "robots": null,
+  "words": null
+ },
+ {
+  "name": "school-calib-2",
+  "kind": "calibrate",
+  "where": "This looks like the school conference table (its reference t",
+  "start_error": null,
+  "ended_s": 785.9,
+  "robots": "Practice: 2 simulated robots (Alpha, Bravo); each run finds them by their wiggle",
+  "words": "Done: Fitted and read back on the robot: wheel_scale 0.9712, gyro_scale 1.0313; kept old: gyro_drift_dps (not pinned down: +-0.0475 (need +-0.0300)). (Claude's conclusion) Distance error per metre went from 2.95 to 0.26 cm (median), heading error per turn from 2.79 to 0.89 deg: the new values are better.",
+  "gap": Infinity,
+  "edge": null,
+  "contact": false,
+  "calib": {
+   "phase": "done",
+   "words": "Fitted and read back on the robot: wheel_scale 0.9712, gyro_scale 1.0313; kept old: gyro_drift_dps (not pinned down: +-0.0475 (need +-0.0300)). (Claude's conclusion) Distance error per metre went from 2.95 to 0.26 cm (median), heading error per turn from 2.79 to 0.89 deg: the new values are better.",
+   "robots": [
+    {
+     "name": "AL-1DC0",
+     "wifi_name": "AL-1DC0",
+     "tag": 2,
+     "spot": "P09"
+    }
+   ]
+  }
+ },
+ {
+  "name": "school-exp-2",
+  "kind": "experiment",
+  "where": "This looks like the school conference table (its reference t",
+  "start_error": null,
+  "ended_s": 827.4,
+  "robots": "Found 2 robots: Alpha, Bravo",
+  "words": "Experiment routes ended.",
+  "gap": 6.58,
+  "edge": 5.0,
+  "contact": false,
+  "result": "every robot is out (none heard again within 90 s)",
+  "points_done": 10,
+  "replans": 65,
+  "truth_err_max": 5.39,
+  "outs": [
+   "recovering (it drove 41 cm with no camera seeing i",
+   "restarted mid-run (boot 4C01, was D386): it lost i",
+   "recovering (it drove 41 cm with no camera seeing i",
+   "heard again, but no plan fits it back in (Bravo le",
+   "recovering (it drove 40 cm with no camera seeing i",
+   "it drove 40 cm with no camera seeing it (the limit",
+   "nothing heard from it for 4.0 s (battery dead or W"
+  ],
+  "events": {
+   "recover_start": 25,
+   "recover_reserved": 3,
+   "recover_end": 8,
+   "stop_lead_used": 0,
+   "surface_mark": 0,
+   "robot_out": 7,
+   "robot_rejoined": 5
+  }
+ },
+ {
+  "name": "school-exp-2-before-fix",
+  "kind": "experiment",
+  "where": "This looks like the school conference table (its reference t",
+  "start_error": null,
+  "ended_s": 285.6,
+  "robots": "Found 2 robots: Alpha, Bravo",
+  "words": "Experiment routes ended."
+ },
+ {
+  "name": "school-exp-2-crash",
+  "kind": "experiment",
+  "where": "This looks like the school conference table (its reference t",
+  "start_error": null,
+  "ended_s": 135.5,
+  "robots": "Found 2 robots: Alpha, Bravo",
+  "words": "Experiment routes ended."
+ },
+ {
+  "name": "school-exp-2-refused",
+  "kind": "experiment",
+  "where": "This looks like the school conference table (its reference t",
+  "start_error": null,
+  "ended_s": 50.1,
+  "robots": "Found 2 robots: Alpha, Bravo",
+  "words": "Experiment routes ended."
+ },
+ {
+  "name": "school-exp-refused-plain",
+  "kind": "experiment",
+  "where": "This looks like the school conference table (its reference t",
+  "start_error": null,
+  "ended_s": 50.1,
+  "robots": "Found 2 robots: Alpha, Bravo",
+  "words": "Not started, nothing moved: this route uses points the camera cannot read (with one camera it sees only the TV-end half of the table). Jay-Sun's agreement: half the table needs Dr. Sodhi's OK. With his OK, open Advanced and tick 'Experiments may use the half the camera cannot read', then press Experiment routes again; or plug in camera 2."
+ },
+ {
+  "name": "school-misnamed",
+  "kind": "",
+  "where": "",
+  "start_error": null,
+  "ended_s": null,
+  "robots": null,
+  "words": null
+ },
+ {
+  "name": "school-misnamed-before-fix",
+  "kind": "",
+  "where": "",
+  "start_error": null,
+  "ended_s": null,
+  "robots": null,
+  "words": null
+ },
+ {
+  "name": "school-roam-3",
+  "kind": "freeroam",
+  "where": "This looks like the school conference table (its reference t",
+  "start_error": null,
+  "ended_s": 315.8,
+  "robots": "Found 3 robots: Alpha, Bravo, Charlie",
+  "words": "Free roam ended.",
+  "gap": 12.61,
+  "edge": 7.83,
+  "contact": false,
+  "result": "done",
+  "points_done": 36,
+  "replans": 5,
+  "truth_err_max": 5.08,
+  "outs": [
+   "restarted mid-run (boot 971D, was 108A): it lost i"
+  ],
+  "shared": {
+   "Bravo": 7,
+   "Charlie": 7,
+   "Alpha": 6
+  },
+  "skipped": 20,
+  "events": {
+   "recover_start": 0,
+   "recover_reserved": 0,
+   "recover_end": 0,
+   "stop_lead_used": 0,
+   "surface_mark": 0,
+   "robot_out": 1,
+   "robot_rejoined": 1
+  }
+ },
+ {
+  "name": "school-visit-2",
+  "kind": "visit",
+  "where": "This looks like the school conference table (its reference t",
+  "start_error": null,
+  "ended_s": 300.6,
+  "robots": "Found 2 robots: Alpha, Bravo",
+  "words": "Visit points ended.",
+  "gap": 26.26,
+  "edge": 7.46,
+  "contact": false,
+  "result": "done",
+  "points_done": 20,
+  "replans": 4,
+  "truth_err_max": 1.52,
+  "outs": [
+   "restarted mid-run (boot 4C01, was D386): it lost i"
+  ],
+  "shared": {
+   "Alpha": 10,
+   "Bravo": 10
+  },
+  "skipped": 20,
+  "events": {
+   "recover_start": 0,
+   "recover_reserved": 0,
+   "recover_end": 0,
+   "stop_lead_used": 2,
+   "surface_mark": 0,
+   "robot_out": 1,
+   "robot_rejoined": 1
+  }
+ },
+ {
+  "name": "school-visit-3-darkband",
+  "kind": "visit",
+  "where": "This looks like the school conference table (its reference t",
+  "start_error": null,
+  "ended_s": 290.5,
+  "robots": "Found 3 robots: Alpha, Bravo, Charlie",
+  "words": "Visit points ended.",
+  "gap": 19.06,
+  "edge": 7.8,
+  "contact": false,
+  "result": "done",
+  "points_done": 20,
+  "replans": 10,
+  "truth_err_max": 1.14,
+  "outs": [
+   "recovering (it drove 40 cm with no camera seeing i",
+   "restarted mid-run (boot 971D, was 108A): it lost i"
+  ],
+  "shared": {
+   "Bravo": 7,
+   "Charlie": 7,
+   "Alpha": 6
+  },
+  "skipped": 20,
+  "events": {
+   "recover_start": 1,
+   "recover_reserved": 1,
+   "recover_end": 1,
+   "stop_lead_used": 3,
+   "surface_mark": 0,
+   "robot_out": 2,
+   "robot_rejoined": 2
+  }
+ },
+ {
+  "name": "school-visit-3-darkband-before-fix",
+  "kind": "visit",
+  "where": "This looks like the school conference table (its reference t",
+  "start_error": null,
+  "ended_s": 185.5,
+  "robots": "Found 3 robots: Alpha, Bravo, Charlie",
+  "words": "Visit points ended."
+ },
+ {
+  "name": "school-visit-3-darkband-crash",
+  "kind": "visit",
+  "where": "This looks like the school conference table (its reference t",
+  "start_error": null,
+  "ended_s": 165.8,
+  "robots": "Found 3 robots: Alpha, Bravo, Charlie",
+  "words": "Visit points ended."
+ },
+ {
+  "name": "school-visit-3-darkband-ended-early",
+  "kind": "visit",
+  "where": "This looks like the school conference table (its reference t",
+  "start_error": null,
+  "ended_s": 190.9,
+  "robots": "Found 3 robots: Alpha, Bravo, Charlie",
+  "words": "Visit points ended."
+ }
+]

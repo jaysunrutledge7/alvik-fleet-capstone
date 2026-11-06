@@ -112,6 +112,9 @@ def min_cell_for(obs):
     return MIN_CELL_PX_TILES if (refs and not roofs) else MIN_CELL_PX
 
 
+HEIGHT_GAP_HOLD = 0.25    # (e07) the cameras' height with the roofs fitted more than this share away from the flat tiles'
+                          # own: the roofs are held at their typed height. Chosen (the rehearsal's gap was 40 %; a good
+                          # fit's is a few %). DOE note: the gap over real setups decides it
 INSET_SD_PX = 1.0         # (e07) the roof tags' read inset (px each edge) has a 0 +- 1 px prior. Chosen: a few tenths of a
                           # pixel in the simulator; no DOE (the reads decide it when there are many)
 
@@ -1102,6 +1105,25 @@ def full(obs, fit_k1=None, untyped_check=True):
             hc = height_check(obs, b, fit_k1=fit_k1)
             b["height_check"] = hc
             words.append(hc["words"])
+            gap = max([abs(v["with_roofs_cm"] - v["refs_alone_cm"]) / max(1.0, v["refs_alone_cm"])
+                       for v in hc["cameras"].values()] or [0.0])
+            if rf and b.get("roofs") and gap > HEIGHT_GAP_HOLD:
+                # (e07, new-area rehearsal: two cameras straight down over a small table fitted the roofs 3.2 / 3.9 cm
+                # for a true 6.2 and the cameras 126 / 108 cm high for a true 200; a robot ended 48 cm off) the roofs'
+                # own heights and the cameras' height slid together. Refit with every roof held at its typed height
+                held = [str(i) for i in b["roofs"]]
+                kw2 = dict(use_typed=True, fit_k1=fit_k1, roof_fit=rf, **kw_)
+                b2 = solve(dict(obs, roof_hold=held, roof_hold_tilt=held), x_start=b["x"], **kw2)
+                for i in held:
+                    b2["roofs"][i].update(height_cm=b["roofs"][i]["height_cm"], height_sd_cm=b["roofs"][i]["height_sd_cm"],
+                                          held=True)
+                b2["words"] = b["words"]
+                b2["measure_trust"] = b.get("measure_trust")
+                b2["height_check"] = hc
+                b = b2
+                words.append("The roofs' heights and the cameras' height could not both be fitted here (the cameras "
+                             "came out %.0f %% from what the flat corner tiles say): the roofs are held at their typed "
+                             "height and the cameras fitted again." % (100 * gap))
         except Exception as e:    # noqa: BLE001  (a check never stops the setup)
             words.append("(height cross-check not made: %s)" % e)
     b["checks"] = rows

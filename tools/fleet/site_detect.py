@@ -50,10 +50,11 @@ TABLE_TOL = 0.06         # a measured table within 6 % of a site's (both sides) 
 LOCAL_DIR = os.path.join(SI.base_conf_dir(), "sites-local")
 GRID_CM = 30.0           # a new area's points: a grid this far apart (chosen: two robot lengths and room to turn; DOE
                          # note: 20 / 30 / 40 cm against points done per minute and robot gaps, simulator)
-GRID_EDGE_CM = 25.0      # ... this far in from the edges. Chosen: a robot facing the edge then has its nose 20 cm from it,
-                         # beyond the drop check's 11 cm look-ahead (the new-area rehearsal with 17 cm, home's edge
-                         # room, tripped a robot's drop check at a point and it could not back away). DOE note: 17 /
-                         # 21 / 25 cm against drop trips and points per minute on a new table
+GRID_EDGE_CM = 30.0      # ... this far in from the edges. Chosen: a robot facing the edge then has its nose 25 cm from it,
+                         # beyond the drop check's 11 cm look-ahead, and a robot standing on a point has room for its
+                         # 6 cm heading nudge (new-area rehearsals: at 17 cm a drop trip it could not back away from;
+                         # at 25 cm the nudge was refused and a turned tag was never learned). DOE note: 20 / 25 / 30 /
+                         # 35 cm against drop trips, nudges done and points per minute on a new table
 
 
 def site_facts(site):
@@ -167,6 +168,13 @@ def decide(ev, sites=None):
         pos = [w for w in why if not w.startswith(("none of", "reference tags are on", "used last"))][:2]
         return {"site": name, "kind": kind_of(name), "scores": scores, "why": why,
                 "words": "This looks like %s (%s)." % (title_of(name, sites), " and ".join(pos) or "best match")}
+    if not ev.get("table_cm") and not ev.get("ref_ids_seen") and not ev.get("robot_tags_seen"):
+        # (self-review) not clear, and nothing in a picture says this is somewhere new (no table measured, no tag):
+        # the last site stays, said, rather than a new area made from the cameras' names alone
+        last = ev.get("last") if ev.get("last") in [s["name"] for s in sites] else (name if best > 0 else SI.DEFAULT_SITE)
+        return {"site": last, "kind": kind_of(last), "scores": scores, "why": why, "unsure": True,
+                "words": "Not sure where this is yet (%s): using %s, the last one used, until the camera's picture "
+                         "shows more." % (", ".join("%s %.1f" % kv for kv in scores.items()), title_of(last, sites))}
     tagged = bool(ev.get("ref_ids_seen")) or bool(ev.get("robot_tags_seen"))
     return {"site": "new", "kind": "new", "template": "school-conference" if tagged else "home", "scores": scores,
             "why": why, "words": "A new area: nothing here matches a known table well enough (%s). The cameras measure "
@@ -311,7 +319,9 @@ def make_new_site(template="school-conference", table_cm=None, when=None):
             f.write("id,x_in,y_in,zone\n" + "\n".join(rows) + "\n")
         d["points"] = {"use": "typed", "file": pf, "units": "in", "flag_cm": 3.0, "overrides": [],
                        "_note": "made from the measured table (site_detect): a grid, not stickers"}
-        d["edge_in_cm"] = GRID_EDGE_CM
+        d["edge_in_cm"] = 17.0      # the runs' own edge room (home's default): points sit further in (GRID_EDGE_CM),
+                                    # so a robot standing on one has room for its heading nudge (rehearsal: with 25
+                                    # the nudge was refused, a turned tag was never learned and the robot was lost)
         d["homes"] = {"use": "middle"}
         d["production"] = {"zones": {}, "order": "nearest+2opt", "orders": None, "dwell_s": 3.0, "split": "auto"}
     with open(os.path.join(LOCAL_DIR, name + ".json"), "w") as f:

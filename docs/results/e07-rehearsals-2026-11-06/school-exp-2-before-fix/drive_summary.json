@@ -1,0 +1,41 @@
+{
+ "name": "school-exp-2",
+ "room": "school",
+ "kind": "experiment",
+ "adv": {
+  "allow_half_table": true
+ },
+ "start_error": null,
+ "ended_s": 285.6,
+ "timed_out": false,
+ "status": {
+  "running": false,
+  "kind": "experiment",
+  "title": "Experiment routes",
+  "practice": true,
+  "lines": [
+   "new plan in 0.32 s (first safe plan, robots told 0.5 s ahead; a shorter one is searched for next); everyone done about 9 s after the event",
+   "improvement try: done at 192 s instead of 192 s, not kept",
+   "  Alpha 1/6",
+   "WARNING: Alpha: camera and its own pose disagree by 6.6 cm: halted, its pose set from the camera, and the others re-plan round it",
+   "Alpha continues: path clear for the next 2.0 s; carries on 1 step(s), then holds",
+   "new plan in 0.24 s (first safe plan, robots told 0.5 s ahead; a shorter one is searched for next); everyone done about 2 s after the event",
+   "improvement try: done at 193 s instead of 193 s, not kept",
+   "all robots done"
+  ],
+  "elapsed_s": 291.0,
+  "points": 7,
+  "words": "Experiment routes ended.",
+  "folder": "/tmp/claude-0/-home-claude/fff6dc9c-5876-54f9-92a7-a08483d3d5c7/scratchpad/reh/mc/school-exp-2/runs/20261106-061553-experiment-sim-cameras"
+ },
+ "robots": {
+  "n": 2,
+  "names": [
+   "Alpha",
+   "Bravo"
+  ],
+  "words": "Found 2 robots: Alpha, Bravo"
+ },
+ "where": "This looks like the school conference table (its reference tags 20, 21, 23, 24, 25 are on the table and the table measures 396 x 167 cm, its size).",
+ "folder": "/tmp/claude-0/-home-claude/fff6dc9c-5876-54f9-92a7-a08483d3d5c7/scratchpad/reh/mc/school-exp-2/runs/20261106-061553-experiment-sim-cameras"
+}

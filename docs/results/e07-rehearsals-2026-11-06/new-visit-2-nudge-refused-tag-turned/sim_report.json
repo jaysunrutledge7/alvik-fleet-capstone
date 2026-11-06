@@ -1,0 +1,157 @@
+{
+ "dockings": [],
+ "min_body_gap_cm": 7.29,
+ "min_body_gap_at": [
+  "Bravo",
+  "Alpha",
+  185.12
+ ],
+ "min_static_clearance_cm": Infinity,
+ "min_static_at": null,
+ "collision": false,
+ "events": [
+  {
+   "kind": "robot_restart",
+   "robot": "Alpha",
+   "t": 70.0,
+   "boot_s": 3.0
+  },
+  {
+   "kind": "wifi_drop_start",
+   "robot": "Alpha",
+   "t": 70.0
+  },
+  {
+   "kind": "wifi_drop_end",
+   "robot": "Alpha",
+   "t": 73.01
+  }
+ ],
+ "packets_lost": {
+  "Bravo": {
+   "to_robot": 0,
+   "from_robot": 0
+  },
+  "Alpha": {
+   "to_robot": 3,
+   "from_robot": 85
+  }
+ },
+ "robot_runs": {
+  "Bravo": [
+   {
+    "run": "D386-1",
+    "exp": "follow",
+    "result": "stopped:stop command"
+   },
+   {
+    "run": "D386-2",
+    "exp": "follow",
+    "result": "stopped:stop command"
+   },
+   {
+    "run": "D386-3",
+    "exp": "follow",
+    "result": "stopped:stop command"
+   },
+   {
+    "run": "D386-4",
+    "exp": "follow",
+    "result": "stopped:stop command"
+   },
+   {
+    "run": "D386-5",
+    "exp": "follow",
+    "result": "stopped:stop command"
+   }
+  ],
+  "Alpha": [
+   {
+    "run": "45BF-1",
+    "exp": "follow",
+    "result": "stopped:stop command"
+   },
+   {
+    "run": "45BF-2",
+    "exp": "follow",
+    "result": "stopped:restarted"
+   },
+   {
+    "run": "2B90-3",
+    "exp": "calib",
+    "result": "done"
+   },
+   {
+    "run": "2B90-4",
+    "exp": "follow",
+    "result": "stopped:stop command"
+   }
+  ]
+ },
+ "tof_sees_robots": true,
+ "seed": 1,
+ "true_sides": {
+  "x_min": {
+   "kind": "open",
+   "source": "conference table (Nick: no walls)"
+  },
+  "x_max": {
+   "kind": "open",
+   "source": "conference table (Nick: no walls)"
+  },
+  "y_min": {
+   "kind": "open",
+   "source": "conference table (Nick: no walls)"
+  },
+  "y_max": {
+   "kind": "open",
+   "source": "conference table (Nick: no walls)"
+  }
+ },
+ "min_open_edge_cm": 2.6,
+ "min_open_edge_at": [
+  "Bravo",
+  24.02
+ ],
+ "hung": [],
+ "min_com_open_edge_cm": {
+  "Bravo": 7.82,
+  "Alpha": 23.39
+ },
+ "edge_trips": {
+  "Bravo": [
+   {
+    "t": 22.34,
+    "cue": "bottom",
+    "axle_in_cm": 9.48,
+    "pose": [
+     151.51,
+     9.48,
+     263.8
+    ]
+   },
+   {
+    "t": 42.8,
+    "cue": "bottom",
+    "axle_in_cm": 10.28,
+    "pose": [
+     153.54,
+     10.28,
+     267.0
+    ]
+   }
+  ],
+  "Alpha": []
+ },
+ "edge_misses": {
+  "Bravo": [],
+  "Alpha": []
+ },
+ "board_cm": [
+  0.0,
+  0.0,
+  182.0,
+  91.0
+ ],
+ "drop_cm": 74.0
+}
