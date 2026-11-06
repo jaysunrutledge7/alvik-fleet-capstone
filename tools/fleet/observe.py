@@ -52,6 +52,9 @@ TAG_PX_MIN = 14.0        # a roof tag reads when its side is at least this many 
                          # 7 cells; 2 px a cell). From the 5 Nov school frames: the 8 cm tag read to x ~100 cm (~18 px)
                          # and failed past ~150 cm (~12 px). Chosen between; DOE note: 12 / 14 / 16 px against the live
                          # read rates kept in readmap.json
+PIC_MARGIN_TAGS = 5.0    # a cell reads only when the tag is this many of its own sizes inside every picture border.
+                         # Chosen after the rehearsals (3 lost robots at the picture's corner). DOE note: 3 / 5 / 8 against
+                         # points skipped vs robots lost, from the run's own readmap.json
 IDLE_SLEEP_MIN = 30.0    # robots sleep after this long with no run (Mission Control's idle sleeper). Chosen: longer
                          # than a break between runs, short enough to save the battery over an evening. DOE note: not
                          # needed (it trades battery against a restart); the battery log over an idle evening gives it
@@ -306,8 +309,9 @@ def seed_from_cameras(rm, cams, tag_cm, z_cm, px_min=TAG_PX_MIN):
             if c is None:
                 continue
             s = tag_px(project, x, y, z_cm, tag_cm) or 0.0
-            # the whole roof (and a robot's move round it) inside the picture: a margin of 3 tag sizes from every border
-            m = 3.0 * s
+            # the whole roof (and a robot's move round it) inside the picture: a margin of EDGE_TAGS tag sizes from every
+            # border (rehearsal s1: tags at 3 sizes from the picture's corner were lost; the robot ended unseeable)
+            m = PIC_MARGIN_TAGS * s
             if not (m <= c[0] < Wpx - m and m <= c[1] < Hpx - m):
                 continue
             best = max(best, s)

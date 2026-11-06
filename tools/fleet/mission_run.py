@@ -736,7 +736,8 @@ class _BindCam:
         for c in self.cams:
             p = c.project([[x, y, z]])[0]
             v = OB.tag_px(lambda P, c=c: c.project(P), x, y, z, s)
-            if v is None or not (3 * v <= p[0] < c.W - 3 * v and 3 * v <= p[1] < c.H - 3 * v):
+            m_ = OB.PIC_MARGIN_TAGS * (v or 0)
+            if v is None or not (m_ <= p[0] < c.W - m_ and m_ <= p[1] < c.H - m_):
                 continue
             best = v if best is None else max(best, v)
         return best

@@ -2723,6 +2723,8 @@ class Coordinator:
 
     def backoff_report(self, b, sid, state, info):
         bo = getattr(b, "backoff", None)
+        if bo and sid in (bo.get("id"), bo.get("turn_id")) and state not in ("done", "failed"):
+            return True                        # (11-05h) its own back-off / recovery step started or queued: not "old"
         if bo and sid == bo.get("turn_id"):
             if state == "failed" and bo.get("kind") == "recover" and info.startswith("halted"):
                 # (11-05h) the run itself halted it (everyone holds while another robot is checked): not a failed
