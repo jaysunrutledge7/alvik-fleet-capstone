@@ -585,6 +585,10 @@ def tag_check(names, grab, cams, tags, assumed=None, rect=None, tol=TOL_DEG, tar
                 if n is None:
                     continue
                 p = TG.pose_from_detection(cam, d, float(tags["height_cm"]), float(tags["tag_cm"]))
+                yo = (tags.get("yaw_off") or {}).get(str(d.id), (tags.get("yaw_off") or {}).get(d.id))
+                if p is not None and yo:
+                    # (11-05h) the tag is turned on its robot by this much (the heading nudge found it)
+                    p.heading = wrap180(p.heading + float(yo))
                 if p is not None and abs(p.size_ratio - 1.0) <= 0.2:
                     per[n].setdefault(c, []).append(p)
     res, ok = {}, True

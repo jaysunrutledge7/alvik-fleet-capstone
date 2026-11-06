@@ -697,9 +697,9 @@ class _BindCam:
         best = None
         for c in self.cams:
             p = c.project([[x, y, z]])[0]
-            if not (0 <= p[0] < c.W and 0 <= p[1] < c.H):
-                continue
             v = OB.tag_px(lambda P, c=c: c.project(P), x, y, z, s)
+            if v is None or not (3 * v <= p[0] < c.W - 3 * v and 3 * v <= p[1] < c.H - 3 * v):
+                continue
             best = v if best is None else max(best, v)
         return best
 
@@ -893,6 +893,8 @@ def run(args):
     if args.tracking_ == "tags":
         # confidence at every point: a bumped camera (the bridge's events) counts in the +-
         rp += ["--bridge-events", os.path.join(out, "bridge", "events.jsonl")]
+        if os.path.exists(os.path.join(out, "readmap_start.json")):
+            rp += ["--readmap", os.path.join(out, "readmap_start.json")]     # (11-05h)
     if args.no_mirror:
         rp += ["--no-mirror"]          # mirrored legs at their planned speed, no waits (the points still measured)
     if args.below_net_doe:
@@ -1153,6 +1155,13 @@ def run(args):
             except Exception:     # noqa: BLE001
                 pass
     sync_mark(out, "end", args)
+    if not args.dry and (args.site_ or {}).get("conf_dir") and os.path.exists(os.path.join(sess, "readmap.json")):
+        # (11-05h) the site keeps where tags read (merged at half weight into the next run's start map)
+        try:
+            import shutil
+            shutil.copy(os.path.join(sess, "readmap.json"), os.path.join(args.site_["conf_dir"], "readmap.json"))
+        except OSError:
+            pass
     summ = summarise(out, sess, frames, cond)
     try:
         # the experiment (2026-11-03): id, orders, swap, seed, pinned speeds; the sync wiggle's times per robot

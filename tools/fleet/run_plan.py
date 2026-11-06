@@ -291,6 +291,20 @@ class Coordinator:
         self.link = link
         self.source = source
         self.outdir = outdir
+        # (11-05h) where the cameras read the roof tags: the mission's start map (--readmap) learned on during the run;
+        # no start map: every cell taken as readable until evidence says otherwise
+        import observe as OB
+        f_ = self.m["floor"]
+        self.readmap = OB.ReadMap(f_["x_max"] - f_["x_min"], f_["y_max"] - f_["y_min"], x0=f_["x_min"], y0=f_["y_min"])
+        rmp = getattr(args, "readmap", "") or ""
+        try:
+            if rmp and os.path.exists(rmp):
+                with open(rmp) as fh:
+                    self.readmap = OB.ReadMap.from_json(json.load(fh))
+            else:
+                self.readmap.seed(lambda x_, y_: 0.9, "no start map: taken as readable")
+        except (OSError, ValueError, KeyError):
+            self.readmap.seed(lambda x_, y_: 0.9, "no start map: taken as readable")
         self.names = list(plan["robots"])
         self.bots = {n: Bot(n) for n in self.names}
         self.q = queue.Queue()
@@ -718,7 +732,9 @@ class Coordinator:
         t = now()
         for b in self.bots.values():
             cam, ct = getattr(b, "last_cam", None), getattr(b, "cam_t", None)
-            if b.out or t < b.own_until:      # out of the run; or its own pose stands after a barrier find (10 s)
+            if b.out or t < b.own_until or getattr(b, "backoff", None):
+                # out of the run; or its own pose stands after a barrier find (10 s); or (11-05h) backing off a trip /
+                # recovering: its own move is not interrupted, its report re-plans
                 b.guard_since = None
                 continue
             if cam is None or b.pose is None or ct is None or t - ct > 0.3 or t - b.pose_t > 0.3:
@@ -3679,7 +3695,19 @@ class Coordinator:
                         w.writerow(["" if q.get(k) is None else q.get(k) for k in self.POINT_COLS])
             except OSError:
                 pass
-        return {"plan_id_first": self.first_plan_id, "plans": self.plan_no + 1, "result": self.abort or "done",
+        rm = getattr(self, "readmap", None)
+        if rm is not None and getattr(self, "outdir", None):
+            try:
+                rm.save(os.path.join(self.outdir, "readmap.json"))      # (11-05h) where tags read in this run
+            except OSError:
+                pass
+        return {"observe": {"trips": list(getattr(self, "trips", []) or []),            # (11-05h)
+                            "recoveries": list(getattr(self, "recoveries", []) or []),
+                            "heading_relearned": list(getattr(self, "heading_relearned", []) or []),
+                            "surface_marks": list(getattr(self, "surface_marks", []) or []),
+                            "did_not_move": getattr(self, "n_fast_done", 0),
+                            "skipped": list(getattr(self, "skipped", []) or [])},
+                "plan_id_first": self.first_plan_id, "plans": self.plan_no + 1, "result": self.abort or "done",
                 "duration_s": round(now() - self.started, 2),
                 "planned_makespan_s": self.first_makespan,
                 "resends": {n: b.resends for n, b in self.bots.items()},
@@ -5151,6 +5179,8 @@ def main(argv=None):
     ap.add_argument("--lost-robot-points", choices=("reassign", "skip"), default="reassign",
                     help="with --on-problem keep_going: a robot that is out hands its production points not done to "
                          "the robots still running (reassign, default), or they are listed as not done (skip)")
+    ap.add_argument("--readmap", default="", help="(11-05h) the mission's readability map at the start "
+                    "(observe.ReadMap JSON); learned on during the run, saved as readmap.json")
     ap.add_argument("--bridge-events", default="", help="the tag bridge's events.jsonl: a bumped camera's size counts "
                                                          "in the positions' +- (confidence at every point)")
     ap.add_argument("--cam-fit", default="", help="the camera setup's site_fit.json: each camera's fit error counts in "

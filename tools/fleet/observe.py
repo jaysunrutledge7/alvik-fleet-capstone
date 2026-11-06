@@ -303,9 +303,13 @@ def seed_from_cameras(rm, cams, tag_cm, z_cm, px_min=TAG_PX_MIN):
                 c = project([[x, y, z_cm]])[0]
             except Exception:  # noqa: BLE001
                 continue
-            if c is None or not (0 <= c[0] < Wpx and 0 <= c[1] < Hpx):
+            if c is None:
                 continue
             s = tag_px(project, x, y, z_cm, tag_cm) or 0.0
+            # the whole roof (and a robot's move round it) inside the picture: a margin of 3 tag sizes from every border
+            m = 3.0 * s
+            if not (m <= c[0] < Wpx - m and m <= c[1] < Hpx - m):
+                continue
             best = max(best, s)
         return 0.9 if best >= px_min else 0.1
     rm.seed(fn, "camera model: a tag needs %.0f px to read" % px_min)
