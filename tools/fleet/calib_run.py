@@ -1799,7 +1799,8 @@ class CalibRun:
     # ------------------------------------------------------------------------------------------------- the whole run
     def start_robot(self):
         self.set_status(phase="find", words="Finding the robot on the WiFi (waking it if it sleeps)")
-        found = discover(self.link, self.a.robot, self.a.wake_min, self.a.dry, count=self.a.count)
+        found = discover(self.link, self.a.robot, self.a.wake_min, self.a.dry, count=self.a.count,
+                         only=tuple(x.strip() for x in (self.a.only or "").split(",") if x.strip()))
         if self.a.count and len(found) < self.a.count:
             say("NOTE: %d of the %d robots expected answered (%s): calibrating those" % (
                 len(found), self.a.count, ", ".join(found) or "none"))
@@ -2188,7 +2189,7 @@ def _unwrap_turn(r):
     return (b, r["dt"], c)
 
 
-def discover(link, ips, wake_min, dry=False, count=0):
+def discover(link, ips, wake_min, dry=False, count=0, only=()):
     """{wifi name: ip} of the robots that answer `status` (sent to the given addresses and the broadcast; `wake` too, so
     a sleeping robot answers at its next check-in), for up to wake_min minutes. (5 Nov) A robot heard at all (its
     check-in, its hello) is also asked at the address it was heard from. count: keep going until this many robots have
@@ -2203,11 +2204,15 @@ def discover(link, ips, wake_min, dry=False, count=0):
         with link.cond:
             heard = {n: ip for t, n, ip, line in link.lines[k:]}
             for t, n, ip, line in link.lines[k:]:
-                if line.startswith("M,status ") or ": awake" in line:
-                    found[n] = ip
+                if (line.startswith("M,status ") or ": awake" in line) and (not only or n in only):
+                    found[n] = ip     # (11-05h) --only: other robots (on for flashing) are not taken
         if found and first is None:
             first = time.time()
-        if (count and len(found) >= count) or (not count and first is not None and time.time() - first >= 2.0):
+        if only and set(only) <= set(found):
+            return found
+        if only:
+            pass
+        elif (count and len(found) >= count) or (not count and first is not None and time.time() - first >= 2.0):
             return found
         for ip in targets + [ip for n, ip in heard.items() if n not in found and ip not in targets]:
             link.send(ip, "wake")
@@ -2334,6 +2339,8 @@ def main(argv=None):
                          "even for a robot calibrated before (default: only its first calibration on this site)")
     bl.add_argument("--from-saved", dest="baseline", action="store_const", const="saved",
                     help="phase A starts from the robot's saved values even on its first calibration")
+    ap.add_argument("--only", default="", help="calibrate only these robots, by WiFi name (e.g. AL-1DC0); any other robot "
+                    "that answers (switched on for flashing) is left alone. Waits until each named one answers")
     ap.add_argument("--sim-start", default="", help="simulator: the sticker the robot starts on (default P11)")
     ap.add_argument("--view-x-max", type=float, default=None,
                     help="points and legs past this x (cm from the TV end) are skipped as out of the camera's view "
