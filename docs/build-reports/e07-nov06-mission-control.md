@@ -237,6 +237,8 @@ Dr. Sodhi's OK) came under the 8 cm net, without contact.
 - **Free roam at school** is a wander between points, not home's controller (Not done as asked).
 - **New-area sites copy the school's corner-tile ids** (the tiles are portable), so in a room with tiles and no
   measured table, a new area and the school score the same; the table size separates them once measured.
+- **Practice Calibrate at home** (the ladder's dry run) leaves its simulator running after it ends (stopped by hand
+  after the rehearsal); harmless on the Pi (practice only runs where no camera answers) but untidy: not fixed.
 - **The new-area room** is my construction (two cameras 200 cm up over a 182 x 91 cm table, tiles brought along).
 - **Rehearsal timing**: two rehearsals ran side by side on 2 CPUs; robots' watchdog ("nothing from the laptop for 1.5 s;
   standing still") fired 17 times in the 3-robot free roam: the robots stood, safe, but slower than on the Pi alone.
