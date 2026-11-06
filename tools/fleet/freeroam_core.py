@@ -907,7 +907,7 @@ class Controller:
         p = self.pos(r)
         if p is not None:
             pts = [tuple(p)] + pts
-        kos = [(q["x"], q["y"], q["r"]) for q in self.keepouts]
+        kos = [(q["x"], q["y"], q["r"]) for q in self.keepouts if q.get("owner") != r.name]
         ok, why = OB.path_ok(pts, self.unc(r), self.rect, kos, BLIND_PER_CM if r.lost is not None else 0.0)
         if not ok:
             self.counts["invariant_refused"] = self.counts.get("invariant_refused", 0) + 1
@@ -944,9 +944,10 @@ class Controller:
     def keepout_ok(self, r, tr):
         """(11-05c) Every sample of the move keeps its circle KEEP_GAP from every discovered keep-out; a robot that
         already stands too close may take a move that never brings it closer and ends clear (backing away)."""
-        if not self.keepouts:
+        kos = [q for q in self.keepouts if q.get("owner") != r.name]     # (11-05h) not its own tilt spot
+        if not kos:
             return True
-        k = np.array([(q["x"], q["y"], q["r"]) for q in self.keepouts])
+        k = np.array([(q["x"], q["y"], q["r"]) for q in kos])
         d = np.hypot(tr.x[:, None] - k[None, :, 0], tr.y[:, None] - k[None, :, 1]) - k[None, :, 2] - tr.m[:, None] \
             - HALF - KEEP_GAP + PLAN_M0
         dm = d.min(axis=1)
@@ -1028,6 +1029,13 @@ class Controller:
                 continue
             p = self.pos(r)
             for q in list(self.keepouts):
+                if q.get("owner"):
+                    # (11-05h) a tilted robot's own keep-out: dropped once it has left it (backed off, level again)
+                    if q["owner"] == r.name and math.dist(p, (q["x"], q["y"])) > q["r"] + 5.0 and \
+                            not getattr(r, "tilted", False):
+                        self.keepouts.remove(q)
+                        self.log("keepouts", dict(q, what="%s left its tilt spot" % r.name))
+                    continue
                 if math.dist(p, (q["x"], q["y"])) < HALF - 1.0 and self.t - q["t"] > 2.0:
                     self.keepouts.remove(q)
                     self.log("keepouts", dict(q, what="cleared by %s's camera track" % r.name))
@@ -1045,7 +1053,7 @@ class Controller:
         # turn on the spot then forward is the "look before backing")
         e0 = edge_dist(self.rect, *p)
         others = [self.pos(o) for o in self.others(r) if self.pos(o) is not None]
-        kos = [(q["x"], q["y"], q["r"]) for q in self.keepouts]
+        kos = [(q["x"], q["y"], q["r"]) for q in self.keepouts if q.get("owner") != r.name]
         fresh = r.cam is not None and self.fresh(r) and r.lost is None
         fm = getattr(r, "fmem", None)
         for L in Ls:
@@ -1232,6 +1240,15 @@ class Controller:
         self.counts["tilt_trips"] = self.counts.get("tilt_trips", 0) + 1
         self.event(r, "tilt stop", "its own tilt stop ended the step (%s): kept out ahead, backs straight away" % info)
         self.felt(r, "obstacle 0.0 cm (tilted)")
+        p = self.pos(r)
+        if p is not None:
+            # (11-05h; Nick 21:38: nobody touched Center at 19:28, yet it moved while Left's front sensor read "Center"
+            # 6.4 cm ahead) a tilted robot at an edge is kept out by the OTHERS with its whole body and a margin, so no
+            # robot nudges it over; its own back-off may still leave (keep-outs allow moves that never get closer)
+            q = dict(x=round(p[0], 1), y=round(p[1], 1), r=HALF + PLAN_GAP, t=round(self.t, 2), robot=r.name,
+                     src="tilted robot", edge_cm=round(edge_dist(self.rect, *p), 1), d_cm=0.0, owner=r.name)
+            self.keepouts.append(q)
+            self.log("keepouts", dict(q, what="tilted robot kept clear by the others"))
         r.back_off = dict(t=self.t, h=self.heading(r))
         r.tilted = True
 

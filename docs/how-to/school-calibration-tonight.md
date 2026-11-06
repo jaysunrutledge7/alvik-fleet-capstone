@@ -495,4 +495,10 @@ On the command line the same choice is `--motion stopturn` (default) or `--motio
 | `HOLDING: the camera lost the roof tag` | The tag was not read for over 1 s while driving: the robot stopped (cautious) | Nothing: it carries on when the tag is seen again. Over 30 s: the run ends where it is. Check nothing covers the robot |
 | `LOW BATTERY` | Under 25 % | It parks at P11 and stops the series. Charge it; the report shows what was done |
 | A line with `NOT OK` after the new values | A setting did not read back after two tries: the old value was put back | Fine: the report says which one |
+| `heading check not done (... needs 6 cm clear both ways ...)` | A robot stands too close to an edge, an outlet or another robot to nudge | Nothing: the run checks its tag on its first drives instead. Next time, put it nearer the middle of zones 1-2 |
+| `REFUSED: ... its safety layers did not read back` | The robot did not confirm its tilt stop / edge check settings | It is not moved. Switch it off and on, then start again |
+| `SKIPPED (n points): ... the camera does not read tags there` | Those stickers are where the camera cannot read a roof tag (with one camera: the far half) | Expected. The rest of the table is shared between the robots |
+| `SAFETY: ... backing away is NOT safe ... it is held` | A robot tipped or met an edge and nothing shows a safe way back | Press **Stop**, lift the robot back onto a sticker by hand, start again |
+| `HEADING RE-LEARNED` | A roof tag was knocked or turned during the run | Nothing: the run corrected it and carried on. Check the tag is stuck down afterwards |
+| `SURFACE MARK` | A line sensor saw dark tape inside the table | Nothing: the run carries on (that robot's drop check stays on) |
 | `port 5005 is in use` | Another program talks to the robots (robot_sleep.py still running, or a Mission Control run) | Wait for robot_sleep.py to finish, or stop the other run, then start again |

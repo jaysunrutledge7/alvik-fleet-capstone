@@ -274,9 +274,10 @@
   "_safe_edge_note": "5 Nov 18:52: the line sensors (safe_edge 1/3) read the black tape over the table seam as a plywood edge and refused the wiggle; 2 = only the distance sensor bottom zone (a real drop). Discover-not-map follow-up: a line trip the bottom zone does not confirm should become a logged surface mark, not an edge.",
   "baseline": "auto",
   "park_spots": [
-   "P11",
+   "P09",
    "P01",
-   "P09"
-  ]
+   "P06"
+  ],
+  "_park_spots_note": "Nick 5 Nov 21:38: P09, P01, P06 (P11 out while the far end reads poorly; P06 has more room than P09 for the third); the robot count decides how many are used. Before: P11, P01, P09"
  }
 }

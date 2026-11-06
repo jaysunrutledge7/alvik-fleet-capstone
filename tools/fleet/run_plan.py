@@ -529,7 +529,7 @@ class Coordinator:
             ev = w.feed(t, float(row["roll_deg"]), float(row["pitch_deg"]), float(row.get("v_cms") or 0.0))
         except (KeyError, ValueError, TypeError):
             return
-        if ev and self.t_run and not getattr(self, "straightening", False):
+        if ev and getattr(self, "t_run", None) and not getattr(self, "straightening", False):
             self.log("tilt_hazard", robot=b.name, **ev)
             self.send(b.name, "halt")
             i = next((k for k, st in enumerate(b.stat) if st["status"] in ACTIVE), -1)
@@ -996,7 +996,7 @@ class Coordinator:
         yf = getattr(b, "yaw_fix", 0.0)
         if ev.get("th") is not None and yf:
             ev = dict(ev, th=OB.wrap180(float(ev["th"]) + yf))
-        if ev.get("th") is None or b.pose is None or not self.t_run:
+        if ev.get("th") is None or b.pose is None or not getattr(self, "t_run", None):
             return ev
         w = b.__dict__.setdefault("hwatch", OB.HeadingWatch(0.0))
         own = b.pose
@@ -1032,7 +1032,7 @@ class Coordinator:
         """(11-05h) Where the cameras read the roof tags, learned from the run (observe.ReadMap): each robot's own
         spot every READ_EVERY_S, read or not."""
         rm = getattr(self, "readmap", None)
-        if rm is None or not self.t_run or not self.source.live:
+        if rm is None or not getattr(self, "t_run", None) or not self.source.live:
             return
         t = now()
         if t - getattr(self, "_rm_t", 0.0) < self.READ_EVERY_S:
@@ -1821,6 +1821,17 @@ class Coordinator:
         its out-obstacle off the map; then everyone re-plans from where they are."""
         n = b.name
         cam = b.last_cam
+        if cam is None or now() - (getattr(b, "cam_t", None) or 0.0) > self.REJOIN_FRESH_S:
+            # (11-05h, rehearsal s3: a robot rejoined on the camera's LAST spot, 36 cm from where it really was, and
+            # drove to 5 cm of another robot) its pose is set only from a fresh camera fix; else it stays held
+            self.log("rejoin_refused", robot=n, why="no fresh camera position",
+                     cam_age_s=None if getattr(b, "cam_t", None) is None else round(now() - b.cam_t, 2))
+            self.retry_later(b, "cannot rejoin yet: the camera's position of it is %s" % (
+                "missing" if cam is None else "%.1f s old" % (now() - b.cam_t)))
+            if n not in self.names:
+                self.plan["robots"].pop(n, None)
+            self.handle_obstacle(None)
+            return
         own_fresh = b.pose is not None and now() - (getattr(b, "follow_back_t", None) or 0.0) < 1.0
         th = cam[2] if cam[2] is not None else (b.pose[2] if own_fresh else None)
         if th is None and getattr(b, "out_kind", None) == "silent" and now() - (getattr(b, "back_t", None) or now()) < 5.0:
@@ -3441,6 +3452,8 @@ class Coordinator:
                 self.halt_all()
                 return
 
+    REJOIN_FRESH_S = 1.0      # (11-05h) a held robot rejoins only on a camera fix this fresh (chosen: 10 fixes a second,
+                              # the blind threshold 0.6 s plus slack)
     RECOVER_BEYOND_CM = 10.0  # (11-05h) the recovery drives this far past the last read spot, back into readable ground
                               # (chosen: a robot body; DOE note: 5 / 10 / 15 cm against recoveries seen again)
     RECOVER_GAP_CM = 16.0     # (11-05h) a lost robot's straight recovery must keep its middle this far (plus its blind

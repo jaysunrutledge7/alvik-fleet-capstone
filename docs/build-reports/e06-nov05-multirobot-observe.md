@@ -104,7 +104,17 @@ The new card on Mission Control's Production screen: one button runs every robot
   planned paths keep 11 cm (planner margins) > 8.7 cm by construction. Calibration: the legs' safety check keeps 13 cm +
   the leg's error, and every leg is aimed from a fresh camera pose. Every side is a drop at home too (site walls false).
 
-{{FREEROAM_CASES}}
+**The named cases, driven through the free-roam controller as the robots' records drive it**
+(tests/test_e06_edges.py, 6 cases, and the pure checks in tests/test_observe.py):
+
+| Case | What the controller did |
+|---|---|
+| Camera washed out (no fixes) while standing near the x = 0 edge after driving 30 cm towards it | backs off along its own trail (no camera needed); with no trail behind it, no reverse at all |
+| A firmware that answers every move "done" at once (Left's 4,289 reverses) | "did not move: not physically possible", the same reverse not repeated; the third at that spot = a hazard kept out for everyone and a full stop said |
+| Wheels slip (its own pose says 14 cm; no jolt; front range unchanged; camera blind) | "did not move" (score from wheels, accelerometer, front range) |
+| Center's shallow approach: 33 cm at 27 deg to the x = 0 edge, ending 5 cm from it | never planned (its circle would cross the edge on the way); turning and going inwards is |
+| The clock ratchet: every fix 1.3 s stale | the circle grows 13 cm: from 25 cm off the edge only moves inwards are allowed |
+| Standing tilt 3.4 deg for 3 s (a wheel over the edge) | "tilt stop" event, keep-out, its next move a back-off over evidence or it stands, never forward |
 
 ### 4. Rehearsals (simulator)
 
@@ -162,12 +172,59 @@ estimators side by side.
 
 ## Sweep 1: new tests that may now be necessary
 
-{{SWEEP1}}
+- Bench (DOE, needed before trusting the numbers): a wheel over a 1 / 2 / 3 cm drop, standing and driving: the
+  standing tilt (2.5 deg / 2 s) and the accelerometer's rolling jolt (0.03 g); the firmware 2026-11-05d backward drive
+  while tilted (does it come back level?).
+- Board: firmware 2026-11-05d on one robot: a follow D step forwards while tilted must be refused at once; a rev 1 D
+  step must run; the e02 `go -6` must run while tilted and `go 6` must not.
+- Board, school: the heading nudge with the tag at 0 / 90 / 180 deg; the Visit points button with 1, 2, 3 robots
+  (camera 2 off); a robot placed where the camera cannot read it (it must be refused or kept out, not driven).
+- School: the readability map against the real room light (it seeds from 14 px; the real limit was ~100 cm in x).
+- Simulator: the readability seed from the school's REAL camera model (the dry runs use two straight-down simulated
+  cameras, not the end-mounted C920e); the dark-patch cases with the patch across the table's middle.
+- Calibration on the board: the stop lead (C's fixed error should fall from ~0.4 cm to ~0 per leg).
+- Free roam, real run: evidence fusion counts (did_not_move per hour), reverses refused for lack of evidence, the
+  invariant's refusals per hour (counts in the run's state), and whether robots still roam 95 %+ of the time.
+- Mission Control: the idle sleeper on the Pi (a real 30 min idle).
 
 ## Sweep 2: possible inaccuracies in what this relied on
 
-{{SWEEP2}}
+- **Chosen, not derived** (each marked in code with a DOE note): NUDGE_CM 6, SNAP_TOL 20 deg, WATCH_SEG_CM 8,
+  WATCH_CONFIRM 2, CELL_CM 20, READ_OK 0.6, TAG_PX_MIN 14 (from two observations at school), IDLE_SLEEP_MIN 30,
+  STAND_TILT 2.5 deg / 2 s, ACCEL_JOLT 0.03 g, LINE_CHANGE 15, PHYS_MAX_CMS 30, FailMemory 5 cm / 25 % / 3 within
+  8 cm, BACK_OFF_CM 10, trip keep-out 5 cm at 5 cm ahead, EDGE_MARGIN_CM 1, RECOVER_BEYOND_CM 10, TYPED_SEED_SD 5 cm,
+  LEAD_MAX 1.5 cm, the evidence weights (wheels 1, accelerometer 1.5, gyro 1.5, front 2, line 0.5, camera 3).
+- **The simulator is not the school.** Its two cameras look straight down over each half; the real one looks down the
+  table's length from the TV end, so "where tags read" differs (the dry runs drop camera 2 to approximate). The dark
+  patch, tape and clock skew are mine. The wheel-over-edge tilt (3.5 deg) is a model of Center's 3.4 deg.
+- **Stop lead**: from one robot's one run (AL-1DC0, 38 phase-A legs); its speed dependence (0.3 / 0.5 cm) may differ on
+  other robots and surfaces; it is measured per run, so it adapts, but only in the calibration (missions do not use it).
+- **The heading nudge** needs 6 cm clear both ways (or sideways); a robot boxed in gets no nudge and relies on the
+  watch (two 8 cm stretches: up to 16 cm driven the wrong way, inside the planner's margins).
+- **Evidence fusion on real robots**: the accelerometer's units and noise in RAW rows are taken from the firmware's
+  header (ax in g); no real slip has been recorded to check the rule.
+- **Readability learned per 20 cm cell**: a point in a cell no robot has visited keeps the seed's guess.
+- **The lost robot's recovery** checks the others' current spots and their next 4 planned step ends, not a full
+  time-reserved corridor in the planner (Not built as asked).
+- **Measure**: the cameras-versus-tape comparison is from site_fit's own simulator only.
+- The rehearsals' sim robots restart only where asked; a restart during a turn or during the nudge was not rehearsed.
 
 ## Questions for Nick
 
-{{QUESTIONS}}
+**Substantive**
+1. Measure: the switch for "cameras over typed values" is built but left on the tape, because in the simulator the
+   cameras alone were worse (table 2 cm short, a sticker 4.4 cm off, against 2.4 cm). Keep the tape as the default, or
+   switch to cameras now? (Recommended: keep the tape until a real Measure shows the cameras' own size within 1 %.)
+2. A lost robot in a mission now drives forwards to where it was last read (+10 cm), checked against the edges and
+   the others' next steps, but the others' plans do not wait for it. Enough for Monday, or do you want the planner
+   to reserve that path first (phase 3)?
+3. The standing-tilt (2.5 deg for 2 s) and accelerometer (0.03 g) numbers are guesses from one analysis. Run the bench
+   DOE (a wheel over 1 / 2 / 3 cm) before Monday, or go with them?
+4. The stop lead exists only in the calibration. Use it in missions too (each robot's lead from its last calibration,
+   kept on the Pi)?
+
+**Other**
+5. Extra robots are named Charlie, Delta, Echo ... in the run (their WiFi names stay on the robots). OK?
+6. A surface mark switches that robot's line sensors off for the rest of the run (the bottom zone stays on). OK, or
+   only near the mark?
+7. Robots sleep after 30 minutes with no run (Mission Control on the Pi). A different wait?
