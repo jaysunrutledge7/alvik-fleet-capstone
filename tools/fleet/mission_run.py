@@ -766,6 +766,11 @@ def dry_homes(args, names):
             continue
         cand = [l for l in pts if (rm is None or rm.readable(*pts[l])[0]) and l not in out.values() and
                 OB_edge_ok(pts[l], args)]
+        if not cand:
+            # (e07, new-area rehearsal: every grid point 17 cm from an edge, so none passed the 25 cm rule and both
+            # simulated robots were put on the same point) any readable point not taken, then any not taken
+            cand = [l for l in pts if (rm is None or rm.readable(*pts[l])[0]) and l not in out.values()] or \
+                [l for l in pts if l not in out.values()]
         cand.sort(key=lambda l: -min([math.dist(pts[l], pts[o]) for o in out.values()] or [1e9]))
         out[n] = cand[0] if cand else sorted(pts)[0]
     return out

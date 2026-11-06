@@ -60,9 +60,14 @@ def test_site_refuses_a_reference_id_that_is_a_robot(tmp_path, monkeypatch):
 def test_fit_from_reference_tags_alone_no_clicks():
     obs, truth, st = SF.simulate(seed=1, n_spots=8, refs=True, corners=False)
     assert not any(obs["corners"].values())
+    # (e07) the default measure_trust "auto" lets the cameras win when the tiles are read: in this geometric simulator
+    # the typed size is the exact truth, so the tape-trusted fit stays the tighter one here (< 0.6 cm); the cameras'
+    # own (the tiles' printed size the ruler) within 1 cm. With real blur the cameras win (measure_bench, e07 report)
+    res_t = SF.full(dict(obs, measure_trust="typed"))
+    assert _worst(res_t, truth, st) < 0.6
     res = SF.full(obs)
     assert abs(res["size_cm"][0] - L) < 0.5 and abs(res["size_cm"][1] - W) < 0.5
-    assert _worst(res, truth, st) < 0.6
+    assert _worst(res, truth, st) < 1.0
     al = res["ref_tags"]["along_cm"]
     for i, v in obs["ref_tags"]["truth_along"].items():
         assert abs(al[i] - v) < 0.5

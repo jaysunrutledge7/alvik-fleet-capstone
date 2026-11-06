@@ -117,8 +117,15 @@ def test_measure_trust_auto_and_small_reads():
     g = [{"id": 0, "reads": {"a": big, "b": small}}, {"id": 1, "reads": {"a": small}}]
     out = SF.small_reads_out(g, 3.0)
     assert len(out) == 1 and list(out[0]["reads"]) == ["a"]
-    assert SF.min_cell_for({"ref_tags": {"reads": {"o": {"20": 1}}}, "roof_fit": False}) == SF.MIN_CELL_PX_TILES
-    assert SF.min_cell_for({"ref_tags": {"reads": {"o": {"20": 1}}}}) == SF.MIN_CELL_PX     # roofs fitted: all reads
+    assert SF.min_cell_for({"ref_tags": {"reads": {"o": {"20": 1}}}, "roof_fit": False}) == SF.MIN_CELL_PX  # inset fitted
+    import importlib
+    SF.INSET_FIT = False
+    try:
+        assert SF.min_cell_for({"ref_tags": {"reads": {"o": {"20": 1}}}, "roof_fit": False}) == SF.MIN_CELL_PX_TILES
+    finally:
+        SF.INSET_FIT = True
+    two = {"a": {}, "b": {}}
+    assert SF.min_cell_for({"ref_tags": {"reads": {"o": {"20": 1}}}, "cameras": two}) == SF.MIN_CELL_PX  # roofs fitted
 
 
 def test_far_end_not_seen_is_held_at_a_guess_and_said():
@@ -260,3 +267,18 @@ def test_attended_only_site_asks_for_jay_sun(tmp_path, monkeypatch):
     st = SJB.Starter(s, practice=False)
     with pytest.raises(ValueError, match="Jay-Sun"):
         st.start("visit")
+
+
+def test_simulator_room_for_a_small_new_table_does_not_hang():
+    import tag_cam as CAMS
+    cfg = CAMS.default_config(table=(182.0, 91.0), seed=3)          # (e07: 12 stickers 25 cm apart never fitted)
+    assert 1 <= len(cfg["stickers"]) <= 12
+
+
+def test_a_new_area_made_earlier_does_not_claim_the_school_tiles(tmp_path, monkeypatch):
+    monkeypatch.setattr(SD, "LOCAL_DIR", str(tmp_path))
+    monkeypatch.setattr(SI, "local_dir", lambda: str(tmp_path))
+    name = SD.make_new_site("school-conference", table_cm=(182.0, 91.0))
+    sites = REPO_SITES + [SI.load(name)]
+    assert SD.decide(dict(SD.SIM_ROOMS["school-misnamed"]), sites)["site"] == "school-conference"
+    assert SD.decide(dict(SD.SIM_ROOMS["new"]), sites)["site"] == name          # back in the same new area

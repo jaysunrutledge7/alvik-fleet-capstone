@@ -603,6 +603,14 @@ def test_edge_stop_maps_a_no_go_strip_and_replans(demo_plan):
     co.log = lambda ev, **kw: logs.append((ev, kw))
     co.say = lambda text: got.setdefault("say", text)
     co.handle_obstacle = lambda o, cause=None: got.setdefault("ob", (o, cause))
+    # (e07, Nick 6 Nov) by default a line trip with no drop is logged only: no strip, nothing changed on the robot
+    import argparse
+    co.on_failed(co.bots["Left"], 0, "plywood edge at 50.0 20.0 90.0 line", (50.0, 20.0, 90.0), 99.0)
+    assert not [kw for ev, kw in logs if ev == "edge_boundary"] and [kw for ev, kw in logs if ev == "surface_mark"]
+    assert got.pop("ob") == (None, "Left")
+    got.clear()
+    # the old way (every line trip an edge) is kept behind --surface-marks off
+    co.args = argparse.Namespace(surface_marks="off")
     co.on_failed(co.bots["Left"], 0, "plywood edge at 50.0 20.0 90.0 line", (50.0, 20.0, 90.0), 99.0)
     edge_logs = [kw for ev, kw in logs if ev == "edge_boundary"]
     assert len(edge_logs) == 1 and edge_logs[0]["obstacle"]["source"] == "edge_guard"

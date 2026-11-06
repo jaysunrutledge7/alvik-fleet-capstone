@@ -382,7 +382,11 @@ def default_config(table=(396.24, 167.64), size=(1280, 960), height_cm=200.0, hf
                          hfov_deg=hfov_deg, blur_px=0.9, noise=3.5, k1=float(rng.normal(0, 0.03)),
                          roll_deg=float(rng.normal(0, 3)), port=8765 + k))
     st = {}
-    while len(st) < stickers:
+    tries = 0
+    while len(st) < stickers and tries < 20000:
+        # (e07) a small table (a new area's 182 x 91 cm) cannot hold 12 stickers 25 cm apart: the loop never ended
+        # (new-area rehearsal stalled); after enough tries, as many as fit
+        tries += 1
         x, y = rng.uniform(20, L - 20), rng.uniform(20, W - 20)
         if all(math.hypot(x - a, y - b) > 25 for a, b in st.values()) and math.hypot(x - L / 2, y - W / 2) > 30:
             st[str(len(st) + 1)] = [round(float(x), 1), round(float(y), 1)]

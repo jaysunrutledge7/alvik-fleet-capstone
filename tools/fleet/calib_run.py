@@ -2458,8 +2458,9 @@ class CalibRun:
             # saved on it (firmware older than 2026-11-05a cannot save). Mission Control's idle sleeper puts it to sleep
             # after observe.IDLE_SLEEP_MIN minutes with no run
             self.slept = False
-            say("%s stays awake (its values stay in force); it sleeps after %.0f minutes with no run (Mission "
-                "Control), or by hand: python3 tools/pi/robot_sleep.py sleep" % (self.name, _idle_min()))
+            say("%s stays awake here (its values stay in force); started from Mission Control's Start screen it is "
+                "sent to sleep as soon as the run ends (e07, Advanced: sleep when done), else after %.0f minutes with "
+                "no run, or by hand: python3 tools/pi/robot_sleep.py sleep" % (self.name, _idle_min()))
         self.ev("end", result=result, parked=parked, slept=self.slept)
         return result
 

@@ -71,6 +71,7 @@ class CalibJob:
                 cmd += ["--robot", ip]
         if d.get("tours"):
             cmd += ["--tours", str(int(d["tours"]))]
+        cmd += [str(x) for x in d.get("extra") or []]        # (e07) practice: more simulated robots, breakers
         if d.get("min_firmware") is not None:
             cmd += ["--min-firmware", str(d["min_firmware"])]    # (e07) Advanced: the old override, kept
         self.out = open(os.path.join(self.folder, "calib_stdout.txt"), "w")

@@ -50,14 +50,19 @@ TABLE_TOL = 0.06         # a measured table within 6 % of a site's (both sides) 
 LOCAL_DIR = os.path.join(SI.base_conf_dir(), "sites-local")
 GRID_CM = 30.0           # a new area's points: a grid this far apart (chosen: two robot lengths and room to turn; DOE
                          # note: 20 / 30 / 40 cm against points done per minute and robot gaps, simulator)
-GRID_EDGE_CM = 17.0      # ... this far in from the edges (home's edge room, sites.py edge_in_cm default)
+GRID_EDGE_CM = 25.0      # ... this far in from the edges. Chosen: a robot facing the edge then has its nose 20 cm from it,
+                         # beyond the drop check's 11 cm look-ahead (the new-area rehearsal with 17 cm, home's edge
+                         # room, tripped a robot's drop check at a point and it could not back away). DOE note: 17 /
+                         # 21 / 25 cm against drop trips and points per minute on a new table
 
 
 def site_facts(site):
     """What a site expects to see: {ref_ids, camera_names, n_cameras, table_cm, host}."""
     rt = site.get("ref_tags") or {}
     ref_ids = set()
-    if rt.get("use", True) and rt:
+    if rt.get("use", True) and rt and not str(site.get("name", "")).startswith("new-"):
+        # (a new area copies the school's corner-tile ids, but the tiles are portable: seeing them says nothing about
+        # which new area this is. The rehearsal "school, misnamed camera" was taken for a new area made earlier)
         ref_ids = {int(v) for v in list((rt.get("corners") or {}).values()) + list((rt.get("sides") or {}).values())}
     cams = site.get("cameras") or {}
     n_cam = sum(1 for k, v in cams.items() if (v or {}).get("use", True) is not False)

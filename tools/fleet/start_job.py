@@ -99,6 +99,7 @@ class Starter:
         self.active_practice = False
         self.last = None                # {kind, practice, ended, words}
         self.lock = threading.Lock()
+        self._end_lock = threading.Lock()
         self._robots_seen = None
         self._robots_t = 0.0
         self.adv_path = os.path.join(session.dir, "advanced.json")
@@ -186,7 +187,7 @@ class Starter:
                 return sorted(rec.get("slots") or {})
             except (OSError, ValueError):
                 continue
-        st = (self.S.calib.status() if self.active == "calibrate" else {}) or {}
+        st = (self.S.calib.status() if self.active == "calibrate" and self.tags() else {}) or {}
         return [r["name"] for r in st.get("robots") or []] or ([st["robot"]] if st.get("robot") else [])
 
     def run_folder(self):
@@ -343,6 +344,14 @@ class Starter:
             d = {"dry": pr}
             if pr:
                 d["quick"] = True
+                # as many practice robots as asked (each its own tag and spot), wheels that roll on (the stop lead)
+                also = [("AL-2B7F", 3, "P01", 90), ("AL-E7DC", 4, "P06", 90), ("AL-EB54", 5, "P02", 90)]
+                ex = []
+                for nm, tg, pt, hd in also[:max(0, n - 1)]:
+                    ex += ["--sim-also", "%s:%d:%s:%d" % (nm, tg, pt, hd)]
+                if self.adv.get("practice_breaks", True):
+                    ex += ["--sim-coast", "0.08"]
+                d["extra"] = ex
             if self.adv.get("min_firmware") == "none":
                 d["min_firmware"] = ""
             st = S.calib.start(d)
@@ -445,11 +454,42 @@ class Starter:
             out["folder"] = st.get("folder")
             if not out["lines"]:
                 out["lines"] = self.mission_tail(st.get("folder"))
-        if not running and self.last is None:
-            self.last = {"kind": kind, "practice": self.active_practice, "ended": time.time(),
-                         "words": out.get("words")}
+            refused = self.refusal_words(st.get("folder"))
+            if refused and not st.get("running"):
+                out["words"] = refused
+                out["refused"] = True
+        end_now = False
+        with self._end_lock:                  # the page's poll and the sleeper thread both ask: one sleep only
+            if not running and self.last is None:
+                self.last = {"kind": kind, "practice": self.active_practice, "ended": time.time(),
+                             "words": out.get("words")}
+                end_now = True
+        if end_now:
             self.on_run_end()
         return out
+
+    def refusal_words(self, folder):
+        """(e07 rehearsal: a run refused at its start ended as just "ended", in command-line words) The reason a run
+        did not start, in plain words, with what to press."""
+        lines = self.mission_tail(folder, n=40)
+        ln = next((x for x in reversed(lines) if "NOT STARTED" in x), None)
+        if not ln:
+            err = next((x for x in reversed(lines) if x.startswith(("planner.PlanError", "PlanError", "ValueError",
+                                                                    "KeyError", "RuntimeError", "SystemExit"))), None)
+            if err and "PlanError" in err:
+                return ("Stopped before moving: no routes were found that keep the robots apart (%s). Try with fewer "
+                        "robots on the table, or spread them out, then press the button again." % err.split(":", 1)[-1]
+                        .strip())
+            if err:
+                return "Stopped with an error (nothing more moved): %s. Its log is in the folder below." % err
+            return None
+        if "camera cannot read" in ln and "experiment" in ln:
+            return ("Not started, nothing moved: this route uses points the camera cannot read (with one camera it sees "
+                    "only the TV-end half of the table). Jay-Sun's agreement: half the table needs Dr. Sodhi's OK. "
+                    "With his OK, open Advanced and tick 'Experiments may use the half the camera cannot read', then "
+                    "press Experiment routes again; or plug in camera 2.")
+        txt = ln.split("NOT STARTED", 1)[1].lstrip(": ")
+        return "Not started, nothing moved: %s" % txt
 
     def mission_tail(self, folder, n=8):
         for p in (os.path.join(folder or "", "mission_stdout.txt"), os.path.join(folder or "", "log.txt"),

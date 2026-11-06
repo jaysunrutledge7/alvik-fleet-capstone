@@ -94,6 +94,9 @@ MIN_CELL_PX_TILES = 5.0  # (e07) ... and with reference tiles read (they are the
                          # Chosen from that bench; DOE note: the same on the real camera with printed tags
 
 
+INSET_FIT = True          # (e07) the roof reads' inset fitted (tiles as the ruler); False: the 5 px floor instead
+
+
 def min_cell_for(obs):
     """The smallest roof read (px a cell) the fit uses: the site's / caller's min_cell_px, else 5 with reference tiles
     read, else 3."""
@@ -102,8 +105,24 @@ def min_cell_for(obs):
     refs = any(((obs.get("ref_tags") or {}).get("reads") or {}).values())
     # the roofs' own fit (height and tilt per tag, two cameras) needs the smaller reads too: dropping them took a 15
     # deg roof to 28 deg in roof_cal's simulator case. So the 5 px floor only when the roofs are not being fitted
-    roofs = bool(obs.get("roof_fit", True))
+    # (one camera cannot fit a roof's height: the roofs are held, so there the floor applies as well)
+    roofs = bool(obs.get("roof_fit", True)) and len(obs.get("cameras") or {}) > 1
+    if INSET_FIT:
+        return MIN_CELL_PX          # the roof reads' inset is fitted instead (it is what made small reads read small)
     return MIN_CELL_PX_TILES if (refs and not roofs) else MIN_CELL_PX
+
+
+INSET_SD_PX = 1.0         # (e07) the roof tags' read inset (px each edge) has a 0 +- 1 px prior. Chosen: a few tenths of a
+                          # pixel in the simulator; no DOE (the reads decide it when there are many)
+
+
+def inset_px(uv, d):
+    """A tag's 4 projected corners each moved d px inwards along its edges' normals (d px off each edge: a corner
+    moves d*sqrt(2) along the diagonal towards the middle)."""
+    c = uv.mean(0)
+    v = c - uv
+    n = np.linalg.norm(v, axis=1, keepdims=True)
+    return uv + v / np.where(n < 1e-9, 1e-9, n) * d * math.sqrt(2.0)
 
 
 def trust_of(obs):
@@ -258,7 +277,7 @@ def rigid_from_plane(Pc, Pw2, n, zs=None):
 # ------------------------------------------------------------------------------------------------- the fit
 class Problem:
     def __init__(self, obs, use_typed=True, fit_k1=False, fit_height=False, fit_tag_scale=False, roof_fit=False,
-                 fit_ref_scale=None):
+                 fit_ref_scale=None, fit_inset=False):
         self.obs = obs
         # (2026-11-03) each robot's roof: its tag height and tilt fitted per tag id (roof_fit), or fixed at measured
         # values (obs["roof"]: {id: {height_cm, tilt_deg, lean_deg}}), or flat at the one tag height (before)
@@ -272,6 +291,7 @@ class Problem:
         self.roof_hold = {int(k) for k in (obs.get("roof_hold") or [])}
         self.roof_hold_tilt = {int(k) for k in (obs.get("roof_hold_tilt") or [])}
         self.fit_tag_scale = fit_tag_scale
+        self.fit_inset = fit_inset      # (e07) the roof tags' corners read a fixed number of pixels inside (fitted)
         self.cams = list(obs["cameras"])
         self.s = float(obs["tag_cm"])
         self.H = float(obs["tag_height_cm"])
@@ -363,6 +383,9 @@ class Problem:
         if self.fit_tag_scale:
             lay["k"] = (k, k + 1)
             k += 1
+        if self.fit_inset:
+            lay["inset"] = (k, k + 1)
+            k += 1
         if self.roof_fit:
             lay["roof"] = (k, k + 3 * len(self.roof_ids))
             k += 3 * len(self.roof_ids)
@@ -440,11 +463,14 @@ class Problem:
             out.append(np.array([(f - f0) / (F_PRIOR_FRAC * f0)]))
             if self.fit_k1:
                 out.append(np.array([k1 / K1_SD]))
+        dpx = x[self.lay["inset"][0]] if self.fit_inset else 0.0
         for gi, g in enumerate(self.groups):
             Pw = self.group_corners(x, gi, H, ks)
             for c, corners in g["reads"].items():
                 rv, tv, f, k1 = self.cam_params(x, c)
                 uv = project(K_of(f, self.obs["cameras"][c]["size"]), k1, rv, tv, Pw)
+                if dpx:
+                    uv = inset_px(uv, dpx)
                 out.append(((uv - np.asarray(corners, float)) / TAG_SD_PX).ravel())
         if "length" in self.far_free:
             out.append(np.array([(L - self.guess_L) / FAR_GUESS_SD_CM]))
@@ -468,6 +494,8 @@ class Problem:
             out.append(np.array([(H - self.H) / 1.0]))          # the measured height, +-1 cm
         if self.fit_tag_scale:
             out.append(np.array([(ks - 1.0) / TAG_SCALE_SD]))
+        if self.fit_inset:
+            out.append(np.array([dpx / INSET_SD_PX]))
         if self.roof_fit:
             a = self.lay["roof"][0]
             for j, i in enumerate(self.roof_ids):
@@ -809,7 +837,7 @@ def initial(obs, prob):
 
 
 def solve(obs, use_typed=True, fit_k1=None, fit_height=False, x_start=None, fit_tag_scale=False, roof_fit=False,
-          fit_ref_scale=None):
+          fit_ref_scale=None, fit_inset=False):
     """The fit. Returns a dict: ok, cameras {name: CameraModel dict + summary}, size_cm, stickers {id: [x, y]},
     residuals, checks (typed values against the cameras'), words (plain problems and checks)."""
     from scipy.optimize import least_squares
@@ -817,7 +845,7 @@ def solve(obs, use_typed=True, fit_k1=None, fit_height=False, x_start=None, fit_
         fit_k1 = True       # a webcam's lens bends (the simulated ones too); with the 0 +- 0.15 prior a straight lens
                             # stays straight. Left out, a bent lens cost up to 4 cm on the table (self-test)
     prob = Problem(obs, use_typed=use_typed, fit_k1=fit_k1, fit_height=fit_height, fit_tag_scale=fit_tag_scale,
-                   roof_fit=roof_fit, fit_ref_scale=fit_ref_scale)
+                   roof_fit=roof_fit, fit_ref_scale=fit_ref_scale, fit_inset=fit_inset)
     if x_start is not None:
         prob.layout()
         x0, words = np.array(x_start, float), ["started from the fit with the typed measurements"]
@@ -862,6 +890,8 @@ def solve(obs, use_typed=True, fit_k1=None, fit_height=False, x_start=None, fit_
     # per-kind pixel residuals (unweighted px)
     out["rms_px"] = rms_by_kind(prob, x)
     out["x"] = [float(v) for v in x]
+    if prob.fit_inset:
+        out["roof_inset_px"] = round(float(x[prob.lay["inset"][0]]), 3)
     if prob.fit_tag_scale:
         out["tag_scale"] = round(float(x[prob.lay["k"][0]]), 4)
     if prob.ref:
@@ -1034,7 +1064,7 @@ def full(obs, fit_k1=None, untyped_check=True):
     rf = bool(obs.get("roof_fit", True)) and bool(obs.get("tag_groups"))
     # (e07) with reference tiles read, the tiles are the ruler and the roof tags' read size is fitted (ruler_kw)
     refs_read = any(((obs.get("ref_tags") or {}).get("reads") or {}).values())
-    ruler_kw = dict(fit_tag_scale=True, fit_ref_scale=False) if (refs_read and obs.get("tag_groups")) else {}
+    ruler_kw = dict(fit_inset=True, fit_ref_scale=False) if (refs_read and obs.get("tag_groups")) else {}
     if not has_typed:
         a = solve(obs, use_typed=False, fit_k1=fit_k1, roof_fit=rf, **ruler_kw)
         a["checks"], a["words"] = [], a["words"] + [

@@ -421,6 +421,11 @@ class Coordinator:
             if b is None:
                 continue
             b.last_heard = t
+            if b.out and getattr(b, "out_kind", None) == "recovering" and rtype == "STEP":
+                # (e07) a robot on its reserved recovery is out of the plan: its STEP reports go to the recovery alone
+                # (rehearsal: through out_heard it never rejoined; through on_step its old steps crashed the run)
+                self.recovering_step(b, t, vals)
+                continue
             if b.out and not getattr(b, "rechecking", False):
                 # (while it is checked again, its records are read as any robot's: its `led` answers, status, RAW for
                 # the floor check; before 30 Oct a held robot's re-check could not see its own facing check's answers)
@@ -1760,7 +1765,7 @@ class Coordinator:
                 self.say("%s is talking again: checking it (boot ID, camera) before it rejoins" % b.name)
                 self.send(b.name, "status")
                 b.status_asked_t = t
-            elif not getattr(b, "back_said", False):
+            elif not getattr(b, "back_said", False) and getattr(b, "out_kind", None) != "recovering":
                 b.back_said = True
                 self.say("%s is talking again (%s); it stays out of this run, as a fixed obstacle" % (b.name, b.out))
 
@@ -3695,6 +3700,23 @@ class Coordinator:
                      "spot" % (n, ", ".join("%.2f cm at %g cm/s" % (b, a) for a, b in sorted(leads.items()))))
         return dict(stp, to=nt, stop_lead_cm=round(lead, 3))
 
+    def recovering_step(self, b, t, v):
+        """A STEP record from a robot on its reserved recovery: its pose, the log, and the recovery's own steps."""
+        try:
+            sid, state, ms = int(v[1]), v[2], int(float(v[3]))
+            x, y, th, front = float(v[4]), float(v[5]), float(v[6]), float(v[7])
+        except (ValueError, IndexError):
+            return
+        info = ",".join(v[8:])
+        b.note_clock(t, ms)
+        if state in ("started", "done", "failed"):
+            b.pose, b.pose_t = (x, y, th), t
+        self.log("step_report", robot=b.name, id=sid, state=state, x=x, y=y, th=th, front_cm=front, info=info,
+                 recovering=True)
+        if state in ("held", "halted"):
+            return
+        self.backoff_report(b, sid, state, info)
+
     def release_reserved(self, b, bo):
         """(e07) A reserved recovery that was interrupted: its corridor off the map; the robot held where it is (the
         usual re-check brings it back), never left out for good."""
@@ -3783,6 +3805,8 @@ class Coordinator:
             return False
         if not self.names:
             return False
+        if any(b.out and getattr(b, "out_kind", None) == "recovering" for b in self.bots.values()):
+            return False                # (e07) a robot on its reserved recovery comes back with points to do
         undone = [n for n in self.names if not all(st["status"] == "done" for st in self.bots[n].stat)]
         if undone:
             if any(getattr(self.bots[n], "retry_n", 0) == 0 for n in undone):

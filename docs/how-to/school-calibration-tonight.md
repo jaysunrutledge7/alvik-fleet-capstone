@@ -1,5 +1,9 @@
 # At school: the calibration run (zones 1-2)
 
+**From 6 Nov (build e07) the easy way is the Start screen: [mission-control-start.md](mission-control-start.md)** (four
+big buttons, a red STOP, nothing to type). The steps below still work; the Production screen is under Advanced, "Show all
+the older screens".
+
 ## New for Monday (build e06, 5 Nov evening): what changed, and the one new button
 
 Nothing new to type. Steps 1-10 below are the same; what the software now checks by itself:
