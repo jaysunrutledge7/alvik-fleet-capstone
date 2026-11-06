@@ -381,6 +381,8 @@ class Session:
                     "experiment", "swap_halves", "sync_wiggle")}
             if self.program is not None and (self.program.get("production") or {}).get("experiment"):
                 out["experiment_planned"] = self.program["production"]["experiment"]
+        if getattr(self, "start", None) is not None:
+            out["start"] = self.start.state()
         if self.feel is not None:
             out["feel"] = self.feel.status()
         if self.tag:
@@ -674,8 +676,31 @@ class Session:
             if not self.tag:
                 raise ValueError("Visit points needs a site with roof tags on the robots")
             cmd += ["--robots", "auto", "--split", "auto", "--motion", "stopturn"]
-            if conn == "sim-cameras":
+            if conn == "sim-cameras" and "--sim-robots" not in (d.get("extra") or []):
                 cmd += ["--sim-robots", str(int(d.get("sim_robots") or 2)), "--sim-bind"]
+            cmd += list(d.get("extra") or [])
+        elif kind == "roam":
+            # (e07, Nick 6 Nov) the Start screen's Free roam at a roof-tag site: every robot found by its wiggle
+            # wanders over its share of the readable points in a random order, on curves (firmware 11-05c+)
+            if not self.tag:
+                raise ValueError("free roam through mission_run is for a roof-tag site (home: freeroam.py)")
+            rm = float(d.get("roam_min") or 10.0)
+            cmd[cmd.index("--timeout-s") + 1] = str(rm * 60.0 + 240.0)
+            cmd += ["--robots", "auto", "--split", "auto", "--motion", "curves", "--roam-min", "%g" % rm]
+            cmd += list(d.get("extra") or [])
+        elif kind == "experiment":
+            # (e07) the Start screen's Experiment routes: Jay-Sun's next route for every robot found by its wiggle
+            # (two robots: his halves exactly; another count: the table cut into that many runs), straight lines
+            if not self.tag:
+                raise ValueError("experiment routes need a site with roof tags and typed points")
+            ex_ = str(d.get("experiment") or "e1")
+            # the shakedown runs with no camera (robots placed on their homes by hand): the site's own robots, no wiggle
+            rob_ = ",".join(r["name"] for r in self.site["robots"]) if ex_ == "shakedown" else "auto"
+            cmd += ["--robots", rob_, "--experiment", ex_, "--swap-halves", "auto", "--motion", "stopturn"]
+            if d.get("allow_half_table"):
+                cmd += ["--allow-half-table"]
+            cmd[cmd.index("--timeout-s") + 1] = str(max(float(rs["timeout_s"]), 1500.0))
+            cmd += list(d.get("extra") or [])
         else:
             if self.program is None:
                 self.program = MS.monday_program()
@@ -687,7 +712,7 @@ class Session:
             with open(pp, "w") as f:
                 json.dump(self.program, f, indent=1)
             cmd += ["--map", self.map_path, "--program", pp, "--robots", ",".join(self.program.get("robots", []))]
-        if not rs.get("turn_pause", True) or kind in ("warmup", "feel"):
+        if not rs.get("turn_pause", True) or kind in ("warmup", "feel", "roam"):
             cmd += ["--no-turn-pause"]
         if not rs.get("straighten", True):
             # the warm-up straightens too (Nick, 2026-10-30 09:50: "they should be able to self-correct"): its facing
@@ -1212,12 +1237,21 @@ def idle_sleeper(s, every_s=30.0):
     last, slept = None, True
     while True:
         try:
+            st_ = getattr(s, "start", None)
+            if st_ is not None:
+                st_.status()            # (e07) a run that ended: its robots sleep right away (Advanced switch)
             busy = bool((s.run and s.run.alive()) or (getattr(s, "calib", None) and s.calib.running()) or
-                        s.others_driving())
+                        s.others_driving() or (st_ is not None and st_.busy()))
             if busy:
                 last, slept = time.time(), False
             idle = float((s.site or {}).get("idle_sleep_min", OB.IDLE_SLEEP_MIN)) if getattr(s, "site", None) else \
                 OB.IDLE_SLEEP_MIN
+            if st_ is not None:
+                # (e07, Nick 6 Nov) the 30-minute timer is a switch in Advanced, off by default (sleep when done is on)
+                idle = float(st_.adv.get("sleep_timer_min") or 30.0) if st_.adv.get("sleep_timer") else 0.0
+                if st_.active_practice and not busy:
+                    slept = True        # a practice run moved no robot
+            every_s = 5.0
             if idle_sleep_due(busy, last, time.time(), slept, idle):
                 ck = int((s.site or {}).get("sleep_checkin_min", 10)) if getattr(s, "site", None) else 10
                 subprocess.run([sys.executable, os.path.join(os.path.dirname(HERE), "pi", "robot_sleep.py"), "sleep",
@@ -1257,6 +1291,8 @@ class Handler(BaseHTTPRequestHandler):
                     return self._send(200, S.state())
             if path == "/api/run":
                 return self._send(200, S.run.status() if S.run else {})
+            if path == "/api/start":
+                return self._send(200, clean(S.start.state()))
             if path == "/api/calib":
                 return self._send(200, S.calib.status())
             if path == "/api/calib/file":
@@ -1323,6 +1359,45 @@ class Handler(BaseHTTPRequestHandler):
         S = self.session
         try:
             with S.lock:
+                if path == "/api/start/run":
+                    return self._send(200, clean(S.start.start(d.get("kind"), attended=bool(d.get("attended")))))
+                if path == "/api/start/stop":
+                    return self._send(200, clean(S.start.stop_all()))
+                if path == "/api/start/advanced":
+                    S.start.set_advanced(d)
+                    import sites as SI_
+                    for k_, sk_ in (("measure_trust", "measure_trust"), ("corner_clicks", "corner_clicks"),
+                                    ("min_firmware", "calibration.min_firmware")):
+                        if k_ in d and S.site:
+                            v_ = d[k_]
+                            v_ = None if v_ in ("auto", "") else ({"on": True, "off": False}.get(v_, v_)
+                                                                   if k_ == "corner_clicks" else
+                                                                   ("" if v_ == "none" else v_))
+                            SI_.set_override(S.site, sk_, v_)
+                            S.site.update(SI_.load(S.site["name"]))
+                    return self._send(200, clean(S.start.state()))
+                if path == "/api/start/typed":
+                    import sites as SI_
+                    if not S.site:
+                        raise ValueError("no site loaded")
+                    key, val = d.get("key"), d.get("value")
+                    if key in ("table_length_cm", "table_width_cm"):
+                        tb = dict(S.site.get("table") or {})
+                        tb["length_cm" if key == "table_length_cm" else "width_cm"] = float(val) if val not in (
+                            None, "") else None
+                        tb = tb if tb.get("length_cm") and tb.get("width_cm") else None
+                        SI_.set_override(S.site, "table", tb)
+                    elif key == "tag_height_cm":
+                        SI_.set_override(S.site, "tags.height_cm", float(val) if val not in (None, "") else None)
+                    else:
+                        raise ValueError("Advanced cannot change %s here" % key)
+                    S.site.update(SI_.load(S.site["name"]))
+                    return self._send(200, clean(S.start.state()))
+                if path == "/api/start/site":
+                    import site_detect as SD
+                    SD.set_pin(d.get("pin") or None)
+                    return self._send(200, {"pinned": SD.pinned_site(), "words": "Saved: restart Mission Control "
+                                            "(./run-fleet-pi.sh mc-stop, then ./run-fleet-pi.sh mc) to use it."})
                 if path == "/api/map":
                     S.set_map(d)
                     return self._send(200, S.state())
@@ -1442,6 +1517,34 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(500, {"error": "%s: %s" % (type(e).__name__, e)})
 
 
+def detect_where(SD, sim_room=""):
+    """(e07) The site from site_detect: a simulated room's evidence, else this computer's cameras and name plus what
+    the cameras' pictures show (the recorder's /live, when it answers). A new area gets a site of its own."""
+    if sim_room:
+        ev = dict(SD.SIM_ROOMS[sim_room])
+        ev.setdefault("pinned", SD.pinned_site())
+    else:
+        ev = SD.hardware_evidence()
+        pics = {}
+        try:
+            import cv2
+            import numpy as np
+            for cam, port in (("overhead", 8000), ("side", 8001)):
+                jpg = grab_jpeg("127.0.0.1", port)
+                if jpg is not None:
+                    pics[cam] = cv2.imdecode(np.frombuffer(jpg, np.uint8), cv2.IMREAD_GRAYSCALE)
+        except Exception:   # noqa: BLE001
+            pics = {}
+        if pics:
+            ev.update(SD.picture_evidence(pics))
+    w = SD.decide(ev)
+    if w["site"] == "new":
+        w["site"] = SD.make_new_site(w.get("template", "school-conference"), ev.get("table_cm"))
+        w["words"] += " Its own site: %s." % w["site"]
+    w["evidence"] = {k: (sorted(v) if isinstance(v, set) else v) for k, v in ev.items()}
+    return w
+
+
 def serve(session, port=PORT, listen="127.0.0.1", allow_hosts=()):
     H = type("H", (Handler,), {"session": session, "allow_hosts": tuple(allow_hosts)})
     srv = ThreadingHTTPServer((listen, port), H)
@@ -1460,14 +1563,33 @@ def main(argv=None):
                     help="a Host name besides 127.0.0.1 from which the page may change things (the Pi's Tailscale address)")
     ap.add_argument("--dry", action="store_true", help="open on the simulator even where real cameras answer "
                                                        "(FLEET_DRY=1 does the same)")
+    ap.add_argument("--sim-room", choices=("home", "school", "new", "school-misnamed"), default="",
+                    help="(e07) practice: the evidence a simulated room shows (site_detect.SIM_ROOMS); implies --dry")
     a = ap.parse_args(argv)
-    if a.site:
+    a.dir_given = bool(a.dir)
+    where = None
+    if a.sim_room:
+        a.dry = True
+        a.site = a.site or "auto"
+    if a.site == "auto":
+        # (e07, Nick 6 Nov) where am I: home, school or a new area, from what the cameras and this computer show
+        import site_detect as SD
+        where = detect_where(SD, a.sim_room)
+        os.environ["MIRLT_SITE"] = where["site"]
+        print("WHERE: %s" % where["words"], flush=True)
+        if not a.dir_given:
+            a.dir = ""                               # the detected site's own folder
+    elif a.site:
         os.environ["MIRLT_SITE"] = a.site
     if not a.dir:
         import sites as SI
         a.dir = SI.load()["mc_dir"]
     s = Session(a.dir, a.map, a.port)
     s.force_dry = a.dry
+    import start_job as SJB
+    s.start = SJB.Starter(s, where=where or {"site": (s.site or {}).get("name", "home"), "kind": "fixed",
+                                             "words": "Site chosen at start: %s" % (s.site or {}).get("title", "home")},
+                          practice=True if a.dry else None)
     if not a.dry:
         threading.Thread(target=idle_sleeper, args=(s,), daemon=True).start()
     print("Connect screen opens on: %s" % s.conn_default()["why"], flush=True)

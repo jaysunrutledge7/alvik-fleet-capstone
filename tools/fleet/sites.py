@@ -81,11 +81,22 @@ def chosen_file():
     return os.path.join(base_conf_dir(), "site")
 
 
+def local_dir():
+    """(e07) sites made on this computer (a new area found by site_detect): kept out of the repo."""
+    return os.path.join(base_conf_dir(), "sites-local")
+
+
 def names():
     out = []
     for f in sorted(os.listdir(SITES_DIR)):
         if f.endswith(".json"):
             out.append(f[:-5])
+    try:
+        for f in sorted(os.listdir(local_dir())):
+            if f.endswith(".json") and f[:-5] not in out:
+                out.append(f[:-5])
+    except OSError:
+        pass
     return out
 
 
@@ -240,6 +251,8 @@ def load(name=None):
     """The site as a dict, with defaults filled in and paths expanded (conf_dir, mc_dir absolute)."""
     name = name or current_name()
     path = os.path.join(SITES_DIR, name + ".json")
+    if not os.path.exists(path) and os.path.exists(os.path.join(local_dir(), name + ".json")):
+        path = os.path.join(local_dir(), name + ".json")     # (e07) a new area found on this computer
     if not os.path.exists(path):
         raise SiteFileError("No site called %r (sites: %s)%s. Nothing was started. Switch site: ./run-fleet-pi.sh site "
                             "home, or make one: copy tools/fleet/sites/school-conference.json to tools/fleet/sites/%s.json "
@@ -272,12 +285,69 @@ def load(name=None):
         d.setdefault(k, v)
     cd = d.get("conf_dir") or (BASE_CONF if name == DEFAULT_SITE else BASE_CONF + "/sites/" + name)
     d["conf_dir"] = os.path.expanduser(cd)
+    apply_overrides(d)
     md = d.get("mc_dir") or ("logs/mission-control" if name == DEFAULT_SITE else "logs/mission-control-" + name)
     d["mc_dir"] = md if os.path.isabs(md) else os.path.join(REPO, md)
     for k, r in enumerate(d["robots"]):
         r.setdefault("colour", ROBOT_COLOURS[k % len(ROBOT_COLOURS)])
     _check(d, name)
     return d
+
+
+OVERRIDES_FILE = "site_overrides.json"
+OVERRIDE_KEYS = {"table": dict, "measure_trust": str, "corner_clicks": bool, "edge_in_cm": float,
+                 "tags.height_cm": float, "calibration.min_firmware": str}
+
+
+def overrides_path(site):
+    return os.path.join(site["conf_dir"], OVERRIDES_FILE)
+
+
+def apply_overrides(d):
+    """(e07) Values changed in Mission Control's Advanced section (typed values, switches), kept on this computer in
+    the site's folder (never in the repo), laid over the site file. {"tags.height_cm": 6.3, "table": {...}, ...}."""
+    try:
+        with open(overrides_path(d)) as f:
+            ov = json.load(f)
+    except (OSError, ValueError):
+        return d
+    for k, v in ov.items():
+        if k not in OVERRIDE_KEYS:
+            continue
+        if "." in k:
+            a, b = k.split(".", 1)
+            d.setdefault(a, {})
+            if isinstance(d[a], dict):
+                if v is None:
+                    d[a].pop(b, None)
+                else:
+                    d[a][b] = v
+        elif v is None:
+            d.pop(k, None) if k != "table" else d.__setitem__("table", None)
+        else:
+            d[k] = v
+    d["_overrides"] = dict(ov)
+    return d
+
+
+def set_override(site, key, value):
+    """Save one Advanced value for this site on this computer (None removes it: the site file's value again)."""
+    if key not in OVERRIDE_KEYS:
+        raise ValueError("not a setting Advanced can change: %s" % key)
+    p = overrides_path(site)
+    try:
+        with open(p) as f:
+            ov = json.load(f)
+    except (OSError, ValueError):
+        ov = {}
+    if value is None or value == "":
+        ov.pop(key, None)
+    else:
+        ov[key] = value
+    os.makedirs(os.path.dirname(p), exist_ok=True)
+    with open(p, "w") as f:
+        json.dump(ov, f, indent=1)
+    return ov
 
 
 def use(name):

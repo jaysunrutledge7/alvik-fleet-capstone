@@ -915,6 +915,7 @@ class Coordinator:
                     wms = max(0, int(round((self.plan_start + stp["t_end"] - t) * 1000)))
                 if m_v is not None:
                     stp = dict(stp, speed=m_v)            # re-timed for mirroring: this drive's speed only
+                stp = self.with_stop_lead(n, stp)         # (e07) sent short by its stop lead (its last calibration)
                 st.update(status="sent", t_sent=t, text=step_command(sid, stp, wms), sends=1,
                           speed_sent=m_v if m_v is not None else stp.get("speed"))
                 self.send(n, st["text"])
@@ -1467,10 +1468,13 @@ class Coordinator:
         out["stranded"] = [n for n in out.get("stranded", []) if n not in names]
         return out
 
-    def retire(self, b, why, kind="out"):
+    def retire(self, b, why, kind="out", halt=True, reassign=True):
         """Nick (2026-10-27 16:43): a robot that dies mid-run is a brick; the others carry on. kind "silent" or
         "restarted" (Nick, 2026-10-29 16:2x): it is held, not out for good: when it is heard again it rejoins
-        (rejoin_watch). What it needs for that is kept: its part of the plan and its steps' states."""
+        (rejoin_watch). What it needs for that is kept: its part of the plan and its steps' states.
+        (e07) kind "recovering": a lost robot on its straight recovery, taken out of the plan while it drives so the
+        others re-plan round its reserved corridor (halt False: its recovery steps are already sent; reassign False:
+        its points stay its own); backoff_report brings it back."""
         if b.out:
             return
         import copy
@@ -1482,14 +1486,18 @@ class Coordinator:
         b.back_t = None
         b.out_t = now()
         ob = self.out_obstacle(b)
-        if self.rejoinable(b):
+        if kind == "recovering":
+            self.say("%s: its recovery path is RESERVED: the others re-plan round it (they do not just check their next "
+                     "steps) and carry on" % b.name)
+        elif self.rejoinable(b):
             self.say("%s is held: %s. It is a fixed obstacle where it stopped until it is heard again (then it rejoins); "
                      "the others re-plan and carry on" % (b.name, why))
         else:
             self.say("%s is out: %s. It is now a fixed obstacle where it stopped; the others re-plan and carry on"
                      % (b.name, why))
-        self.log("robot_out", robot=b.name, why=why, obstacle=ob, pose=list(b.pose) if b.pose else None)
-        self.control(b, "halt")              # if it can still hear: stop at once
+        self.log("robot_out", robot=b.name, why=why, obstacle=ob, pose=list(b.pose) if b.pose else None, kind=kind)
+        if halt:
+            self.control(b, "halt")          # if it can still hear: stop at once
         self.names = [n for n in self.names if n != b.name]
         self.outs = getattr(self, "outs", []) + [dict(robot=b.name, why=why, t_run=round(now() - self.t_run, 2)
                                                       if self.t_run_started() else None)]
@@ -1515,7 +1523,7 @@ class Coordinator:
             self.say(self.abort)
             return
         self.plan = self.without(self.plan, [b.name])
-        if self.keep_going() and self.t_run_started():
+        if reassign and self.keep_going() and self.t_run_started():
             self.reassign_points(b, why)
         self.handle_obstacle(ob)
 
@@ -2620,7 +2628,27 @@ class Coordinator:
             return                                      # we stopped it for a re-plan
         import observe as OB
         tk = OB.trip_kind(info)
-        if tk == "line" and getattr(getattr(self, "args", None), "surface_marks", "auto") != "off":
+        sm_mode = getattr(getattr(self, "args", None), "surface_marks", "log")
+        if tk == "line" and sm_mode == "log":
+            # (e07, Nick 6 Nov) a line-sensor trip with no drop: LOGGED as data only (where, what the camera saw),
+            # never an edge and never a behaviour change: the line sensors stay as they are, nothing is mapped, the
+            # robot re-plans from where it stands (FailMemory keeps the same move from being repeated unchanged).
+            # Only a real drop (the distance sensor's bottom zone) is an edge. e06's way: --surface-marks act
+            ct = getattr(b, "cam_t", None)
+            cam = getattr(b, "last_cam", None)
+            f = self.m["floor"] if cam else None
+            ced = None if not cam else min(cam[0] - f["x_min"], f["x_max"] - cam[0], cam[1] - f["y_min"],
+                                           f["y_max"] - cam[1])
+            self.log("surface_mark", robot=b.name, i=i, info=info, cam=cam,
+                     cam_edge_cm=None if ced is None else round(ced, 1),
+                     cam_age_s=None if ct is None else round(now() - ct, 2), acted=False)
+            self.__dict__.setdefault("surface_marks", []).append(dict(robot=b.name, at=cam, info=info, acted=False))
+            self.say("%s: its line sensors tripped with no drop below (%s): logged as a surface mark, not an edge; "
+                     "nothing changed on the robot; re-planning from where it stands" % (
+                         b.name, "camera %.0f cm inside the table" % ced if ced is not None else "camera not fresh"))
+            self.handle_obstacle(None, cause=b.name)
+            return
+        if tk == "line" and sm_mode in ("act", "auto"):
             # (11-05h, Observe then trust) the line sensors alone: with the camera putting the robot well inside the
             # table it is a mark on the surface (school 5 Nov: the black tape over the seam), not an edge. Logged;
             # that robot's line cue is switched off for the rest of the run (the bottom zone stays on), re-planned
@@ -2758,6 +2786,8 @@ class Coordinator:
                 if getattr(b, "blind", None):
                     b.blind["recovered"] = False
                 self.log("recover_interrupted", robot=b.name, info=info)
+                if bo.get("reserved"):
+                    self.release_reserved(b, bo)
                 return True
             if state == "failed":
                 return self.backoff_report(b, bo["id"], "failed", "the turn: " + info)
@@ -2770,6 +2800,26 @@ class Coordinator:
             if getattr(b, "blind", None):
                 b.blind["recovered"] = False          # halted by the run itself: it may recover again
             self.log("recover_interrupted", robot=b.name, info=info)
+            if bo.get("reserved"):
+                self.release_reserved(b, bo)
+            return True
+        if bo["kind"] == "recover" and bo.get("reserved"):
+            # (e07) its reserved corridor comes off the map; seen again: it rejoins (the others re-plan with it);
+            # not seen: it stays held where it ended, found again by the usual re-check
+            self.m["obstacles"] = [o for o in self.m.get("obstacles", []) if o.get("id") != bo["corridor"]["id"]]
+            self.m = FM.normalize(self.m)
+            seen = state == "done" and getattr(b, "cam_t", None) is not None and now() - b.cam_t <= 1.5
+            self.log("recover_end", robot=b.name, result=state, info=info, seen=seen, reserved=True)
+            b.out_kind = "restarted"
+            if seen and b.out:
+                self.rejoin(b, "seen again after its straight recovery")
+            elif b.out:
+                b.back_t = now()
+                self.m["obstacles"] = [o for o in self.m.get("obstacles", []) if o.get("id") != "out-%s" % b.name]
+                self.add_obstacle(self.out_obstacle(b))
+                self.say("%s: not seen again after its recovery (%s %s): it is held where it stands; the others carry "
+                         "on" % (b.name, state, info))
+                self.handle_obstacle(None)
             return True
         if bo["kind"] == "recover":
             self.log("recover_end", robot=b.name, result=state, info=info,
@@ -3543,13 +3593,19 @@ class Coordinator:
         if not ok_:
             self.log("recover_refused", robot=b.name, why=why_)
             return False
+        # (e07, Nick 6 Nov) the recovery path is RESERVED in the others' plans: they re-plan round its corridor (the
+        # robot is out of the plan while it drives). Their bodies where they stand now are still checked (a re-plan
+        # cannot move a robot that is there). --recover-reserve off: e06's way, their next 4 steps checked only
+        others_active = [o for o in self.bots.values() if o is not b and not o.out and o.name in self.names]
+        reserve = getattr(self.args, "recover_reserve", "on") != "off" and bool(others_active)
         for k in range(11):
             px, py = x + (bx - x) * k / 10.0, y + (by - y) * k / 10.0
             for o in self.bots.values():
                 if o is b or o.out or o.pose is None:
                     continue
-                pts = [o.pose[:2]] + [tuple(st["to"][:2]) for st, rec in zip(self.steps(o.name), o.stat)
-                                      if rec["status"] != "done" and st.get("to")][:4]
+                pts = [o.pose[:2]] + ([] if reserve else [
+                    tuple(st["to"][:2]) for st, rec in zip(self.steps(o.name), o.stat)
+                    if rec["status"] != "done" and st.get("to")][:4])
                 for q in pts:
                     if math.hypot(px - q[0], py - q[1]) < self.RECOVER_GAP_CM + err:
                         self.log("recover_refused", robot=b.name, why="the path of %s" % o.name,
@@ -3563,10 +3619,13 @@ class Coordinator:
         time.sleep(0.05)
         self.send(b.name, "fs %d T %.2f -" % (tid, hd))
         text = "fs %d D %.2f %.2f %.2f %.2f %.2f %.2f 0 -" % (sid, x, y, bx, by, hd, 5.0)
-        ob = {"id": "recover-%s-%d" % (b.name, sid), "shape": "polygon", "source": "lost-tag recovery corridor",
-              "points": [[round(x, 2), round(y, 2)], [round(bx, 2), round(by, 2)]]}
-        b.backoff = dict(id=sid, t=now(), ob=None, kind="recover", corridor=ob, turn_id=tid)
+        ob = self.recovery_corridor(b.name, sid, x, y, bx, by, err)
+        b.backoff = dict(id=sid, t=now(), ob=None, kind="recover", corridor=ob, turn_id=tid, reserved=reserve)
         self.send(b.name, text)
+        if reserve:
+            self.add_obstacle(ob)
+            self.log("recover_reserved", robot=b.name, corridor=ob, others=[o.name for o in others_active])
+            self.retire(b, "recovering (%s)" % why, kind="recovering", halt=False, reassign=False)
         self.__dict__.setdefault("recoveries", []).append(dict(robot=b.name, back_cm=round(back, 1),
                                                                blind_cm=round(bl["dist"], 1), why=why))
         self.log("recover_start", robot=b.name, back_cm=round(back, 1), from_=[round(x, 1), round(y, 1)],
@@ -3586,6 +3645,80 @@ class Coordinator:
                         b.name, lab))
             self.skip_unreadable()
         return True
+
+    LEAD_MIN_LEG_CM = 3.0     # (e07) legs shorter than this are sent as planned (chosen: the stop lead is a few mm)
+    LEAD_MAX_SHARE = 0.4      # ... and a lead never takes more than this share of a leg (chosen; no DOE: a guard)
+
+    def stop_leads(self):
+        """(e07, Nick 6 Nov: missions use each robot's stop lead from its last calibration) {robot: {speed: cm}} from
+        --stop-lead NAME=SPEED:CM,... (mission_run passes them from the Pi's stop_leads.json by WiFi name)."""
+        if getattr(self, "_leads", None) is None:
+            out = {}
+            for spec in getattr(self.args, "stop_lead", None) or []:
+                try:
+                    n, rest = spec.split("=", 1)
+                    out[n.strip()] = {float(a): float(b) for a, b in (kv.split(":") for kv in rest.split(",") if kv)}
+                except ValueError:
+                    continue
+            self._leads = out
+        return self._leads
+
+    def with_stop_lead(self, n, stp):
+        """A forward drive sent this robot's stop lead short (the fixed few mm it rolls on after the stop, measured
+        per speed by its calibration), so it comes to rest on the planned spot. Anything else as planned."""
+        leads = self.stop_leads().get(n)
+        if not leads or stp.get("type") != "drive" or stp.get("reverse"):
+            return stp
+        fr, to = stp["from"], stp["to"]
+        L = math.hypot(to[0] - fr[0], to[1] - fr[1])
+        if L < self.LEAD_MIN_LEG_CM:
+            return stp
+        v = float(stp.get("speed") or 0.0)
+        ks = sorted(leads)
+        if len(ks) == 1 or v <= ks[0]:
+            lead = leads[ks[0]] * (v / ks[0] if len(ks) > 1 and v < ks[0] and ks[0] > 0 else 1.0)
+        elif v >= ks[-1]:
+            lead = leads[ks[-1]]
+        else:
+            j = max(k for k in range(len(ks)) if ks[k] <= v)
+            a, c = ks[j], ks[j + 1]
+            lead = leads[a] + (leads[c] - leads[a]) * (v - a) / (c - a)
+        lead = max(0.0, min(lead, self.LEAD_MAX_SHARE * L, 1.5))
+        if lead <= 0.0:
+            return stp
+        k = (L - lead) / L
+        nt = [fr[0] + (to[0] - fr[0]) * k, fr[1] + (to[1] - fr[1]) * k] + list(to[2:])
+        if not getattr(self, "_lead_said", {}).get(n):
+            self.__dict__.setdefault("_lead_said", {})[n] = True
+            self.log("stop_lead_used", robot=n, leads={("%g" % a): b for a, b in leads.items()})
+            self.say("%s: forward drives sent %s short (its stop lead from its last calibration), so it stops on the "
+                     "spot" % (n, ", ".join("%.2f cm at %g cm/s" % (b, a) for a, b in sorted(leads.items()))))
+        return dict(stp, to=nt, stop_lead_cm=round(lead, 3))
+
+    def release_reserved(self, b, bo):
+        """(e07) A reserved recovery that was interrupted: its corridor off the map; the robot held where it is (the
+        usual re-check brings it back), never left out for good."""
+        self.m["obstacles"] = [o for o in self.m.get("obstacles", []) if o.get("id") != bo["corridor"]["id"]]
+        self.m = FM.normalize(self.m)
+        if b.out and getattr(b, "out_kind", None) == "recovering":
+            b.out_kind = "restarted"
+            b.back_t = now()
+        self.handle_obstacle(None)
+
+    def recovery_corridor(self, name, sid, x, y, bx, by, err):
+        """(e07) The ground a straight recovery may sweep, as a map obstacle the others' re-plan keeps out of: a
+        rectangle round the line from (x, y) to (bx, by), half as wide as the robot's half diagonal plus its blind
+        error and 1 cm, and that much past each end (the turn on the spot at its start included)."""
+        hw = 6.72 + float(err) + 1.0
+        L = max(1e-6, math.hypot(bx - x, by - y))
+        ux, uy = (bx - x) / L, (by - y) / L
+        nx, ny = -uy, ux
+        a = (x - ux * hw, y - uy * hw)
+        c = (bx + ux * hw, by + uy * hw)
+        pts = [[a[0] + nx * hw, a[1] + ny * hw], [c[0] + nx * hw, c[1] + ny * hw], [c[0] - nx * hw, c[1] - ny * hw],
+               [a[0] - nx * hw, a[1] - ny * hw]]
+        return {"id": "recover-%s-%d" % (name, sid), "shape": "polygon", "source": "robot_out",
+                "points": [[round(p[0], 2), round(p[1], 2)] for p in pts], "note": "lost-tag recovery corridor"}
 
     def skip_unreadable(self, min_tries=3):
         """(11-05h) Every robot's points not done that lie where this run has LEARNED the camera does not read tags
@@ -5280,9 +5413,17 @@ def main(argv=None):
     ap.add_argument("--lost-robot-points", choices=("reassign", "skip"), default="reassign",
                     help="with --on-problem keep_going: a robot that is out hands its production points not done to "
                          "the robots still running (reassign, default), or they are listed as not done (skip)")
-    ap.add_argument("--surface-marks", choices=["auto", "off"], default="auto",
-                    help="(11-05h) auto: a line-sensor trip the camera puts well inside the table is a surface mark "
-                         "(logged; that robot's line cue off); off: every line trip is an edge (the old way)")
+    ap.add_argument("--stop-lead", action="append", default=[], metavar="NAME=SPEED:CM,...",
+                    help="(e07) send this robot's forward drives this much short (its stop lead per speed, from its "
+                         "last calibration; mission_run passes them)")
+    ap.add_argument("--recover-reserve", choices=["on", "off"], default="on",
+                    help="(e07, Nick 6 Nov) on: a lost robot's straight recovery path is reserved in the others' plans "
+                         "(they re-plan round it); off: e06's way (only checked against their next 4 steps)")
+    ap.add_argument("--surface-marks", choices=["log", "act", "auto", "off"], default="log",
+                    help="(e07, Nick 6 Nov) log (default): a line-sensor trip with no drop is logged as data and "
+                         "nothing else (not an edge, the line sensors untouched); act (= e06's auto, kept switched "
+                         "off): a trip the camera puts well inside the table is a surface mark and that robot's line "
+                         "cue is switched off; off: every line trip is an edge (before e06)")
     ap.add_argument("--readmap", default="", help="(11-05h) the mission's readability map at the start "
                     "(observe.ReadMap JSON); learned on during the run, saved as readmap.json")
     ap.add_argument("--bridge-events", default="", help="the tag bridge's events.jsonl: a bumped camera's size counts "

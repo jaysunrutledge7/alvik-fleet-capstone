@@ -55,6 +55,77 @@ WINDOW_TAGS = 3.0         # a window is this many tag-widths across, plus the ro
 FULL_EVERY = 5            # a lost tag: the whole picture searched at most every this many pictures. DOE: 1 / 5 / 15
                           # against the time to find a tag again and the Pi's CPU
 FULL_UPSCALE_MAX_PX = 1400  # the whole-picture search enlarges a picture only up to this many pixels across (cost)
+EDGE_REFINE = True        # (e07, 2026-11-06) each found square's four corners moved to where its four EDGES cross, each
+                          # edge found where the grey level is half-way between the black border and the white margin
+                          # beside it (refine_edges). A blur moves a square's corners inwards (the detector's corners read
+                          # 8 cm tags 2-8 % small in the simulator, so a table measured by the tags alone came out large);
+                          # the half-way crossing of a straight edge does not move with a symmetric blur (a drawn square:
+                          # 0.2 % off). Switch: False = the detector's own corners, as before e07
+EDGE_PROFILE_CELLS = 0.6  # how far each side of an edge its grey levels are read, in tag cells. Chosen: the 8 cm tag's
+                          # white margin on the roof is 0.66 cells (9.5 cm roof), so the white level is read on the roof,
+                          # not on the robot's body beyond it. DOE note: 0.4 / 0.6 / 0.9 against the read-size ratio on
+                          # printed tags of known size on the real camera
+EDGE_MIN_CONTRAST = 15.0  # grey levels between black and white below this: that edge is not used (no refinement)
+
+
+def refine_edges(grey, corners, cells=7):
+    """(e07) The square's corners from its four edges: along the middle 60 % of each side, the grey profile across the
+    edge (EDGE_PROFILE_CELLS each way) gives the point half-way between its darkest (black border) and lightest (white
+    margin) levels; a line through those points per side; corners where the lines cross. corners: 4x2 (any order
+    round the square). Returns 4x2 or None (an edge without contrast, or lines that do not cross sensibly)."""
+    g = grey.astype(np.float32) if grey.dtype != np.float32 else grey
+    c = np.asarray(corners, float).reshape(4, 2)
+    H, W = g.shape[:2]
+    for _ in range(2):
+        ctr = c.mean(0)
+        lines = []
+        for k in range(4):
+            a, b = c[k], c[(k + 1) % 4]
+            L = float(np.linalg.norm(b - a))
+            if L < 6.0:
+                return None
+            t = (b - a) / L
+            n = np.array([-t[1], t[0]])
+            if np.dot(ctr - (a + b) / 2.0, n) > 0:
+                n = -n                                   # n points out of the square
+            w = max(1.5, EDGE_PROFILE_CELLS * L / cells)
+            o = np.linspace(-w, w, 25)
+            pts = []
+            for s in np.linspace(0.2, 0.8, 9):
+                p = a + s * (b - a)
+                xs, ys = (p[0] + o * n[0]).astype(np.float32), (p[1] + o * n[1]).astype(np.float32)
+                if xs.min() < 0 or ys.min() < 0 or xs.max() > W - 1 or ys.max() > H - 1:
+                    continue
+                v = cv2.remap(g, xs.reshape(-1, 1), ys.reshape(-1, 1), cv2.INTER_LINEAR).ravel()
+                dark, light = np.sort(v[:12])[:3].mean(), np.sort(v[13:])[-3:].mean()
+                if light - dark < EDGE_MIN_CONTRAST:
+                    continue
+                m = 0.5 * (dark + light)
+                j = np.where((v[:-1] < m) & (v[1:] >= m))[0]
+                if len(j) == 0:
+                    continue
+                j = j[np.argmin(np.abs(j - 12))]
+                f = (m - v[j]) / max(1e-6, v[j + 1] - v[j])
+                pts.append(p + (o[j] + f * (o[1] - o[0])) * n)
+            if len(pts) < 4:
+                return None
+            P = np.array(pts)
+            mu = P.mean(0)
+            lines.append((mu, np.linalg.svd(P - mu)[2][0]))
+        new = []
+        for k in range(4):
+            (p1, d1), (p2, d2) = lines[(k - 1) % 4], lines[k]
+            A = np.array([d1, -d2]).T
+            if abs(np.linalg.det(A)) < 0.2:
+                return None
+            st = np.linalg.solve(A, p2 - p1)
+            new.append(p1 + st[0] * d1)
+        new = np.array(new)
+        if np.max(np.linalg.norm(new - c, axis=1)) > 0.25 * np.mean(
+                [np.linalg.norm(c[k] - c[(k + 1) % 4]) for k in range(4)]):
+            return None                                  # moved too far: not this square's edges
+        c = new
+    return c
 
 
 def opencv_has(family):
@@ -167,8 +238,11 @@ class TagDetector:
     """Finds tags of one family in grey pictures. ids: only these are reported (others are clutter: the room's other
     tags, a spare on the table). backend: 'opencv' or 'pupil' (default: what is available, OpenCV first)."""
 
-    def __init__(self, family=TAG_FAMILY, ids=None, backend=None, upscale=UPSCALE, threads=1):
+    def __init__(self, family=TAG_FAMILY, ids=None, backend=None, upscale=UPSCALE, threads=1, refine=None):
         self.family = family
+        self.refine = EDGE_REFINE if refine is None else bool(refine)    # (e07) corners from the edges
+        self.cells = FAMILIES[family][1]
+        self.refined = self.refine_failed = 0
         self.ids = None if ids is None else set(int(i) for i in ids)
         self.backend = backend or backend_for(family)
         if self.backend is None:
@@ -218,10 +292,21 @@ class TagDetector:
         if ids is None:
             return out
         seen = {}
+        gf = None
         for c, i in zip(corners, np.asarray(ids).ravel()):
             if self.ids is not None and int(i) not in self.ids:
                 continue
-            p = np.asarray(c, float).reshape(4, 2) / scale + np.asarray(offset, float)
+            q = np.asarray(c, float).reshape(4, 2)
+            if self.refine:
+                if gf is None:
+                    gf = grey.astype(np.float32)
+                r = refine_edges(gf, q, self.cells)
+                if r is not None:
+                    q = r
+                    self.refined += 1
+                else:
+                    self.refine_failed += 1
+            p = q / scale + np.asarray(offset, float)
             d = Detection(int(i), p, cam=cam, t=t)
             prev = seen.get(d.id)
             if prev is not None and np.linalg.norm(prev.center - d.center) < prev.size_px:

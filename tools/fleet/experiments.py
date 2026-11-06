@@ -40,7 +40,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 if HERE not in sys.path:
     sys.path.insert(0, HERE)
 
-VERSION = "2026-11-03a"
+VERSION = "2026-11-06a"   # e07: any number of robots (halves(names=...))
 KINDS = {
     "shakedown": {"name": "Shakedown (no camera, default orders)", "order": "default", "tracking": "none",
                   "experiment": False},
@@ -85,10 +85,23 @@ def num(lab):
     return int(d) if d else 0
 
 
-def halves(site, labels, zones, swap=False):
-    """{robot: [labels]} from the site's production zones; swap: the two robots' halves exchanged."""
+def halves(site, labels, zones, swap=False, names=None, pts=None, homes_xy=None):
+    """{robot: [labels]} from the site's production zones; swap: the two robots' halves exchanged.
+    (e07, Nick 6 Nov: every run works with however many robots are present) names: the run's robots. When they are
+    not the site's two zone owners (one robot, three, or other names), the points are cut along the table (by x) into
+    that many runs of whole zones' worth of points, the leftmost run to the robot whose home is leftmost; swap then
+    turns the runs round by one. Two robots named as the site's zones: exactly as before (Jay-Sun's design)."""
     pr = (site or {}).get("production") or {}
     zs = pr.get("zones") or {}
+    if names and pts and set(names) != set(zs):
+        names = list(names)
+        order = sorted(labels, key=lambda l: (pts[l][0], pts[l][1]))
+        k = len(names)
+        parts = [order[round(j * len(order) / k): round((j + 1) * len(order) / k)] for j in range(k)]
+        by_x = sorted(names, key=lambda n: ((homes_xy or {}).get(n) or [0.0])[0])
+        if swap and k > 1:
+            parts = parts[1:] + parts[:1]
+        return {n: sorted(parts[j], key=num) for j, n in enumerate(by_x)}
     out = {n: [l for l in labels if zones.get(l) in set(int(z) for z in v)] for n, v in zs.items()}
     if swap and len(out) == 2:
         a, b = list(out)
@@ -156,7 +169,7 @@ def experiment_orders(site, pts, zones, homes_xy, exp, swap=False, seed=None):
     mid = float(c["middle_in"]) * 2.54
     seed = int(c["seed"] if seed is None else seed)
     labels = sorted(pts, key=num)
-    hv = halves(site, labels, zones, swap)
+    hv = halves(site, labels, zones, swap, names=list(homes_xy), pts=pts, homes_xy=homes_xy)
     rng = random.Random("%d-%s" % (seed, exp))
     traded = {n: [] for n in hv}
     if kind in ("reversed", "zigzag", "shuffled"):
@@ -187,7 +200,11 @@ def experiment_orders(site, pts, zones, homes_xy, exp, swap=False, seed=None):
             "traded": {n: v for n, v in traded.items() if v},
             "orders": out, "speed": dict(c["speed"]), "version": VERSION,
             "crossings": {n: crossings(v, pts, homes_xy[n], mid) for n, v in out.items()},
-            "halves": {n: sorted(set(zones[l] for l in v)) for n, v in halves(site, labels, zones, swap).items()}}
+            "halves": {n: sorted(set(zones[l] for l in v)) for n, v in halves(
+                site, labels, zones, swap, names=list(homes_xy), pts=pts, homes_xy=homes_xy).items()},
+            "robots_split": "site zones" if set(homes_xy) == set(((site or {}).get("production") or {}).get("zones") or {})
+            else "cut along the table into %d runs (e07: not the site's two robots; Claude's design, for Jay-Sun to "
+                 "confirm)" % len(homes_xy)}
     if kind == "shuffled":
         meta["shuffle_seeds"] = tries_used
     return out, meta

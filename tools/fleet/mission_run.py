@@ -179,6 +179,35 @@ def observed_split(args, robots, out):
     return (home_at or None), orders
 
 
+ROAM_DWELL_S = 0.5        # (e07) free roam at a tag site: a half-second stand at each spot (chosen: enough for the
+                          # point's position to be logged; no DOE: it is a wander, not a measurement)
+ROAM_S_PER_POINT = 14.0   # ... and about this long a leg at production speed (curves), to size the wander. Chosen from
+                          # the e06 rehearsals' legs (8-20 s); the run's time limit ends it anyway
+
+
+def roam_orders(orders, minutes, seed=1):
+    """(e07, free roam at a tag site) Each robot wanders over its own share of the readable points: its points in a
+    random order, again and again (never the same point twice in a row), enough for about `minutes`."""
+    import random
+    rng = random.Random("roam-%s" % seed)
+    out = {}
+    n_legs = max(4, int(minutes * 60.0 / ROAM_S_PER_POINT))
+    for n, labs in orders.items():
+        labs = list(labs)
+        if len(labs) < 2:
+            out[n] = labs
+            continue
+        seq = labs[:1]
+        while len(seq) < n_legs:
+            perm = list(labs)
+            rng.shuffle(perm)
+            if perm[0] == seq[-1]:
+                perm = perm[1:] + perm[:1]
+            seq += perm
+        out[n] = seq[:n_legs]
+    return out
+
+
 def build(args, out):
     robots = [r.strip() for r in args.robots.split(",") if r.strip()]
     cal = getattr(args, "feel_cal_", None)
@@ -196,11 +225,16 @@ def build(args, out):
         # default orders, in every tracking mode
         import production as PR
         home_at, orders_ = observed_split(args, robots, out)
+        roam = float(getattr(args, "roam_min", 0) or 0)
+        if roam > 0 and orders_:
+            orders_ = roam_orders(orders_, roam, args.seed)
         m, _w, sprog, _o = PR.site_production(args.site_, robots, outline=(cal or {}).get("outline_used"),
                                               experiment=getattr(args, "experiment_", None) or None,
                                               swap=getattr(args, "swap_", False),
-                                              wiggle={"on": True, "off": False}.get(getattr(args, "sync_wiggle", "auto")),
-                                              home_at=home_at, orders=orders_)
+                                              wiggle=False if roam > 0 else
+                                              {"on": True, "off": False}.get(getattr(args, "sync_wiggle", "auto")),
+                                              home_at=home_at, orders=orders_, keep_order=roam > 0,
+                                              dwell_s=ROAM_DWELL_S if roam > 0 else None)
         args.site_program_ = sprog
         for w_ in _w:
             say(w_)
@@ -642,6 +676,37 @@ def wiggle_first(args, out):
     return 0
 
 
+def stop_lead_specs(args, out):
+    """(e07, Nick 6 Nov: missions use each robot's stop lead from its last calibration) {run name: "5:0.31,10:0.52"}
+    from the Pi's stop_leads.json (calib_run keeps it by WiFi name), through the binding's names (WiFi name -> run
+    name). A dry run reads <session>/stop_leads.json too (rehearsals seed it), by WiFi or run name."""
+    files = [os.path.join((args.site_ or {}).get("conf_dir") or "", "stop_leads.json")]
+    if args.dry:
+        # a dry run never reads the Pi's; rehearsals seed stop_leads.json in the session or beside it (Mission
+        # Control's runs folder)
+        files = [os.path.join(os.path.dirname(out), "stop_leads.json"), os.path.join(out, "stop_leads.json")]
+    leads = {}
+    for f_ in files:
+        try:
+            with open(f_) as fh:
+                leads.update(json.load(fh))
+        except (OSError, ValueError):
+            pass
+    if not leads:
+        return {}
+    names = dict(getattr(args, "aliases_", None) or {})          # WiFi name -> run name
+    run_names = [r.strip() for r in str(args.robots).split(",") if r.strip()]
+    out_ = {}
+    for key, rec in leads.items():
+        n = names.get(key) or (key if key in run_names or args.dry else None)
+        sl = (rec or {}).get("stop_lead_cm") or {}
+        if n and sl:
+            out_[n] = ",".join("%g:%g" % (float(a), float(b)) for a, b in sorted(sl.items(), key=lambda kv: float(kv[0])))
+    if out_:
+        say("STOP LEAD (each robot's last calibration): %s" % "; ".join("%s %s" % kv for kv in sorted(out_.items())))
+    return out_
+
+
 def experiment_unseen(args, out):
     """(11-05h, Jay-Sun 5 Nov: without the second camera any run on half the table needs Dr. Sodhi's OK) An experiment
     whose robots are assigned points the cameras cannot read is refused, saying which and why; --allow-half-table runs
@@ -957,6 +1022,10 @@ def run(args):
         rp += ["--robot", ip]
     for k_, v_ in sorted((getattr(args, "aliases_", None) or {}).items()):
         rp += ["--alias", "%s=%s" % (k_, v_)]      # (5 Nov) names in the run only (tags.rename_to_slot false)
+    if float(getattr(args, "roam_min", 0) or 0) > 0:
+        rp += ["--dedupe-points", "off"]           # (e07) a free roam visits its points again and again
+    for n_, spec_ in sorted((stop_lead_specs(args, out) if not getattr(args, "no_stop_lead", False) else {}).items()):
+        rp += ["--stop-lead", "%s=%s" % (n_, spec_)]     # (e07) each robot's stop lead from its last calibration
     rp += list(args.rp_arg)
     cond = {}
     tag_setup_thread = None
@@ -1541,6 +1610,11 @@ def main(argv=None):
                          "site's experiments.sync_wiggle.use (school on, home off)")
     ap.add_argument("--no-run-exports", action="store_true",
                     help="no camera_track.csv / odometry_raw.csv in the run folder at the end")
+    ap.add_argument("--no-stop-lead", action="store_true", help="(e07) forward drives as planned, not sent each "
+                    "robot's stop lead short (the way before e07)")
+    ap.add_argument("--roam-min", type=float, default=0.0, help="(e07) free roam at a tag site: each robot wanders "
+                    "over its share of the readable points in a random order for about this many minutes (with "
+                    "--motion curves; the one-button Free roam at school)")
     ap.add_argument("--points-each", type=int, default=3, help="tags, no --program: points per robot")
     ap.add_argument("--dwell-s", type=float, default=3.0, help="tags, no --program: seconds at each point")
     ap.add_argument("--no-mirror", action="store_true",

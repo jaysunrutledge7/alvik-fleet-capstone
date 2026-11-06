@@ -150,7 +150,9 @@ class TagCamera:
         t = TC.tag_image(family, tag_id, px_per_cell=ppc, quiet_cells=0)
         side_px = t.shape[0]
         px_per_cm = side_px / tag_cm
-        roof_px = int(round(roof_cm * px_per_cm))
+        # (e07) an even margin each side, and the roof drawn at the texture's own size (_draw_roof): the tag's black
+        # square is then exactly tag_cm (before: the rounded roof squeezed it 0.25 % and the odd texel moved it)
+        roof_px = side_px + 2 * max(0, int(round((roof_cm * px_per_cm - side_px) / 2.0)))
         m = max(0, (roof_px - side_px) // 2)
         tex = cv2.copyMakeBorder(t, m, roof_px - side_px - m, m, roof_px - side_px - m, cv2.BORDER_CONSTANT, value=242)
         self._tex[key] = (tex.astype(np.float32), px_per_cm)
@@ -160,6 +162,7 @@ class TagCamera:
                    tag_off=None):
         tex, ppcm = self.texture(family, tag_id, tag_cm, roof_cm)
         th_ = tex.shape[0]
+        roof_cm = th_ / ppcm                     # (e07) the texture's own size (an even margin round the tag)
         h = roof_cm / 2.0
         c, s = math.cos(th), math.sin(th)
         # texture corners (top-left, top-right, bottom-right, bottom-left of the printed tag) -> roof corners: the
@@ -183,7 +186,12 @@ class TagCamera:
         if u1 - u0 < 2 or v1 - v0 < 2:
             return
         ss = SUPERSAMPLE
-        src = np.float32([[0, 0], [th_ - 1, 0], [th_ - 1, th_ - 1], [0, th_ - 1]])
+        # (e07) the roof's outer EDGES (texel -0.5 and th_ - 0.5) go to its corners: before, the outer texels' centres
+        # did, which drew every tag th_ / (th_ - 1) too large (+0.46 % for an 8 cm tag on its 9.5 cm roof; found by
+        # e07's measure bench: tags read from their edges came out 0.4 % large). The texture is padded by one
+        # replicated texel so the half texel at the border samples the roof, not the outside
+        tex = cv2.copyMakeBorder(tex, 1, 1, 1, 1, cv2.BORDER_REPLICATE)
+        src = np.float32([[0.5, 0.5], [th_ + 0.5, 0.5], [th_ + 0.5, th_ + 0.5], [0.5, th_ + 0.5]])
         dst = np.float32((uv - [u0, v0] + 0.5) * ss - 0.5)
         Hm = cv2.getPerspectiveTransform(src, dst)
         ww, hh = (u1 - u0) * ss, (v1 - v0) * ss

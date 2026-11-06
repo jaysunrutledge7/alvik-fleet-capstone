@@ -410,6 +410,15 @@ case "$WHAT" in
       echo "Close it:         ./run-fleet-pi.sh mc-stop"
       exit 0
     fi
+    # (e07) where am I: home, school or a new area, from the cameras plugged in and this computer (site_detect.py);
+    # the recorder then takes that site's picture size. Mission Control checks again with the pictures (corner tiles,
+    # the measured table) and says what it decided. A site chosen with `site <name> pin` always wins.
+    DET="$(python3 tools/fleet/site_detect.py --decide 2>/dev/null)"
+    if [ -n "$DET" ] && [ "$DET" != "${MIRLT_SITE:-}" ] && SITE_ENV2="$(MIRLT_SITE="$DET" python3 tools/fleet/sites.py env 2>/dev/null)"; then
+      echo "This looks like the site $DET (its cameras / this computer): using it."
+      eval "$SITE_ENV2"; IPS="$MIRLT_ROBOT_ARGS"
+      CAPTURE="${MIRLT_CAPTURE:---width 640 --height 480}"; CAPFPS="${MIRLT_CAPTURE_FPS:-25}"
+    fi
     # the recorder (its pictures for the robots' runs); in a subshell, so that an E02 session holding the cameras
     # leaves Mission Control open for planning and the simulator instead of stopping here
     if [ "$DRY" != 1 ]; then
@@ -424,9 +433,11 @@ case "$WHAT" in
     for ts in $(tailscale ip -4 2>/dev/null); do HOSTS="$HOSTS --allow-host $ts"; done
     # (2026-11-04) the camera's focus again (autofocus off, focus_absolute 0: both reset at every unplug or restart)
     [ "$DRY" != 1 ] && { python3 tools/pi/camera_focus.py || true; }
-    python3 tools/fleet/mission_control.py --dir "${MIRLT_MC_DIR:-logs/mission-control}" --listen 0.0.0.0 $HOSTS ;;
+    python3 tools/fleet/mission_control.py --site auto --listen 0.0.0.0 $HOSTS ;;
   site)            # (2026-11-02) which site: ./run-fleet-pi.sh site (shows it), ./run-fleet-pi.sh site school-conference
-    if [ -n "${1:-}" ]; then python3 tools/fleet/sites.py use "$1"; else python3 tools/fleet/sites.py; python3 tools/fleet/sites.py list; fi ;;
+    if [ "${1:-}" = auto ]; then python3 -c "import sys; sys.path.insert(0, 'tools/fleet'); import site_detect as SD; SD.set_pin(None)"; echo "Site: found by itself from now on (no site pinned)."
+    elif [ "${2:-}" = pin ]; then python3 tools/fleet/sites.py use "$1" && python3 -c "import sys; sys.path.insert(0, 'tools/fleet'); import site_detect as SD; SD.set_pin('$1')" && echo "Pinned: $1 is always used (./run-fleet-pi.sh site auto undoes it)."
+    elif [ -n "${1:-}" ]; then python3 tools/fleet/sites.py use "$1"; else python3 tools/fleet/sites.py; python3 tools/fleet/sites.py list; fi ;;
   jay-bundle)      # (2026-11-03) one run's raw files for Jay-Sun (camera track, raw odometry, logs; nothing RFID): a zip in the run's folder
     python3 tools/fleet/run_exports.py "${1:-latest}" --bundle ;;
   camcheck)        # (2026-11-02) the camera check-out in the terminal (the recorder must be running: ./run-fleet-pi.sh rec)

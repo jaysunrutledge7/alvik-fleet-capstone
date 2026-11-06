@@ -62,6 +62,9 @@ AGREE_FRAC = 0.015       # a typed size or distance more than 1.5 % from the cam
 AGREE_CM = 1.5           # ... or more than this for a typed coordinate. Chosen: the tracking error tolerated near an edge
 MAX_GROUPS = 100         # tag moments used at most (spread over time). 160 took 1.5-5 min a refit here (about 5x that on
                          # a Pi 4); 100 still put the refit within 0.6 cm of the truth. No DOE: a time limit
+FAR_GUESS_CM = (150.0, 120.0)   # (e07) a far side nothing fixes (no tag or click there, nothing typed): held near this
+                         # length / width (cm) ... (a new area's first guess; the runs keep to where the cameras read)
+FAR_GUESS_SD_CM = 100.0  # ... with this loose pull (it only keeps the fit from wandering). Chosen; no DOE: a placeholder
 TAG_SCALE_SD = 0.05      # with typed measurements, the tags' read size is fitted (k = read / printed): a blurred black
                          # square's corners come out slightly inside it (the dry runs: 1.5-3.5 % small), which would make
                          # the whole table that much large. Prior 1 +- 0.05. No DOE: the typed tape decides it
@@ -75,6 +78,62 @@ TAG_SCALE_WARN = 0.05    # k more than 5 % from 1: said (the printer scaled the 
                          # reads a tag 1.5-3.5 % small in the simulator (its rounded corners are found inside the true
                          # ones), so 3 % (the first line) warned on every sharp static setup. DOE note: printed tags of
                          # known size on the real cameras, k against focus
+
+
+MIN_CELL_PX = 3.0        # (e07) a roof tag read whose cells are under this many pixels is left out of the fit: its edges blur
+                         # into each other and it reads small even from its edges (simulator, the school's end camera:
+                         # 1.8-2.3 px cells read 1-1.5 % small; 3 px and over within 0.3 %), and a small read would pull
+                         # the scale. The reads stay in the run's tracking. Chosen; DOE note: the read-size ratio against
+                         # cell size on the real camera (printed tags of known size along the table)
+
+
+MIN_CELL_PX_TILES = 5.0  # (e07) ... and with reference tiles read (they are then the ruler) only roof reads of 5 px cells or
+                         # more are used: the roof's white margin is 0.66 cells, so smaller reads come out small even from
+                         # their edges, and at school they made the fit worse (measure bench, 3 seeds: worst floor error
+                         # 0.53-1.03 cm with 3 px, 0.20-0.59 cm with 5 px; two cameras: 0.26-0.41 against 0.09-0.24).
+                         # Chosen from that bench; DOE note: the same on the real camera with printed tags
+
+
+def min_cell_for(obs):
+    """The smallest roof read (px a cell) the fit uses: the site's / caller's min_cell_px, else 5 with reference tiles
+    read, else 3."""
+    if obs.get("min_cell_px") is not None:
+        return float(obs["min_cell_px"])
+    refs = any(((obs.get("ref_tags") or {}).get("reads") or {}).values())
+    # the roofs' own fit (height and tilt per tag, two cameras) needs the smaller reads too: dropping them took a 15
+    # deg roof to 28 deg in roof_cal's simulator case. So the 5 px floor only when the roofs are not being fitted
+    roofs = bool(obs.get("roof_fit", True))
+    return MIN_CELL_PX_TILES if (refs and not roofs) else MIN_CELL_PX
+
+
+def trust_of(obs):
+    """(e07) "cameras" or "typed": the site's measure_trust; "auto" (the default since e07): the cameras win when the
+    reference tiles were read (their printed size, read from the edges, is the ruler: the measure bench put the camera
+    model within the typed tape's accuracy that way), else the typed tape decides the scale as before (roof tags alone
+    on a thin white margin are not a good enough ruler: e06's 4.4 cm)."""
+    v = str(obs.get("measure_trust") or "auto").lower()
+    if v in ("cameras", "typed"):
+        return v
+    refs = any(((obs.get("ref_tags") or {}).get("reads") or {}).values())
+    return "cameras" if refs else "typed"
+
+
+def small_reads_out(groups, min_cell_px=MIN_CELL_PX, cells=7):
+    """(e07) The tag moments with every read of fewer than min_cell_px pixels a cell dropped (a moment left with no read
+    is dropped). min_cell_px 0 or None: all kept."""
+    if not min_cell_px:
+        return list(groups)
+    out = []
+    for g in groups:
+        keep = {}
+        for c, cs in g["reads"].items():
+            p = np.asarray(cs, float).reshape(4, 2)
+            side = float(np.mean([np.linalg.norm(p[k] - p[(k + 1) % 4]) for k in range(4)]))
+            if side / float(cells) >= float(min_cell_px):
+                keep[c] = cs
+        if keep:
+            out.append(dict(g, reads=keep))
+    return out
 
 
 def wrap180(a):
@@ -198,12 +257,14 @@ def rigid_from_plane(Pc, Pw2, n, zs=None):
 
 # ------------------------------------------------------------------------------------------------- the fit
 class Problem:
-    def __init__(self, obs, use_typed=True, fit_k1=False, fit_height=False, fit_tag_scale=False, roof_fit=False):
+    def __init__(self, obs, use_typed=True, fit_k1=False, fit_height=False, fit_tag_scale=False, roof_fit=False,
+                 fit_ref_scale=None):
         self.obs = obs
         # (2026-11-03) each robot's roof: its tag height and tilt fitted per tag id (roof_fit), or fixed at measured
         # values (obs["roof"]: {id: {height_cm, tilt_deg, lean_deg}}), or flat at the one tag height (before)
         self.roof_fit = roof_fit
-        self.roof_ids = sorted({int(g["id"]) for g in obs.get("tag_groups", [])})
+        self.roof_ids = sorted({int(g["id"]) for g in small_reads_out(obs.get("tag_groups", []), min_cell_for(obs),
+                                                                      obs.get("tag_cells", 7))})
         self.roof_fixed = {int(k): v for k, v in (obs.get("roof") or {}).items()}
         # a robot's own typed (tape-measured) height: its fit's starting value and weak pull (else the one tag height)
         self.roof_typed = {int(k): float(v) for k, v in (obs.get("roof_typed_cm") or {}).items() if v is not None}
@@ -220,12 +281,13 @@ class Problem:
         # said; "typed": the tape is trusted to TYPED_SD_CM as before (the switch: the site's measure_trust).
         # DEFAULT "typed" for now: in this file's simulator (seed 2) "cameras" made the table 394.0 x 166.0 cm (true
         # 396.2 x 167.6) and the worst sticker 4.4 cm off, against 396.3 x 167.5 and 2.4 cm with the tape (e06 report)
-        self.trust = str(obs.get("measure_trust") or "typed")
+        self.trust = trust_of(obs)
         self.typed_sd = TYPED_SEED_SD_CM if self.trust == "cameras" else TYPED_SD_CM
         self.fit_k1 = fit_k1
         self.fit_height = fit_height
         self.stickers = sorted(obs.get("stickers", {}))
-        self.groups = obs.get("tag_groups", [])
+        self.groups = small_reads_out(obs.get("tag_groups", []), min_cell_for(obs), obs.get("tag_cells", 7))
+        self.groups_dropped = len(obs.get("tag_groups", [])) - len(self.groups)
         tb = obs.get("table") or {}
         self.typed_L, self.typed_W = tb.get("length_cm"), tb.get("width_cm")
         # the reference tags (2026-11-03): only the ones some camera read
@@ -245,6 +307,33 @@ class Problem:
                                 if str(k) in self.ref_sides}
         else:
             self.ref_sides, self.typed_along = [], {}
+        # (e07) which far sides something fixes: a corner tag or click at x = L (corners 2, 3) or a side tag on the
+        # x = L edge (2) fixes the length; corners 3, 4 or edge 3 the width; a typed size either. A side nothing
+        # fixes (the school's far end, unreadable from the TV end) is held near a guess (the typed seed, else
+        # FAR_GUESS_CM) with a loose pull, said, and the runs keep to the area the cameras read
+        seen_c, seen_e = set(), set()
+        for c in self.cams:
+            for k in ((obs.get("corners") or {}).get(c) or {}):
+                seen_c.add(int(k))
+        if self.ref:
+            for c in self.cams:
+                for i in self.ref_reads.get(c, {}):
+                    it = self.ref_lay[i]
+                    (seen_c if it["kind"] == "corner" else seen_e).add(int(it["corner"] if it["kind"] == "corner"
+                                                                           else it["edge"]))
+        self.far_free = []
+        if not self.typed_L:
+            if not (seen_c & {2, 3} or 2 in seen_e):
+                self.far_free.append("length")
+            if not (seen_c & {3, 4} or 3 in seen_e):
+                self.far_free.append("width")
+        tg = obs.get("table_guess") or {}
+        self.guess_L = float(tg.get("length_cm") or FAR_GUESS_CM[0])
+        self.guess_W = float(tg.get("width_cm") or FAR_GUESS_CM[1])
+        # (e07) the rulers: with reference tiles on the table (wide white margins) and the cameras trusted, the tiles'
+        # printed size is the ruler and the roof tags' read size is fitted (their thin roof margin reads them small
+        # from far); without reference tiles the roof tags are the ruler (k = 1)
+        self.fit_ref_scale = fit_tag_scale if fit_ref_scale is None else bool(fit_ref_scale)
 
     def ref_pose(self, i, L, W, along):
         """The reference tag i's middle and printed top (x, y, heading) for a table L x W."""
@@ -265,7 +354,7 @@ class Problem:
         k += 2
         lay["_along"] = (k, k + len(self.ref_sides))
         k += len(self.ref_sides)
-        if self.fit_tag_scale and self.ref:
+        if self.fit_ref_scale and self.ref:
             lay["_kref"] = (k, k + 1)
             k += 1
         if self.fit_height:
@@ -357,6 +446,10 @@ class Problem:
                 rv, tv, f, k1 = self.cam_params(x, c)
                 uv = project(K_of(f, self.obs["cameras"][c]["size"]), k1, rv, tv, Pw)
                 out.append(((uv - np.asarray(corners, float)) / TAG_SD_PX).ravel())
+        if "length" in self.far_free:
+            out.append(np.array([(L - self.guess_L) / FAR_GUESS_SD_CM]))
+        if "width" in self.far_free:
+            out.append(np.array([(W - self.guess_W) / FAR_GUESS_SD_CM]))
         if self.use_typed:
             if self.typed_L:
                 out.append(np.array([(L - self.typed_L) / self.typed_sd, (W - self.typed_W) / self.typed_sd]))
@@ -531,6 +624,15 @@ def ref_initial(obs, prob):
         r[2 * nc + 2 + sides.index(i)] = 1.0
         rows.append(r)
         rhs.append(v)
+    for nm, col, v in (("length", 2 * nc, prob.guess_L), ("width", 2 * nc + 1, prob.guess_W)):
+        if nm in prob.far_free:
+            r = np.zeros(ncol)
+            r[col] = 0.01                                # a whisper: fixes only what nothing else does
+            rows.append(r)
+            rhs.append(0.01 * float(v))
+            words.append("the table's far %s is not seen by any camera (no tag there, nothing typed): held at a guess "
+                         "of %.0f cm; runs keep to the area the cameras read" % (
+                             "end" if nm == "length" else "long side", v))
     A, y = np.array(rows), np.array(rhs)
     sol, _, rank, _ = np.linalg.lstsq(A, y, rcond=None)
     if rank < ncol:
@@ -706,7 +808,8 @@ def initial(obs, prob):
     return x0, words
 
 
-def solve(obs, use_typed=True, fit_k1=None, fit_height=False, x_start=None, fit_tag_scale=False, roof_fit=False):
+def solve(obs, use_typed=True, fit_k1=None, fit_height=False, x_start=None, fit_tag_scale=False, roof_fit=False,
+          fit_ref_scale=None):
     """The fit. Returns a dict: ok, cameras {name: CameraModel dict + summary}, size_cm, stickers {id: [x, y]},
     residuals, checks (typed values against the cameras'), words (plain problems and checks)."""
     from scipy.optimize import least_squares
@@ -714,7 +817,7 @@ def solve(obs, use_typed=True, fit_k1=None, fit_height=False, x_start=None, fit_
         fit_k1 = True       # a webcam's lens bends (the simulated ones too); with the 0 +- 0.15 prior a straight lens
                             # stays straight. Left out, a bent lens cost up to 4 cm on the table (self-test)
     prob = Problem(obs, use_typed=use_typed, fit_k1=fit_k1, fit_height=fit_height, fit_tag_scale=fit_tag_scale,
-                   roof_fit=roof_fit)
+                   roof_fit=roof_fit, fit_ref_scale=fit_ref_scale)
     if x_start is not None:
         prob.layout()
         x0, words = np.array(x_start, float), ["started from the fit with the typed measurements"]
@@ -799,6 +902,7 @@ def solve(obs, use_typed=True, fit_k1=None, fit_height=False, x_start=None, fit_
         out["roofs"] = roofs
     out["cost"] = float(r.cost)
     out["nfev"] = int(r.nfev)
+    out["far_unseen"] = list(prob.far_free)
     return out
 
 
@@ -928,16 +1032,21 @@ def full(obs, fit_k1=None, untyped_check=True):
     # (2026-11-03) each robot's roof tag height and tilt fitted with the cameras (roof_cal.py); obs["roof_fit"] False:
     # every roof flat at the one tag height, as before (the switch: the site's tags.roof_check)
     rf = bool(obs.get("roof_fit", True)) and bool(obs.get("tag_groups"))
+    # (e07) with reference tiles read, the tiles are the ruler and the roof tags' read size is fitted (ruler_kw)
+    refs_read = any(((obs.get("ref_tags") or {}).get("reads") or {}).values())
+    ruler_kw = dict(fit_tag_scale=True, fit_ref_scale=False) if (refs_read and obs.get("tag_groups")) else {}
     if not has_typed:
-        a = solve(obs, use_typed=False, fit_k1=fit_k1, roof_fit=rf)
-        a["checks"], a["words"] = [], a["words"] + ["No measurements typed: the scale rests on the tags' printed size "
-                                                    "alone (a blurred tag reads 1.5-3.5 % small: type the table's size)."]
-        a = _roof_hold(obs, a, dict(use_typed=False, fit_k1=fit_k1, roof_fit=rf))
+        a = solve(obs, use_typed=False, fit_k1=fit_k1, roof_fit=rf, **ruler_kw)
+        a["checks"], a["words"] = [], a["words"] + [
+            "Nothing typed: the cameras measured everything; the ruler is the %s printed size (read from their edges)."
+            % ("reference tiles'" if ruler_kw else "roof tags'")]
+        a = _roof_hold(obs, a, dict(use_typed=False, fit_k1=fit_k1, roof_fit=rf, **ruler_kw))
         _roof_words(a, obs)
         return a
-    ts = str(obs.get("measure_trust") or "typed") != "cameras"   # cameras win: the tags' printed size is the scale
-    b = solve(obs, use_typed=True, fit_k1=fit_k1, fit_tag_scale=ts, roof_fit=rf)
-    b = _roof_hold(obs, b, dict(use_typed=True, fit_k1=fit_k1, fit_tag_scale=ts, roof_fit=rf))
+    ts = trust_of(obs) != "cameras"   # cameras win: the tags' printed size is the scale (e07: auto by the tiles)
+    kw_ = dict(fit_tag_scale=ts) if ts else dict(ruler_kw)
+    b = solve(obs, use_typed=True, fit_k1=fit_k1, roof_fit=rf, **kw_)
+    b = _roof_hold(obs, b, dict(use_typed=True, fit_k1=fit_k1, roof_fit=rf, **kw_))
     b["measure_trust"] = "typed" if ts else "cameras"
     a = solve(obs, use_typed=False, fit_k1=fit_k1, x_start=None) if untyped_check else \
         {"size_cm": b["size_cm"], "size_sd_cm": b.get("size_sd_cm")}

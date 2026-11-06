@@ -285,6 +285,23 @@ def test_mission_control_calibration_card_job(tmp_path):
 
 def test_cautious_hold_and_keep_going_switch(tmp_path, monkeypatch):
     import argparse
+    # (e07) the intended default since 11-05c is "recover" (the site's calibration.lost_policy, else recover): the
+    # watch stops a leg whose tag is lost exactly as "hold" does, then the recovery drives back to the last read
+    site = SI.load("school-conference")
+    assert str((site.get("calibration") or {}).get("lost_policy") or "recover") == "recover"
+    a = argparse.Namespace(lost_policy="recover", dry=True)
+    run = CR.CalibRun(a, site, str(tmp_path))
+    run.tag = 2
+
+    class E0:
+        def age(self, t):
+            return 2.0
+
+        def last(self, t):
+            return (10.0, 10.0, 0.0)
+    run.eye = E0()
+    run._leg_moving = True
+    assert run.watch() is True and run._lost_stop          # recover: the leg stops too, its last read kept
     a = argparse.Namespace(lost_policy="hold", dry=True)
     run = CR.CalibRun(a, SI.load("school-conference"), str(tmp_path))
     run.tag = 2

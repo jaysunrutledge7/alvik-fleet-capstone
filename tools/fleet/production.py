@@ -314,7 +314,7 @@ def site_orders(site, points, zones, home_xy):
 
 
 def site_production(site, names=None, table=None, outline=None, keepouts=None, seen=None, experiment=None, swap=False,
-                    wiggle=None, home_at=None, orders=None):
+                    wiggle=None, home_at=None, orders=None, keep_order=False, dwell_s=None):
     """A site with typed points (sticker_points.py): (map, words, program, orders). table: (L, W) measured (else the
     site's typed size); keepouts: more keep-outs (the reference tiles); seen: {label: [x, y]} stickers the cameras
     fitted (the old click way): any far from its typed spot is flagged, never moved.
@@ -349,6 +349,9 @@ def site_production(site, names=None, table=None, outline=None, keepouts=None, s
         for n, labs in given.items():
             labs = [l for l in labs if l in m["spots"]]
             hx = homes_.get(n, [0, 0])[:2]
+            if keep_order:
+                orders[n] = list(labs)          # (e07) free roam at a tag site: the given (random) order as it is
+                continue
             first = [l for l in labs if math.hypot(m["spots"][l][0] - hx[0], m["spots"][l][1] - hx[1]) < 3.0][:1]
             rest = [l for l in labs if l not in first]
             orders[n] = first + short_order(hx, rest, m["spots"])
@@ -363,7 +366,7 @@ def site_production(site, names=None, table=None, outline=None, keepouts=None, s
             hx = homes_.get(n, [0, 0])[:2]
             if labs and math.hypot(m["spots"][labs[0]][0] - hx[0], m["spots"][labs[0]][1] - hx[1]) < 3.0:
                 ah[n] = labs[0]
-    prog = program(orders, dwell_s=float(pr.get("dwell_s", DWELL_S)), at_home=ah)
+    prog = program(orders, dwell_s=float(pr.get("dwell_s", DWELL_S) if dwell_s is None else dwell_s), at_home=ah)
     if meta is not None:
         prog["production"]["experiment"] = meta
         prog["name"] = "production %s%s" % (experiment, " (halves swapped)" if swap else "")

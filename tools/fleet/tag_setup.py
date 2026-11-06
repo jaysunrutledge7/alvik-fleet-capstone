@@ -119,11 +119,13 @@ def groups_from_reads(reads, still=True):
 
 
 def _measure_trust():
+    """(e07) the site's measure_trust: auto (default: the cameras win when the reference tiles are read), cameras or
+    typed."""
     try:
         import sites as SI
-        return str(SI.load(None).get("measure_trust") or "typed")
+        return str(SI.load(None).get("measure_trust") or "auto")
     except (Exception, SystemExit):  # noqa: BLE001
-        return "typed"
+        return "auto"
 
 
 def make_obs(sizes, corners, stickers, tags, groups, table=None, distances=None, refs=None, ref_cfg=None,
@@ -158,12 +160,32 @@ def fit_and_save(obs, out_dir):
     res = SF.full(obs)
     os.makedirs(out_dir, exist_ok=True)
     SF.save(res, out_dir)
+    log_disagreements(res, out_dir)
     with open(os.path.join(out_dir, "obs.json"), "w") as f:
         json.dump(obs, f, indent=1)
     pts = {k: {"xy": v, "label": k} for k, v in res["stickers"].items()}
     with open(os.path.join(out_dir, "points.json"), "w") as f:
         json.dump(pts, f, indent=1)
     return res
+
+
+def log_disagreements(res, out_dir):
+    """(e07, Nick 6 Nov: cameras win over typed measurements when they disagree; log the disagreement) Every typed
+    value the cameras disagree with, appended to <tagcal>/disagreements.jsonl (time, what, cameras, typed, apart, which
+    one was used). Returns the rows logged."""
+    bad = [c for c in (res.get("checks") or []) if not c.get("ok")]
+    if not bad:
+        return []
+    used = "cameras" if res.get("measure_trust") == "cameras" else "typed"
+    rows = [dict(time=time.strftime("%Y-%m-%dT%H:%M:%S"), what=c["what"], cameras=c.get("cameras"), typed=c.get("typed"),
+                 apart=c.get("off"), used=used) for c in bad]
+    try:
+        with open(os.path.join(out_dir, "disagreements.jsonl"), "a") as f:
+            for r in rows:
+                f.write(json.dumps(r) + "\n")
+    except OSError:
+        pass
+    return rows
 
 
 def ref_words(res, layout=None):
