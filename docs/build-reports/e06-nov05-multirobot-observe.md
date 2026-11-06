@@ -179,11 +179,25 @@ height error moves a robot's camera position 0.8-2.2 cm (x 0-200 cm), inside the
 
 ## What's next
 
-{{NEXT}}
+1. Pull on the Pi (school runbook step 3, `git pull`), then the school setup (step 4) as usual.
+2. Reflash to 2026-11-05d where possible (the tilt behaviour; older robots still run, with their tilt stop ending the
+   step or run as before). Robots on 2026-10-29b (AL-1DC0) need `--min-firmware ""` as on 5 Nov.
+3. Calibrate every robot (P09 / P01 / P06), then Visit points with every robot on the table, Jay-Sun in the room.
+4. After the session: upload, heat tracker, and the brightness.csv / readmap.json / did_not_move counts reviewed.
+5. Phase 2: Mission Control's one-button screens; phase 3: the full audit, one fused pose, the height fit (section 6).
 
 ## Not built as asked
 
-{{NOTBUILT}}
+- **Measure "cameras win"**: built as a switch, left off (section 5, question 1).
+- **Lost-robot recovery with the others' paths reserved in the planner**: the recovery checks the others' current
+  spots and next planned steps; the planner does not reserve the recovery corridor for them (question 2).
+- **Tag heights solved by the program**: designed, not built (section 6); one seed for every robot now.
+- **Rehearsing a trip in every run type on the full chain**: the edge-miss mission run never reached an edge (the
+  heading watch turned it round first); trips are proven in the controller cases (free roam), in the first 2-robot
+  rehearsal (a real drop trip at the y = 0 edge, which exposed the back-off being halted by the camera guard: fixed)
+  and in unit tests for calibration's back-off plan.
+- **Free roam at school**: not rehearsed on the school table (home board only); it refuses to start there without
+  `--attended`.
 
 ## Rigid assumptions found, and what replaced them
 

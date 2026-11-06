@@ -582,6 +582,7 @@ STAND_TILT_S = 2.0       # ... for this long while not driving = a hazard (a whe
                          # test with a wheel over a 1 / 2 / 3 cm drop, standing and driving, sets both
 STAND_V_CMS = 1.0        # "not driving": its own speed under this
 LEVEL_N = 25             # its level: the median of this many standing samples at the start (RAW 50 / s: half a second)
+MIN_JUDGE_CM = 3.0       # (3') moves shorter than this are not judged (sensor noise is that size)
 PHYS_MAX_CMS = 30.0      # (3') nothing an Alvik does covers ground faster than this (its top speed ~ 20 cm/s): a move
                          # "done" faster is physically impossible = a robot-side refusal or failure, whatever else says
 REVERSE_MARGIN_CM = 3.0  # (4') a reverse shown safe by the camera: the body's back (BODY_BACK_CM behind the axle) stays
@@ -678,6 +679,10 @@ def move_outcome(length_cm, took_s, wheel_cm=None, accel_rolling=None, gyro_deg=
     no camera = accept it and grow the dead-reckoning bubble). robot_info: its own reason for ending early, logged."""
     L = abs(length_cm or 0.0)
     used, num, den = [], 0.0, 0.0
+    if L < MIN_JUDGE_CM:
+        # a step of a few millimetres (already there): nothing can tell, and calling it a failure loops the re-plans
+        # (rehearsal s2: a 0.4 cm step judged "did not move" again and again)
+        return dict(verdict="moved", score=1.0, used=[], blind_ok=False, words="too short to judge (%.1f cm)" % L)
     if impossible(L, took_s):
         return dict(verdict="impossible", score=0.0, used=["time"], blind_ok=False,
                     words="%.0f cm in %.2f s is not physically possible: a robot-side refusal or failure%s" % (
