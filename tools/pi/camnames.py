@@ -184,11 +184,33 @@ def _matches(cam, want):
 
 
 def resolve(role, cams=None, conf=None):
-    """(number or None, words). words says what was found, or plainly why not."""
+    """(number or None, words). words says what was found, or plainly why not. (11-05h, Observe then trust) The names
+    are a guess: when the named camera is not found, observe.pick_cameras decides from what is plugged in (one camera:
+    the overhead, whatever its name; two: the names tell them apart, else the one not taken). conf["observe"] False
+    switches this off (the old strict names)."""
     if cams is None:
         cams = scan()
     if conf is None:
         conf, _ = load_conf()
+    dev, words = _resolve_named(role, cams, conf)
+    if dev is not None or conf.get("observe") is False or not cams:
+        return dev, words
+    if role == "side" and not (conf.get("side") or {}).get("name"):
+        return dev, words                    # camera 2 switched off ("" name): stays off
+    import os as _os
+    import sys as _sys
+    _sys.path.insert(0, _os.path.join(_os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))), "fleet"))
+    import observe as OB
+    want = {r: (conf.get(r) or {}).get("name", "") for r in ROLES}
+    m, w = OB.pick_cameras([(c["dev"], c["name"]) for c in cams], want)
+    if role in m:
+        c = next(c for c in cams if c["dev"] == m[role])
+        return c["dev"], "%s camera: %s at /dev/video%d (picked from what is plugged in: %s)" % (
+            role, c["name"], c["dev"], "; ".join(w) or "names did not match")
+    return dev, words
+
+
+def _resolve_named(role, cams, conf):
     want = conf.get(role) or dict(name="", port="")
     if not want["name"]:
         seen = "; ".join("%s at /dev/video%d" % (c["name"], c["dev"]) for c in cams) or "no cameras at all"

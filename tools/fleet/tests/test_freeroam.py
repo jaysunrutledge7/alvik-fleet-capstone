@@ -399,6 +399,7 @@ def test_front_stop_backs_off_and_discovers_a_keepout():
     ko = c.keepouts
     assert len(ko) == 1 and abs(ko[0]["x"] - 18.4) < 0.6 and abs(ko[0]["y"] - 70.4) < 0.6, ko
     c.t = 0.6
+    c.on_fix("Left", 0.6, 18.7, 62.8, 92.6)     # (11-05h) a reverse only with a fresh camera position (protection 4)
     c.tick(0.6)
     assert r.move["kind"] == "back off"
     d = [t for n, t in sent if t.startswith("fs ") and " D " in t][-1].split()

@@ -42,7 +42,11 @@
 Arduino_Alvik alvik;
 
 // Bump this whenever the firmware changes, so every logged run says which code it ran.
-#define FW_VERSION "2026-11-05c"
+#define FW_VERSION "2026-11-05d"
+// 2026-11-05d (Nick, 5 Nov 20:46, a robot seen tilted at the board's edge): a tilt ends only the current follow step
+//              (the run goes on so the laptop can back the robot away), every forward drive or turn is refused while
+//              it is tilted (e02 legs and follow steps), and a straight BACKWARD drive is allowed and not stopped by
+//              the tilt (gTiltBackOK). Before: a follow run ended on a tilt and the robot could not be backed off.
 // 2026-11-05c (Nick, 5 Nov 16:06: "eliminate the stop and turn ... curving turns where velocity never drops to 0"):
 //              continuous curves in the step follower. `fs <id> R <x0> <y0> <h0> <k> <len> <cms> <fmin>` drives a piece
 //              of constant curvature k (1/cm, + = left; 0 = straight) from (x0, y0) facing h0 for len cm; R pieces in a

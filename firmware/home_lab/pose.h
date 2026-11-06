@@ -262,6 +262,7 @@ int driveLine(float x0, float y0, float x1, float y1, float h, float vmax, bool 
   unsigned long t0 = millis(), last = t0;
   unsigned long limit = 3000 + (unsigned long)(fabsf(L) / fmaxf(vmax, 1.0f) * 2500.0f);
   float v = 0;
+  struct BackFlag { BackFlag(bool r) { gTiltBackOK = r; } ~BackFlag() { gTiltBackOK = false; } } backFlag(rev);  // 11-05d
   while (true) {
     if (shouldAbort()) return gAbortReason.length() ? DRIVE_ABORT : DRIVE_STEPSTOP;
     unsigned long now = millis();

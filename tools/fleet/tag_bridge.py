@@ -357,6 +357,12 @@ class Bridge:
         for tag_id, d in found.items():
             n = self.robot_of[tag_id]
             p = TG.pose_from_detection(cam, d, H, S, roof=self.roofs.get(int(tag_id)))
+            yo = float((self.tags.get("yaw_off") or {}).get(str(tag_id), (self.tags.get("yaw_off") or {}).get(
+                int(tag_id), 0.0)) or 0.0)
+            if p is not None and yo:
+                # (2026-11-05h, Observe then trust) the tag is turned on its robot by this much (the heading check's
+                # nudge found it): every heading of this tag corrected to the robot's nose
+                p.heading = ((p.heading + yo + 180.0) % 360.0) - 180.0
             c = d.corners.ravel()
             self.obs_w.writerow(["%.4f" % t, cam_name, tag_id] + ["%.2f" % v for v in c])
             if p is None:

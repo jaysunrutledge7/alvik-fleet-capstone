@@ -60,6 +60,26 @@ SAFE = ["set safe_edge 3", "set edge_dir 0", "set edge_thr 150", "set edge_n 3",
 DISK_CHECK_S = 60.0
 
 
+def site_safe_edge(a):
+    """--safe-edge, else the site in use's (school 2), else 3."""
+    if getattr(a, "safe_edge", None) is not None:
+        return int(a.safe_edge)
+    try:
+        import sites as SI
+        import observe as OB
+        return OB.site_safe_edge(SI.load(None), 3)
+    except Exception:  # noqa: BLE001
+        return 3
+
+
+def safe_cmds(safe_edge=None):
+    """(11-05h) SAFE with the edge guard's mode from --safe-edge (default 3, home) and the tilt stop added."""
+    import observe as OB
+    se = 3 if safe_edge is None else int(safe_edge)
+    out = [("set safe_edge %d" % se) if c.startswith("set safe_edge") else c for c in SAFE]
+    return out + [c for c in OB.safety_commands(se) if not c.startswith(("set safe_edge", "set edge_bot_cm"))]
+
+
 def say(s=""):
     print(s, flush=True)
 
@@ -99,6 +119,8 @@ class Runner:
         self.AC = AC
         self.a, self.dir, self.names = a, outdir, list(names)
         self.rect = rect
+        self.safe_edge_used = site_safe_edge(a)
+        self.params_read = {}
         self.q = queue.Queue()
         self.link = AC.Link(outdir, ips)
         self.link.session.quiet = True
@@ -169,6 +191,9 @@ class Runner:
                     c.R[name].arc_scales = (float(m.group(1)), float(m.group(2)))
                 if "not calibrated" in low:
                     c.event(c.R[name], "not calibrated", vals)
+                m = re.match(r"\s*([a-z_0-9]+) = (-?[0-9.]+)", vals)
+                if m:                       # (11-05h) a `get` answer: the safety layers' read back
+                    self.params_read.setdefault(name, {})[m.group(1)] = float(m.group(2))
                 continue
             try:
                 if rtype == "STEP" and len(vals) >= 9:
@@ -208,6 +233,12 @@ class Runner:
                             self.send(name, "run follow")
                 elif rtype == "FSPD":
                     c.on_fspd(name)
+                elif rtype == "RAW":
+                    # (11-05h, protection 2) the standing tilt from the robot's own roll / pitch
+                    cols = self.link.session.headers.get("RAW") or []
+                    if cols:
+                        row = dict(zip(cols, vals))
+                        c.on_raw(name, t, float(row["roll_deg"]), float(row["pitch_deg"]), float(row.get("v_cms") or 0))
             except (ValueError, IndexError):
                 continue
 
@@ -272,12 +303,46 @@ class Runner:
         for n in live:
             self.send(n, "stop")
         self.pump(1.0)
+        safe = safe_cmds(self.safe_edge_used)
         for n in live:
-            for cmd in SAFE + ["set follow_look_cm %.1f" % FOLLOW_LOOK_CM] + border_cmds(self.rect):
+            for cmd in safe + ["set follow_look_cm %.1f" % FOLLOW_LOOK_CM] + border_cmds(self.rect):
                 self.send(n, cmd)
                 time.sleep(0.01)
             self.send(n, "status")
         self.pump(2.0)
+        # (11-05h, Nick 20:46) the robot-side safety layers (tilt stop, bottom-zone drop) READ BACK; a robot whose
+        # layers do not read back after two tries stays out of the run
+        import observe as OB
+        want = OB.safety_settings(self.safe_edge_used)
+        self.params_read = getattr(self, "params_read", {})
+        for attempt in range(2):
+            for n in live:
+                for k in want:
+                    self.params_read.setdefault(n, {}).pop(k, None)
+                    self.send(n, "get %s" % k)
+                    time.sleep(0.01)
+            self.pump(2.0)
+            bad = {n: OB.check_safety(want, self.params_read.get(n, {})) for n in live}
+            bad = {n: v for n, v in bad.items() if v}
+            if not bad:
+                break
+            for n, lst in bad.items():
+                for k, v, g in lst:
+                    self.send(n, "set %s %g" % (k, v))
+            self.pump(0.5)
+        for n in list(live):
+            lst = OB.check_safety(want, self.params_read.get(n, {}))
+            if lst:
+                say("SAFETY: %s's safety layers did not read back (%s): it stays out of the run" % (
+                    n, "; ".join("%s sent %g, read %s" % x for x in lst)))
+                c.R[n].mode, c.R[n].out_why = "gone", "safety layers not read back"
+                live.remove(n)
+            else:
+                say("  %s: safety layers on and read back (tilt stop %g deg, edge guard %g)" % (
+                    n, want["tilt_stop_deg"], want["safe_edge"]))
+                c.event(c.R[n], "safety armed", ", ".join("%s %g" % (k, v) for k, v in want.items()))
+        if not live:
+            raise SystemExit("No robot's safety layers read back: nothing moved.")
         for n in live:
             fw = self.fw.get(n) or "?"
             new = fw >= FC.FRESH_FW
@@ -593,7 +658,12 @@ def main(argv=None):
     ap.add_argument("--battery-floor", type=int, default=FC.BATTERY_FLOOR)
     ap.add_argument("--lost-mode", choices=("reckon", "hold"), default="reckon",
                     help="reckon (default): dead reckoning with a growing bubble; hold: the old cautious halt")
-    ap.add_argument("--no-sleep", action="store_true", help="a parked robot is stopped, not put to sleep")
+    ap.add_argument("--no-sleep", action="store_true", default=True, help="(default since 11-05h) a parked robot is "
+                    "stopped and stays awake (a wake restarts it and wipes values not saved on it)")
+    ap.add_argument("--sleep-parked", dest="no_sleep", action="store_false", help="(the old way, kept) a parked "
+                    "robot is put to sleep")
+    ap.add_argument("--safe-edge", type=int, default=None, choices=[0, 1, 2, 3], help="(11-05h) the edge guard: 3 both "
+                    "cues (home, default), 2 the bottom zone's drop only (school: the seam tape trips the line sensors)")
     ap.add_argument("--motion", choices=("curves", "stopturn"), default="curves",
                     help="(5 Nov) curves (default: continuous curving pieces on firmware 2026-11-05c+, older robots "
                          "stop-turn-drive) or stopturn (everyone as before)")
@@ -664,6 +734,7 @@ def main(argv=None):
     runner = None
     why = "stopped before the roam"
     code = 0
+    cpu = None
     say("Free roam: %s (seed %d, battery floor %d %%, lost: %s)" % (outdir, a.seed, a.battery_floor, a.lost_mode))
     run_info = dict(version=VERSION, core=FC.VERSION, motion=a.motion, seed=a.seed, hours=a.hours, battery_floor=a.battery_floor,
                     lost_mode=a.lost_mode, dry=a.dry, reflex_drill=a.reflex_drill, started=dt.datetime.now().isoformat(timespec="seconds"),
@@ -685,6 +756,11 @@ def main(argv=None):
             pose_to = ("127.0.0.1", 5011)
         run_info.update(robots=names, rect=rect)
         json.dump(run_info, open(os.path.join(outdir, "run.json"), "w"), indent=1)
+        if not a.dry:
+            # (11-05h, CLAUDE.md heat tracker) cpu.csv, as the missions have
+            import calib_run as CRN
+            cpu = CRN.start_cpu_log(outdir, {"freeroam": os.getpid()}, {"bridge": "cam_bridge.py",
+                                                                        "recorder": "camrec.py"})
         runner = Runner(a, outdir, names, ips, rect, fix_port=a.fix_port, pose_to=pose_to, frames=frames, guard=guard)
         runner.start()
         why = runner.roam(a.hours)
@@ -697,6 +773,11 @@ def main(argv=None):
         say(why)
         code = 1
     finally:
+        if cpu is not None:
+            try:
+                cpu.stop()
+            except Exception:  # noqa: BLE001
+                pass
         if runner is not None:
             runner.write_state(why)
             runner.close()

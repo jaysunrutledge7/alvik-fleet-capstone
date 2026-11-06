@@ -480,6 +480,10 @@ def serve_live(sim, cfg, out_dir):
         for g in cfg.get("gaps") or []:
             if g["t"] <= rel < g["t"] + g["dur"] and g["robot"] in ids:
                 covered.add(ids[g["robot"]])
+        for name, rb in sim.robots.items():
+            # (11-05h) cfg["dark"]: [[x0, y0, x1, y1]] where no camera reads a tag (glare, a dark patch, the far end)
+            if name in ids and any(d[0] <= rb.x <= d[2] and d[1] <= rb.y <= d[3] for d in cfg.get("dark") or []):
+                covered.add(ids[name])
         rs = []
         for name, rb in sim.robots.items():
             if name not in ids or rb.lifted:
@@ -489,7 +493,8 @@ def serve_live(sim, cfg, out_dir):
             if p is not None and t_cap > p[2]:
                 vx, vy = (rb.x - p[0]) / (t_cap - p[2]), (rb.y - p[1]) / (t_cap - p[2])
             prev[name] = (rb.x, rb.y, t_cap)
-            rd = dict(x=rb.x, y=rb.y, th=rb.th, z=float(tags["height_cm"]), family=tags["family"], id=ids[name],
+            yaw = math.radians(float((cfg.get("tag_yaw") or {}).get(name, 0.0)))   # (11-05h) the tag turned on it
+            rd = dict(x=rb.x, y=rb.y, th=rb.th - yaw, z=float(tags["height_cm"]), family=tags["family"], id=ids[name],
                       tag_cm=float(tags["tag_cm"]), roof_cm=float(tags["roof_cm"]), vx=vx, vy=vy)
             rd.update(roof_truth(cfg, name))
             rs.append(rd)

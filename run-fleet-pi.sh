@@ -137,7 +137,8 @@ DAY=$(date +%Y%m%d)
 # the robots' edge guard (both cues) and the bare body, as e02.py's SAFETY_SETTINGS: safe_edge is not saved on the
 # robot, so every power-on starts with it OFF. Sent to every robot before each test.
 SAFE=(--send "set safe_edge 3" --send "set edge_dir 0" --send "set edge_thr 150" --send "set edge_n 3"
-      --send "set edge_bot_cm 11" --send "set bumper_cm 0")
+      --send "set edge_bot_cm 11" --send "set bumper_cm 0" --send "set tilt_stop_deg 5" --send "set tilt_ms 300")
+# (2026-11-05h) the tilt stop too (Nick 20:46: a robot seen tilted at the board's edge): run_plan reads each back
 WHAT="${1:-}"; shift || true
 
 # the ladder's connection: the robots, the recorder's pictures, the calibration (the simulated board in dry runs:

@@ -263,6 +263,14 @@ class FollowMixin:
         self.set_wheels_speed(max(-70.0, min(70.0, (v - dv) * k)), max(-70.0, min(70.0, (v + dv) * k)))
 
     def drive_line(self, x0, y0, x1, y1, h, vmax, rev):
+        """(11-05d) a reverse drive is not stopped by a tilt (gTiltBackOK)."""
+        self.tilt_back_ok = bool(rev)
+        try:
+            return self._drive_line(x0, y0, x1, y1, h, vmax, rev)
+        finally:
+            self.tilt_back_ok = False
+
+    def _drive_line(self, x0, y0, x1, y1, h, vmax, rev):
         P, pose = self.P, self.pose
         ux, uy = math.cos(h * DEG2RAD), math.sin(h * DEG2RAD)
         d = -1.0 if rev else 1.0
@@ -1074,7 +1082,13 @@ class FollowMixin:
             self.bd_reset()
             self.f_report(s["id"], "started", "")
             self.front_low_n = 0                       # obs_n counts readings within this step (follow.h)
-            ok = self.run_step(s)
+            if (self.fw_version >= "2026-11-05d" and "tilt_stop_deg" in self.params and self.P("tilt_stop_deg") > 0 and
+                    self.tilt_dev() > self.P("tilt_stop_deg") and not (s["type"] == "D" and s.get("rev"))):
+                # (11-05d) tilted: no forward drive or turn starts; only a straight backward drive
+                self.step_stop = "tilted %.1f deg: only a backward drive is allowed" % self.tilt_last
+                ok = False
+            else:
+                ok = self.run_step(s)
             rolling = s["type"] == "R" and (ok or self.dodged) and not self.abort_reason
             if not (ok and s.get("cont")) and not rolling:
                 self.brake()

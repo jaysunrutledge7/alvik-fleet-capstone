@@ -314,7 +314,7 @@ def site_orders(site, points, zones, home_xy):
 
 
 def site_production(site, names=None, table=None, outline=None, keepouts=None, seen=None, experiment=None, swap=False,
-                    wiggle=None):
+                    wiggle=None, home_at=None, orders=None):
     """A site with typed points (sticker_points.py): (map, words, program, orders). table: (L, W) measured (else the
     site's typed size); keepouts: more keep-outs (the reference tiles); seen: {label: [x, y]} stickers the cameras
     fitted (the old click way): any far from its typed spot is flagged, never moved.
@@ -328,6 +328,9 @@ def site_production(site, names=None, table=None, outline=None, keepouts=None, s
     tb = site.get("table") or {}
     L, W = table or (float(tb.get("length_cm") or 396.24), float(tb.get("width_cm") or 167.64))
     at = site_home_at(site, pts)
+    if home_at:
+        at = dict(at or {})
+        at.update(home_at)                 # (11-05h) homes where the robots were SEEN standing (observe)
     kos = site_keepouts(site) + list(keepouts or [])
     m, w2 = site_map((L, W), names, points=pts, outline=outline, keepouts=kos, room_cm=site_edge_cm(site),
                      home_at=at, keepout_r=turn_room(L, W))
@@ -335,14 +338,32 @@ def site_production(site, names=None, table=None, outline=None, keepouts=None, s
     m["notes"] = ["production points typed (%s)" % os.path.basename(SP.points_file(site))] + words
     homes_ = {r["name"]: r["start"] for r in m["robots"]}
     meta = None
+    given = orders
     if experiment and experiment != "custom":
         import experiments as EX
         orders, meta = EX.experiment_orders(site, m["spots"], zones, homes_, experiment, swap=swap)
+    elif given is not None:
+        # (11-05h) the table shared from what is seen (observe.split_points): each robot's points in a short order
+        # from where it stands, the point it stands on first
+        orders = {}
+        for n, labs in given.items():
+            labs = [l for l in labs if l in m["spots"]]
+            hx = homes_.get(n, [0, 0])[:2]
+            first = [l for l in labs if math.hypot(m["spots"][l][0] - hx[0], m["spots"][l][1] - hx[1]) < 3.0][:1]
+            rest = [l for l in labs if l not in first]
+            orders[n] = first + short_order(hx, rest, m["spots"])
     else:
         orders = site_orders(site, m["spots"], zones, homes_)
     orders = {n: v for n, v in orders.items() if n in names}
     pr = site.get("production") or {}
-    prog = program(orders, dwell_s=float(pr.get("dwell_s", DWELL_S)), at_home=site_home_points(site))
+    ah = site_home_points(site)
+    if given is not None:
+        ah = {}
+        for n, labs in orders.items():
+            hx = homes_.get(n, [0, 0])[:2]
+            if labs and math.hypot(m["spots"][labs[0]][0] - hx[0], m["spots"][labs[0]][1] - hx[1]) < 3.0:
+                ah[n] = labs[0]
+    prog = program(orders, dwell_s=float(pr.get("dwell_s", DWELL_S)), at_home=ah)
     if meta is not None:
         prog["production"]["experiment"] = meta
         prog["name"] = "production %s%s" % (experiment, " (halves swapped)" if swap else "")

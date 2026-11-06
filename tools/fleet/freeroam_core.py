@@ -577,6 +577,7 @@ class Controller:
             r.arc_pts.append((x, y))
         if oa is not None:
             r.cam_off = (x - oa[0], y - oa[1])
+            self.pose_agree(r, (oa[0], oa[1]), (x, y), th)
         r.cam_hist.append((t, x, y))
         if len(r.cam_hist) > 80:
             del r.cam_hist[:20]
@@ -1011,8 +1012,19 @@ class Controller:
         heading: the longest of Ls that keeps the others' reservations and the keep-outs. inward: only if it ends
         further from the edge than it starts."""
         p, h = self.pos(r), self.heading(r)
+        import observe as OB
+        if r.lost is not None or r.cam is None or not self.fresh(r):
+            # (11-05h, protection 4) never a blind reverse: the robot cannot see behind and the edge guard is off
+            self.counts["reverse_refused"] = self.counts.get("reverse_refused", 0) + 1
+            return None
         e0 = edge_dist(self.rect, *p)
+        others = [self.pos(o) for o in self.others(r) if self.pos(o) is not None]
+        kos = [(q["x"], q["y"], q["r"]) for q in self.keepouts]
         for L in Ls:
+            ok, why_ = OB.reverse_room((p[0], p[1], h), L, self.rect, unc_cm=r.bubble if r.lost else 0.0,
+                                       others=others, keepouts=kos)
+            if not ok:
+                continue
             tr = Traj.move(self.t + 0.2, p, wrap180(h + 180.0), 0.0, L, BACK_V, m0=self.margin0(r))
             e1 = edge_dist(self.rect, *tr.end)
             # backwards is blind: away from the edges by the turn margin, or (inward) at least further in than now
@@ -1127,15 +1139,76 @@ class Controller:
         self.counts["fallback"][kind] = self.counts["fallback"].get(kind, 0) + 1
         self.log("fallbacks", dict(t=round(self.t, 2), robot=r.name, level=level, kind=kind, why=why))
 
+    def pose_agree(self, r, own, cam, th):
+        """(11-05h, protection 1; the 4 h home run: Center's own pose 17 cm off the camera's, the plan from the camera,
+        the drive from its own pose: into the x = 0 edge) Own pose vs camera (at the picture's time) over
+        observe.POSE_AGREE_CM for POSE_AGREE_S: the robot is stopped and its pose re-seeded from the camera (fpose)
+        before any further move."""
+        import observe as OB
+        w = r.__dict__.setdefault("pagree", OB.PoseAgree())
+        ev = w.feed(self.t, own, cam, 0.0)
+        if not ev:
+            return
+        self.counts["reseeds"] = self.counts.get("reseeds", 0) + 1
+        h = th if th is not None else self.heading(r)
+        self.event(r, "pose re-seeded", "its own pose was %.1f cm from the camera's for %.0f s: stopped, pose set from "
+                   "the camera before any further move (observed)" % (ev["d_cm"], ev["for_s"]))
+        if r.move is not None:
+            self.halt(r, "own pose off the camera's")
+            self.end_move(r)
+        self.out(r, "fpose %.2f %.2f %.2f %.2f %.2f" % (cam[0], cam[1], h, 1.0, 3.0))
+        r.cam_off = (0.0, 0.0)
+        r.busy_until = max(r.busy_until, self.t + 1.0)
+
+    def on_raw(self, name, t, roll, pitch, v_cms):
+        """(11-05h, protection 2) The robot's own roll / pitch (RAW rows): a STANDING tilt over observe.STAND_TILT_DEG
+        for STAND_TILT_S (Center sat at 3.4 deg, under the 5 deg tilt stop, for 64 min) is a hazard: a keep-out where
+        it is, its move ended, and it may only back away when the camera shows room behind (else it stands, said)."""
+        r = self.R.get(name)
+        if r is None:
+            return
+        import observe as OB
+        w = r.__dict__.setdefault("twatch", OB.TiltWatch())
+        ev = w.feed(t, roll, pitch, v_cms)
+        if not ev:
+            return
+        self.counts["tilt_hazards"] = self.counts.get("tilt_hazards", 0) + 1
+        if r.move is not None:
+            self.halt(r, "standing tilt")
+            self.end_move(r)
+        self.tilt_trip(r, "standing tilt %.1f deg for %.1f s (a wheel over an edge?)" % (ev["dev_deg"], ev["for_s"]))
+
+    def tilt_trip(self, r, info):
+        """(11-05h, Nick 5 Nov 20:46: a robot seen tilted at the board's edge) Its own tilt stop ended the step: the
+        spot just ahead is a discovered edge (a keep-out, as a front stop's), and the next move is a straight back-off,
+        never forward (firmware 2026-11-05d refuses anything else while it is tilted; older firmware ends its follow
+        run). Until it has backed away nothing else is planned for it."""
+        self.counts["tilt_trips"] = self.counts.get("tilt_trips", 0) + 1
+        self.event(r, "tilt stop", "its own tilt stop ended the step (%s): kept out ahead, backs straight away" % info)
+        self.felt(r, "obstacle 0.0 cm (tilted)")
+        r.back_off = dict(t=self.t, h=self.heading(r))
+        r.tilted = True
+
     def start_move(self, r):
         res = None
+        tilted = getattr(r, "tilted", False)
         if r.back_off is not None:
             r.back_off = None
             res = self.back_move(r)
+            if res is None and tilted:
+                res = self.back_move(r, inward=True)       # (11-05h) tilted at the edge: any back-off that gains room
             if res is not None:
                 self.counts["backoffs"] += 1
                 self.fallback(r, 0, "back off", "its own front stop: backs away before anything else (never the "
                                                 "same heading again)")
+                r.tilted = False
+        if res is None and tilted:
+            # (11-05h) tilted and no room to back: it stands (never a forward move or a turn); said, and tried again
+            r.back_off = dict(t=self.t, h=self.heading(r))
+            r.busy_until = self.t + 1.0
+            if not r.stopped_hard:
+                self.trophy_break(r, "tilted and no room to back away: stands until it can back off")
+            return
         if res is None:
             res = self.pick(r)
         if res is None:
@@ -1196,8 +1269,12 @@ class Controller:
                                if (r.own and r.cam and r.lost is None and self.own_at(r, r.cam[0])) else "",
                                cam_x=round(r.cam[1], 1) if r.cam else "", cam_y=round(r.cam[2], 1) if r.cam else "",
                                style="stopturn", curvature=""))
+        if state == "done" and self.fast_done(r, mv):
+            state, info = "failed", "done without moving"
         if state != "done":
-            if "obstacle" in info or "plywood edge" in info:
+            if "tilted" in info:
+                self.tilt_trip(r, info)
+            elif "obstacle" in info or "plywood edge" in info:
                 self.event(r, "front stop", "its own %s stopped the step: %s" % (
                     "front sensor" if "obstacle" in info else "edge guard", info))
                 self.felt(r, info)
@@ -1206,6 +1283,33 @@ class Controller:
             elif state == "failed":
                 self.event(r, "step failed", info)
         self.end_move(r)
+
+    def fast_done(self, r, mv):
+        """(11-05h, protection 3; Left's 4,289 reverses 'done in 0.05 s without moving') A move reported done in under a
+        tenth of its time while the camera saw it move under 1 cm: NOT done. Twice in a row: the robot and the
+        controller disagree on where it is: it is stopped and its pose re-seeded from the camera."""
+        import observe as OB
+        est = turn_s(mv["turn"]) + (drive_s(mv["L"], mv["v"]) if mv["L"] else 0.0)
+        took = self.t - mv["t0"]
+        moved = None
+        if r.cam is not None and self.fresh(r) and r.cam_hist:
+            before = [q for q in r.cam_hist if q[0] <= mv["t0"]]
+            q0 = before[-1] if before else r.cam_hist[0]
+            moved = math.dist(q0[1:], (r.cam[1], r.cam[2]))
+        if not mv["L"] or not OB.done_too_fast(est, took, moved, mv["L"]):
+            r.fast_n = 0
+            return False
+        r.fast_n = getattr(r, "fast_n", 0) + 1
+        self.counts["fast_done"] = self.counts.get("fast_done", 0) + 1
+        self.event(r, "done without moving", "move %d reported done in %.2f s (expected %.1f), camera moved %s: "
+                   "counted as NOT done" % (mv["n"], took, est, "%.1f cm" % moved if moved is not None else "?"))
+        if r.fast_n >= 2 and r.cam is not None:
+            self.out(r, "fpose %.2f %.2f %.2f %.2f %.2f" % (r.cam[1], r.cam[2], self.heading(r), 1.0, 3.0))
+            r.cam_off = (0.0, 0.0)
+            r.busy_until = self.t + 2.0
+            self.event(r, "pose re-seeded", "two moves in a row done without moving: its pose set from the camera")
+            r.fast_n = 0
+        return True
 
     def end_move(self, r):
         p = self.pos(r)
@@ -1666,11 +1770,21 @@ class Controller:
             # its own front check STOPPED it (no dodge): back straight off first, as in stop-turn (a speed-zero moment)
             r.back_off = None
             res = self.back_move(r)
+            if res is None and getattr(r, "tilted", False):
+                res = self.back_move(r, inward=True)       # (11-05h) tilted at the edge: any back-off that gains room
             if res is not None:
                 self.counts["backoffs"] += 1
                 self.fallback(r, 0, "back off", "its own front stop: backs away before anything else")
                 self.stopturn_move(r, res)
                 self.why_zero(r, "back off after its own front stop")
+                r.tilted = False
+                return
+            if getattr(r, "tilted", False):
+                # (11-05h) tilted and no room to back: stand (never forward), tried again
+                r.back_off = dict(t=self.t, h=self.heading(r))
+                r.busy_until = self.t + 1.0
+                if not r.stopped_hard:
+                    self.trophy_break(r, "tilted and no room to back away: stands until it can back off")
                 return
         co = r.coast if (r.coast and self.t - r.coast["t"] < COAST_S) else None
         lead = 0.3
@@ -2033,7 +2147,10 @@ class Controller:
             self.why_zero(r, "dodge coast ran out")
         else:
             r.coast = None
-            if "obstacle" in info or "plywood edge" in info:
+            if "tilted" in info:
+                self.tilt_trip(r, info)
+                self.why_zero(r, "its own tilt stop")
+            elif "obstacle" in info or "plywood edge" in info:
                 self.event(r, "front stop", "its own %s stopped the step: %s" % (
                     "front sensor" if "obstacle" in info else "edge guard", info))
                 self.felt(r, info)

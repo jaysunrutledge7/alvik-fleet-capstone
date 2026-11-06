@@ -900,7 +900,8 @@ class E02Mixin:
             self.leg_record(lid, kind, arg, "refused", self.e_edge_off())
             return
         lim = self.P("tilt_stop_deg") if "tilt_stop_deg" in self.params else 0.0
-        if kind in ("g", "t") and lim > 0 and self.tilt_dev() > lim:
+        fwd = kind == "t" or (kind == "g" and (arg >= 0 or self.fw_version < "2026-11-05d"))
+        if kind in ("g", "t") and fwd and lim > 0 and self.tilt_dev() > lim:
             # firmware 2026-10-26a: tilted (hung at an edge): no drive and no turn
             self.leg_record(lid, kind, arg, "refused", "tilted %.1f deg (hung at an edge?)" % self.tilt_last)
             return

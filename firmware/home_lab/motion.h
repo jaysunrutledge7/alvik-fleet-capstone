@@ -26,6 +26,8 @@ String gFail = "";   // why a run failed without being stopped (a timeout, a fai
 void (*gTickHook)() = nullptr;
 float gFrontLimitCm = -1;
 bool gFrontSoft = false;
+bool gTiltBackOK = false;   // (2026-11-05d) a reverse drive is running: a tilt does not stop it (backing off the
+                            // edge it hangs on is the way out; forward driving and turning stay stopped)
 bool gEdgeSoft = false;   // follow: an edge-guard trip ends only the current step (gStepStop = "edge"), not the
                           // run: the robot holds and the laptop maps the edge and replans (run_plan.py)
 String gStepStop = "";
@@ -102,7 +104,12 @@ bool shouldAbort() {
   if (gAbortReason.length()) return true;
   if (alvik.get_touch_cancel()) { gAbortReason = "cancel button"; }
   else if (P("safe_lift") > 0 && alvik.get_lifted()) { gAbortReason = "robot lifted"; }
-  else if (tilt::over()) { gAbortReason = String("tilted ") + String(tilt::last, 1) + " deg"; }
+  else if (!gTiltBackOK && tilt::over()) {
+    // (2026-11-05d) in a follow run (gEdgeSoft) a tilt ends the step, not the run, so the laptop can back it away;
+    // the step's report says "tilted"; every later forward step or turn is refused while the tilt lasts (follow.h)
+    if (gEdgeSoft) gStepStop = String("tilted ") + String(tilt::last, 1) + " deg";
+    else gAbortReason = String("tilted ") + String(tilt::last, 1) + " deg";
+  }
   // open plywood edge (edge.h; safe_edge 0 = off): forward driving only, backing up is blind;
   // a hard stop in every experiment, follow steps and approaches included (gFrontLimitCm doesn't apply);
   // not a failure: RUNEND says "limited:plywood edge" (runExperiment), the calibration rolls back (runCalib)

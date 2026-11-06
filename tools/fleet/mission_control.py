@@ -666,6 +666,15 @@ class Session:
                 self.warmup_plan()
             cmd += ["--mission", os.path.join(self.dir, "warm_map.json"), "--plan", os.path.join(self.dir, "warm_plan.json"),
                     "--border-cm", "0"]
+        elif kind == "visit":
+            # (11-05h, Nick 5 Nov 20:28) Visit points, one button, no settings: every robot on the table found by the
+            # wiggle (however many), each tag's heading checked by a nudge, the points shared over the area the camera
+            # reads (skipped points listed with a reason), straight lines with turns on the spot
+            if not self.tag:
+                raise ValueError("Visit points needs a site with roof tags on the robots")
+            cmd += ["--robots", "auto", "--split", "auto", "--motion", "stopturn"]
+            if conn == "sim-cameras":
+                cmd += ["--sim-robots", str(int(d.get("sim_robots") or 2)), "--sim-bind"]
         else:
             if self.program is None:
                 self.program = MS.monday_program()
@@ -1186,6 +1195,39 @@ def clean(o):
     return o
 
 
+def idle_sleep_due(busy, last_busy_t, now_t, slept, idle_min):
+    """(11-05h) True when the robots should be put to sleep: nothing has driven them for idle_min minutes since the
+    last run ended (and they were not put to sleep since). idle_min 0 = never."""
+    return bool(idle_min) and not busy and last_busy_t is not None and not slept and \
+        now_t - last_busy_t >= idle_min * 60.0
+
+
+def idle_sleeper(s, every_s=30.0):
+    """(11-05h, Observe then trust: robot state) Runs stay awake at their end (a wake restarts a robot and wipes values
+    not saved on it); Mission Control puts every robot to sleep (`sleep 10`, the WiFi broadcast) after
+    observe.IDLE_SLEEP_MIN minutes with no run, so the battery is not drained overnight. The site's idle_sleep_min
+    changes the wait (0: never)."""
+    import observe as OB
+    last, slept = None, True
+    while True:
+        try:
+            busy = bool((s.run and s.run.alive()) or (getattr(s, "calib", None) and s.calib.running()) or
+                        s.others_driving())
+            if busy:
+                last, slept = time.time(), False
+            idle = float((s.site or {}).get("idle_sleep_min", OB.IDLE_SLEEP_MIN)) if getattr(s, "site", None) else \
+                OB.IDLE_SLEEP_MIN
+            if idle_sleep_due(busy, last, time.time(), slept, idle):
+                subprocess.run([sys.executable, os.path.join(os.path.dirname(HERE), "pi", "robot_sleep.py"), "sleep", "10",
+                                "255.255.255.255"], timeout=20, capture_output=True)
+                print("%.0f minutes with no run: every robot sent `sleep 10` (it wakes for 20 s every 10 min; "
+                      "robot_sleep.py wake any brings it back)" % idle, flush=True)
+                slept = True
+        except Exception as e:  # noqa: BLE001  (the sleeper never stops Mission Control)
+            print("(idle sleeper: %s)" % e, flush=True)
+        time.sleep(every_s)
+
+
 class Handler(BaseHTTPRequestHandler):
     session = None
 
@@ -1424,6 +1466,8 @@ def main(argv=None):
         a.dir = SI.load()["mc_dir"]
     s = Session(a.dir, a.map, a.port)
     s.force_dry = a.dry
+    if not a.dry:
+        threading.Thread(target=idle_sleeper, args=(s,), daemon=True).start()
     print("Connect screen opens on: %s" % s.conn_default()["why"], flush=True)
     srv, url = serve(s, a.port, a.listen, a.allow_host)
     print("Mission Control: %s  (Ctrl+C to stop)" % url, flush=True)

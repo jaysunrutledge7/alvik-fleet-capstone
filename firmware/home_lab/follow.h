@@ -548,7 +548,14 @@ void run() {
     gFrontLowN = 0;            // obs_n counts readings within this step
     border::reset();           // the border's reference starts again with every step (a re-plan may drive it back in)
     report(s.id, "started", "");
-    bool ok = runStep(s);
+    bool ok;
+    if (P("tilt_stop_deg") > 0 && tilt::now() > P("tilt_stop_deg") && !(s.type == 'D' && s.rev)) {
+      // (2026-11-05d) tilted (hung at an edge): no forward drive and no turn starts; only a straight backward drive
+      gStepStop = String("tilted ") + String(tilt::last, 1) + " deg: only a backward drive is allowed";
+      ok = false;
+    } else {
+      ok = runStep(s);
+    }
     // (2026-11-05c) an R piece that ended (or dodged) leaves the wheels turning: the next R piece or the coast
     bool rolling = s.type == 'R' && (ok || dodged) && !gAbortReason.length();
     if (!(ok && s.cont) && !rolling) alvik.brake();

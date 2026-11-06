@@ -66,7 +66,15 @@ def metrics(rows):
     turn90 = [90.0 * abs(_num(r["turn_err_deg"])) / abs(_num(r["commanded"])) for r in tu
               if _num(r["turn_err_deg"]) is not None]
     signed = [100.0 * _num(r["along_err_cm"]) / _num(r["commanded"]) for r in go if _num(r["along_err_cm"]) is not None]
-    return {"n_go": len(go), "n_turn": len(tu), "dist_err_cm_per_m_median": _med(per_m),
+    # (11-05h, school 5 Nov 19:34) the distance error split in two: a SCALE (cm per m, the slope of the along error
+    # against the leg's length: what wheel_scale fixes) and a fixed OFFSET per leg (cm: the stop's overrun, what the
+    # stop lead fixes). Per-m figures alone made a 0.5 cm overrun on 50 cm legs look like a +1 cm/m scale error
+    sc = off = None
+    pts = [(_num(r["commanded"]), _num(r["along_err_cm"])) for r in go if _num(r["along_err_cm"]) is not None]
+    if len(pts) >= 4 and np.ptp([q[0] for q in pts]) > 10:
+        k, c0 = np.polyfit([q[0] for q in pts], [q[1] for q in pts], 1)
+        sc, off = 100.0 * float(k), float(c0)
+    return {"dist_scale_cm_per_m": sc, "dist_offset_cm": off, "n_go": len(go), "n_turn": len(tu), "dist_err_cm_per_m_median": _med(per_m),
             "dist_err_cm_per_m_p95": _p95(per_m), "dist_err_signed_cm_per_m_mean": _mean(signed),
             "cross_cm_per_m_median": _med(cross_m), "turn_err_deg_median": _med(turn), "turn_err_deg_p95": _p95(turn),
             "turn_err_per_90_median": _med(turn90), "per_m": per_m, "turn": turn}
@@ -289,6 +297,15 @@ def write(folder, run, a):
                 ("%.3f %s" % (rb["read"], "OK" if rb.get("ok") else "NOT OK")) if rb.get("read") is not None else
                 "no answer", (" %.3f |" % tru[k]) if tru else ""))
         L.append("")
+        if fit.get("overrun_cm"):
+            L.append("**Stop overrun** (how far past the asked length a leg ends with the new wheel_scale, from phase "
+                     "A; the robot's usual stop shortfall %.2f cm taken off): %s. %s" % (
+                         fit.get("stop_shortfall_cm", 0), ", ".join("%+.2f cm at %s cm/s (%s legs)" % (
+                             v, k, (fit.get("overrun_n") or {}).get(k, "?")) for k, v in sorted(
+                             fit["overrun_cm"].items(), key=lambda kv: float(kv[0]))),
+                         "Phase C sends each leg short by this (the stop lead)." if fit.get("stop_lead_cm") else
+                         "Not used (stop lead off, or the wheel fit was not used)."))
+            L.append("")
         if getattr(run, "fit_offset", None):
             o = run.fit_offset
             L.append("**Tag offset from the turning point** (from the in-place turns): %.1f cm ahead, %.1f cm left "
@@ -300,14 +317,16 @@ def write(folder, run, a):
                  "only (the last 10 cm at an edge point is driven from the camera and left out):")
         L.append("")
         L.append("| tour | legs (go / turn) | distance error, cm per m (median / p95) | signed mean, cm per m | "
+                 "scale part, cm per m | fixed part per leg, cm | "
                  "sideways, cm per m (median) | heading error per turn, deg (median / p95) |")
-        L.append("|---|---|---|---|---|---|")
+        L.append("|---|---|---|---|---|---|---|---|")
         for k in sorted(g, key=lambda s: (s[0] != "A", s)):
             m = metrics(g[k])
-            L.append("| %s | %d / %d | %s / %s | %s | %s | %s / %s |" % (
+            L.append("| %s | %d / %d | %s / %s | %s | %s | %s | %s | %s / %s |" % (
                 "A (before)" if k.startswith("A") else k + " (after)", m["n_go"], m["n_turn"],
                 _fmt(m["dist_err_cm_per_m_median"]), _fmt(m["dist_err_cm_per_m_p95"]),
-                _fmt(m["dist_err_signed_cm_per_m_mean"], "%+.2f"), _fmt(m["cross_cm_per_m_median"]),
+                _fmt(m["dist_err_signed_cm_per_m_mean"], "%+.2f"), _fmt(m["dist_scale_cm_per_m"], "%+.2f"),
+                _fmt(m["dist_offset_cm"], "%+.2f"), _fmt(m["cross_cm_per_m_median"]),
                 _fmt(m["turn_err_deg_median"]), _fmt(m["turn_err_deg_p95"])))
         L.append("")
     dr = drift_rows(rows)

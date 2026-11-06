@@ -788,7 +788,7 @@ function production() {
   page(`<div><h1>Production run</h1><p class="sub">Each robot: its start-up (calibrated on this power-on? if not, it calibrates; a calibration from earlier today on the same power-on is kept), its points in the order below, ${"a stop of a few seconds at each"}, then home. Click a point on the table to add it to the chosen robot's list.</p></div>
     <div class="card">${tableSVG({id: "ptab", paths: pv ? pv.paths : paths, pathOp: .55, pathW: 2, robots: homes})}
       <p class="small muted" style="margin:8px 0 0">The table from above (corner 1 bottom left). Numbered circles: the production points (${S.site && S.site.points_typed ? "typed from the sticker sheet" : "from Measure"}); dots: each robot at its home; shaded red: keep-out areas (the raised box, reference tiles); lines: ${pv ? "the planned routes" : "each robot's points in order (straight lines; Plan makes the real routes)"}.</p></div>`,
-    `${calibCard()}${expCard()}<div class="card"><h2>Orders</h2>${robots.map(n => `<div style="padding:8px 0;border-bottom:1px solid #F0F1F3"><label class="row"><input type="radio" name="prob" value="${esc(n)}" ${n === prodRobot ? "checked" : ""}><b><span class="dot" style="background:${COL[n] || "#5B6474"}"></span>${esc(n)}</b><span class="small muted">clicks add here</span></label>
+    `${visitCard()}${calibCard()}${expCard()}<div class="card"><h2>Orders</h2>${robots.map(n => `<div style="padding:8px 0;border-bottom:1px solid #F0F1F3"><label class="row"><input type="radio" name="prob" value="${esc(n)}" ${n === prodRobot ? "checked" : ""}><b><span class="dot" style="background:${COL[n] || "#5B6474"}"></span>${esc(n)}</b><span class="small muted">clicks add here</span></label>
       <input id="po_${esc(n)}" value="${esc((prodOrders[n] || []).join(", "))}" style="width:100%;margin-top:6px" aria-label="${esc(n)}'s points in order"></div>`).join("")}
       <div class="row" style="margin-top:8px"><label class="lbl">Stop at each point <input id="pdwell" class="n" value="3"> s</label><label class="lbl"><input type="checkbox" id="phome" checked> then home</label></div>
       <label class="lbl"><input type="checkbox" id="pspin"> a sync spin at the start (each robot turns once on the spot: a moment the external recorder sees too)</label>
@@ -805,8 +805,26 @@ function production() {
     robots.forEach(n => { prodOrders[n] = $("po_" + n).value.split(/[ ,;]+/).filter(Boolean); });
     try { const r = await api("/api/production", {orders: prodOrders, dwell_s: +$("pdwell").value, home: $("phome").checked, sync_spin: $("pspin").checked, experiment: expPick, swap_halves: expSwap, sync_wiggle: expWiggle}); await load(); flash(r.words || "Planned"); } catch (e) { flash(e.message, true); render(); } };
   $("pnext").onclick = () => { done.add(8); screen = 5; render(); };
-  wireExp(); wireCalib();
+  wireExp(); wireCalib(); wireVisit();
   wireSync(); wireFeel();
+}
+// Visit points (5 Nov, phase 1 of the overhaul): one button, no settings. Every robot on the table is found by its wiggle
+// (however many), its roof tag's heading checked by a short nudge, and the points are shared between them over the area
+// the camera reads (points it cannot read are listed as skipped, with the reason). Stop works at any moment.
+function visitCard() {
+  const run = S.run && S.run.kind === "visit" ? S.run : null;
+  const going = !!(run && run.running);
+  const lv = run && run.live ? run.live : null;
+  return `<div class="card" id="viscard"><h2>Visit points</h2>
+    <p class="small" style="margin:0 0 8px">Every robot on the table visits the points, nothing to set: the run finds the robots (each one wiggles), checks which way each roof tag faces, and shares the points the camera can read between them. Straight lines, turns on the spot.</p>
+    <div class="row"><button class="p" id="visgo" ${going ? "disabled" : ""}>Visit points</button><button id="vissim" ${going ? "disabled" : ""}>Simulator rehearsal</button><button class="${going ? "p" : ""}" id="visstop" ${going ? "" : "disabled"} style="${going ? "background:#B42318;border-color:#B42318" : ""}">Stop</button></div>
+    ${run ? `<p class="small" style="margin:8px 0 0"><b>${going ? "Running" : "Ended"}</b>${run.mode === "sim-cameras" ? " (simulator)" : ""}, ${fmt(run.elapsed_s)}${lv && lv.points ? ", points done " + esc(String(lv.points)) : ""}. <span class="muted">${esc(run.folder || "")}</span></p>` : ""}</div>`;
+}
+function wireVisit() {
+  const go = async (conn) => { try { S.run = await api("/api/run/start", {kind: "visit", conn, dry: conn !== "robots"}); flash(conn === "robots" ? "Visit points started" : "Simulator rehearsal started"); startPoll(); render(); } catch (e) { flash(e.message, true); } };
+  if ($("visgo")) $("visgo").onclick = () => { if (confirm("Start Visit points on every robot on the table?")) go("robots"); };
+  if ($("vissim")) $("vissim").onclick = () => go("sim-cameras");
+  if ($("visstop")) $("visstop").onclick = async () => { try { await api("/api/run/stop", {}); flash("Stop sent: every robot stops"); } catch (e) { flash(e.message, true); } };
 }
 // The calibration run (Nick and Jay-Sun, 4 Nov; tools/fleet/calib_run.py): zones 1-2, P01-P20, start and park at P11.
 // Finds and binds the robot by its wiggle, phase A (its current values, wheels + gyro alone, the camera for safety), B

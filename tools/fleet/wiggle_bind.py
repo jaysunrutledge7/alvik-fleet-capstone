@@ -85,6 +85,16 @@ def assign_slots(slots, robots, seen, homes, pins=None, by="position"):
                 out[r] = r
                 free_s.remove(r)
                 free_r.remove(r)
+    if free_r and any(s in homes for s in free_s) and not all(s in homes for s in free_s) and \
+            all(r in seen for r in free_r):
+        # (11-05h) more robots than the site has homes for: the homed slots go to the nearest robots first
+        for s_ in [s for s in free_s if s in homes]:
+            if not free_r:
+                break
+            r_ = min(free_r, key=lambda r: math.hypot(seen[r][0] - homes[s_][0], seen[r][1] - homes[s_][1]))
+            out[r_] = s_
+            free_r.remove(r_)
+            free_s.remove(s_)
     if free_r and all(s in homes for s in free_s) and all(r in seen for r in free_r):
         best = None
         for perm in itertools.permutations(free_s, len(free_r)):
@@ -139,8 +149,27 @@ def rename(link, steps, log=say):
     return done
 
 
+AUTO_NAMES = ("Alpha", "Bravo", "Charlie", "Delta", "Echo", "Foxtrot")   # (11-05h) slot names when the run takes every
+#                                                                         robot found (after the site's own names)
+
+
+def auto_slots(site, n):
+    """(11-05h) n slot names: the site's robots' names first, then AUTO_NAMES not already used."""
+    out = [r["name"] for r in (site or {}).get("robots") or []][:n]
+    for nm in AUTO_NAMES:
+        if len(out) >= n:
+            break
+        if nm not in out:
+            out.append(nm)
+    k = 1
+    while len(out) < n:
+        out.append("Robot%d" % k)
+        k += 1
+    return out
+
+
 def bind_for_run(site, slots, link, eye, ips=(), wake_min=3.0, dry=False, folder=None, log=say, by=None,
-                 rename_ok=None, state_dir=None, min_firmware=None, use_pins=None):
+                 rename_ok=None, state_dir=None, min_firmware=None, use_pins=None, heading_check=True):
     """Steps 1-5 with a Link and an Eye already open. Returns the record (dict): slots {slot: tag}, robots [...],
     aliases {name it answers with: slot} when the robots are not renamed (tags.rename_to_slot false)."""
     S = CR.Site(site)
@@ -152,7 +181,18 @@ def bind_for_run(site, slots, link, eye, ips=(), wake_min=3.0, dry=False, folder
         min_firmware = ((site or {}).get("calibration") or {}).get("min_firmware", CR.MIN_FIRMWARE) or ""
     if state_dir is None:
         state_dir = (folder or "") if dry else ((site or {}).get("conf_dir") or "")
-    found = CR.discover(link, list(ips), wake_min, dry, count=len(slots))
+    auto = list(slots) in (["auto"], [])
+    if auto:
+        # (11-05h, Observe then trust) however many robots are on the table: the camera counts the roof tags there
+        # and the run waits (up to wake_min) for that many robots to answer; slots are named after the site's robots,
+        # then AUTO_NAMES
+        n_tags = len(eye.seen_ids(2.0)) if eye is not None else 0
+        log("AUTO: the camera sees %d roof tag%s on the table: waiting for %s robot%s to answer" % (
+            n_tags, "" if n_tags == 1 else "s", n_tags or "any", "" if n_tags == 1 else "s"))
+        found = CR.discover(link, list(ips), wake_min, dry, count=n_tags)
+        slots = auto_slots(site, len(found))
+    else:
+        found = CR.discover(link, list(ips), wake_min, dry, count=len(slots))
     if not found:
         raise CR.BindError("no robot answered on the WiFi (wake and status to %s for %.0f min). Is it switched on and "
                            "on the school WiFi? `python3 tools/pi/robot_sleep.py wake any` wakes one from any address."
@@ -164,15 +204,23 @@ def bind_for_run(site, slots, link, eye, ips=(), wake_min=3.0, dry=False, folder
     old = [CR.firmware_refusal(n, v, min_firmware) for n, v in fw.items() if not CR.firmware_ok(v, min_firmware)]
     if old:
         raise CR.BindError("; ".join(old) + ". Nothing moved")
+    import observe as OB
+    se = OB.site_safe_edge(site, 3)
     for rb in robots:
         link.send(rb.ip, "wake")
-        for c in CR.EDGE_GUARD:
+        for c in [("set safe_edge %d" % se) if c.startswith("set safe_edge") else c for c in CR.EDGE_GUARD]:
             link.send(rb.ip, c)
             time.sleep(0.05)
     # the WiFi name (firmware 2026-11-05a `id`; older: the name it answered with) before the wiggle: the pins use it
     wifi = {rb.ip: CR.wifi_name_of(link, rb) for rb in robots}
     for rb in robots:
         CR.compass_check(link, rb, log=log)
+    for rb in robots:
+        # (11-05h, Nick 20:46) the robot-side safety layers on and read back before the wiggle moves anything
+        ok, words = CR.arm_safety(rb, se, log=log)
+        if not ok:
+            raise CR.BindError("%s: its safety layers (tilt stop, edge guard) did not read back (%s). Nothing else "
+                               "moved" % (rb.name, words))
     import experiments as EX
     w = EX.conf(site)["sync_wiggle"]
     pp = CR.state_path(state_dir, CR.PINS_FILE) if use_pins else ""
@@ -200,6 +248,29 @@ def bind_for_run(site, slots, link, eye, ips=(), wake_min=3.0, dry=False, folder
         m = eye.measure(t, 0.6)
         if m:
             seen[n] = (m[0], m[1])
+    # (11-05h, Observe then trust) each robot's roof tag heading against its nose: a 6 cm nudge (clear both ways, the
+    # other robots kept out), before any run drives on the tag's heading (school 5 Nov: AL-1DC0's tag read 180 off)
+    yaw = {}
+    if heading_check:
+        for rb in robots:
+            t = b.get(rb.name)
+            if t is None:
+                continue
+            m = eye.measure(t, 0.8)
+            if not m:
+                log("  %s: no camera pose for the heading check (the run's own heading watch checks it on its first "
+                    "drives)" % rb.name)
+                continue
+            S.set_parked({o: p_ for o, p_ in seen.items() if o != rb.name})
+            try:
+                off, raw, mv, c1 = CR.heading_nudge(rb, eye, int(t), m[:3],
+                                                    lambda a_, b_: S.problems(a_, b_, buf=2.0, edge_buf=2.0), log=log)
+                yaw[rb.name] = off
+                seen[rb.name] = (c1[0], c1[1])
+            except CR.RunEnd as e:
+                log("  %s: heading check not done (%s); the run's heading watch checks it on its first drives" % (
+                    rb.name, e))
+        S.set_parked({})
     spins = {}
     for r in (site or {}).get("robots") or []:
         if r.get("wifi") and r["wifi"] in found:
@@ -231,6 +302,8 @@ def bind_for_run(site, slots, link, eye, ips=(), wake_min=3.0, dry=False, folder
                        "pin": notes.get(rb.name)} for rb in robots],
            "renamed": [{"ip": ip, "from": o, "to": n} for ip, o, n in renamed],
            "aliases": aliases,
+           "yaw_off": {assign[n]: d for n, d in yaw.items() if n in assign},
+           "auto": auto,
            "empty_slots": [s for s in slots if s not in assign.values()]}
     for p in ([os.path.join(folder, "binding.json")] if folder else []) + \
             ([os.path.join(site["conf_dir"], "robot_binding.json")] if (site.get("conf_dir") and not dry) else []):
@@ -248,6 +321,9 @@ def tags_with_binding(tags, rec):
     t["ids_typed"] = dict(t.get("ids") or {})
     t["ids"] = dict(rec["slots"])
     t["binding"] = "wiggle"
+    if rec.get("yaw_off"):
+        # (11-05h) the heading check's offsets, per tag id: the bridge corrects every heading of that tag
+        t["yaw_off"] = {str(rec["slots"][sl]): d for sl, d in rec["yaw_off"].items() if sl in rec["slots"]}
     return t
 
 

@@ -295,6 +295,9 @@ def test_cautious_hold_and_keep_going_switch(tmp_path, monkeypatch):
 
         def age(self, t):
             return self.a
+
+        def last(self, t):
+            return None
     run.eye = E(2.0)
     run._leg_moving = True
     assert run.watch() is True                   # tag unseen 2 s while driving: stop

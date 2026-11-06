@@ -61,7 +61,9 @@ for p in (HERE, TOOLS, os.path.join(TOOLS, "sim"), os.path.join(TOOLS, "recognit
 
 import numpy as np   # noqa: E402
 
-VERSION = "2026-11-05g"     # 11-05g: --view-x-max (zone 1 only while the far end reads poorly).
+VERSION = "2026-11-05h"     # 11-05h: stop lead per speed (school 19:34: the scale fit was right; a fixed ~0.3 / 0.5 cm
+                            # overrun per leg at 5 / 10 cm/s read as "+1 cm/m after the fit"). Shared observe checks.
+VERSION_G = "2026-11-05g"     # 11-05g: --view-x-max (zone 1 only while the far end reads poorly).
 VERSION_F = "2026-11-05f"     # 11-05f: heading check (the school tag reads 180 deg off the nose: legs ran backwards, 1 cm from the edge).
 VERSION_E = "2026-11-05e"     # 11-05e: --safe-edge / calibration.safe_edge (school: 2, the tape seam tripped the line sensors).
 VERSION_D = "2026-11-05d"     # 11-05d: recovery jump used the camera time as a position; hold again until a pose (school 18:33 crash). 11-05c: lost-tag recovery; arc phase
@@ -135,6 +137,11 @@ ENOUGH = {"wheel_scale": 0.008, "gyro_scale": 0.005, "gyro_drift_dps": 0.03}   #
 BOUNDS = {"wheel_scale": (0.90, 1.10), "gyro_scale": (0.90, 1.15), "gyro_drift_dps": (-2.0, 2.0)}
 PARAM_TOL = 0.0006       # a read-back matches within this (the firmware prints 3 decimals; doe_loop.PARAM_TOL)
 PARAMS = ("wheel_scale", "gyro_scale", "gyro_drift_dps")
+LEADS_FILE = "stop_leads.json"   # (11-05h) per WiFi name: the stop lead per speed, kept on the Pi
+OVERRUN_MIN_N = 5        # chosen: a speed's overrun is used only from this many phase-A legs (the real run had 17 at
+                         # 5 cm/s and 21 at 10 cm/s, spread 0.1-0.2 cm). DOE note: not needed, a median of 5+ is stable
+LEAD_MAX_CM = 1.5        # chosen: a stop lead larger than this is not believed (a sign of a bad camera read, not a
+                         # slide), the leg is sent as asked
 EDGE_GUARD = ["set safe_edge 3", "set edge_dir 0", "set edge_thr 150", "set edge_n 3", "set edge_bot_cm 11",
               "set bumper_cm 0"]       # mission_run.EDGE_GUARD (lost at every power-off)
 LEG_TIMEOUT_S = 40.0
@@ -384,11 +391,30 @@ class Link:
             name, _, rest = txt.partition("|")
             _seq, _, line = rest.partition("|")
             t = time.time()
+            if line.startswith("D,RAW,"):
+                self._raw(t, name, line)      # (11-05h) the standing-tilt watch; RAW rows are not kept (50 a second)
+                continue
             with self.cond:
                 self.lines.append((t, name, ip, line))
                 self.ips[name] = ip
                 self.w.writerow(["%.3f" % t, name, ip, line])
                 self.cond.notify_all()
+
+    def _raw(self, t, name, line):
+        """(11-05h, protection 2) roll / pitch / speed from a RAW row into this robot's observe.TiltWatch; a standing
+        tilt over the limit is kept in self.tilt_hazard[name] for the run to act on."""
+        try:
+            if not getattr(self, "raw_cols", None):
+                import alvik_console as AC
+                self.raw_cols = list(AC.KNOWN_HEADERS.get("RAW") or [])
+            row = dict(zip(self.raw_cols, line.split(",")[2:]))
+            import observe as OB
+            w = self.__dict__.setdefault("twatch", {}).setdefault(name, OB.TiltWatch())
+            ev = w.feed(t, float(row["roll_deg"]), float(row["pitch_deg"]), float(row.get("v_cms") or 0.0))
+            if ev:
+                self.__dict__.setdefault("tilt_hazard", {})[name] = dict(ev, t=t)
+        except (KeyError, ValueError, IndexError):
+            pass
 
     def send(self, ip, cmd):
         try:
@@ -569,7 +595,8 @@ class Eye:
             if tid is None:
                 continue
             t = time.time()
-            th = float(msg.get("th", 0.0)) + getattr(self, "sim_yaw", 0.0) + getattr(self, "yaw_off", {}).get(tid, 0.0)   # (11-05f) heading check
+            th = float(msg.get("th", 0.0)) - (getattr(self, "sim_yaw_by", {}) or {}).get(tid, getattr(self, "sim_yaw", 0.0)) \
+                + getattr(self, "yaw_off", {}).get(tid, 0.0)   # (11-05f) heading check
             rec = (t, float(msg["x"]), float(msg["y"]), ((th + 180.0) % 360.0) - 180.0)
             with self.lock:
                 self.latest[tid] = rec
@@ -678,6 +705,77 @@ def four_point(cam_c, h, points):
     return out
 
 
+def sim_yaw_spec(spec):
+    """(11-05h) MIRLT_SIM_TAG_YAW: "180" (every tag turned 180 deg on its robot) or "2=180,3=90" (per tag id): the
+    tag reads DEG less than the nose (as tag_cam's tag_yaw draws it), so the heading check finds an offset of +DEG."""
+    spec = (spec or "").strip()
+    if not spec:
+        return 0.0, {}
+    if "=" not in spec:
+        return float(spec), {}
+    by = {}
+    for part in spec.split(","):
+        k, _, v = part.partition("=")
+        if k.strip():
+            by[int(k)] = float(v)
+    return 0.0, by
+
+
+def arm_safety(rb, safe_edge, log=say):
+    """(11-05h, Nick 5 Nov 20:46) The robot-side safety layers (observe.safety_settings: the tilt stop, the edge
+    guard's bottom-zone drop, lift) set and read back with `get` (sent again once). (ok, words)."""
+    import observe as OB
+    want = OB.safety_settings(safe_edge)
+    got = {}
+    for k, v in want.items():
+        ok, g = rb.set_checked(k, v)
+        got[k] = g
+    bad = OB.check_safety(want, got)
+    words = ", ".join("%s %g" % (k, got[k]) for k in want if got.get(k) is not None)
+    if bad:
+        return False, "; ".join("%s sent %g, read %s" % (k, v, g) for k, v, g in bad)
+    log("  %s: safety layers on and read back: %s" % (rb.name, words))
+    return True, words
+
+
+def heading_nudge(rb, eye, tag, pose, problems, log=say, stop=None, settle_s=SETTLE_S, measure=None):
+    """(11-05h, shared: calibration, the missions' wiggle-first, experiments) The roof tag's heading against the
+    robot's nose, observed: a NUDGE_CM straight drive, only when clear both ways (observe.nudge_clear: a wrong guess
+    cannot take it over an edge; a robot facing an edge turns a quarter first), and the direction the camera saw it
+    move. eye.yaw_off[tag] is set (every later camera heading of that tag corrected). pose: (x, y, tag heading) as the
+    camera reads it now; problems(a, b) -> reasons. Returns (offset deg, words) or raises RunEnd with plain words."""
+    import observe as OB
+    measure = measure or (lambda: eye.measure(tag))
+    ok, base = OB.nudge_clear(pose, problems, OB.NUDGE_CM)
+    if not ok:
+        raise RunEnd("the heading check needs %.0f cm clear both ways from where %s stands (ahead and behind, or to "
+                     "both sides): move it nearer the middle of the table and start again" % (OB.NUDGE_CM, rb.name))
+    if base:
+        r = rb.leg("turn", base, on_tick=stop)
+        time.sleep(settle_s)
+        m = measure()
+        if m is None:
+            raise RunEnd("the camera lost %s's tag during the heading check's quarter turn" % rb.name)
+        pose = m[:3]
+    r = rb.leg("go", OB.NUDGE_CM, on_tick=stop)
+    time.sleep(settle_s)
+    c1 = measure()
+    if c1 is None:
+        raise RunEnd("the camera lost %s's tag during the heading check: nothing else moved" % rb.name)
+    got = OB.heading_offset(pose, c1)
+    if got is None:
+        raise RunEnd("the heading check moved %s's tag only %.1f cm of %.0f (%s %s): stopped" % (
+            rb.name, math.dist(c1[:2], pose[:2]), OB.NUDGE_CM, r.get("result"), r.get("info")))
+    use, raw, mv = got
+    eye.yaw_off = dict(getattr(eye, "yaw_off", {}) or {})
+    eye.yaw_off[tag] = wrap180(eye.yaw_off.get(tag, 0.0) + use)
+    words = "HEADING CHECK %s: moved %.1f cm at %.0f deg from the tag's heading: tag heading offset %+.0f deg%s" % (
+        rb.name, mv, raw, use, "" if abs(use) < 1 else "  <- the tag is turned on the robot; every camera heading of "
+        "tag %d corrected (observed, not typed)" % tag)
+    log(words)
+    return use, raw, mv, c1
+
+
 class SimEye(Eye):
     """The simulator's camera: fleet_sim's true poses (its fixes, no noise) -> what the school's one camera would report
     for the robot's roof tag: only where its tag is big enough in the picture (READ_PX), position noise growing with
@@ -690,7 +788,8 @@ class SimEye(Eye):
         self.gaps = [tuple(float(v) for v in g.split(":")) for g in gaps]   # "T:DUR": the tag unread (a hand over it)
         self.rng = random.Random(seed)
         self.unread = 0
-        self.sim_yaw = float(os.environ.get("MIRLT_SIM_TAG_YAW", "0") or 0)   # (11-05f) a tag turned on the robot
+        self.sim_yaw, self.sim_yaw_by = sim_yaw_spec(os.environ.get("MIRLT_SIM_TAG_YAW", ""))   # (11-05f/h) tags
+        #                                                    turned on the robot: "180" every tag, or "2=180,3=90"
         super().__init__(folder, port)
         for d in decoys:    # tests: a tag lying still on the table (a spare), id, x, y, th
             threading.Thread(target=self._decoy, args=(d,), daemon=True).start()
@@ -945,7 +1044,29 @@ def update_pins(path, pins, wifi_tag, wifi_slot=None):
 
 
 # =============================================================================================== the fit
-def fit_values(turn_rows, still_rows, roll_rows, old):
+def stop_overrun(rows, w, ws0):
+    """(11-05h, school 5 Nov 19:34) How far past its commanded length a leg really ends, per drive speed, once the new
+    wheel_scale is in: rows [(belief cm, camera cm, speed cm/s, commanded cm)] from phase A (every finished go leg of
+    4 cm or more, the 5 cm finals included). With wheel_scale = w the robot stops when its belief reaches the
+    commanded length less its usual shortfall s (the stop tolerance, in belief cm), so it really covers
+    (commanded - s) and then slides on: coast(v) = camera - w x counted, measured per speed. Overrun(v) = coast(v) - s.
+    The real run: 0.32 cm at 5 cm/s and 0.49 cm at 10 cm/s predicted from phase A; phase C measured 0.31 and 0.52.
+    A fixed few mm per leg is not a scale error: divided by the leg's length it looked like "+1 cm/m after the fit"."""
+    by = {}
+    short = []
+    for bel, cam, v, cmd in rows:
+        counted = bel / ws0
+        by.setdefault(round(float(v), 1), []).append(cam - w * counted)
+        short.append(cmd - bel)
+    if not short:
+        return {}
+    s = float(np.median(short))
+    over = {("%g" % v): round(float(np.median(c)) - s, 3) for v, c in by.items() if len(c) >= OVERRUN_MIN_N}
+    return {"stop_shortfall_cm": round(s, 3), "overrun_cm": over,
+            "overrun_n": {("%g" % v): len(c) for v, c in by.items()}}
+
+
+def fit_values(turn_rows, still_rows, roll_rows, old, overrun_rows=None):
     """From phase A's measured legs: wheel_scale, gyro_scale, gyro_drift_dps with 1-sigma SEs.
     turn_rows: [(belief dtheta deg, dt s, camera dtheta deg)]; still_rows: [(belief dtheta, dt)];
     roll_rows: [(belief length cm, camera length cm)]; old: the values the robot used (to undo them).
@@ -989,6 +1110,8 @@ def fit_values(turn_rows, still_rows, roll_rows, old):
             se, coast = float(math.sqrt(s2 / (b @ b))), 0.0
         out.update(wheel_scale=w, se_wheel_scale=se, coast_cm=coast,
                    rms_roll_cm=float(math.sqrt(np.mean(res ** 2))), counted_cm=float(b.sum()))
+    if overrun_rows and "wheel_scale" in out:
+        out.update(stop_overrun(overrun_rows, out["wheel_scale"], ws0))
     verdict = {}
     for k in PARAMS:
         if k not in out:
@@ -1042,7 +1165,8 @@ class CalibRun:
                             "cam0_x", "cam0_y", "cam0_th", "cam1_x", "cam1_y", "cam1_th", "bel0_x", "bel0_y", "bel0_th",
                             "bel1_x", "bel1_y", "bel1_th", "dt_s", "cam_len_cm", "bel_len_cm", "cam_turn_deg",
                             "bel_turn_deg", "along_err_cm", "cross_err_cm", "turn_err_deg", "end_miss_cm",
-                            "corrected_first", "held_s", "edge_cm_min", "keepout_cm_min", "interrupted"])
+                            "corrected_first", "held_s", "edge_cm_min", "keepout_cm_min", "interrupted",
+                            "sent_cm", "speed_cms"])
         self.raw_f = open(os.path.join(folder, "odometry_raw.csv"), "w", newline="")
         self.raw = csv.writer(self.raw_f)
         self.raw.writerow(["t", "x_cm", "y_cm", "th_deg", "robot_ms", "anchor"])
@@ -1300,12 +1424,21 @@ class CalibRun:
         t0 = time.time()
         held = 0.0
         speed = None
+        send = value
         if kind == "go":
             speed = FINAL_CMS if label.endswith("final") else SPEED_CMS
             self.rb.set("e02_cms", speed)
-        r = self.rb.leg(kind, value, on_tick=self.watch)
+            send = lead_value(value, speed, getattr(self, "lead", None))
+        self._sent, self._speed = send, speed
+        r = self.rb.leg(kind, send, on_tick=self.watch)
         self._leg_moving = False
         self.odo_step(r)
+        hz = (getattr(self.link, "tilt_hazard", {}) or {}).pop(self.rb.name, None)
+        if hz:
+            # (11-05h, protection 2) a standing tilt under the robot's own 5 deg stop: the same as a tilt trip
+            r = dict(r, result="failed", info="standing tilt %.1f deg for %.1f s (tilted: a wheel over an edge?)" % (
+                hz["dev_deg"], hz["for_s"]))
+        self.after_trip(r, cam0)
         interrupted = bool(self._lost_stop)
         if self._lost_stop and self.a.lost_policy == "recover":
             # (11-05c) where it is now: the camera's pose at the leg's start moved by the robot's own record of the leg
@@ -1338,6 +1471,19 @@ class CalibRun:
             cam0 = cam1
         t1 = time.time()
         row = self.leg_row(phase, tour, kind, label, value, r, cam0, cam1, t0, t1, corrected, held)
+        if kind == "go" and r["result"] == "done" and not interrupted:
+            import observe as OB
+            if OB.done_too_fast(abs(value) / (speed or SPEED_CMS), row["dt"] if row["dt"] > 0 else t1 - t0,
+                                row["cam_len"], value):
+                # (11-05h, protection 3) reported done far too fast with no camera motion: NOT done; out of the fit
+                row["interrupted"] = True
+                self.ev("done_without_moving", n=self.leg_n, label=label, value=value, took_s=row["dt"],
+                        cam_cm=round(row["cam_len"], 2))
+                say("  %s: the %.0f cm leg was reported done in %.2f s while the camera saw %.1f cm: NOT done (left "
+                    "out of the fit; the next leg is aimed from the camera)" % (self.name, value, row["dt"],
+                                                                               row["cam_len"]))
+        if kind == "go" and not interrupted and r["result"] == "done":
+            self.watch_heading(row, value)
         if interrupted:
             # (11-05c) a leg the camera lost and the robot was stopped in (then recovered or held): not in the fit
             row["interrupted"] = True
@@ -1374,12 +1520,14 @@ class CalibRun:
                "%.3f" % dt_, "%.2f" % cam_len, "%.2f" % bel_len, "%.2f" % cam_turn, "%.2f" % bel_turn,
                _f(along), _f(cross), _f(terr), _f(miss), int(bool(corrected)), "%.1f" % held,
                "%.1f" % self.S.edge_dist(c1[:2]), "%.1f" % self.S.keepout_dist(c1[:2])[0],
-               int(bool(getattr(self, "_lost_stop", False)))]     # (11-05c) the tag was lost in it: not in the fit
+               int(bool(getattr(self, "_lost_stop", False))),     # (11-05c) the tag was lost in it: not in the fit
+               "%.2f" % getattr(self, "_sent", value), _f(getattr(self, "_speed", None))]   # (11-05h) what was sent
         self.legs.writerow(row)
         self.legs_f.flush()
         d = dict(phase=phase, tour=tour, kind=kind, label=label, value=value, result=r["result"], dt=dt_,
                  cam0=c0, cam1=c1, bel0=b0, bel1=b1, cam_len=cam_len, bel_len=bel_len, cam_turn=cam_turn,
-                 bel_turn=bel_turn, along=along, cross=cross, turn_err=terr, miss=miss, corrected=corrected)
+                 bel_turn=bel_turn, along=along, cross=cross, turn_err=terr, miss=miss, corrected=corrected,
+                 speed=getattr(self, "_speed", None))
         self.rows.append(d)
         return d
 
@@ -1653,7 +1801,9 @@ class CalibRun:
         still = [(r["bel_turn"], r["dt"]) for r in A if r["kind"] == "still"]
         rolls = [(r["bel_len"], r["cam_len"]) for r in A if r["kind"] == "go" and r["result"] == "done"
                  and r["value"] >= 15]
-        fit = fit_values(turns, still, rolls, self.phase_a_values)    # the values phase A ran with
+        over = [(r["bel_len"], r["cam_len"], r.get("speed") or SPEED_CMS, r["value"]) for r in A
+                if r["kind"] == "go" and r["result"] == "done" and r["value"] >= 4.0 and r.get("speed")]
+        fit = fit_values(turns, still, rolls, self.phase_a_values, overrun_rows=over)    # the values phase A ran with
         fit["old"] = dict(self.before)
         fit["phase_a_values"] = dict(self.phase_a_values)
         fit["baseline"] = getattr(self, "baseline", "saved")
@@ -1663,6 +1813,12 @@ class CalibRun:
             if fit["verdict"].get(k) == "ok":
                 new[k] = round(fit[k], 4)
         fit["new"] = new
+        if fit.get("overrun_cm") and getattr(self.a, "stop_lead", "auto") != "off" and fit["verdict"].get(
+                "wheel_scale") == "ok":
+            self.lead = {float(k): v for k, v in fit["overrun_cm"].items() if abs(v) <= LEAD_MAX_CM}
+            say("  stop lead (each leg sent this much short so it ends on the spot): %s" % ", ".join(
+                "%.2f cm at %s cm/s" % (v, k) for k, v in sorted(self.lead.items())))
+        fit["stop_lead_cm"] = {("%g" % k): v for k, v in (getattr(self, "lead", None) or {}).items()}
         say("Fit: " + ", ".join("%s %.4f +- %.4f (%s)" % (k, fit.get(k, float("nan")), 1.96 * fit.get("se_" + k, 0),
                                                           fit["verdict"][k]) for k in PARAMS))
         rb = {}
@@ -1708,6 +1864,14 @@ class CalibRun:
         """This robot counts as calibrated once its fitted values were saved on it (save or corr save, checked)."""
         sv = fit.get("saved") or {}
         wifi = (getattr(self, "wifi", {}) or {}).get(self.rb.name)
+        lp = state_path(self.a, LEADS_FILE)
+        if lp and wifi and fit.get("stop_lead_cm"):
+            # (11-05h) the stop lead lives on the Pi (no firmware keeps it), whatever the robot could save
+            leads = load_json(lp, {})
+            leads[wifi] = {"stop_lead_cm": fit["stop_lead_cm"], "wheel_scale": (fit.get("new") or {}).get(
+                "wheel_scale"), "time": dt.datetime.now().isoformat(timespec="seconds"),
+                "session": os.path.basename(self.folder.rstrip("/"))}
+            save_json(lp, leads)
         p = state_path(self.a, CALIBRATED_FILE)
         if not (p and wifi and sv.get("ok") and sv.get("how") in ("save", "corr save")):
             return
@@ -1838,6 +2002,18 @@ class CalibRun:
                 time.sleep(0.05)
         for rb in self.robots:
             self.ensure_compass(rb)
+        # (11-05h, Nick 20:46) the robot-side safety layers switched on and READ BACK (tilt stop, bottom-zone drop):
+        # a robot whose layers do not read back is not moved
+        for rb in list(self.robots):
+            ok, words = arm_safety(rb, self.a.safe_edge)
+            self.ev("safety_armed", robot=rb.name, ok=ok, words=words)
+            if not ok:
+                self.refused[rb.name] = "%s: its safety layers did not read back (%s)" % (rb.name, words)
+                say("REFUSED: %s. It is not moved." % self.refused[rb.name])
+                self.robots.remove(rb)
+                found.pop(rb.name, None)
+        if not self.robots:
+            raise RunEnd("no robot's safety layers read back: nothing moved")
         return found
 
     def ensure_compass(self, rb):
@@ -2043,42 +2219,90 @@ class CalibRun:
         return cam
 
     def heading_check(self, cam):
-        """(11-05f, school 5 Nov 18:54) Which way the robot really faces, against its roof tag's heading: a short
-        forward nudge, and the direction the camera saw it move. The tag on AL-1DC0 reads 180 deg off its nose, so
-        every leg was aimed backwards and the robot ended 1 cm from the TV-end edge. The nudge is driven only if it is
-        clear both ways (the tag's heading and its opposite), so a wrong heading cannot take it over an edge."""
-        d = HEADING_CHECK_CM
-        for flip in (0.0, 180.0):
-            h = math.radians(cam[2] + flip)
-            q = (cam[0] + d * math.cos(h), cam[1] + d * math.sin(h))
-            if self.S.problems(cam[:2], q, buf=2.0, edge_buf=2.0):
-                raise RunEnd("the heading check needs %.0f cm clear both ways (ahead and behind) from where the robot "
-                             "stands: move it nearer the middle of zones 1-2 (e.g. P09) and start again" % d)
-        r = self.rb.leg("go", d, on_tick=self.stop_flag.is_set)
-        self.odo_step(r)
-        time.sleep(SETTLE_S)
-        c1 = self.cam_pose()
-        if c1 is None:
-            raise RunEnd("the camera lost the tag during the heading check: nothing else moved")
-        mv = math.dist(c1[:2], cam[:2])
-        if mv < 0.5 * d:
-            raise RunEnd("the heading check moved the tag only %.1f cm of %.0f: stopped" % (mv, d))
-        off = wrap180(math.degrees(math.atan2(c1[1] - cam[1], c1[0] - cam[0])) - cam[2])
-        snap = round(off / 90.0) * 90.0
-        use = snap if abs(wrap180(off - snap)) <= 20.0 else off
-        use = wrap180(use)
-        say("HEADING CHECK: moved %.1f cm at %.0f deg from the tag's heading: tag heading offset %+.0f deg%s" % (
-            mv, off, use, "" if abs(use) < 1 else "  <- the tag is turned on the robot; every camera heading corrected"))
-        self.ev("heading_check", moved_cm=round(mv, 2), seen_deg=round(off, 1), offset_deg=use, tag=self.tag)
+        """(11-05f, school 5 Nov 18:54; 11-05h: the shared heading_nudge) Which way the robot really faces, against its
+        roof tag's heading: a short nudge, and the direction the camera saw it move. The tag on AL-1DC0 reads 180 deg
+        off its nose, so every leg was aimed backwards and the robot ended 1 cm from the TV-end edge. The nudge is
+        driven only if it is clear both ways, so a wrong heading cannot take it over an edge."""
+        use, raw, mv, c1 = heading_nudge(self.rb, self.eye, self.tag, cam,
+                                         lambda a, b: self.S.problems(a, b, buf=2.0, edge_buf=2.0),
+                                         stop=self.stop_flag.is_set, measure=self.cam_pose)
+        self.ev("heading_check", moved_cm=round(mv, 2), seen_deg=round(raw, 1), offset_deg=use, tag=self.tag)
         self.status["tag_heading_offset_deg"] = use
+        import observe as OB
+        self.hwatch = OB.HeadingWatch(0.0)       # (11-05h) checked again on every straight leg from here on
         if abs(use) >= 1.0:
-            self.eye.yaw_off = dict(getattr(self.eye, "yaw_off", {}) or {})
-            self.eye.yaw_off[self.tag] = self.eye.yaw_off.get(self.tag, 0.0) + use
             time.sleep(1.5)
             c1 = self.cam_pose()
             if c1 is None:
                 raise RunEnd("the camera lost the tag after the heading check: nothing else moved")
         return c1
+
+    def after_trip(self, r, cam0):
+        """(11-05h, Nick 20:46) A leg stopped by the robot's tilt stop or its edge guard's drop: that spot is a
+        discovered edge (a keep-out for the rest of the run), the robot backs straight away from it (never forward:
+        firmware 2026-11-05d allows only a backward drive while tilted; older firmware refuses every leg, so it
+        holds), logged. Then the leg's point is aimed again around the keep-out (or skipped)."""
+        import observe as OB
+        kind = OB.trip_kind("%s %s" % (r.get("result"), r.get("info")))
+        if kind not in ("tilt", "drop"):
+            return
+        end = r.get("end")
+        cam = self.cam_pose(0.6) or cam0
+        x, y, th = (cam[0], cam[1], cam[2]) if cam else ((end[0], end[1], end[2]) if end else (None, None, None))
+        if x is None:
+            raise RunEnd("the robot's %s stop tripped and the camera cannot see where: stopped" % kind)
+        ko = OB.trip_keepout(x, y, th, name="%s trip %d" % (kind, len(getattr(self, "trips", []) or []) + 1))
+        self.trips = list(getattr(self, "trips", []) or []) + [ko]
+        self.S.keepouts.append({"name": ko["name"], "polygon": [(ko["center"][0] + ko["radius"] * math.cos(a_),
+                                                              ko["center"][1] + ko["radius"] * math.sin(a_))
+                                                             for a_ in [k_ * math.pi / 8 for k_ in range(16)]],
+                                "kind": "trip"})
+        say("SAFETY: %s's %s stop tripped (%s) at %.0f, %.0f: that spot is now kept out; backing straight away %.0f cm "
+            "(never forward)" % (self.name, "tilt" if kind == "tilt" else "edge (drop)", r.get("info"), x, y,
+                                 OB.BACK_OFF_CM))
+        # (11-05h, protection 4) backing away is itself a reverse: only with camera-confirmed room behind
+        cam_now = self.cam_pose(0.6)
+        others = [tuple(np.array(k_["polygon"]).mean(0)) for k_ in self.S.keepouts if k_.get("kind") == "robot"]
+        ok_, why_ = OB.reverse_room(cam_now, OB.BACK_OFF_CM, (0.0, 0.0, self.S.L, self.S.W), unc_cm=1.0,
+                                    others=others, cam_age_s=0.0 if cam_now else None)
+        if not ok_:
+            self.ev("trip", kind=kind, info=r.get("info"), at=[round(x, 1), round(y, 1), round(th, 1)], keepout=ko,
+                    back_off="refused", back_info=why_)
+            raise RunEnd("%s tripped its %s stop and backing away is not safe (%s): it stands where it is; nothing "
+                         "else moves it" % (self.name, kind, why_))
+        rb_ = self.rb.leg("go", -OB.BACK_OFF_CM, timeout=15.0)
+        self.odo_step(rb_)
+        self.ev("trip", kind=kind, info=r.get("info"), at=[round(x, 1), round(y, 1), round(th, 1)], keepout=ko,
+                back_off=rb_.get("result"), back_info=rb_.get("info"))
+        if rb_.get("result") != "done":
+            raise RunEnd("%s tripped its %s stop and could not back away (%s %s): stopped where it is, nothing "
+                         "else moves it" % (self.name, kind, rb_.get("result"), rb_.get("info")))
+        say("  backed away %.0f cm; carrying on around the kept-out spot" % OB.BACK_OFF_CM)
+
+    def watch_heading(self, row, value):
+        """(11-05h) Observe, then trust, throughout: after every straight go leg of 8 cm or more, the camera's direction
+        of motion against the tag's corrected heading. Two legs in a row the other way round (a tag knocked, or the
+        start's check fooled) re-learn the offset, logged; the run carries on."""
+        w = getattr(self, "hwatch", None)
+        if w is None or value < 8.0 or row.get("cam0") is None or row.get("cam1") is None:
+            return
+        w.reset()
+        w.feed(0, row["cam0"][:3], None, 1)
+        ev = w.feed(1, row["cam1"][:3], None, 1)
+        if not ev:
+            return
+        if ev["kind"] == "heading_bad":
+            say("  HEADING: the leg moved %.0f deg off where the tag says the nose points (%d in a row)" % (
+                ev["err_deg"], ev["in_a_row"]))
+            self.ev("heading_bad", **ev)
+        elif ev["kind"] == "heading_relearned":
+            d = wrap180(ev["new_deg"] - ev["old_deg"])
+            self.eye.yaw_off = dict(getattr(self.eye, "yaw_off", {}) or {})
+            self.eye.yaw_off[self.tag] = wrap180(self.eye.yaw_off.get(self.tag, 0.0) + d)
+            w.offset = 0.0
+            say("  HEADING RE-LEARNED: two legs in a row moved %+.0f deg from the tag's heading: tag %d's offset is now "
+                "%+.0f deg (observed); the run carries on" % (d, self.tag, self.eye.yaw_off[self.tag]))
+            self.ev("heading_relearned", tag=self.tag, change_deg=d, offset_deg=self.eye.yaw_off[self.tag])
 
     def calibrate_one(self):
         """One robot (self.rb, self.name, self.tag): its values read, phases A, B (fit, set, save), C, park at its
@@ -2150,14 +2374,54 @@ class CalibRun:
             self.status["battery_end"] = self.check_battery()
         except LowBattery:
             self.status["battery_end"] = self.battery[-1][1] if self.battery else None
-        self.rb.link.send(self.rb.ip, "sleep 10")
-        k = self.link.mark()
-        slept = self.link.wait_for(lambda n, l: n == self.rb.name and "sleeping" in l, k, 4.0)
-        self.slept = bool(slept)
-        say("Sent `sleep 10` to %s (%s): it wakes for 20 s every 10 min; robot_sleep.py wake any brings it back" % (
-            self.name, "it answered" if slept else "no answer seen"))
+        if getattr(self.a, "sleep_at_end", False):
+            # the old way (kept, switched off): a wake restarts the robot and wipes values not saved on it
+            self.rb.link.send(self.rb.ip, "sleep 10")
+            k = self.link.mark()
+            slept = self.link.wait_for(lambda n, l: n == self.rb.name and "sleeping" in l, k, 4.0)
+            self.slept = bool(slept)
+            say("Sent `sleep 10` to %s (%s): it wakes for 20 s every 10 min; robot_sleep.py wake any brings it back" % (
+                self.name, "it answered" if slept else "no answer seen"))
+        else:
+            # (11-05h, Observe then trust) it stays awake: waking from sleep restarts it, which wipes every value not
+            # saved on it (firmware older than 2026-11-05a cannot save). Mission Control's idle sleeper puts it to sleep
+            # after observe.IDLE_SLEEP_MIN minutes with no run
+            self.slept = False
+            say("%s stays awake (its values stay in force); it sleeps after %.0f minutes with no run (Mission "
+                "Control), or by hand: python3 tools/pi/robot_sleep.py sleep" % (self.name, _idle_min()))
         self.ev("end", result=result, parked=parked, slept=self.slept)
         return result
+
+
+def start_cpu_log(folder, procs, find):
+    """(11-05h, CLAUDE.md heat tracker) cpu.csv in the session folder (e02_cpulog: each core, temperature, throttling,
+    our processes), as the missions have; None when it cannot start (a laptop: no /proc or vcgencmd)."""
+    try:
+        import e02_cpulog as CL
+        c = CL.CpuLog(folder, procs=procs, find=find)
+        c.start()
+        return c
+    except Exception as e:  # noqa: BLE001
+        say("(cpu log not started: %s)" % e)
+        return None
+
+
+def _idle_min():
+    import observe as OB
+    return OB.IDLE_SLEEP_MIN
+
+
+def lead_value(value, speed, lead):
+    """(11-05h) The go leg's length to send: the asked length less the robot's measured overrun at this speed (the
+    nearest speed measured), so the camera sees it end where asked. None / no lead: as asked. Legs under twice the
+    lead are sent as asked (a tiny leg's overrun is smaller)."""
+    if not lead or value <= 0:
+        return value
+    k = min(lead, key=lambda v: abs(v - speed))
+    d = lead[k]
+    if value < 2.0 * abs(d) or abs(d) > LEAD_MAX_CM:
+        return value
+    return round(value - d, 2)
 
 
 class RunEnd(Exception):
@@ -2264,6 +2528,9 @@ def start_sim(a, S, folder):
         cmd += ["--true-cal", "%s=%s" % (q[0], a.sim_true_also or a.sim_true)]
     for fv in a.sim_fw:
         cmd += ["--fw", fv]
+    if getattr(a, "sim_coast", None):
+        for n_ in [name] + [q.split(":")[0] for q in a.sim_also]:
+            cmd += ["--stop-coast", "%s=%s" % (n_, a.sim_coast)]
     for sv in getattr(a, "sim_saved", []) or []:
         cmd += ["--saved", sv]
     f = open(os.path.join(folder, "sim", "fleet_sim.txt"), "w")
@@ -2349,6 +2616,14 @@ def main(argv=None):
                              VIEW_X_MAX_CM - VIEW_MARGIN_CM))
     ap.add_argument("--park-spots", default="", help="spots in order, e.g. P09,P01,P05 (default: the site's "
                     "calibration.park_spots). School 5 Nov: P11 reads poorly in the room light, so start and park on P09")
+    ap.add_argument("--sim-coast", default="", help="(simulator) every robot's wheels run down with this time "
+                    "constant (s) after a brake: 0.08 reproduces AL-1DC0's overrun at school (5 Nov 19:34)")
+    ap.add_argument("--sleep-at-end", action="store_true", default=None,
+                    help="(the old way, kept) send `sleep 10` to each robot when it is parked. Default (11-05h): it "
+                         "stays awake, so values not saved on it survive (the site's calibration.sleep_at_end)")
+    ap.add_argument("--stop-lead", choices=["auto", "off"], default=None,
+                    help="(11-05h) auto (default; the site's calibration.stop_lead): after the fit, each go leg is sent "
+                         "short by the overrun phase A measured at its speed, so it ends on the spot; off: sent as asked")
     ap.add_argument("--safe-edge", type=int, default=None, choices=[0, 1, 2, 3],
                     help="the robot's own edge guard: 0 off, 1 line sensors, 2 the distance sensor's bottom zone (a real "
                          "drop), 3 both (default: the site's calibration.safe_edge, else 3). School 5 Nov: the line "
@@ -2415,6 +2690,10 @@ def main(argv=None):
         a.baseline = a.baseline if a.baseline in ("auto", "defaults", "saved") else "auto"
     a.park_spots = tuple(x.strip() for x in a.park_spots.split(",") if x.strip()) if a.park_spots else \
         tuple(cal_conf.get("park_spots") or PARK_SPOTS)
+    if a.sleep_at_end is None:     # (11-05h) the site's calibration.sleep_at_end, else stay awake
+        a.sleep_at_end = bool(cal_conf.get("sleep_at_end", False))
+    if a.stop_lead is None:        # (11-05h) the site's calibration.stop_lead, else auto
+        a.stop_lead = str(cal_conf.get("stop_lead") or "auto")
     if a.lost_policy is None:      # (11-05c) the site's calibration.lost_policy, else recover
         a.lost_policy = str(cal_conf.get("lost_policy") or "recover")
     a.pins = a.pins and bool((site.get("tags") or {}).get("pin", True))
@@ -2448,6 +2727,7 @@ def main(argv=None):
     signal.signal(signal.SIGINT, stop)
     signal.signal(signal.SIGTERM, stop)
     cam_c, tag_h = None, None
+    cpu = start_cpu_log(folder, {"calib": os.getpid()}, {"bridge": "tag_bridge.py", "recorder": "camrec.py"})
     try:
         if a.dry:
             loopback_up()
@@ -2488,6 +2768,11 @@ def main(argv=None):
         say("STOPPED: %s" % e)
         run.result = result
     finally:
+        if cpu is not None:
+            try:
+                cpu.stop()
+            except Exception:  # noqa: BLE001
+                pass
         for p in procs:
             if p.poll() is None:
                 p.send_signal(signal.SIGINT)

@@ -1,0 +1,63 @@
+{
+ "n_turns": 41,
+ "n_still": 1,
+ "n_rolls": 21,
+ "gyro_scale": 1.0863049208254636,
+ "gyro_drift_dps": 0.00245241571108969,
+ "se_gyro_scale": 0.0007658096781763933,
+ "se_gyro_drift_dps": 0.008307785170919851,
+ "rms_turn_deg": 0.5125053415406003,
+ "wheel_scale": 0.9759042454061819,
+ "se_wheel_scale": 0.002702659984850166,
+ "coast_cm": 0.6246219321595383,
+ "rms_roll_cm": 0.18688440316465463,
+ "counted_cm": 878.7211418832578,
+ "verdict": {
+  "wheel_scale": "ok",
+  "gyro_scale": "ok",
+  "gyro_drift_dps": "ok"
+ },
+ "old": {
+  "wheel_scale": 1.0,
+  "gyro_scale": 1.0,
+  "gyro_drift_dps": 0.0
+ },
+ "phase_a_values": {
+  "wheel_scale": 1.0,
+  "gyro_scale": 1.0,
+  "gyro_drift_dps": 0.0
+ },
+ "baseline": "defaults",
+ "enough": {
+  "wheel_scale": 0.008,
+  "gyro_scale": 0.005,
+  "gyro_drift_dps": 0.03
+ },
+ "new": {
+  "wheel_scale": 0.9759,
+  "gyro_scale": 1.0863,
+  "gyro_drift_dps": 0.0025
+ },
+ "readback": {
+  "wheel_scale": {
+   "sent": 0.9759,
+   "read": 0.976,
+   "ok": true
+  },
+  "gyro_scale": {
+   "sent": 1.0863,
+   "read": 1.086,
+   "ok": true
+  },
+  "gyro_drift_dps": {
+   "sent": 0.0025,
+   "read": 0.002,
+   "ok": true
+  }
+ },
+ "saved": {
+  "how": "old firmware",
+  "ok": false,
+  "words": "this robot's firmware has no `save` (it needs 2026-11-05a: reflash it to get it); NOT saved (calibration.old_firmware_save off): the values last until it sleeps or is switched off"
+ }
+}

@@ -255,6 +255,11 @@ class TagDetector:
         return self.ms / max(1, self.calls)
 
 
+DOWNSCALE_RETRY = 0.5    # (2026-11-05) a wanted tag missing after the full picture: searched again at this size (0 = off).
+                         # Chosen: half (the school frame that read). DOE note: 0.5 / 0.65 / 0.75 against far reads per
+                         # minute on the school table in room light
+
+
 class WindowTracker:
     """Per camera: where each tag was last read, so the next picture is searched in small windows; the whole picture
     every FULL_EVERY pictures while any wanted tag is missing. predict(tag_id) -> (u, v, radius_px) may come from the
@@ -294,6 +299,16 @@ class WindowTracker:
             for d in self.det.detect_full(grey, cam=cam, t=t):
                 if d.id in missing and d.id not in found:
                     found[d.id] = d
+            still = [i for i in missing if i not in found]
+            if still and getattr(self, "downscale", DOWNSCALE_RETRY):
+                # (2026-11-05, school) a tag not found at full size: looked for again in a downscaled picture (a
+                # downscaled frame read the small far tag when the full frame did not: the threshold windows fit it)
+                k = float(getattr(self, "downscale", DOWNSCALE_RETRY))
+                small = cv2.resize(grey, None, fx=k, fy=k, interpolation=cv2.INTER_AREA)
+                for d in self.det.detect(small, cam=cam, t=t, scale=k):
+                    if d.id in still and d.id not in found:
+                        found[d.id] = d
+                        self.downscaled = getattr(self, "downscaled", 0) + 1
         for i, d in found.items():
             c = d.center
             self.last[i] = (float(c[0]), float(c[1]), d.size_px, t)

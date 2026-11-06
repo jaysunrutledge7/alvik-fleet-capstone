@@ -35,6 +35,7 @@ Ctrl+C (every robot stops) and the run ends as it would on Ctrl+C, with the uplo
 import argparse
 import datetime as dt
 import json
+import math
 import os
 import signal
 import subprocess
@@ -66,6 +67,15 @@ BRIDGE_START_S = 5.0    # the camera bridge learns the empty floor round the rob
                         # run-fleet-pi.sh). No DOE: the bridge needs 5 pictures
 
 
+def guard_cmds(args):
+    """(11-05h, Nick 5 Nov 20:46) The robot-side safety layers for this run: the edge guard with the site's mode
+    (school 2: the bottom zone's drop only; the line sensors read the seam tape) and the tilt stop (observe)."""
+    import observe as OB
+    se = OB.site_safe_edge(getattr(args, "site_", None), 3)
+    out = [("set safe_edge %d" % se) if c.startswith("set safe_edge") else c for c in EDGE_GUARD]
+    return out + [c for c in OB.safety_commands(se) if not c.startswith(("set safe_edge", "set edge_bot_cm"))]
+
+
 def table_map(size, robots):
     """A blank table: 'WxL' or 'LxW' cm (the longer side along x)."""
     a, b = (float(v) for v in size.lower().split("x"))
@@ -93,6 +103,72 @@ def corner_clicks(args):
     return bool((getattr(args, "site_", None) or {}).get("corner_clicks", True))
 
 
+def observed_split(args, robots, out):
+    """(11-05h, Observe then trust) Homes where the robots were seen standing (the binding; the simulator: where it put
+    them) and the points shared between however many robots there are over the area the cameras read (observe:
+    ReadMap + split_points). Points outside it are skipped with a reason. production.split "halves" (or --split
+    halves): the site's fixed zones (kept). An experiment keeps its own orders. Returns (home_at or None, orders or
+    None)."""
+    import observe as OB
+    import sticker_points as SP
+    if getattr(args, "experiment_", None):
+        return None, None
+    mode = args.split if getattr(args, "split", "auto") != "auto" else str(
+        ((args.site_ or {}).get("production") or {}).get("split") or "auto")
+    pts, zones, _w = SP.points_cm(args.site_)
+    face = float(((args.site_ or {}).get("homes") or {}).get("face_deg", 90.0))
+    seen = dict(getattr(args, "seen_", None) or {})
+    for n, lab in (getattr(args, "sim_homes_", None) or {}).items():
+        if n not in seen and lab in pts:
+            seen[n] = list(pts[lab])
+    home_at = {}
+    for n in robots:
+        if n in seen:
+            x, y = seen[n][:2]
+            near = min(pts, key=lambda l: math.dist(pts[l], (x, y)))
+            home_at[n] = [pts[near][0], pts[near][1], face] if math.dist(pts[near], (x, y)) <= 12.0 else [x, y, face]
+    if not getattr(args, "auto_robots", False) and mode == "halves":
+        return (home_at or None), None
+    rm = run_readmap(args, out)
+    args.readmap_ = rm
+    pos = {}
+    for n in robots:
+        if n in home_at:
+            pos[n] = home_at[n][:2]
+        else:
+            hp = ((args.site_ or {}).get("homes") or {}).get(n)
+            pos[n] = pts[hp] if isinstance(hp, str) and hp in pts else (0.0, 0.0)
+    halves = None
+    if mode == "halves":
+        import production as PR
+        halves = PR.site_orders(args.site_, pts, zones, {n: list(p_) + [face] for n, p_ in pos.items()})
+    readable = rm.readable if rm is not None else None
+    orders, skipped, words = OB.split_points(pts, pos, readable, mode=mode, halves=halves)
+    args.skipped_ = skipped
+    for w in words:
+        say("TABLE SHARING: " + w)
+    if skipped:
+        say("SKIPPED (%d points): %s" % (len(skipped), "; ".join("%s: %s" % kv for kv in sorted(
+            skipped.items(), key=lambda kv: int(kv[0][1:]) if kv[0][1:].isdigit() else 0))))
+    if rm is not None:
+        say("READABLE AREA (# reads, . not; x along the table, y up):\n" + rm.text())
+    if out:
+        with open(os.path.join(out, "split.json"), "w") as f:
+            json.dump({"mode": mode, "robots": pos, "orders": orders, "skipped": skipped, "words": words,
+                       "homes": home_at}, f, indent=1)
+    # the point each robot stands on (seen) is always its own, readable or not
+    for n, h in home_at.items():
+        lab = next((l for l in pts if math.dist(pts[l], h[:2]) < 1.0), None)
+        if lab:
+            for o in orders:
+                if lab in orders[o] and o != n:
+                    orders[o].remove(lab)
+            if lab not in orders.get(n, []):
+                orders.setdefault(n, []).insert(0, lab)
+            skipped.pop(lab, None)
+    return (home_at or None), orders
+
+
 def build(args, out):
     robots = [r.strip() for r in args.robots.split(",") if r.strip()]
     cal = getattr(args, "feel_cal_", None)
@@ -109,10 +185,12 @@ def build(args, out):
         # a site with typed production points (2026-11-03, Jay's sticker sheet): its points, homes, raised box and
         # default orders, in every tracking mode
         import production as PR
+        home_at, orders_ = observed_split(args, robots, out)
         m, _w, sprog, _o = PR.site_production(args.site_, robots, outline=(cal or {}).get("outline_used"),
                                               experiment=getattr(args, "experiment_", None) or None,
                                               swap=getattr(args, "swap_", False),
-                                              wiggle={"on": True, "off": False}.get(getattr(args, "sync_wiggle", "auto")))
+                                              wiggle={"on": True, "off": False}.get(getattr(args, "sync_wiggle", "auto")),
+                                              home_at=home_at, orders=orders_)
         args.site_program_ = sprog
         for w_ in _w:
             say(w_)
@@ -329,11 +407,31 @@ def resolve_site(args):
         os.environ["MIRLT_CONF_DIR"] = site["conf_dir"]
     if tr in ("tags", "none", "lights") and args.robots == "Left,Right" and site and site.get("tracking") == "tags":
         args.robots = ",".join(r["name"] for r in site["robots"])        # the site's robots, not home's
+    args.auto_robots = str(args.robots).strip().lower() == "auto"
+    if args.auto_robots:
+        # (11-05h, Observe then trust) however many robots are on the table: found by the wiggle. The simulator's
+        # robots: --sim-robots of them, named as the binding would name them
+        import wiggle_bind as WB
+        args.robots = ",".join(WB.auto_slots(site, max(1, int(getattr(args, "sim_robots", 2) or 2)))) if args.dry \
+            else ",".join(WB.auto_slots(site, 1))
+    side = ((site or {}).get("cameras") or {}).get("side") or {}
+    if side.get("use") is False and not args.no_side and tr == "tags":
+        args.no_side = True
+        say("CAMERAS: the site's camera 2 is switched off (cameras.side.use false): camera 1 alone; the table is "
+            "shared over what it reads")
     if tr == "tags":
         tags = dict((site or {}).get("tags") or {})
         if not tags.get("ids"):
             tags.update({"family": "tag25h9", "tag_cm": 8.0, "roof_cm": 9.5,
                          "ids": {n: k for k, n in enumerate(r.strip() for r in args.robots.split(",") if r.strip())}})
+        if getattr(args, "auto_robots", False):
+            # (11-05h) ids for robots the site does not list (simulator: a third robot), from the spares
+            ids = dict(tags.get("ids") or {})
+            spare = [int(v) for v in tags.get("spares") or []] + list(range(10, 20))
+            for n in (r.strip() for r in args.robots.split(",") if r.strip()):
+                if n not in ids:
+                    ids[n] = next(v for v in spare if v not in ids.values())
+            tags["ids"] = ids
         if tags.get("height_cm") is None:
             tags["height_cm"] = 6.0
             say("NOTE: the roof's height is not measured yet: 6.0 cm used (PLACEHOLDER; tags.height_cm in the site)")
@@ -491,10 +589,13 @@ def wiggle_first(args, out):
         say("TAGS from this run's wiggle (%s): %s" % (args.binding_file, ", ".join(
             "%s = tag %d" % kv for kv in sorted(rec["slots"].items()))))
         return 0
-    if args.dry:
-        say("TAGS: simulator: the robots carry their slot names and tags (no wiggle-first binding in a dry run)")
+    if args.dry and not getattr(args, "sim_bind", False):
+        say("TAGS: simulator: the robots carry their slot names and tags (no wiggle-first binding in a dry run; "
+            "--sim-bind runs it)")
         return 0
-    slots = [r.strip() for r in args.robots.split(",") if r.strip()]
+    if args.dry:
+        return dry_bind(args, out)
+    slots = ["auto"] if getattr(args, "auto_robots", False) else [r.strip() for r in args.robots.split(",") if r.strip()]
     tc = os.path.join((args.site_ or {}).get("conf_dir") or os.path.expanduser("~/.config/mirlt"), "tagcal")
     say("WIGGLE FIRST: each robot wiggles in turn; the roof tag that turns with it is its tag, and it is given its "
         "slot (%s)" % ", ".join(slots))
@@ -514,11 +615,152 @@ def wiggle_first(args, out):
     args.tags_ = WB.tags_with_binding(args.tags_, rec)
     args.binding_file_ = os.path.join(out, "bind", "binding.json")
     args.aliases_ = dict(rec.get("aliases") or {})
+    take_binding(args, rec)
     say("TAGS from the wiggle: %s" % ", ".join("%s = tag %d" % kv for kv in sorted(rec["slots"].items())))
     if args.aliases_:
         say("NAMES in this run only (the robots are not renamed: tags.rename_to_slot false): %s" % ", ".join(
             "%s is %s" % kv for kv in sorted(args.aliases_.items())))
     return 0
+
+
+def take_binding(args, rec):
+    """(11-05h) What the binding observed, for the plan: the robots found (auto), where each stands, each tag's
+    heading offset."""
+    if getattr(args, "auto_robots", False):
+        args.robots = ",".join(sorted(rec["slots"], key=lambda n: list(rec["slots"]).index(n)))
+        say("ROBOTS FOUND: %d (%s)" % (len(rec["slots"]), args.robots))
+    args.seen_ = {r["slot"]: r["seen_cm"] for r in rec.get("robots") or [] if r.get("seen_cm")}
+    if rec.get("yaw_off"):
+        say("TAG HEADINGS (observed by the nudge): %s" % ", ".join("%s %+.0f deg" % kv for kv in sorted(
+            rec["yaw_off"].items())))
+
+
+def dry_homes(args, names):
+    """(11-05h, simulator) Where the simulated robots stand: the site's homes when the cameras read them, else the
+    readable points furthest from the others (a third robot; a home the single camera cannot see)."""
+    import sticker_points as SP
+    import observe as OB
+    pts, _z, _w = SP.points_cm(args.site_)
+    rm = run_readmap(args, None)
+    hp = (args.site_ or {}).get("homes") or {}
+    out = {}
+    for n in names:
+        lab = hp.get(n)
+        if isinstance(lab, str) and lab in pts and (rm is None or rm.readable(*pts[lab])[0]) and \
+                all(math.dist(pts[lab], pts[o]) > 40 for o in out.values()):
+            out[n] = lab
+    for n in names:
+        if n in out:
+            continue
+        cand = [l for l in pts if (rm is None or rm.readable(*pts[l])[0]) and l not in out.values() and
+                OB_edge_ok(pts[l], args)]
+        cand.sort(key=lambda l: -min([math.dist(pts[l], pts[o]) for o in out.values()] or [1e9]))
+        out[n] = cand[0] if cand else sorted(pts)[0]
+    return out
+
+
+def OB_edge_ok(p, args):
+    tb = (args.site_ or {}).get("table") or {}
+    L, W = float(tb.get("length_cm") or 396.2), float(tb.get("width_cm") or 167.6)
+    return min(p[0], p[1], L - p[0], W - p[1]) >= 25.0
+
+
+def dry_bind(args, out):
+    """(11-05h, simulator) The real binding (wiggle_bind.bind_for_run: robots found however many, firmware, compass
+    check after a restart, safety layers read back, the wiggle, the heading nudge) against fleet_sim's robots and the
+    point-fix camera (calib_run.SimEye), with the guesses broken as asked (--sim-tag-yaw: tags turned on their robots;
+    --sim-asleep: robots woken from sleep restart). The mission's own simulator then starts the robots where they
+    ended."""
+    import argparse as _ap
+    import calib_run as CRN
+    import wiggle_bind as WB
+    names = [r.strip() for r in args.robots.split(",") if r.strip()]
+    homes = dry_homes(args, names)
+    ids = dict(args.tags_.get("ids") or {})
+    folder = os.path.join(out, "bind")
+    os.makedirs(folder, exist_ok=True)
+    yaw = dict(kv.split("=") for kv in (args.sim_tag_yaw.split(",") if args.sim_tag_yaw else []))
+    os.environ["MIRLT_SIM_TAG_YAW"] = ",".join("%d=%s" % (ids[n], v) for n, v in yaw.items() if n in ids)
+    CRN.loopback_up()
+    S = CRN.Site(args.site_)
+    sims = ["%s:%d:%s" % (n, ids[n], homes[n]) for n in names]
+    sa = _ap.Namespace(sim_name=names[0], sim_also=sims[1:], seed=args.seed, sim_max_s=900, sim_start=homes[names[0]],
+                       sim_true="1,1,0", sim_true_also="", sim_sleep="0.2:0.05", sim_fw=[])
+    sp, ips = CRN.start_sim(sa, S, folder)
+    link = CRN.Link(folder)
+    eye = CRN.SimEye(folder, CRN.FIX_PORT + 100, CRN.SchoolCamera(), {n: ids[n] for n in names}, seed=args.seed)
+    try:
+        time.sleep(1.0)
+        rec = WB.bind_for_run(args.site_, ["auto"] if args.auto_robots else names, link, eye, ips=ips, wake_min=2.0,
+                              dry=True, folder=folder, log=say)
+    except (Exception, SystemExit) as e:     # noqa: BLE001
+        say("NOT STARTED: the wiggle-first binding (simulator) did not finish: %s" % e)
+        return 5
+    finally:
+        os.environ.pop("MIRLT_SIM_TAG_YAW", None)
+        eye.close()
+        link.close()
+        sp.terminate()
+        try:
+            sp.wait(timeout=10)
+        except subprocess.TimeoutExpired:
+            sp.kill()
+    args.tags_ = WB.tags_with_binding(args.tags_, rec)
+    args.aliases_ = {}
+    take_binding(args, rec)
+    args.sim_homes_ = {n: homes.get(n) for n in rec["slots"]}
+    say("TAGS from the wiggle (simulator): %s" % ", ".join("%s = tag %d" % kv for kv in sorted(rec["slots"].items())))
+    return 0
+
+
+def run_readmap(args, out):
+    """(11-05h) Where the cameras read roof tags (observe.ReadMap): seeded from the run's camera models (the setup's
+    tagcal on the robots; the simulator's cameras in a dry run), carried over from the site's readmap.json (earlier
+    runs, half weight), saved in the session. None when no camera model is known (everything taken as readable)."""
+    import observe as OB
+    site = args.site_ or {}
+    tb = site.get("table") or {}
+    L, W = float(tb.get("length_cm") or 396.2), float(tb.get("width_cm") or 167.6)
+    rm = OB.ReadMap(L, W)
+    tags = getattr(args, "tags_", None) or site.get("tags") or {}
+    z, tcm = float(tags.get("height_cm") or 6.0), float(tags.get("tag_cm") or 8.0)
+    cams = []
+    try:
+        if args.dry:
+            import tag_cam as TCAM
+            cfg = TCAM.default_config(table=(L, W), size=tuple(int(v) for v in args.cam_size.split("x")),
+                                      seed=args.seed + 4, refs=uses_refs(args))
+            for c in TCAM.cams_from_config(cfg):
+                if c.name == "side" and args.no_side:
+                    continue
+                cams.append((lambda P, c=c: c.project(P), (c.W, c.H)))
+        else:
+            import e02_camera as CAM
+            tc = os.path.join(site.get("conf_dir") or os.path.expanduser("~/.config/mirlt"), "tagcal")
+            for nm in ("overhead", "side"):
+                pth = os.path.join(tc, nm + ".json")
+                if nm == "side" and args.no_side:
+                    continue
+                if os.path.exists(pth):
+                    m = CAM.load_camera(pth)
+                    cams.append((lambda P, m=m: m.project(P), tuple(m.image_size)))
+    except Exception as e:      # noqa: BLE001
+        say("(readability: no camera model (%s): every point taken as readable)" % e)
+        return None
+    if not cams:
+        return None
+    OB.seed_from_cameras(rm, cams, tcm, z)
+    cd = site.get("conf_dir")
+    if cd and not args.dry and os.path.exists(os.path.join(cd, "readmap.json")):
+        try:
+            with open(os.path.join(cd, "readmap.json")) as f:
+                if rm.merge_history(OB.ReadMap.from_json(json.load(f))):
+                    say("READABILITY: earlier runs' tag reads carried in (readmap.json, half weight)")
+        except (OSError, ValueError, KeyError):
+            pass
+    if out:
+        rm.save(os.path.join(out, "readmap_start.json"))
+    return rm
 
 
 def resolve_experiment(args):
@@ -613,8 +855,8 @@ def run(args):
         rp += ["--no-mirror"]          # mirrored legs at their planned speed, no waits (the points still measured)
     if args.below_net_doe:
         rp += ["--below-net-doe"]
-    for c in EDGE_GUARD:
-        rp += ["--send", c]
+    for c in guard_cmds(args):
+        rp += ["--send", c]          # (11-05h) run_plan reads each one back before anything moves
     for ip in args.robot:
         rp += ["--robot", ip]
     for k_, v_ in sorted((getattr(args, "aliases_", None) or {}).items()):
@@ -660,6 +902,11 @@ def run(args):
         for lr in args.cam_low_res:
             c_, _, wh = lr.partition("=")
             tcfg.setdefault("low_res", {})[c_] = [int(v) for v in wh.split("x")]
+        if args.sim_tag_yaw:
+            # (11-05h) tags turned on their robots: drawn turned (the tag reads DEG less than the nose)
+            tcfg["tag_yaw"] = {k: float(v) for k, v in (kv.split("=") for kv in args.sim_tag_yaw.split(","))}
+        if args.sim_dark:
+            tcfg["dark"] = [[float(v) for v in d.split(",")] for d in args.sim_dark]
         tcp = os.path.join(out, "tag_cams.json")
         with open(tcp, "w") as f:
             json.dump(tcfg, f, indent=1)
@@ -766,7 +1013,8 @@ def run(args):
     try:
         import e02_cpulog as CL
         cpu = CL.CpuLog(out, procs={"mission": os.getpid()},
-                        find={"recorder": "camrec.py", "bridge": "cam_bridge.py", "run_plan": "run_plan.py"})
+                        find={"recorder": "camrec.py", "bridge": "cam_bridge.py", "tag_bridge": "tag_bridge.py",
+                              "run_plan": "run_plan.py"})
         cpu.start()
     except Exception as e:     # noqa: BLE001
         say("(cpu log not started: %s)" % e)
@@ -1060,7 +1308,11 @@ def main(argv=None):
     ap.add_argument("--table", default="61x122", help="the table's size in cm, e.g. 61x122 (without --map)")
     ap.add_argument("--map", help="Mission Control's workspace map (sides, zones from the warm-up)")
     ap.add_argument("--program", help="a block program (Mission Control's program.json); default: Monday's")
-    ap.add_argument("--robots", default="Left,Right", help="Monday's two robots (default Left,Right)")
+    ap.add_argument("--robots", default="Left,Right", help="Monday's two robots (default Left,Right); auto (11-05h): "
+                    "every robot on the table, found by the wiggle (however many)")
+    ap.add_argument("--split", choices=["auto", "halves"], default="auto",
+                    help="(11-05h) how the points are shared: auto (the site's production.split, else over the area the "
+                         "cameras read, between the robots found) or halves (the site's fixed zones, the old way)")
     ap.add_argument("--mission", help="a mission map made elsewhere (Mission Control's warm-up), with --plan")
     ap.add_argument("--plan", help="with --mission: its plan")
     ap.add_argument("--session", help="the session folder (default logs/<date-time>-mission)")
@@ -1093,6 +1345,13 @@ def main(argv=None):
     g.add_argument("--drop-pct", type=float, default=0.0, help="lost packets, %% each way")
     g.add_argument("--dead", help="NAME@T: that robot dies T s into the run (silent, still)")
     g.add_argument("--seed", type=int, default=1)
+    g.add_argument("--sim-robots", type=int, default=2, help="(11-05h) with --robots auto: this many simulated robots")
+    g.add_argument("--sim-bind", action="store_true", help="(11-05h) run the real wiggle-first binding against the "
+                   "point-fix simulator first (found however many, heading nudge, compass check after a restart)")
+    g.add_argument("--sim-tag-yaw", default="", metavar="NAME=DEG,...", help="(11-05h) those robots' roof tags are "
+                   "turned on them by DEG (the simulator draws and reads them so)")
+    g.add_argument("--sim-dark", action="append", default=[], metavar="X0,Y0,X1,Y1",
+                   help="(11-05h) the cameras cannot read tags in this rectangle (cm)")
     g.add_argument("--sim-free", default="", help="simulated free space (GB), e.g. card=0.8,drive=50: the guard's "
                                                   "refusal / frames stop")
     g.add_argument("--sim-cond", help="a JSON file of sim_shim.py conditions (sweeps/sim_shim.py), added to the above")

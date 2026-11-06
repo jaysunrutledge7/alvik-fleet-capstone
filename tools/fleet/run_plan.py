@@ -480,6 +480,8 @@ class Coordinator:
                         b.calib_look[k] = vals[i]
                 self.log("calib_look", robot=name, **b.calib_look)
                 continue
+            if rtype == "RAW":
+                self.tilt_feed(b, t, vals)     # (11-05h, protection 2) the standing tilt
             if rtype == "RAW" and getattr(self, "floor_raw", None) is not None and name in self.floor_raw:
                 self.floor_feed(b, vals)
             if rtype == "RAW" and self.change is not None:
@@ -494,6 +496,51 @@ class Coordinator:
                     b.run_id, b.run_exp = vals[0], "follow"
                     self.log("follow_seen", robot=name, run=vals[0], why="RUNINFO not heard; FOLLOW records are")
                 self.on_follow(b, t, vals)
+
+    def tilt_feed(self, b, t, vals):
+        """(11-05h, protection 2; home 5 Nov: Center stood tilted 3.4 deg, under the 5 deg tilt stop, for 64 min) The
+        robot's own roll / pitch: tilted over observe.STAND_TILT_DEG for STAND_TILT_S while standing = a hazard,
+        handled as a tilt trip (a discovered edge, kept out; it backs away only with camera-confirmed room)."""
+        import observe as OB
+        cols = self.link.session.headers.get("RAW") or []
+        if not cols or b.out or getattr(b, "backoff", None):
+            return
+        row = dict(zip(cols, vals))
+        try:
+            w = b.__dict__.setdefault("twatch", OB.TiltWatch())
+            ev = w.feed(t, float(row["roll_deg"]), float(row["pitch_deg"]), float(row.get("v_cms") or 0.0))
+        except (KeyError, ValueError, TypeError):
+            return
+        if ev and self.t_run and not getattr(self, "straightening", False):
+            self.log("tilt_hazard", robot=b.name, **ev)
+            self.send(b.name, "halt")
+            i = next((k for k, st in enumerate(b.stat) if st["status"] in ACTIVE), -1)
+            self.trip_back_off(b, i, b.pose, "standing tilt %.1f deg for %.1f s (tilted: a wheel over an edge?)" % (
+                ev["dev_deg"], ev["for_s"]), "tilt")
+
+    def fast_done(self, b, i, st, t):
+        """(11-05h, protection 3) A drive step reported done in under a tenth of its planned time while the camera saw
+        the robot move under 1 cm (or a fifth of the step) did not happen."""
+        import observe as OB
+        stp = self.steps(b.name)[i]
+        if stp.get("type") != "drive" or not st.get("t_started"):
+            return False
+        L = math.hypot(stp["to"][0] - stp["from"][0], stp["to"][1] - stp["from"][1])
+        exp = L / max(0.5, float(stp.get("speed") or 5.0))
+        h = getattr(b, "cam_hist", None) or []
+        moved = None
+        if h and getattr(b, "cam_t", None) is not None and t - b.cam_t <= self.BLIND_AFTER_S:
+            before = [q for q in h if q[1] <= st["t_started"]]
+            q0 = before[-1] if before else h[0]
+            moved = math.hypot(h[-1][2] - q0[2], h[-1][3] - q0[3])
+        if OB.done_too_fast(exp, t - st["t_started"], moved, L):
+            self.n_fast_done = getattr(self, "n_fast_done", 0) + 1
+            self.log("done_without_moving", robot=b.name, i=i, took_s=round(t - st["t_started"], 3),
+                     expected_s=round(exp, 2), cam_moved_cm=None if moved is None else round(moved, 2))
+            self.say("%s: step %d reported done in %.2f s (planned %.1f s) with no camera motion: counted as NOT "
+                     "done; re-planning from where the camera has it" % (b.name, i, t - st["t_started"], exp))
+            return True
+        return False
 
     def floor_feed(self, b, vals):
         """One RAW row for the floor check: the five front zones, when the robot stands still (no step, no speed)."""
@@ -545,6 +592,8 @@ class Coordinator:
             want = "halt" if state == "halted" else ("hold %d" % sid if sid else "hold")
             b.controls = [c for c in b.controls if c["text"] != want]
             return
+        if self.backoff_report(b, sid, state, info):
+            return
         i = b.id_index.get(sid)
         if i is None:
             # an id from before a re-plan
@@ -577,6 +626,11 @@ class Coordinator:
                     st["info"] = "dancing until switched off"
                     b.dancing = True
                     self.say("%s is dancing (until it is switched off)" % b.name)
+        elif state == "done" and st["status"] != "done" and self.fast_done(b, i, st, t):
+            # (11-05h, protection 3) reported done far too fast with no camera motion: a failure, not a success
+            st["status"] = "failed"
+            st["info"] = "done without moving"
+            self.on_failed(b, i, "done without moving", (x, y, th), front)
         elif state == "done":
             if st["status"] != "done":
                 st["status"] = "done"
@@ -768,6 +822,8 @@ class Coordinator:
             outstanding = sum(1 for st in b.stat if st["status"] in ACTIVE)
             if b.controls or any(st["status"] == "sent" for st in b.stat):
                 continue        # in order: the step before (or a hold/halt) must be acked first
+            if getattr(b, "backoff", None):
+                continue        # (11-05h) backing away after a tilt / drop trip: nothing else is sent until it reports
             for i, stp in enumerate(steps):
                 st = b.stat[i]
                 if st["status"] == "done" or st["status"] in ACTIVE:
@@ -808,6 +864,8 @@ class Coordinator:
     def resend(self):
         t = now()
         for b in self.bots.values():
+            if getattr(b, "backoff", None):
+                continue        # (11-05h) backing away after a trip: no plan step is resent meanwhile
             for st in b.stat:
                 if st["status"] == "sent" and t - st["t_sent"] > self.args.resend_s:
                     st["t_sent"] = t
@@ -844,6 +902,7 @@ class Coordinator:
                 continue
             b = self.bots.get(ev.get("robot"))
             if b is not None:
+                ev = self.observe_fix(b, ev)
                 b.fix = ev
                 self.cam_seen(b, ev)
                 # for the pause after a turn: (frame time, arrived, x, y, which camera); the camera bridge says
@@ -878,6 +937,62 @@ class Coordinator:
                                                                 ev.get("sigma", 0.5), ev.get("sigma_th", 1.5)))
             b.fix, b.fix_sent_t = None, t
             b.fix_sent += 1
+
+    def observe_fix(self, b, ev):
+        """(11-05h, Observe then trust) Every camera fix: the tag's heading corrected by what this run has learned
+        (b.yaw_fix), then checked against the motion (observe.HeadingWatch on each straight stretch of 8 cm the robot
+        drives on its own pose, forwards or backwards). Two stretches in a row the other way round re-learn the
+        offset: said, logged, the run carries on."""
+        import observe as OB
+        yf = getattr(b, "yaw_fix", 0.0)
+        if ev.get("th") is not None and yf:
+            ev = dict(ev, th=OB.wrap180(float(ev["th"]) + yf))
+        if ev.get("th") is None or b.pose is None or not self.t_run:
+            return ev
+        w = b.__dict__.setdefault("hwatch", OB.HeadingWatch(0.0))
+        own = b.pose
+        last = getattr(b, "hw_own", None)
+        b.hw_own = own
+        sign = 0
+        if last is not None:
+            dx, dy = own[0] - last[0], own[1] - last[1]
+            along = dx * math.cos(math.radians(own[2])) + dy * math.sin(math.radians(own[2]))
+            sign = 1 if along > 0.05 else (-1 if along < -0.05 else getattr(b, "hw_sign", 0))
+        b.hw_sign = sign
+        r = w.feed(now(), (float(ev["x"]), float(ev["y"]), float(ev["th"])), own[2], sign)
+        if r and r["kind"] == "heading_bad":
+            self.log("heading_bad", robot=b.name, **r)
+        elif r and r["kind"] == "heading_relearned":
+            d = OB.wrap180(r["new_deg"] - r["old_deg"])
+            b.yaw_fix = OB.wrap180(yf + d)
+            w.offset = 0.0
+            self.__dict__.setdefault("heading_relearned", []).append(dict(robot=b.name, change_deg=d))
+            self.log("heading_relearned", robot=b.name, change_deg=d, yaw_fix=b.yaw_fix, **r)
+            self.say("%s: HEADING RE-LEARNED: two stretches in a row it moved %+.0f deg from where its roof tag says "
+                     "it faces: its tag's headings are corrected by %+.0f deg from now on (observed); its pose is set "
+                     "again" % (b.name, d, b.yaw_fix))
+            ev = dict(ev, th=OB.wrap180(float(ev["th"]) + d))
+            self.send(b.name, "fpose %.2f %.2f %.2f %.2f %.2f" % (float(ev["x"]), float(ev["y"]), float(ev["th"]),
+                                                                  1.0, 3.0))
+        return ev
+
+    READ_EVERY_S = 0.5        # (11-05h) the readability map: each robot's spot (its own pose) and whether a camera read
+                              # its tag there, this often
+
+    def readmap_watch(self):
+        """(11-05h) Where the cameras read the roof tags, learned from the run (observe.ReadMap): each robot's own
+        spot every READ_EVERY_S, read or not."""
+        rm = getattr(self, "readmap", None)
+        if rm is None or not self.t_run or not self.source.live:
+            return
+        t = now()
+        if t - getattr(self, "_rm_t", 0.0) < self.READ_EVERY_S:
+            return
+        self._rm_t = t
+        for b in self.bots.values():
+            if b.out or b.pose is None or getattr(b, "cam_t", None) is None:
+                continue
+            rm.add(b.pose[0], b.pose[1], t - b.cam_t <= self.BLIND_AFTER_S)
 
     TRACK_EVERY_S = 0.2       # cam_track.csv: one camera pose per robot this often (the mapping view's lines)
     TRACK_LOST_S = 1.0        # chosen: no camera pose for this long = the tracker lost the robot (10 fixes missed at
@@ -2426,6 +2541,32 @@ class Coordinator:
             return                                      # the run ended: handled in the main loop
         if info.startswith("halted"):
             return                                      # we stopped it for a re-plan
+        import observe as OB
+        tk = OB.trip_kind(info)
+        if tk == "line":
+            # (11-05h, Observe then trust) the line sensors alone: with the camera putting the robot well inside the
+            # table it is a mark on the surface (school 5 Nov: the black tape over the seam), not an edge. Logged;
+            # that robot's line cue is switched off for the rest of the run (the bottom zone stays on), re-planned
+            ct = getattr(b, "cam_t", None)
+            cam = getattr(b, "last_cam", None)
+            f = self.m["floor"]
+            ced = None if not cam else min(cam[0] - f["x_min"], f["x_max"] - cam[0], cam[1] - f["y_min"],
+                                           f["y_max"] - cam[1])
+            kind = OB.edge_trip_kind(True, False, ced, None if ct is None else now() - ct)
+            if kind == "surface_mark":
+                self.log("surface_mark", robot=b.name, i=i, info=info, cam=cam, cam_edge_cm=round(ced, 1))
+                self.__dict__.setdefault("surface_marks", []).append(dict(robot=b.name, at=cam, info=info))
+                self.send(b.name, "set safe_edge 2")
+                self.say("%s: its line sensors saw a dark line %.0f cm inside the table (the camera): a SURFACE MARK, "
+                         "not an edge (logged); its line cue is off for this run, the bottom zone's drop check stays "
+                         "on; re-planning" % (b.name, ced))
+                self.handle_obstacle(None, cause=b.name)
+                return
+        if tk in ("tilt", "drop"):
+            # (11-05h, Nick 20:46) its tilt stop or its bottom zone's drop: a discovered edge, kept out; it backs
+            # straight away (never forward) before anything is re-planned for it
+            self.trip_back_off(b, i, pose, info, tk)
+            return
         if info.startswith("plywood edge"):
             # the edge guard (follow mode) refused to drive off the board: not a failure. The robot holds;
             # the edge becomes a no-go strip in the map and the affected robot(s) re-plan around it
@@ -2463,6 +2604,87 @@ class Coordinator:
             return
         self.say("%s: step %d (%s) failed: %s; re-planning from where it is" % (b.name, i, stp["type"], info))
         self.handle_obstacle(None, cause=b.name)
+
+    def trip_back_off(self, b, i, pose, info, kind):
+        """(11-05h) After a tilt or drop trip: the edge strip at its nose (a no-go area for everyone), a straight
+        BACKWARD drive of observe.BACK_OFF_CM (follow step D rev 1: firmware 2026-11-05d runs it while tilted and
+        refuses anything else), then, on its report (or 8 s), the re-plan around the strip."""
+        import observe as OB
+        x, y, th = (pose[0], pose[1], pose[2]) if pose else (b.pose or (0, 0, 0))
+        self.n_sensor_obstacles += 1
+        ob = self.edge_boundary(b, (x, y, th), "plywood edge at %.2f %.2f %.2f %s" % (
+            x, y, th, "bottom" if kind == "drop" else "line"))
+        ob["cue"] = kind
+        ob["source"] = "%s trip (discovered edge)" % kind
+        bx, by = OB.back_off_target(x, y, th)
+        # (11-05h, protection 4) the back-off is a reverse: only with camera-confirmed room behind
+        cam, ct = getattr(b, "last_cam", None), getattr(b, "cam_t", None)
+        f = self.m["floor"]
+        others = [o.pose[:2] for o in self.bots.values() if o is not b and not o.out and o.pose is not None]
+        ok_, why_ = OB.reverse_room((cam[0], cam[1], cam[2] if cam[2] is not None else th) if cam else None,
+                                    OB.BACK_OFF_CM, (f["x_min"], f["y_min"], f["x_max"], f["y_max"]), unc_cm=1.0,
+                                    others=others, cam_age_s=None if ct is None else now() - ct)
+        if not ok_:
+            self.log("trip", robot=b.name, i=i, kind=kind, info=info, obstacle=ob, back_off="refused: " + why_)
+            self.say("%s: its %s stopped it (%s): kept out; backing away is NOT safe (%s): it is held where it stands"
+                     % (b.name, "tilt stop" if kind == "tilt" else "edge guard", info, why_))
+            self.add_obstacle(ob)
+            if self.holds_one():
+                self.retire(b, "%s trip, no safe way back" % kind, kind="restarted")
+            else:
+                self.abort = "%s: %s trip and no safe way back: stopping everyone" % (b.name, kind)
+                self.halt_all()
+            return
+        sid = b.next_id
+        b.next_id += 1
+        text = "fs %d D %.2f %.2f %.2f %.2f %.2f %.2f 1 -" % (sid, x, y, bx, by, th, 5.0)
+        self.send(b.name, text)
+        b.backoff = dict(id=sid, t=now(), ob=ob, kind=kind)
+        self.__dict__.setdefault("trips", []).append(dict(robot=b.name, kind=kind, at=[round(x, 1), round(y, 1),
+                                                                                       round(th, 1)], info=info))
+        self.log("trip", robot=b.name, i=i, kind=kind, info=info, obstacle=ob, back_off=text)
+        self.say("%s: its %s stopped it (%s): that spot is kept out (a discovered edge); it backs straight away %.0f "
+                 "cm, never forward, then the robots re-plan" % (
+                     b.name, "tilt stop" if kind == "tilt" else "edge guard's drop check", info, OB.BACK_OFF_CM))
+
+    def backoff_report(self, b, sid, state, info):
+        bo = getattr(b, "backoff", None)
+        if bo and sid == bo.get("turn_id"):
+            if state == "failed":
+                return self.backoff_report(b, bo["id"], "failed", "the turn: " + info)
+            return True                        # the recovery's turn: its drive follows
+        if not bo or sid != bo["id"] or state not in ("done", "failed"):
+            return False
+        b.backoff = None
+        self.log("trip_back_off", robot=b.name, result=state, info=info)
+        if bo["kind"] == "recover":
+            self.log("recover_end", robot=b.name, result=state, info=info,
+                     seen=getattr(b, "cam_t", None) is not None and now() - b.cam_t <= self.BLIND_AFTER_S)
+            if state == "done" and getattr(b, "cam_t", None) is not None and now() - b.cam_t <= 1.5:
+                self.say("%s: seen again after its straight recovery: re-planning from where everyone is" % b.name)
+                self.handle_obstacle(None, cause=b.name)
+            else:
+                self.say("%s: not seen again after its recovery (%s %s): it is held where it stands; the others carry "
+                         "on" % (b.name, state, info))
+                self.retire(b, "lost tag, not seen after its recovery", kind="restarted")
+            return True
+        if state != "done":
+            self.say("%s could not back away (%s): it is held where it stands; the others carry on" % (b.name, info))
+            self.add_obstacle(bo["ob"])
+            if self.holds_one():
+                self.retire(b, "%s trip, could not back away" % bo["kind"], kind="restarted")
+            else:
+                self.abort = "%s tripped its %s stop and could not back away: stopping everyone" % (b.name, bo["kind"])
+                self.halt_all()
+            return True
+        self.handle_obstacle(bo["ob"], cause=b.name)
+        return True
+
+    def backoff_watch(self):
+        for b in self.bots.values():
+            bo = getattr(b, "backoff", None)
+            if bo and now() - bo["t"] > (25.0 if bo.get("kind") == "recover" else 8.0):
+                self.backoff_report(b, bo["id"], "failed", "no report in 8 s")
 
     ZONE_DEG = (22.0, 11.0, 0.0, -11.0, -22.0)   # the five front zones' directions (firmware motion.h)
 
@@ -3134,6 +3356,8 @@ class Coordinator:
                 why = ("with no camera seeing it, its body may be %.1f cm from an edge (its own pose %.1f cm, less the "
                        "blind error %.1f cm; it must keep %.0f cm)" % (body_edge - err, body_edge, err,
                                                                        self.BLIND_EDGE_CM))
+            if why and not bl.get("recovered") and self.recover_blind(b, bl, why):
+                continue                       # (11-05h) driving straight back to where it was read
             if why and self.holds_one() and not getattr(self, "straightening", False):
                 # that robot alone stops (halted at once) and is held; the re-check finds it by its lights and rejoins
                 self.log("blind_stop", robot=b.name, dist_cm=round(bl["dist"], 2), own=list(b.pose),
@@ -3151,6 +3375,82 @@ class Coordinator:
                 self.say(self.abort)
                 self.halt_all()
                 return
+
+    RECOVER_GAP_CM = 16.0     # (11-05h) a lost robot's straight recovery must keep its middle this far (plus its blind
+                              # error) from every other robot's middle, now and along their next planned steps: two
+                              # half bodies (4.75 x 2) + the 8 cm net, rounded down; chosen. DOE note: not needed,
+                              # it is the net
+
+    def recover_blind(self, b, bl, why):
+        """(11-05h, the calibration's 11-05c recovery for the missions) A robot no camera has read for too long:
+        instead of holding it at once, it drives STRAIGHT BACK along the way it came (a backward drive: no turn, no
+        new ground) towards where it was last read, at most as far as it drove blind, when that line keeps its whole
+        blind-error bubble inside the table's edge room and away from every other robot's spot and planned path (the
+        others' reservations win; they are not moved). Its plan is halted first; when seen again, everyone re-plans
+        from where they are; not seen: the old hold. Returns True when a recovery was started."""
+        import observe as OB
+        if getattr(self, "straightening", False) or not self.holds_one() or getattr(b, "backoff", None):
+            return False
+        lc = getattr(b, "last_cam", None)
+        if not lc or b.pose is None:
+            return False
+        x, y, th = b.pose
+        back = min(bl["dist"], math.hypot(x - lc[0], y - lc[1]), OB.BACK_OFF_CM * 4)
+        if back < 3.0:
+            return False
+        # (11-05h, protection 4: never a blind reverse) it turns on the spot to face where it was last read and drives
+        # there FORWARDS (its edge guard and front sensor work forwards only)
+        hd = math.degrees(math.atan2(lc[1] - y, lc[0] - x))
+        bx, by = x + back * math.cos(math.radians(hd)), y + back * math.sin(math.radians(hd))
+        err = self.BLIND_ERR_BASE_CM + self.BLIND_ERR_PER_CM * (bl["dist"] + back)
+        f = self.m["floor"]
+        if min(x - f["x_min"], f["x_max"] - x, y - f["y_min"], f["y_max"] - y) - 6.72 - err < self.BLIND_EDGE_CM:
+            self.log("recover_refused", robot=b.name, why="no room to turn")
+            return False
+        for k in range(11):
+            px, py = x + (bx - x) * k / 10.0, y + (by - y) * k / 10.0
+            if min(px - f["x_min"], f["x_max"] - px, py - f["y_min"], f["y_max"] - py) - 4.75 - err < self.BLIND_EDGE_CM:
+                self.log("recover_refused", robot=b.name, why="edge", at=[round(px, 1), round(py, 1)])
+                return False
+            for o in self.bots.values():
+                if o is b or o.out or o.pose is None:
+                    continue
+                pts = [o.pose[:2]] + [tuple(st["to"][:2]) for st, rec in zip(self.steps(o.name), o.stat)
+                                      if rec["status"] != "done" and st.get("to")][:4]
+                for q in pts:
+                    if math.hypot(px - q[0], py - q[1]) < self.RECOVER_GAP_CM + err:
+                        self.log("recover_refused", robot=b.name, why="the path of %s" % o.name,
+                                 at=[round(px, 1), round(py, 1)])
+                        return False
+        bl["recovered"] = True
+        self.send(b.name, "halt")
+        tid = b.next_id
+        sid = b.next_id + 1
+        b.next_id += 2
+        time.sleep(0.05)
+        self.send(b.name, "fs %d T %.2f -" % (tid, hd))
+        text = "fs %d D %.2f %.2f %.2f %.2f %.2f %.2f 0 -" % (sid, x, y, bx, by, hd, 5.0)
+        ob = {"id": "recover-%s-%d" % (b.name, sid), "shape": "polygon", "source": "lost-tag recovery corridor",
+              "points": [[round(x, 2), round(y, 2)], [round(bx, 2), round(by, 2)]]}
+        b.backoff = dict(id=sid, t=now(), ob=None, kind="recover", corridor=ob, turn_id=tid)
+        self.send(b.name, text)
+        self.__dict__.setdefault("recoveries", []).append(dict(robot=b.name, back_cm=round(back, 1),
+                                                               blind_cm=round(bl["dist"], 1), why=why))
+        self.log("recover_start", robot=b.name, back_cm=round(back, 1), from_=[round(x, 1), round(y, 1)],
+                 to=[round(bx, 1), round(by, 1)], err_cm=round(err, 1), why=why)
+        self.say("%s: %s: RECOVERING: it turns to face where the camera last read it and drives %.0f cm straight there, "
+                 "forwards (clear of the edges and of the others' paths, checked)" % (b.name, why, back))
+        rm = getattr(self, "readmap", None)
+        if rm is not None:
+            k_, item = self.current_task(b.name)
+            pt = self.point_of(item.get("label")) if isinstance(item, dict) else None
+            if pt is not None and not rm.readable(*pt[:2])[0]:
+                lab = self.skip_current_point(b.name, "the camera does not read tags there (%s)" %
+                                              rm.readable(*pt[:2])[1])
+                if lab:
+                    self.say("%s: point %s skipped: the camera does not read tags there (learned in this run)" % (
+                        b.name, lab))
+        return True
 
     def blind_end(self, b, bl):
         """Seen again after driving blind: how far its own pose was off, and the reset when needed."""
@@ -3249,6 +3549,8 @@ class Coordinator:
             if self.abort:
                 break
             self.blind_watch()
+            self.backoff_watch()
+            self.readmap_watch()
             if self.abort:
                 break
             self.silence_watch()

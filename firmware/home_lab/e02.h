@@ -1045,7 +1045,8 @@ void legCommand(const String& verb, const String& rest, bool running) {
   }
   if (kind == 'g' && edgeOff()[0]) { legRecord(id, kind, arg, "refused", edgeOff()); return; }
   // 2026-10-26a: tilted (hung at an edge, a wheel off the board): no drive and no turn (motion.h TILT)
-  if ((kind == 't' || kind == 'g') && P("tilt_stop_deg") > 0 && tilt::now() > P("tilt_stop_deg")) {
+  // 2026-11-05d: a BACKWARD go leg is allowed while tilted (backing off the edge it hangs on); forward and turns are not
+  if ((kind == 't' || (kind == 'g' && arg >= 0)) && P("tilt_stop_deg") > 0 && tilt::now() > P("tilt_stop_deg")) {
     char why[64];
     snprintf(why, sizeof(why), "tilted %.1f deg (hung at an edge?)", tilt::last);
     legRecord(id, kind, arg, "refused", why);

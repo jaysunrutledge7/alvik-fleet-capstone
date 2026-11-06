@@ -311,8 +311,9 @@ class Robot(FollowMixin, DockMixin, E02Mixin):
             dL, dR = tL - self.phiL, tR - self.phiR
             self.wL, self.wR = dL / h, dR / h
         else:
-            tauL = m.brake_tau_s if self.cmdL == 0 else m.motor_tau_s
-            tauR = m.brake_tau_s if self.cmdR == 0 else m.motor_tau_s
+            bt = getattr(self, "brake_tau_s", None) or m.brake_tau_s    # (11-05h) --stop-coast: this robot's own
+            tauL = bt if self.cmdL == 0 else m.motor_tau_s
+            tauR = bt if self.cmdR == 0 else m.motor_tau_s
             tgtL, tgtR = self.cmdL * self.wheel_free[0], self.cmdR * self.wheel_free[1]
             if self.ms < self.seam_dip_until:                  # a wheel climbing a floor seam's lip
                 f = self.cfg.session.seam_dip_frac
@@ -382,8 +383,18 @@ class Robot(FollowMixin, DockMixin, E02Mixin):
                 if self.past_open_edge(cx, cy) > self.hang_cm:
                     self.hung = True
             if getattr(self, "hung", False):
-                self.x, self.y, self.th = x_before_all, y_before_all, th0
-                ds = 0.0
+                back = ((self.x - x_before_all) * math.cos(th0) + (self.y - y_before_all) * math.sin(th0)) < -1e-6
+                if back and abs(self.th - th0) < 1e-3:
+                    # (11-05d) backing straight off the edge it hangs on: the wheels on the board pull it back; it
+                    # levels once its centre of mass is back over the board
+                    cx = self.x + self.HANG_COM_AHEAD_CM * math.cos(self.th)
+                    cy = self.y + self.HANG_COM_AHEAD_CM * math.sin(self.th)
+                    if self.past_open_edge(cx, cy) <= self.hang_cm * 0.5:
+                        self.hung = False
+                        self.unhung = getattr(self, "unhung", 0) + 1
+                else:
+                    self.x, self.y, self.th = x_before_all, y_before_all, th0
+                    ds = 0.0
         if self.cfg.session.seams and not self.lifted:
             self._seam_check()
         rate = (self.th - th0) / h                         # rad/s, true
@@ -903,8 +914,11 @@ class Robot(FollowMixin, DockMixin, E02Mixin):
             return True
         if self.P("safe_lift") > 0 and self.lifted:
             self.abort_reason = "robot lifted"
-        elif self.tilt_over():
-            self.abort_reason = "tilted %.1f deg" % self.tilt_last
+        elif not (self.fw_version >= "2026-11-05d" and getattr(self, "tilt_back_ok", False)) and self.tilt_over():
+            if self.fw_version >= "2026-11-05d" and getattr(self, "edge_soft", False):
+                self.step_stop = "tilted %.1f deg" % self.tilt_last     # (11-05d) follow: the step ends, not the run
+            else:
+                self.abort_reason = "tilted %.1f deg" % self.tilt_last
         elif self.edge_check():
             if getattr(self, "edge_soft", False):
                 self.step_stop = "edge"           # follow: only the step stops (motion.h gEdgeSoft)
