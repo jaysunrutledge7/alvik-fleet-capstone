@@ -61,7 +61,8 @@ for p in (HERE, TOOLS, os.path.join(TOOLS, "sim"), os.path.join(TOOLS, "recognit
 
 import numpy as np   # noqa: E402
 
-VERSION = "2026-11-05e"     # 11-05e: --safe-edge / calibration.safe_edge (school: 2, the tape seam tripped the line sensors).
+VERSION = "2026-11-05f"     # 11-05f: heading check (the school tag reads 180 deg off the nose: legs ran backwards, 1 cm from the edge).
+VERSION_E = "2026-11-05e"     # 11-05e: --safe-edge / calibration.safe_edge (school: 2, the tape seam tripped the line sensors).
 VERSION_D = "2026-11-05d"     # 11-05d: recovery jump used the camera time as a position; hold again until a pose (school 18:33 crash). 11-05c: lost-tag recovery; arc phase
 PY = sys.executable
 LOG_PORT, CMD_PORT = 5005, 5006
@@ -136,6 +137,8 @@ PARAMS = ("wheel_scale", "gyro_scale", "gyro_drift_dps")
 EDGE_GUARD = ["set safe_edge 3", "set edge_dir 0", "set edge_thr 150", "set edge_n 3", "set edge_bot_cm 11",
               "set bumper_cm 0"]       # mission_run.EDGE_GUARD (lost at every power-off)
 LEG_TIMEOUT_S = 40.0
+HEADING_CHECK_CM = 6.0   # (11-05f) the forward nudge that finds which way the tag reads against the nose. Chosen:
+                         # several times the camera's ~0.3 cm noise, short enough to be clear both ways. No DOE
 GO_PIECE_CM = 100.0      # a longer drive is made in equal pieces of at most this (the firmware refuses go legs over
                          # e02_go_max_cm, 110 by default). Each piece is measured as its own leg
 MAX_TURN_DEG = 170.0     # a bigger turn is made as two halves (a half turn's direction is ambiguous)
@@ -565,7 +568,8 @@ class Eye:
             if tid is None:
                 continue
             t = time.time()
-            rec = (t, float(msg["x"]), float(msg["y"]), float(msg.get("th", 0.0)))
+            th = float(msg.get("th", 0.0)) + getattr(self, "sim_yaw", 0.0) + getattr(self, "yaw_off", {}).get(tid, 0.0)   # (11-05f) heading check
+            rec = (t, float(msg["x"]), float(msg["y"]), ((th + 180.0) % 360.0) - 180.0)
             with self.lock:
                 self.latest[tid] = rec
                 self.hist.setdefault(tid, []).append(rec)
@@ -685,6 +689,7 @@ class SimEye(Eye):
         self.gaps = [tuple(float(v) for v in g.split(":")) for g in gaps]   # "T:DUR": the tag unread (a hand over it)
         self.rng = random.Random(seed)
         self.unread = 0
+        self.sim_yaw = float(os.environ.get("MIRLT_SIM_TAG_YAW", "0") or 0)   # (11-05f) a tag turned on the robot
         super().__init__(folder, port)
         for d in decoys:    # tests: a tag lying still on the table (a spare), id, x, y, th
             threading.Thread(target=self._decoy, args=(d,), daemon=True).start()
@@ -2033,6 +2038,44 @@ class CalibRun:
         cam, miss = self.park("stage")
         return cam
 
+    def heading_check(self, cam):
+        """(11-05f, school 5 Nov 18:54) Which way the robot really faces, against its roof tag's heading: a short
+        forward nudge, and the direction the camera saw it move. The tag on AL-1DC0 reads 180 deg off its nose, so
+        every leg was aimed backwards and the robot ended 1 cm from the TV-end edge. The nudge is driven only if it is
+        clear both ways (the tag's heading and its opposite), so a wrong heading cannot take it over an edge."""
+        d = HEADING_CHECK_CM
+        for flip in (0.0, 180.0):
+            h = math.radians(cam[2] + flip)
+            q = (cam[0] + d * math.cos(h), cam[1] + d * math.sin(h))
+            if self.S.problems(cam[:2], q, buf=2.0, edge_buf=2.0):
+                raise RunEnd("the heading check needs %.0f cm clear both ways (ahead and behind) from where the robot "
+                             "stands: move it nearer the middle of zones 1-2 (e.g. P09) and start again" % d)
+        r = self.rb.leg("go", d, on_tick=self.stop_flag.is_set)
+        self.odo_step(r)
+        time.sleep(SETTLE_S)
+        c1 = self.cam_pose()
+        if c1 is None:
+            raise RunEnd("the camera lost the tag during the heading check: nothing else moved")
+        mv = math.dist(c1[:2], cam[:2])
+        if mv < 0.5 * d:
+            raise RunEnd("the heading check moved the tag only %.1f cm of %.0f: stopped" % (mv, d))
+        off = wrap180(math.degrees(math.atan2(c1[1] - cam[1], c1[0] - cam[0])) - cam[2])
+        snap = round(off / 90.0) * 90.0
+        use = snap if abs(wrap180(off - snap)) <= 20.0 else off
+        use = wrap180(use)
+        say("HEADING CHECK: moved %.1f cm at %.0f deg from the tag's heading: tag heading offset %+.0f deg%s" % (
+            mv, off, use, "" if abs(use) < 1 else "  <- the tag is turned on the robot; every camera heading corrected"))
+        self.ev("heading_check", moved_cm=round(mv, 2), seen_deg=round(off, 1), offset_deg=use, tag=self.tag)
+        self.status["tag_heading_offset_deg"] = use
+        if abs(use) >= 1.0:
+            self.eye.yaw_off = dict(getattr(self.eye, "yaw_off", {}) or {})
+            self.eye.yaw_off[self.tag] = self.eye.yaw_off.get(self.tag, 0.0) + use
+            time.sleep(1.5)
+            c1 = self.cam_pose()
+            if c1 is None:
+                raise RunEnd("the camera lost the tag after the heading check: nothing else moved")
+        return c1
+
     def calibrate_one(self):
         """One robot (self.rb, self.name, self.tag): its values read, phases A, B (fit, set, save), C, park at its
         spot, `sleep 10`."""
@@ -2068,6 +2111,7 @@ class CalibRun:
         cam = self.cam_pose()
         if cam is None:
             raise RunEnd("the camera does not see the robot's tag where it stands")
+        cam = self.heading_check(cam)
         self.reanchor(cam, "start")
         result = "finished"
         try:
