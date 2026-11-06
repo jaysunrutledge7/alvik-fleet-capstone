@@ -365,8 +365,9 @@ class Link:
         try:
             self.rx.bind((bind_host, LOG_PORT))       # no SO_REUSEADDR: another program on the port is found here
         except OSError:
-            raise SystemExit("STOPPED: port %d is in use (Mission Control's own run, the console or robot_sleep.py is "
-                             "talking to the robots). Close it first. Nothing moved." % LOG_PORT)
+            raise SystemExit("STOPPED: port %d is in use: another program is listening to the robots (only one can at "
+                             "a time): Mission Control's own run, the console, robot_sleep.py, or at school Jay-Sun's "
+                             "own console. Close it or ask him to, then start again. Nothing moved." % LOG_PORT)
         self.rx.settimeout(0.2)
         self.tx = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.tx.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
@@ -2400,12 +2401,13 @@ class CalibRun:
             self.status["battery_end"] = self.battery[-1][1] if self.battery else None
         if getattr(self.a, "sleep_at_end", False):
             # the old way (kept, switched off): a wake restarts the robot and wipes values not saved on it
-            self.rb.link.send(self.rb.ip, "sleep 10")
+            ck = int((self.site or {}).get("sleep_checkin_min", 10))     # (11-05h) school: hourly check-in
+            self.rb.link.send(self.rb.ip, "sleep %d" % ck)
             k = self.link.mark()
             slept = self.link.wait_for(lambda n, l: n == self.rb.name and "sleeping" in l, k, 4.0)
             self.slept = bool(slept)
-            say("Sent `sleep 10` to %s (%s): it wakes for 20 s every 10 min; robot_sleep.py wake any brings it back" % (
-                self.name, "it answered" if slept else "no answer seen"))
+            say("Sent `sleep %d` to %s (%s): it wakes for 20 s every %d min; robot_sleep.py wake any brings it back" % (
+                ck, self.name, "it answered" if slept else "no answer seen", ck))
         else:
             # (11-05h, Observe then trust) it stays awake: waking from sleep restarts it, which wipes every value not
             # saved on it (firmware older than 2026-11-05a cannot save). Mission Control's idle sleeper puts it to sleep
@@ -2756,6 +2758,8 @@ def main(argv=None):
     signal.signal(signal.SIGTERM, stop)
     cam_c, tag_h = None, None
     cpu = start_cpu_log(folder, {"calib": os.getpid()}, {"bridge": "tag_bridge.py", "recorder": "camrec.py"})
+    if (site or {}).get("attended_only") and not a.dry:
+        say("ATTENDED ONLY (Jay-Sun 5 Nov): at school the robots drive only while Jay-Sun is in the room")
     try:
         if a.dry:
             loopback_up()

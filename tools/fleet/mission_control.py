@@ -362,6 +362,7 @@ class Session:
         if self.site:
             st = self.site
             out["site"] = {"name": st["name"], "title": st["title"], "tracking": st["tracking"],
+                           "attended_only": bool(st.get("attended_only")),
                            "robots": [r["name"] for r in st["robots"]],
                            "colours": {r["name"]: r["colour"] for r in st["robots"]},
                            "cameras": {k: v.get("label", k) for k, v in st["cameras"].items()},
@@ -1218,10 +1219,11 @@ def idle_sleeper(s, every_s=30.0):
             idle = float((s.site or {}).get("idle_sleep_min", OB.IDLE_SLEEP_MIN)) if getattr(s, "site", None) else \
                 OB.IDLE_SLEEP_MIN
             if idle_sleep_due(busy, last, time.time(), slept, idle):
-                subprocess.run([sys.executable, os.path.join(os.path.dirname(HERE), "pi", "robot_sleep.py"), "sleep", "10",
-                                "255.255.255.255"], timeout=20, capture_output=True)
-                print("%.0f minutes with no run: every robot sent `sleep 10` (it wakes for 20 s every 10 min; "
-                      "robot_sleep.py wake any brings it back)" % idle, flush=True)
+                ck = int((s.site or {}).get("sleep_checkin_min", 10)) if getattr(s, "site", None) else 10
+                subprocess.run([sys.executable, os.path.join(os.path.dirname(HERE), "pi", "robot_sleep.py"), "sleep",
+                                str(ck), "255.255.255.255"], timeout=20, capture_output=True)
+                print("%.0f minutes with no run: every robot sent `sleep %d` (it wakes for 20 s every %d min; "
+                      "robot_sleep.py wake any brings it back)" % (idle, ck, ck), flush=True)
                 slept = True
         except Exception as e:  # noqa: BLE001  (the sleeper never stops Mission Control)
             print("(idle sleeper: %s)" % e, flush=True)

@@ -318,8 +318,10 @@ class Link:
         try:
             self.rx.bind(("", LOG_PORT))
         except OSError as e:
-            raise SystemExit(f"Port {LOG_PORT} is already in use: another console, run_sheet or commtest is "
-                             f"probably still running. Close it first. ({e})")
+            raise SystemExit(f"Port {LOG_PORT} is already in use: another program is listening to the robots on this "
+                             f"computer (only one can at a time): another console, run_sheet or commtest, or at school "
+                             f"Jay-Sun's own console. Close it or ask him to (or wait for his run to end), then start "
+                             f"again. Nothing moved. ({e})")
         self.rx.settimeout(0.5)
         self.stop = threading.Event()
         self.threads = [threading.Thread(target=receiver, args=(self.rx, self.session, self.stop), daemon=True),

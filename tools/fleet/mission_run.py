@@ -642,6 +642,34 @@ def wiggle_first(args, out):
     return 0
 
 
+def experiment_unseen(args, out):
+    """(11-05h, Jay-Sun 5 Nov: without the second camera any run on half the table needs Dr. Sodhi's OK) An experiment
+    whose robots are assigned points the cameras cannot read is refused, saying which and why; --allow-half-table runs
+    it anyway (with that OK). None when fine."""
+    if not getattr(args, "experiment_", None) or args.tracking_ != "tags" or getattr(args, "allow_half_table", False):
+        return None
+    try:
+        with open(os.path.join(out, "program.json")) as f:
+            orders = ((json.load(f).get("production") or {}).get("orders")) or {}
+    except (OSError, ValueError):
+        return None
+    rm = run_readmap(args, None)
+    if rm is None:
+        return None
+    import sticker_points as SP
+    pts, _z, _w = SP.points_cm(args.site_)
+    unseen = {}
+    for n, labs in orders.items():
+        for l in labs:
+            if l in pts and not rm.readable(*pts[l][:2])[0]:
+                unseen.setdefault(n, []).append(l)
+    if not unseen:
+        return None
+    return ("experiment %s assigns points the camera cannot read (%s): with one camera only half the table is seen, "
+            "and a run on half the table needs Dr. Sodhi's OK (Jay-Sun 5 Nov). With that OK: --allow-half-table; or "
+            "plug in camera 2" % (args.experiment_, "; ".join("%s: %s" % (n, ", ".join(v)) for n, v in unseen.items())))
+
+
 def take_binding(args, rec):
     """(11-05h) What the binding observed, for the plan: the robots found (auto), where each stands, each tag's
     heading offset."""
@@ -858,6 +886,11 @@ def run(args):
         say("NOT STARTED: %s. Nothing moved. Free space first: ./run-fleet-pi.sh space, then "
             "./run-fleet-pi.sh clean-uploaded" % st0["why"])
         return 3
+    if (args.site_ or {}).get("attended_only") and not args.dry:
+        say("ATTENDED ONLY (Jay-Sun 5 Nov): at school the robots drive only while Jay-Sun is in the room")
+    for lab in (args.site_ or {}).get("missing_stickers") or []:
+        say("NOTE: sticker %s is missing on the table: its point is still visited by its typed coordinates (nothing "
+            "here needs to see the sticker)" % lab)
     if args.tracking_ == "tags" and not args.plan_only:
         code_ = wiggle_first(args, out)
         if code_:
@@ -879,6 +912,10 @@ def run(args):
         mp, pp = os.path.abspath(args.mission), os.path.abspath(args.plan)
     else:
         mm, plan, mp, pp = build(args, out)
+        bad_ = experiment_unseen(args, out)
+        if bad_:
+            say("NOT STARTED: %s. Nothing moved." % bad_)
+            return 6
     if args.plan_only:
         return 0
     sess = os.path.join(out, "run")
@@ -1414,6 +1451,8 @@ def main(argv=None):
     g.add_argument("--drop-pct", type=float, default=0.0, help="lost packets, %% each way")
     g.add_argument("--dead", help="NAME@T: that robot dies T s into the run (silent, still)")
     g.add_argument("--seed", type=int, default=1)
+    ap.add_argument("--allow-half-table", action="store_true", help="(11-05h) run an experiment even though the cameras "
+                    "cannot read part of its robots' area (Dr. Sodhi's OK needed, Jay-Sun 5 Nov)")
     g.add_argument("--sim-robots", type=int, default=2, help="(11-05h) with --robots auto: this many simulated robots")
     g.add_argument("--sim-bind", action="store_true", help="(11-05h) run the real wiggle-first binding against the "
                    "point-fix simulator first (found however many, heading nudge, compass check after a restart)")

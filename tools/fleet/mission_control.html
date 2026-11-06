@@ -822,7 +822,7 @@ function visitCard() {
 }
 function wireVisit() {
   const go = async (conn) => { try { S.run = await api("/api/run/start", {kind: "visit", conn, dry: conn !== "robots"}); flash(conn === "robots" ? "Visit points started" : "Simulator rehearsal started"); startPoll(); render(); } catch (e) { flash(e.message, true); } };
-  if ($("visgo")) $("visgo").onclick = () => { if (confirm("Start Visit points on every robot on the table?")) go("robots"); };
+  if ($("visgo")) $("visgo").onclick = () => { if (confirm("Start Visit points on every robot on the table?" + (S.site && S.site.attended_only ? "\n\nAt school the robots drive only while Jay-Sun is in the room. Is he here?" : ""))) go("robots"); };
   if ($("vissim")) $("vissim").onclick = () => go("sim-cameras");
   if ($("visstop")) $("visstop").onclick = async () => { try { await api("/api/run/stop", {}); flash("Stop sent: every robot stops"); } catch (e) { flash(e.message, true); } };
 }

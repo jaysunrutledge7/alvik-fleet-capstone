@@ -25,6 +25,9 @@ Nothing new to type. Steps 1-10 below are the same; what the software now checks
 - **The calibration's distance** now also corrects a small fixed overrun at the end of every leg (about 3-5 mm); the
   card's report shows `Stop overrun`.
 - **Any camera name.** One camera plugged in is used as the overhead camera, whatever its name.
+- **Calibration spots are now P09, P01, P06** (P11 is left out while the far end reads poorly). Put the first robot on
+  **P09**, a second on **P01**, a third on **P06**, noses towards the whiteboard. Where the steps below say P11, read
+  P09.
 
 ### The new button: Visit points (Browser)
 

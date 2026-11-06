@@ -340,9 +340,47 @@ class Bridge:
             self.say("camera %s: its reference tags are back where the setup saw them (%.1f px)" % (cam_name, med))
         return verdict
 
+    LIGHT_EVERY_S = 2.0       # (11-05h, Jay-Sun 5 Nov: lighting identical across experiments; the room lights go off by
+    LIGHT_WARN_FRAC = 0.15    # themselves) each camera's picture brightness logged this often (brightness.csv); a change
+    LIGHT_WARN_N = 3          # of 15 % from the run's first minute, 3 samples in a row, is said and logged. Chosen
+
+    def light_check(self, cam_name, grey, t):
+        st = self.__dict__.setdefault("light", {}).setdefault(cam_name, {"t": -1e9, "base": [], "bad": 0,
+                                                                         "said": False})
+        if t - st["t"] < self.LIGHT_EVERY_S:
+            return
+        st["t"] = t
+        b = float(grey[::8, ::8].mean())
+        if getattr(self, "_light_f", None) is None:
+            self._light_f = open(os.path.join(self.out, "brightness.csv"), "w")
+            self._light_f.write("t,camera,mean_grey\n")
+        self._light_f.write("%.3f,%s,%.2f\n" % (t, cam_name, b))
+        self._light_f.flush()
+        if len(st["base"]) < 30:
+            st["base"].append(b)
+            return
+        base = sorted(st["base"])[len(st["base"]) // 2]
+        if base > 0 and abs(b - base) / base > self.LIGHT_WARN_FRAC:
+            st["bad"] += 1
+            if st["bad"] >= self.LIGHT_WARN_N and not st["said"]:
+                st["said"] = True
+                self.event("lighting_changed", cam=cam_name, base=round(base, 1), now=round(b, 1))
+                self.say("LIGHTING CHANGED: camera %s's picture is %.0f %% %s than at the start (mean grey %.0f, was %.0f):"
+                         " the room lights? Experiments need the same light throughout" % (
+                             cam_name, 100 * abs(b - base) / base, "brighter" if b > base else "darker", b, base))
+        else:
+            st["bad"] = 0
+            if st["said"]:
+                st["said"] = False
+                self.event("lighting_back", cam=cam_name, base=round(base, 1), now=round(b, 1))
+
     def on_picture(self, cam_name, grey, t):
         """One camera's picture (t: when it was taken, Pi clock)."""
         self.frames[cam_name] += 1
+        try:
+            self.light_check(cam_name, grey, t)
+        except Exception:  # noqa: BLE001  (the brightness log never stops the fixes)
+            pass
         if self.refw:
             try:
                 self.ref_check(cam_name, grey, t)

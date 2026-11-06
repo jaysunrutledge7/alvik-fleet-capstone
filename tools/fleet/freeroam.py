@@ -701,6 +701,8 @@ def main(argv=None):
                     "stopped and stays awake (a wake restarts it and wipes values not saved on it)")
     ap.add_argument("--sleep-parked", dest="no_sleep", action="store_false", help="(the old way, kept) a parked "
                     "robot is put to sleep")
+    ap.add_argument("--attended", action="store_true", help="(11-05h) a person is in the room with the robots: "
+                    "required on a site with attended_only (school, Jay-Sun 5 Nov)")
     ap.add_argument("--safe-edge", type=int, default=None, choices=[0, 1, 2, 3], help="(11-05h) the edge guard: 3 both "
                     "cues (home, default), 2 the bottom zone's drop only (school: the seam tape trips the line sensors)")
     ap.add_argument("--motion", choices=("curves", "stopturn"), default="curves",
@@ -774,6 +776,17 @@ def main(argv=None):
     why = "stopped before the roam"
     code = 0
     cpu = None
+    if not a.dry and not a.attended:
+        try:
+            import sites as SI
+            st_ = SI.load(None)
+        except (Exception, SystemExit):  # noqa: BLE001
+            st_ = {}
+        if st_.get("attended_only"):
+            say("NOT STARTED: site %s is attended only (Jay-Sun 5 Nov: the robots drive only while he is in the room; "
+                "no unattended or overnight driving). With him there, start again with --attended. Nothing moved."
+                % st_.get("name"))
+            return 2
     say("Free roam: %s (seed %d, battery floor %d %%, lost: %s)" % (outdir, a.seed, a.battery_floor, a.lost_mode))
     run_info = dict(version=VERSION, core=FC.VERSION, motion=a.motion, seed=a.seed, hours=a.hours, battery_floor=a.battery_floor,
                     lost_mode=a.lost_mode, dry=a.dry, reflex_drill=a.reflex_drill, started=dt.datetime.now().isoformat(timespec="seconds"),
