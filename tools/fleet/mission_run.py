@@ -127,6 +127,16 @@ def observed_split(args, robots, out):
             x, y = seen[n][:2]
             near = min(pts, key=lambda l: math.dist(pts[l], (x, y)))
             home_at[n] = [pts[near][0], pts[near][1], face] if math.dist(pts[near], (x, y)) <= 12.0 else [x, y, face]
+    sh = ((args.site_ or {}).get("homes") or {})
+    missing = [n for n in robots if n not in home_at and not (isinstance(sh.get(n), str) and sh.get(n) in pts)]
+    if missing:
+        # (11-05h) a robot nobody has seen yet and the site has no home for (a third robot, a plan made before the
+        # wiggle): a readable point clear of the others, never the table's middle (the outlet box is there)
+        picks = dry_homes(args, [n for n in robots if n not in missing] + missing)
+        for n in missing:
+            lab = picks.get(n)
+            if lab in pts:
+                home_at[n] = [pts[lab][0], pts[lab][1], face]
     if not getattr(args, "auto_robots", False) and mode == "halves":
         return (home_at or None), None
     rm = run_readmap(args, out)

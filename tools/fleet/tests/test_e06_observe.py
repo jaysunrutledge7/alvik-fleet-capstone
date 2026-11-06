@@ -118,3 +118,14 @@ def test_trip_helpers():
     assert bx < 50 and abs(by - 50) < 1e-9                               # backwards, the heading kept
     ko = OB.trip_keepout(50, 50, 0)
     assert ko["center"][0] > 50
+
+
+def test_run_plan_obstacles_from_trips_and_hazards_are_valid_map_obstacles():
+    """(rehearsal s1 crashed at its end: a hazard obstacle's source was not a map source)"""
+    import fleetmap as FM
+    hz = {"id": "hazard-Alpha-3", "shape": "circle", "center": [130.0, 23.0], "radius": 6.0, "source": "user",
+          "why": "hazard: moves failed here (11-05h)"}
+    FM._norm_obstacle(hz, 0)
+    tr = {"id": "edge-by-Alpha-1", "shape": "polygon", "points": [[0, 0], [10, 0], [10, 5], [0, 5]],
+          "source": "edge_guard", "cue": "tilt", "why": "tilt trip (discovered edge)"}
+    FM._norm_obstacle(tr, 1)

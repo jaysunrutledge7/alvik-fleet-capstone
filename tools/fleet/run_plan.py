@@ -578,7 +578,8 @@ class Coordinator:
                  "(never the same step unchanged)" % (b.name, i, L, took, out["words"]))
         if fm.escalate(pos[0], pos[1]):
             ob = {"id": "hazard-%s-%d" % (b.name, len(fm.fails)), "shape": "circle", "center": [round(pos[0], 1),
-                  round(pos[1], 1)], "radius": 6.0, "source": "hazard: moves failed here"}
+                  round(pos[1], 1)], "radius": 6.0, "source": "user",
+                  "why": "hazard: moves failed here (11-05h)"}
             self.say("%s: %d moves failed at %.0f, %.0f: a hazard, kept out for everyone" % (
                 b.name, OB.FailMemory.ESCALATE_N, pos[0], pos[1]))
             self.add_obstacle(ob)
@@ -2663,8 +2664,8 @@ class Coordinator:
         self.n_sensor_obstacles += 1
         ob = self.edge_boundary(b, (x, y, th), "plywood edge at %.2f %.2f %.2f %s" % (
             x, y, th, "bottom" if kind == "drop" else "line"))
-        ob["cue"] = kind
-        ob["source"] = "%s trip (discovered edge)" % kind
+        ob["cue"] = kind                       # source stays edge_guard (a discovered edge: tilt or drop)
+        ob["why"] = "%s trip (discovered edge)" % kind
         bx, by = OB.back_off_target(x, y, th)
         # (11-05h, 4') the back-off is a reverse: only over space shown safe: its own trail (the way it came, no camera
         # needed) or a fresh camera fix with room behind; a tilted robot cannot turn (look before backing), so else it
