@@ -539,7 +539,13 @@ class Controller:
             return
         if arrival is not None:
             lead = t - arrival
-            self.clock_min = lead if self.clock_min is None else max(self.clock_min, lead)
+            # (11-05h, home run 5 Nov) not the all-time max: a few odd fixes stamped ahead of their arrival ratcheted
+            # it to 0.44 then 1.32 s, the applied clock followed, and every fix read 1.3 s staler than it was (the
+            # robots stood "near an edge" and lost). The 90th percentile of the last 300, once there are 50
+            self.leads = (getattr(self, "leads", None) or []) + [lead]
+            del self.leads[:-300]
+            if len(self.leads) >= 50:
+                self.clock_min = float(np.percentile(self.leads, 90))
             r.cam_raw.append((t, x, y))
             if len(r.cam_raw) > 200:
                 del r.cam_raw[:50]
