@@ -869,7 +869,9 @@ def bind_by_wiggle(robots, eye, wiggle_deg=90.0, pause_s=1.0, log=say, moved_deg
                                                                          r2["result"], r2["info"]))
         moved = []
         for i in before:
-            d1 = wrap180(0.5 * (mid[i] + mid2[i]) - before[i]) if abs(wrap180(mid[i] - mid2[i])) < 20 else \
+            # (11-05h) the mean of the two mid readings taken round the circle: a plain mean of +179 and -178 is 0
+            # (the full fleet suite: a tag heading 92 -> 180 read as -91 for +90, not bound)
+            d1 = wrap180(mid[i] + 0.5 * wrap180(mid2[i] - mid[i]) - before[i]) if abs(wrap180(mid[i] - mid2[i])) < 20 else \
                 wrap180(mid2[i] - before[i])
             back = wrap180(after[i] - before[i])
             log("  tag %d: turned %+.0f deg with %s's wiggle, %+.0f deg from where it started after it" % (

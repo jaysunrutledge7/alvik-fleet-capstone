@@ -76,7 +76,8 @@ def test_school_site_switches_and_spots():
     tg, cal = site["tags"], site["calibration"]
     assert tg["rename_to_slot"] is False and tg["pin"] is True and tg["unclaimed"] == "refuse"
     assert cal["min_firmware"] == "2026-11-05a" and cal["old_firmware_save"] == "off" and cal["baseline"] == "auto"
-    assert tuple(cal["park_spots"]) == CR.PARK_SPOTS == ("P11", "P01", "P09")
+    assert tuple(cal["park_spots"]) == ("P09", "P01", "P06")     # Nick 5 Nov 21:38: the site's spots (they win)
+    assert CR.PARK_SPOTS == ("P11", "P01", "P09")               # the code's fallback, used only without a site list
     assert CR.PARK_SPOTS_E03 == ("P11", "P05", "P01")           # kept for the record
     S = CR.Site(site)
     for p in CR.PARK_SPOTS:

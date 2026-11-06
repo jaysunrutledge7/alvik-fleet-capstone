@@ -582,8 +582,9 @@ POSE_AGREE_S = 2.0       # ... for this long (camera fresh) = stop that robot, r
                          # own error is under 1 cm). DOE note: 3 / 5 / 8 cm against false stops in a normal run
 STAND_TILT_DEG = 2.5     # (2) standing tilt: more than this from its level ...
 STAND_TILT_S = 2.0       # ... for this long while not driving = a hazard (a wheel over an edge). Chosen from the
-                         # analysis (robots stood within 1.5 deg on the board; Center sat at 3.4). DOE note: YES, a bench
-                         # test with a wheel over a 1 / 2 / 3 cm drop, standing and driving, sets both
+                         # analysis (robots stood within 1.5 deg on the board; Center sat at 3.4). No bench test now
+                         # (Nick 21:38): kept as chosen. DOE note: a wheel over a 1 / 2 / 3 cm drop, standing and
+                         # driving, would set both
 STAND_V_CMS = 1.0        # "not driving": its own speed under this
 LEVEL_N = 25             # its level: the median of this many standing samples at the start (RAW 50 / s: half a second)
 MIN_JUDGE_CM = 3.0       # (3') moves shorter than this are not judged (sensor noise is that size)

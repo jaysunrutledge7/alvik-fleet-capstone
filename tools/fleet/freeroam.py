@@ -740,7 +740,7 @@ def main(argv=None):
     ap.add_argument("--no-lights", action="store_true")
     ap.add_argument("--no-facing", action="store_true")
     ap.add_argument("--ignore", default="")
-    ap.add_argument("--attended", action="store_true")
+    # (the ladder's --attended, same meaning: a person is there; declared once above since 11-05h)
     ap.add_argument("--full", action="store_true")
     ap.add_argument("--day-state", default="")
     ap.add_argument("--turn-err", action="append", default=[])

@@ -1,0 +1,282 @@
+{
+ "folder": "/tmp/claude-0/-home-claude/fff6dc9c-5876-54f9-92a7-a08483d3d5c7/scratchpad/reh/home",
+ "conditions": {},
+ "result": "done",
+ "duration_s": 98.8,
+ "planned_s": 106.5,
+ "replans": 0,
+ "robots_out": [],
+ "plans_refused": 0,
+ "sensor_stops": 0,
+ "confirm_checks": [],
+ "battery": {
+  "Left": 89,
+  "Right": 91
+ },
+ "start_checks": {
+  "Left": {
+   "firmware": "2026-11-05d",
+   "battery": 89,
+   "boot": "1E7A",
+   "restarted": false,
+   "stop_limit": {
+    "limit_cm": 10.0,
+    "rule": "ceiling",
+    "floor_cm": null,
+    "ceiling_cm": 10.0
+   },
+   "place_cm": 0.06,
+   "heading_deg": 1.0,
+   "heading_rule": "measured (facing check); straightened if off"
+  },
+  "Right": {
+   "firmware": "2026-11-05d",
+   "battery": 92,
+   "boot": "5067",
+   "restarted": false,
+   "stop_limit": {
+    "limit_cm": 12.0,
+    "rule": "cap",
+    "floor_cm": null,
+    "ceiling_cm": 12.0
+   },
+   "place_cm": 0.33,
+   "heading_deg": 0.4,
+   "heading_rule": "measured (facing check); straightened if off"
+  },
+  "facing": {
+   "Left": {
+    "heading": 89.0,
+    "off": -1.0,
+    "ok": true
+   },
+   "Right": {
+    "heading": 90.4,
+    "off": 0.4,
+    "ok": true
+   }
+  },
+  "settings_resent": 0,
+  "plan_gap": {
+   "closest_cm": 10.0,
+   "pair": [
+    "Left",
+    "Right"
+   ],
+   "t": 85.1,
+   "start_cm": 74.56,
+   "judged_cm": 10.0,
+   "judged_pair": [
+    "Left",
+    "Right"
+   ],
+   "judged_t": 85.1
+  }
+ },
+ "on_problem": "stop",
+ "kept_going": [],
+ "points": [],
+ "points_skipped": [],
+ "points_reassigned": [],
+ "mirror": {
+  "lane_ends": {
+   "time_s": {
+    "max": 0.253,
+    "median": 0.118,
+    "n": 7
+   },
+   "pos_cm": {
+    "max": 0.94,
+    "median": 0.6,
+    "n": 7
+   },
+   "within_target": 7
+  },
+  "all_points": {
+   "time_s": {
+    "max": 0.253,
+    "median": 0.123,
+    "n": 9
+   },
+   "pos_cm": {
+    "max": 0.94,
+    "median": 0.6,
+    "n": 9
+   }
+  },
+  "holds": [
+   {
+    "robot": "Right",
+    "key": "46.0,30.5#1",
+    "s": 2.13,
+    "t_run": 12.92
+   },
+   {
+    "robot": "Right",
+    "key": "47.8,17.0#1",
+    "s": 0.02,
+    "t_run": 46.84
+   },
+   {
+    "robot": "Left",
+    "key": "40.7,30.5#1",
+    "s": 0.02,
+    "t_run": 89.69
+   }
+  ],
+  "retimed_legs": {
+   "Left": 12,
+   "Right": 10
+  },
+  "target_s": 0.5,
+  "target_cm": 3.0
+ },
+ "sim": {
+  "min_body_gap_cm": 9.95,
+  "min_body_gap_at": [
+   "Left",
+   "Right",
+   87.64
+  ],
+  "collision": false,
+  "min_open_edge_cm": 9.21,
+  "min_open_edge_at": [
+   "Right",
+   45.14
+  ],
+  "hung": []
+ },
+ "line_check": {
+  "Left": {
+   "p95_cm": 0.82,
+   "within_pct": 100.0,
+   "misses": {
+    "misses": 0,
+    "single": 0,
+    "runs": 0,
+    "in_runs": 0,
+    "longest": 0,
+    "longest_s": 0.0
+   },
+   "sure_share_pct": 100.0,
+   "camera_vs_truth": {
+    "n": 1461,
+    "median_cm": 0.4,
+    "p95_cm": 0.69,
+    "max_cm": 0.9,
+    "within_gate_pct": 100.0
+   }
+  },
+  "Right": {
+   "p95_cm": 0.98,
+   "within_pct": 100.0,
+   "misses": {
+    "misses": 0,
+    "single": 0,
+    "runs": 0,
+    "in_runs": 0,
+    "longest": 0,
+    "longest_s": 0.0
+   },
+   "sure_share_pct": 100.0,
+   "camera_vs_truth": {
+    "n": 1461,
+    "median_cm": 0.41,
+    "p95_cm": 0.69,
+    "max_cm": 1.01,
+    "within_gate_pct": 100.0
+   }
+  }
+ },
+ "closest_by_camera": {
+  "centres_cm": 19.32,
+  "bodies_cm": 9.82,
+  "robots": [
+   "Left",
+   "Right"
+  ],
+  "t": 1793932963.4377
+ },
+ "camera": {
+  "frames": 1682,
+  "robots": {
+   "Left": {
+    "seen": 1677,
+    "unsure": 0,
+    "predicted": 0,
+    "lost": 0,
+    "fixes": 1674,
+    "headings": 52,
+    "both": 1673,
+    "overhead": 1
+   },
+   "Right": {
+    "seen": 1677,
+    "unsure": 0,
+    "predicted": 0,
+    "lost": 0,
+    "fixes": 1674,
+    "headings": 48,
+    "both": 1673,
+    "overhead": 1
+   }
+  },
+  "farm": null
+ },
+ "reached": {
+  "Left": [
+   "mow",
+   "meet",
+   "circle",
+   "chicken 1 ready",
+   "chicken 1 swerve",
+   "chicken 1 sidestep",
+   "chicken 1 pass",
+   "spread out"
+  ],
+  "Right": [
+   "mow",
+   "meet",
+   "circle",
+   "chicken 1 ready",
+   "chicken 1 swerve",
+   "chicken 1 sidestep",
+   "chicken 1 pass",
+   "spread out"
+  ]
+ },
+ "exports": {
+  "version": "2026-11-03a",
+  "camera_track": {
+   "file": "/tmp/claude-0/-home-claude/fff6dc9c-5876-54f9-92a7-a08483d3d5c7/scratchpad/reh/home/run/camera_track.csv",
+   "rows": {
+    "Left": 1677,
+    "Right": 1677
+   }
+  },
+  "odometry_raw": {
+   "file": "/tmp/claude-0/-home-claude/fff6dc9c-5876-54f9-92a7-a08483d3d5c7/scratchpad/reh/home/run/odometry_raw.csv",
+   "rows": {
+    "Left": 4944,
+    "Right": 4943
+   },
+   "anchors": {
+    "Left": [
+     "segment 1 anchored on its own pose (16.9, 17.0, 89.0 deg) at ms 590612"
+    ],
+    "Right": [
+     "segment 1 anchored on its own pose (105.2, 17.3, 90.4 deg) at ms 511221"
+    ]
+   }
+  }
+ },
+ "pose_timeline": {
+  "file": "/tmp/claude-0/-home-claude/fff6dc9c-5876-54f9-92a7-a08483d3d5c7/scratchpad/reh/home/pose_timeline.csv",
+  "rows": {
+   "Left, camera": 1677,
+   "Right, camera": 1677,
+   "Left, robot's own pose": 941,
+   "Right, robot's own pose": 942
+  }
+ }
+}

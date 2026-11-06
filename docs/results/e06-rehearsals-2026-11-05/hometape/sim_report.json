@@ -1,0 +1,102 @@
+{
+ "dockings": [],
+ "min_body_gap_cm": 16.09,
+ "min_body_gap_at": [
+  "Left",
+  "Right",
+  38.04
+ ],
+ "min_static_clearance_cm": Infinity,
+ "min_static_at": null,
+ "collision": false,
+ "events": [],
+ "packets_lost": {
+  "Left": {
+   "to_robot": 0,
+   "from_robot": 0
+  },
+  "Right": {
+   "to_robot": 0,
+   "from_robot": 0
+  }
+ },
+ "robot_runs": {
+  "Left": [
+   {
+    "run": "6EB5-1",
+    "exp": "follow",
+    "result": "stopped:stop command"
+   }
+  ],
+  "Right": [
+   {
+    "run": "881F-1",
+    "exp": "follow",
+    "result": "stopped:stop command"
+   }
+  ]
+ },
+ "tof_sees_robots": true,
+ "seed": 3,
+ "true_sides": {
+  "x_min": {
+   "kind": "unknown"
+  },
+  "x_max": {
+   "kind": "unknown"
+  },
+  "y_min": {
+   "kind": "unknown"
+  },
+  "y_max": {
+   "kind": "unknown"
+  }
+ },
+ "min_open_edge_cm": 9.87,
+ "min_open_edge_at": [
+  "Left",
+  4.09
+ ],
+ "hung": [],
+ "min_com_open_edge_cm": {
+  "Left": 15.12,
+  "Right": 15.3
+ },
+ "edge_trips": {
+  "Left": [
+   {
+    "t": 30.92,
+    "cue": "line",
+    "axle_in_cm": 16.79,
+    "pose": [
+     56.33,
+     16.79,
+     -18.1
+    ]
+   }
+  ],
+  "Right": [
+   {
+    "t": 30.98,
+    "cue": "line",
+    "axle_in_cm": 16.14,
+    "pose": [
+     65.67,
+     44.86,
+     161.4
+    ]
+   }
+  ]
+ },
+ "edge_misses": {
+  "Left": [],
+  "Right": []
+ },
+ "board_cm": [
+  0.0,
+  0.0,
+  122.0,
+  61.0
+ ],
+ "drop_cm": 1.9
+}

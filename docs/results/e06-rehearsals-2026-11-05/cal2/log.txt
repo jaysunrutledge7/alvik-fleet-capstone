@@ -1,0 +1,87 @@
+sh: 1: ip: not found
+21:21:21 Calibration run 2026-11-05h, session /tmp/claude-0/-home-claude/fff6dc9c-5876-54f9-92a7-a08483d3d5c7/scratchpad/reh/cal2
+21:21:21 Firmware: not checked. Pins: /tmp/claude-0/-home-claude/fff6dc9c-5876-54f9-92a7-a08483d3d5c7/scratchpad/reh/cal2/sim/robot_pins.json. Baseline: defaults for every robot (asked). Spots: P11, P01, P09.
+21:21:26 Found: AL-2B7F at 127.0.0.3, AL-1DC0 at 127.0.0.2
+21:21:26   AL-2B7F: firmware 2026-11-05d
+21:21:26   AL-1DC0: firmware 2026-11-05d
+21:21:27   AL-1DC0 restarted since its last compass check (woken from sleep): the compass check now (a few degrees of wiggle, no spin, no roll; about 10 s)
+21:21:37   AL-1DC0: compass check done
+21:21:38   AL-2B7F: safety layers on and read back: safe_edge 2, edge_bot_cm 11, tilt_stop_deg 5, tilt_ms 300, safe_lift 1
+21:21:39   AL-1DC0: safety layers on and read back: safe_edge 2, edge_bot_cm 11, tilt_stop_deg 5, tilt_ms 300, safe_lift 1
+21:21:49   tag 2: turned -0 deg with AL-2B7F's wiggle, -0 deg from where it started after it
+21:21:49   tag 3: turned +95 deg with AL-2B7F's wiggle, +1 deg from where it started after it
+21:21:49   AL-2B7F: bound by the wiggle (no pin yet)
+21:21:57   tag 2: turned +98 deg with AL-1DC0's wiggle, -2 deg from where it started after it
+21:21:57   tag 3: turned +0 deg with AL-1DC0's wiggle, +1 deg from where it started after it
+21:21:57   AL-1DC0: bound by the wiggle (no pin yet)
+21:21:57 Bound (wiggle (experiments.py sync wiggle, 90 deg and back; pinned robots a 45 deg check)): AL-2B7F = tag 3, AL-1DC0 = tag 2
+21:21:58 2 robots: calibrated one after another (AL-1DC0 at P11, AL-2B7F at P01)
+21:22:00 === AL-1DC0 (robot 1 of 2): calibrated at P11; kept out round parked robot AL-2B7F ===
+21:22:00 AL-1DC0's current values (saved first): {'wheel_scale': 1.0, 'gyro_scale': 1.0, 'gyro_drift_dps': 0.0}
+21:22:00 PHASE A STARTS FROM DEFAULTS 1 / 1 / 0: asked for (--baseline-defaults / calibration.baseline defaults)
+21:22:05 HEADING CHECK AL-1DC0: moved 6.2 cm at 177 deg from the tag's heading: tag heading offset -180 deg  <- the tag is turned on the robot; every camera heading of tag 2 corrected (observed, not typed)
+21:22:09 AL-1DC0 goes to its spot P11 first (5 cm away), out of the way
+21:22:32 AL-1DC0 parked at P11: 2.0 cm from the sticker, facing 92 deg
+21:22:32 Phase A: baseline with the defaults {'wheel_scale': 1.0, 'gyro_scale': 1.0, 'gyro_drift_dps': 0.0}
+21:22:56   tag offset from the turning point: -0.1 cm ahead, 0.0 cm left (0.1 cm, fit +- 0.2 cm)
+21:23:19   still 20 s: the robot's own heading moved +0.22 deg (camera +0.23): +0.0109 deg/s
+21:24:30 Tour A1: P10 P14 P17 P12 P20 P13 P11
+21:26:28   stop lead (each leg sent this much short so it ends on the spot): 0.22 cm at 5.0 cm/s, 0.19 cm at 10.0 cm/s
+21:26:28 Fit: wheel_scale 0.9759 +- 0.0064 (ok), gyro_scale 1.0911 +- 0.0023 (ok), gyro_drift_dps 0.0273 +- 0.0488 (not pinned down: +-0.0488 (need +-0.0300))
+21:26:29   SAVE: saved on the robot with `save` (firmware 2026-11-05a or newer) and checked: wheel_scale 0.9759 (saved), gyro_scale 1.0911 (saved), gyro_drift_dps 0.0000 (saved)
+21:26:29   AL-1DC0 recorded as calibrated (/tmp/claude-0/-home-claude/fff6dc9c-5876-54f9-92a7-a08483d3d5c7/scratchpad/reh/cal2/sim/calibrated_robots.json): its next calibration starts from its saved values
+21:26:42   still 10 s: the robot's own heading moved +0.36 deg (camera -0.40): +0.0355 deg/s
+21:26:42 Tour C1: P10 P14 P17 P12 P20 P13 P11
+21:27:52   safety: from where the camera sees it, the leg to P20 would reach middle outlet box (12.9 cm): pose corrected first
+21:28:51   still 10 s: the robot's own heading moved -0.05 deg (camera -0.10): -0.0049 deg/s
+21:28:51 Tour C2: P13 P20 P12 P17 P14 P10 P11
+21:29:27   safety: from where the camera sees it, the leg to P12 would reach middle outlet box (13.0 cm): pose corrected first
+21:31:04   still 10 s: the robot's own heading moved +0.19 deg (camera -0.24): +0.0187 deg/s
+21:31:04 Tour C3: P10 P12 P20 P17 P14 P13 P11
+21:33:18 AL-1DC0 parked at P11: 0.3 cm from the sticker, facing 90 deg
+21:33:18 AL-1DC0 stays awake (its values stay in force); it sleeps after 30 minutes with no run (Mission Control), or by hand: python3 tools/pi/robot_sleep.py sleep
+21:33:20 === AL-2B7F (robot 2 of 2): calibrated at P01; kept out round parked robot AL-1DC0 ===
+21:33:20 AL-2B7F's current values (saved first): {'wheel_scale': 1.0, 'gyro_scale': 1.0, 'gyro_drift_dps': 0.0}
+21:33:20 PHASE A STARTS FROM DEFAULTS 1 / 1 / 0: asked for (--baseline-defaults / calibration.baseline defaults)
+21:33:24 HEADING CHECK AL-2B7F: moved 6.0 cm at 90 deg from the tag's heading: tag heading offset +90 deg  <- the tag is turned on the robot; every camera heading of tag 3 corrected (observed, not typed)
+21:33:28 AL-2B7F goes to its spot P01 first (5 cm away), out of the way
+21:33:52 AL-2B7F parked at P01: 1.4 cm from the sticker, facing 92 deg
+21:33:52 Phase A: baseline with the defaults {'wheel_scale': 1.0, 'gyro_scale': 1.0, 'gyro_drift_dps': 0.0}
+21:34:16   tag offset from the turning point: 0.0 cm ahead, 0.1 cm left (0.1 cm, fit +- 0.1 cm)
+21:34:39   still 20 s: the robot's own heading moved -1.26 deg (camera -0.22): -0.0626 deg/s
+21:34:40   rolls towards +0 deg (more room there from P01)
+21:35:24   roll 40 cm back skipped: would reach the edge margin (16.1 cm from the edge, 12.1 with the leg's possible error)
+21:35:37 Tour A1: P10 P14 P17 P12 P20 P13 P01
+21:35:38   P10: round zone 1 outlet plate (5.0 cm) by (73, 60)
+21:36:40   safety: from where the camera sees it, the leg to P12 would reach parked robot AL-1DC0 (12.1 cm): pose corrected first
+21:36:44   safety: after the turn, the drive to P12 would reach parked robot AL-1DC0 (9.3 cm): heading fixed from the camera (+6.6 deg)
+21:37:00   safety: from where the camera sees it, the leg to P20 would reach middle outlet box (13.2 cm): pose corrected first
+21:37:30   safety: from where the camera sees it, the leg to P01 would reach the edge margin (22.4 cm from the edge, 8.6 with the leg's possible error): pose corrected first
+21:37:48   stop lead (each leg sent this much short so it ends on the spot): 0.37 cm at 5.0 cm/s, 0.37 cm at 10.0 cm/s
+21:37:48 Fit: wheel_scale 0.9755 +- 0.0070 (ok), gyro_scale 1.0921 +- 0.0021 (ok), gyro_drift_dps -0.0772 +- 0.0410 (not pinned down: +-0.0410 (need +-0.0300))
+21:37:49   SAVE: saved on the robot with `save` (firmware 2026-11-05a or newer) and checked: wheel_scale 0.9755 (saved), gyro_scale 1.0921 (saved), gyro_drift_dps 0.0000 (saved)
+21:37:49   AL-2B7F recorded as calibrated (/tmp/claude-0/-home-claude/fff6dc9c-5876-54f9-92a7-a08483d3d5c7/scratchpad/reh/cal2/sim/calibrated_robots.json): its next calibration starts from its saved values
+21:38:02   still 10 s: the robot's own heading moved -0.97 deg (camera +1.33): -0.0957 deg/s
+21:38:02 Tour C1: P10 P14 P17 P12 P20 P13 P01
+21:38:03   P10: round zone 1 outlet plate (5.3 cm) by (73, 60)
+21:38:18   safety: from where the camera sees it, the leg to P10 would reach zone 1 outlet plate (12.6 cm): pose corrected first
+21:39:22   safety: from where the camera sees it, the leg to P20 would reach middle outlet box (13.0 cm): pose corrected first
+21:40:27   still 10 s: the robot's own heading moved -0.77 deg (camera +0.80): -0.0760 deg/s
+21:40:27 Tour C2: P13 P20 P12 P17 P14 P10 P01
+21:41:10   safety: from where the camera sees it, the leg to P12 would reach middle outlet box (13.2 cm): pose corrected first
+21:42:15   P01: round zone 1 outlet plate (4.6 cm) by (73, 60)
+21:42:15   safety: from where the camera sees it, the leg to (72.91594813088643, 59.7946697481435) would reach zone 1 outlet plate (12.1 cm): pose corrected first
+21:42:55   still 10 s: the robot's own heading moved -0.36 deg (camera -0.15): -0.0355 deg/s
+21:42:55 Tour C3: P10 P12 P20 P17 P14 P13 P01
+21:42:56   P10: round zone 1 outlet plate (5.7 cm) by (73, 60)
+21:43:14   safety: from where the camera sees it, the leg to P10 would reach zone 1 outlet plate (11.9 cm): pose corrected first
+21:43:28   safety: from where the camera sees it, the leg to P12 would reach parked robot AL-1DC0 (12.1 cm): pose corrected first
+21:43:47   safety: from where the camera sees it, the leg to P20 would reach middle outlet box (13.1 cm): pose corrected first
+21:44:03   P17: round parked robot AL-1DC0 (6.3 cm) by (128, 70)
+21:44:03   safety: from where the camera sees it, the leg to (127.79880284211754, 70.01717954422436) would reach parked robot AL-1DC0 (12.5 cm): pose corrected first
+21:44:07   safety: after the turn, the drive to P17 via would reach parked robot AL-1DC0 (12.8 cm): heading fixed from the camera (-2.1 deg)
+21:45:42 AL-2B7F parked at P01: 0.3 cm from the sticker, facing 90 deg
+21:45:42 AL-2B7F stays awake (its values stay in force); it sleeps after 30 minutes with no run (Mission Control), or by hand: python3 tools/pi/robot_sleep.py sleep
+21:45:43 RESULT: 2 robots: AL-1DC0 finished; AL-2B7F finished
+21:45:43 Report: /tmp/claude-0/-home-claude/fff6dc9c-5876-54f9-92a7-a08483d3d5c7/scratchpad/reh/cal2/report.md
+exit 0

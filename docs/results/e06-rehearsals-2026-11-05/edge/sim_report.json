@@ -1,0 +1,71 @@
+{
+ "dockings": [],
+ "min_body_gap_cm": Infinity,
+ "min_body_gap_at": null,
+ "min_static_clearance_cm": Infinity,
+ "min_static_at": null,
+ "collision": false,
+ "events": [],
+ "packets_lost": {
+  "Alpha": {
+   "to_robot": 0,
+   "from_robot": 0
+  }
+ },
+ "robot_runs": {
+  "Alpha": [
+   {
+    "run": "DB91-1",
+    "exp": "follow",
+    "result": "stopped:stop command"
+   },
+   {
+    "run": "DB91-2",
+    "exp": "follow",
+    "result": "stopped:stop command"
+   }
+  ]
+ },
+ "tof_sees_robots": true,
+ "seed": 5,
+ "true_sides": {
+  "x_min": {
+   "kind": "open",
+   "source": "conference table (Nick: no walls)"
+  },
+  "x_max": {
+   "kind": "open",
+   "source": "conference table (Nick: no walls)"
+  },
+  "y_min": {
+   "kind": "open",
+   "source": "conference table (Nick: no walls)"
+  },
+  "y_max": {
+   "kind": "open",
+   "source": "conference table (Nick: no walls)"
+  }
+ },
+ "min_open_edge_cm": 6.4,
+ "min_open_edge_at": [
+  "Alpha",
+  83.67
+ ],
+ "hung": [],
+ "min_com_open_edge_cm": {
+  "Alpha": 11.68
+ },
+ "edge_trips": {
+  "Alpha": []
+ },
+ "edge_misses": {
+  "Alpha": []
+ },
+ "board_cm": [
+  0.0,
+  0.0,
+  396.2,
+  167.6
+ ],
+ "drop_cm": 74.0
+}

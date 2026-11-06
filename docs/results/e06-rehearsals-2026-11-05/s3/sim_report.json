@@ -1,0 +1,130 @@
+{
+ "dockings": [],
+ "min_body_gap_cm": 20.77,
+ "min_body_gap_at": [
+  "Alpha",
+  "Bravo",
+  24.98
+ ],
+ "min_static_clearance_cm": Infinity,
+ "min_static_at": null,
+ "collision": false,
+ "events": [
+  {
+   "kind": "robot_restart",
+   "robot": "Alpha",
+   "t": 70.01,
+   "boot_s": 3.0
+  },
+  {
+   "kind": "wifi_drop_start",
+   "robot": "Alpha",
+   "t": 70.01
+  },
+  {
+   "kind": "wifi_drop_end",
+   "robot": "Alpha",
+   "t": 73.01
+  }
+ ],
+ "packets_lost": {
+  "Alpha": {
+   "to_robot": 18,
+   "from_robot": 88
+  },
+  "Bravo": {
+   "to_robot": 0,
+   "from_robot": 0
+  },
+  "Charlie": {
+   "to_robot": 0,
+   "from_robot": 0
+  }
+ },
+ "robot_runs": {
+  "Alpha": [
+   {
+    "run": "7564-1",
+    "exp": "follow",
+    "result": "stopped:stop command"
+   },
+   {
+    "run": "7564-2",
+    "exp": "follow",
+    "result": "stopped:restarted"
+   }
+  ],
+  "Bravo": [
+   {
+    "run": "D3E1-1",
+    "exp": "follow",
+    "result": "stopped:stop command"
+   },
+   {
+    "run": "D3E1-2",
+    "exp": "follow",
+    "result": "stopped:stop command"
+   }
+  ],
+  "Charlie": [
+   {
+    "run": "5300-1",
+    "exp": "follow",
+    "result": "stopped:stop command"
+   },
+   {
+    "run": "5300-2",
+    "exp": "follow",
+    "result": "stopped:stop command"
+   }
+  ]
+ },
+ "tof_sees_robots": true,
+ "seed": 4,
+ "true_sides": {
+  "x_min": {
+   "kind": "open",
+   "source": "conference table (Nick: no walls)"
+  },
+  "x_max": {
+   "kind": "open",
+   "source": "conference table (Nick: no walls)"
+  },
+  "y_min": {
+   "kind": "open",
+   "source": "conference table (Nick: no walls)"
+  },
+  "y_max": {
+   "kind": "open",
+   "source": "conference table (Nick: no walls)"
+  }
+ },
+ "min_open_edge_cm": 8.36,
+ "min_open_edge_at": [
+  "Bravo",
+  24.08
+ ],
+ "hung": [],
+ "min_com_open_edge_cm": {
+  "Alpha": 17.91,
+  "Bravo": 14.59,
+  "Charlie": 17.14
+ },
+ "edge_trips": {
+  "Alpha": [],
+  "Bravo": [],
+  "Charlie": []
+ },
+ "edge_misses": {
+  "Alpha": [],
+  "Bravo": [],
+  "Charlie": []
+ },
+ "board_cm": [
+  0.0,
+  0.0,
+  396.2,
+  167.6
+ ],
+ "drop_cm": 74.0
+}

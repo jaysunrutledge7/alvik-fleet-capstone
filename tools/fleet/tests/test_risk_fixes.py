@@ -4,6 +4,7 @@ pictures, and the new Pi's self-check. No robot, no Pi."""
 import csv
 import json
 import os
+import re
 import socket
 import subprocess
 import sys
@@ -123,9 +124,10 @@ def _site(tmp_path, monkeypatch, text):
 
 def test_broken_site_names_file_line_and_problem(tmp_path, monkeypatch):
     orig = open(os.path.join(FLEET, "sites", "school-conference.json")).read()
-    txt = orig.replace('"height_cm": null', '"height_cm": 6,2')
+    hc = re.search(r'"height_cm": [^,\n]+', orig).group(0)      # null until 11-05h, then Jay-Sun's 6.19
+    txt = orig.replace(hc, '"height_cm": 6,2', 1)
     # the broken line found in the file itself (2026-11-03: the sticker build re-laid the file out; never hard-coded)
-    line = orig[:orig.index('"height_cm": null')].count("\n") + 1
+    line = orig[:orig.index(hc)].count("\n") + 1
     _site(tmp_path, monkeypatch, txt)
     with pytest.raises(SI.SiteFileError) as e:
         SI.load()

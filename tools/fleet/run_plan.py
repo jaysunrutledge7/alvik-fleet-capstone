@@ -2620,13 +2620,13 @@ class Coordinator:
             return                                      # we stopped it for a re-plan
         import observe as OB
         tk = OB.trip_kind(info)
-        if tk == "line" and getattr(self.args, "surface_marks", "auto") != "off":
+        if tk == "line" and getattr(getattr(self, "args", None), "surface_marks", "auto") != "off":
             # (11-05h, Observe then trust) the line sensors alone: with the camera putting the robot well inside the
             # table it is a mark on the surface (school 5 Nov: the black tape over the seam), not an edge. Logged;
             # that robot's line cue is switched off for the rest of the run (the bottom zone stays on), re-planned
             ct = getattr(b, "cam_t", None)
             cam = getattr(b, "last_cam", None)
-            f = self.m["floor"]
+            f = self.m["floor"] if cam else None
             ced = None if not cam else min(cam[0] - f["x_min"], f["x_max"] - cam[0], cam[1] - f["y_min"],
                                            f["y_max"] - cam[1])
             kind = OB.edge_trip_kind(True, False, ced, None if ct is None else now() - ct)

@@ -1,0 +1,262 @@
+{
+ "folder": "/tmp/claude-0/-home-claude/fff6dc9c-5876-54f9-92a7-a08483d3d5c7/scratchpad/reh/hometape-off",
+ "conditions": {},
+ "result": "out of re-plans",
+ "duration_s": 151.2,
+ "planned_s": 106.5,
+ "replans": 30,
+ "robots_out": [],
+ "plans_refused": 0,
+ "sensor_stops": 0,
+ "confirm_checks": [],
+ "battery": {
+  "Left": 94,
+  "Right": 98
+ },
+ "start_checks": {
+  "Left": {
+   "firmware": "2026-11-05d",
+   "battery": 95,
+   "boot": "6EB5",
+   "restarted": false,
+   "stop_limit": {
+    "limit_cm": 10.0,
+    "rule": "ceiling",
+    "floor_cm": null,
+    "ceiling_cm": 10.0
+   },
+   "place_cm": 0.7,
+   "heading_deg": 0.2,
+   "heading_rule": "measured (facing check); straightened if off"
+  },
+  "Right": {
+   "firmware": "2026-11-05d",
+   "battery": 99,
+   "boot": "881F",
+   "restarted": false,
+   "stop_limit": {
+    "limit_cm": 12.0,
+    "rule": "cap",
+    "floor_cm": null,
+    "ceiling_cm": 12.0
+   },
+   "place_cm": 0.22,
+   "heading_deg": 1.7,
+   "heading_rule": "measured (facing check); straightened if off"
+  },
+  "facing": {
+   "Left": {
+    "heading": 90.2,
+    "off": 0.2,
+    "ok": true
+   },
+   "Right": {
+    "heading": 91.7,
+    "off": 1.7,
+    "ok": true
+   }
+  },
+  "settings_resent": 0,
+  "plan_gap": {
+   "closest_cm": 10.0,
+   "pair": [
+    "Left",
+    "Right"
+   ],
+   "t": 85.1,
+   "start_cm": 74.56,
+   "judged_cm": 10.0,
+   "judged_pair": [
+    "Left",
+    "Right"
+   ],
+   "judged_t": 85.1
+  }
+ },
+ "on_problem": "stop",
+ "kept_going": [],
+ "points": [],
+ "points_skipped": [],
+ "points_reassigned": [],
+ "mirror": {
+  "lane_ends": {
+   "time_s": {
+    "max": 0.103,
+    "median": 0.03,
+    "n": 3
+   },
+   "pos_cm": {
+    "max": 0.32,
+    "median": 0.27,
+    "n": 3
+   },
+   "within_target": 3
+  },
+  "all_points": {
+   "time_s": {
+    "max": 0.165,
+    "median": 0.067,
+    "n": 4
+   },
+   "pos_cm": {
+    "max": 0.92,
+    "median": 0.295,
+    "n": 4
+   }
+  },
+  "holds": [
+   {
+    "robot": "Right",
+    "key": "46.0,30.5#1",
+    "s": 2.1,
+    "t_run": 12.74
+   }
+  ],
+  "retimed_legs": {
+   "Left": 4,
+   "Right": 5
+  },
+  "target_s": 0.5,
+  "target_cm": 3.0
+ },
+ "sim": {
+  "min_body_gap_cm": 15.95,
+  "min_body_gap_at": [
+   "Left",
+   "Right",
+   31.1
+  ],
+  "collision": false,
+  "min_open_edge_cm": 9.82,
+  "min_open_edge_at": [
+   "Left",
+   7.45
+  ],
+  "hung": []
+ },
+ "line_check": {
+  "Left": {
+   "p95_cm": 0.55,
+   "within_pct": 100.0,
+   "misses": {
+    "misses": 0,
+    "single": 0,
+    "runs": 0,
+    "in_runs": 0,
+    "longest": 0,
+    "longest_s": 0.0
+   },
+   "sure_share_pct": 100.0,
+   "camera_vs_truth": {
+    "n": 1367,
+    "median_cm": 0.52,
+    "p95_cm": 0.67,
+    "max_cm": 1.03,
+    "within_gate_pct": 100.0
+   }
+  },
+  "Right": {
+   "p95_cm": 0.24,
+   "within_pct": 100.0,
+   "misses": {
+    "misses": 0,
+    "single": 0,
+    "runs": 0,
+    "in_runs": 0,
+    "longest": 0,
+    "longest_s": 0.0
+   },
+   "sure_share_pct": 100.0,
+   "camera_vs_truth": {
+    "n": 1367,
+    "median_cm": 0.4,
+    "p95_cm": 0.5,
+    "max_cm": 0.76,
+    "within_gate_pct": 100.0
+   }
+  }
+ },
+ "closest_by_camera": {
+  "centres_cm": 29.03,
+  "bodies_cm": 19.53,
+  "robots": [
+   "Left",
+   "Right"
+  ],
+  "t": 1793935877.5888
+ },
+ "camera": {
+  "frames": 2465,
+  "robots": {
+   "Left": {
+    "seen": 2460,
+    "unsure": 0,
+    "predicted": 0,
+    "lost": 0,
+    "fixes": 2458,
+    "headings": 27,
+    "both": 2458
+   },
+   "Right": {
+    "seen": 2460,
+    "unsure": 0,
+    "predicted": 0,
+    "lost": 0,
+    "fixes": 2458,
+    "headings": 14,
+    "both": 2456,
+    "overhead": 2
+   }
+  },
+  "farm": null
+ },
+ "reached": {
+  "Left": [
+   "mow",
+   "meet",
+   "circle",
+   "chicken 1 ready",
+   "chicken 1 pass",
+   "spread out"
+  ],
+  "Right": [
+   "mow",
+   "meet",
+   "circle"
+  ]
+ },
+ "exports": {
+  "version": "2026-11-03a",
+  "camera_track": {
+   "file": "/tmp/claude-0/-home-claude/fff6dc9c-5876-54f9-92a7-a08483d3d5c7/scratchpad/reh/hometape-off/run/camera_track.csv",
+   "rows": {
+    "Left": 2460,
+    "Right": 2460
+   }
+  },
+  "odometry_raw": {
+   "file": "/tmp/claude-0/-home-claude/fff6dc9c-5876-54f9-92a7-a08483d3d5c7/scratchpad/reh/hometape-off/run/odometry_raw.csv",
+   "rows": {
+    "Right": 7566,
+    "Left": 7565
+   },
+   "anchors": {
+    "Right": [
+     "segment 1 anchored on its own pose (104.9, 16.8, 91.7 deg) at ms 401262"
+    ],
+    "Left": [
+     "segment 1 anchored on its own pose (17.7, 17.0, 90.2 deg) at ms 202757"
+    ]
+   }
+  }
+ },
+ "pose_timeline": {
+  "file": "/tmp/claude-0/-home-claude/fff6dc9c-5876-54f9-92a7-a08483d3d5c7/scratchpad/reh/hometape-off/pose_timeline.csv",
+  "rows": {
+   "Left, camera": 2460,
+   "Right, camera": 2460,
+   "Right, robot's own pose": 1447,
+   "Left, robot's own pose": 1447
+  }
+ }
+}

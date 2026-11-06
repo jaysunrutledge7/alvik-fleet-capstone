@@ -1,0 +1,433 @@
+{
+ "observe": {
+  "trips": [],
+  "recoveries": [],
+  "heading_relearned": [],
+  "surface_marks": [],
+  "did_not_move": 0,
+  "skipped": []
+ },
+ "plan_id_first": "plan-8712cb021e",
+ "plans": 1,
+ "result": "done",
+ "duration_s": 98.8,
+ "planned_makespan_s": 106.5,
+ "resends": {
+  "Left": 0,
+  "Right": 0
+ },
+ "steps_sent": {
+  "Left": 65,
+  "Right": 64
+ },
+ "fixes_sent": {
+  "Left": 936,
+  "Right": 936
+ },
+ "fixes_held_no_pose": {
+  "Left": 14,
+  "Right": 14
+ },
+ "warnings": [],
+ "held_at_start": {},
+ "fixes_used_rejected": {
+  "Left": [
+   "935",
+   "0"
+  ],
+  "Right": [
+   "935",
+   "0"
+  ]
+ },
+ "replans": [],
+ "dockings_reported": [],
+ "boards_not_visited": {},
+ "sensor_obstacles": 0,
+ "sensor_stops": [],
+ "robots_out": [],
+ "plans_refused": 0,
+ "front_stop": {
+  "readings": 3,
+  "stop_cm": {
+   "Left": 10.0,
+   "Right": 12.0
+  },
+  "unconfirmed": {
+   "added": 0
+  },
+  "no_plan_drops": 0
+ },
+ "rejoins": [],
+ "confirm_checks": [],
+ "battery": {
+  "Left": 89,
+  "Right": 91
+ },
+ "boot": {
+  "Left": "1E7A",
+  "Right": "5067"
+ },
+ "start_checks": {
+  "Left": {
+   "firmware": "2026-11-05d",
+   "battery": 89,
+   "boot": "1E7A",
+   "restarted": false,
+   "stop_limit": {
+    "limit_cm": 10.0,
+    "rule": "ceiling",
+    "floor_cm": null,
+    "ceiling_cm": 10.0
+   },
+   "place_cm": 0.06,
+   "heading_deg": 1.0,
+   "heading_rule": "measured (facing check); straightened if off"
+  },
+  "Right": {
+   "firmware": "2026-11-05d",
+   "battery": 92,
+   "boot": "5067",
+   "restarted": false,
+   "stop_limit": {
+    "limit_cm": 12.0,
+    "rule": "cap",
+    "floor_cm": null,
+    "ceiling_cm": 12.0
+   },
+   "place_cm": 0.33,
+   "heading_deg": 0.4,
+   "heading_rule": "measured (facing check); straightened if off"
+  },
+  "facing": {
+   "Left": {
+    "heading": 89.0,
+    "off": -1.0,
+    "ok": true
+   },
+   "Right": {
+    "heading": 90.4,
+    "off": 0.4,
+    "ok": true
+   }
+  },
+  "settings_resent": 0,
+  "plan_gap": {
+   "closest_cm": 10.0,
+   "pair": [
+    "Left",
+    "Right"
+   ],
+   "t": 85.1,
+   "start_cm": 74.56,
+   "judged_cm": 10.0,
+   "judged_pair": [
+    "Left",
+    "Right"
+   ],
+   "judged_t": 85.1
+  }
+ },
+ "straighten": {
+  "tries": [
+   {
+    "measured": {
+     "Left": [
+      16.94,
+      16.98,
+      89.0
+     ],
+     "Right": [
+      105.21,
+      17.26,
+      90.4
+     ]
+    },
+    "side_only": {
+     "Left": false,
+     "Right": false
+    },
+    "start": {
+     "Left": [
+      17.0,
+      17.0,
+      90.0
+     ],
+     "Right": [
+      105.0,
+      17.0,
+      90.0
+     ]
+    }
+   }
+  ],
+  "result": "ready after 0 correction(s)"
+ },
+ "blind": [],
+ "on_problem": "stop",
+ "lost_robot_points": "reassign",
+ "kept_going": [],
+ "points": [],
+ "points_skipped": [],
+ "points_reassigned": [],
+ "turn_pause": {
+  "on": true,
+  "robots": {
+   "Right": {
+    "pauses": 10,
+    "added_s": 3.16,
+    "both": 10,
+    "one_camera": 0,
+    "timed_out": 0,
+    "longest_s": 0.375
+   },
+   "Left": {
+    "pauses": 11,
+    "added_s": 3.46,
+    "both": 11,
+    "one_camera": 0,
+    "timed_out": 0,
+    "longest_s": 0.353
+   }
+  }
+ },
+ "mirror": {
+  "on": true,
+  "robots": [
+   "Left",
+   "Right"
+  ],
+  "target_s": 0.5,
+  "target_cm": 3.0,
+  "points": [
+   {
+    "key": "17.0,44.0#1",
+    "label": "mow lane 1 end",
+    "time_err_s": 0.012,
+    "pos_err_cm": 0.62,
+    "pos_from": "cam",
+    "first": "Left",
+    "t_run": 3.58,
+    "lane_end": true,
+    "ok": true
+   },
+   {
+    "key": "27.3,44.0#1",
+    "label": "mow lane 2 start",
+    "time_err_s": 0.02,
+    "pos_err_cm": 0.15,
+    "pos_from": "cam",
+    "first": "Left",
+    "t_run": 6.92,
+    "lane_end": true,
+    "ok": true
+   },
+   {
+    "key": "27.3,17.0#1",
+    "label": "mow lane 2 end",
+    "time_err_s": 0.118,
+    "pos_err_cm": 0.36,
+    "pos_from": "cam",
+    "first": "Left",
+    "t_run": 12.42,
+    "lane_end": true,
+    "ok": true
+   },
+   {
+    "key": "46.0,30.5#1",
+    "label": "meet",
+    "time_err_s": 0.217,
+    "pos_err_cm": 0.82,
+    "pos_from": "cam",
+    "first": "Right",
+    "t_run": 23.37,
+    "lane_end": false,
+    "ok": true
+   },
+   {
+    "key": "47.8,17.0#1",
+    "label": "mow lane 5 start",
+    "time_err_s": 0.253,
+    "pos_err_cm": 0.94,
+    "pos_from": "cam",
+    "first": "Right",
+    "t_run": 51.1,
+    "lane_end": true,
+    "ok": true
+   },
+   {
+    "key": "47.8,44.0#1",
+    "label": "mow lane 5 end",
+    "time_err_s": 0.187,
+    "pos_err_cm": 0.4,
+    "pos_from": "cam",
+    "first": "Right",
+    "t_run": 57.43,
+    "lane_end": true,
+    "ok": true
+   },
+   {
+    "key": "37.5,44.0#1",
+    "label": "mow lane 6 start",
+    "time_err_s": 0.171,
+    "pos_err_cm": 0.6,
+    "pos_from": "cam",
+    "first": "Right",
+    "t_run": 60.9,
+    "lane_end": true,
+    "ok": true
+   },
+   {
+    "key": "37.5,17.0#1",
+    "label": "mow lane 6 end",
+    "time_err_s": 0.107,
+    "pos_err_cm": 0.75,
+    "pos_from": "cam",
+    "first": "Right",
+    "t_run": 66.27,
+    "lane_end": true,
+    "ok": true
+   },
+   {
+    "key": "40.7,30.5#1",
+    "label": "spread out",
+    "time_err_s": 0.123,
+    "pos_err_cm": 0.22,
+    "pos_from": "cam",
+    "first": "Right",
+    "t_run": 97.58,
+    "lane_end": false,
+    "ok": true
+   }
+  ],
+  "lane_ends": {
+   "time_s": {
+    "max": 0.253,
+    "median": 0.118,
+    "n": 7
+   },
+   "pos_cm": {
+    "max": 0.94,
+    "median": 0.6,
+    "n": 7
+   },
+   "within_target": 7
+  },
+  "all_points": {
+   "time_s": {
+    "max": 0.253,
+    "median": 0.123,
+    "n": 9
+   },
+   "pos_cm": {
+    "max": 0.94,
+    "median": 0.6,
+    "n": 9
+   }
+  },
+  "holds": [
+   {
+    "robot": "Right",
+    "key": "46.0,30.5#1",
+    "s": 2.13,
+    "t_run": 12.92
+   },
+   {
+    "robot": "Right",
+    "key": "47.8,17.0#1",
+    "s": 0.02,
+    "t_run": 46.84
+   },
+   {
+    "robot": "Left",
+    "key": "40.7,30.5#1",
+    "s": 0.02,
+    "t_run": 89.69
+   }
+  ],
+  "retimed_legs": {
+   "Left": 12,
+   "Right": 10
+  }
+ },
+ "simulator": {
+  "dockings": [],
+  "min_body_gap_cm": 9.95,
+  "min_body_gap_at": [
+   "Left",
+   "Right",
+   87.64
+  ],
+  "min_static_clearance_cm": Infinity,
+  "min_static_at": null,
+  "collision": false,
+  "events": [],
+  "packets_lost": {
+   "Left": {
+    "to_robot": 0,
+    "from_robot": 0
+   },
+   "Right": {
+    "to_robot": 0,
+    "from_robot": 0
+   }
+  },
+  "robot_runs": {
+   "Left": [
+    {
+     "run": "1E7A-1",
+     "exp": "follow",
+     "result": "stopped:stop command"
+    }
+   ],
+   "Right": [
+    {
+     "run": "5067-1",
+     "exp": "follow",
+     "result": "stopped:stop command"
+    }
+   ]
+  },
+  "tof_sees_robots": true,
+  "seed": 2,
+  "true_sides": {
+   "x_min": {
+    "kind": "unknown"
+   },
+   "x_max": {
+    "kind": "unknown"
+   },
+   "y_min": {
+    "kind": "unknown"
+   },
+   "y_max": {
+    "kind": "unknown"
+   }
+  },
+  "min_open_edge_cm": 9.21,
+  "min_open_edge_at": [
+   "Right",
+   45.14
+  ],
+  "hung": [],
+  "min_com_open_edge_cm": {
+   "Left": 15.12,
+   "Right": 14.43
+  },
+  "edge_trips": {
+   "Left": [],
+   "Right": []
+  },
+  "edge_misses": {
+   "Left": [],
+   "Right": []
+  },
+  "board_cm": [
+   0.0,
+   0.0,
+   122.0,
+   61.0
+  ],
+  "drop_cm": 1.9
+ }
+}

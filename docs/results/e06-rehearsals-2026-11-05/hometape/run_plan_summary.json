@@ -1,0 +1,1943 @@
+{
+ "observe": {
+  "trips": [],
+  "recoveries": [],
+  "heading_relearned": [],
+  "surface_marks": [
+   {
+    "robot": "Left",
+    "at": [
+     56.12,
+     16.71,
+     null
+    ],
+    "info": "plywood edge at 56.5 16.5 -18.6 line"
+   },
+   {
+    "robot": "Right",
+    "at": [
+     66.14,
+     44.37,
+     null
+    ],
+    "info": "plywood edge at 65.8 44.6 161.0 line"
+   }
+  ],
+  "did_not_move": 0,
+  "skipped": []
+ },
+ "plan_id_first": "plan-8712cb021e",
+ "plans": 31,
+ "result": "out of re-plans",
+ "duration_s": 319.45,
+ "planned_makespan_s": 106.5,
+ "resends": {
+  "Left": 0,
+  "Right": 0
+ },
+ "steps_sent": {
+  "Left": 20,
+  "Right": 19
+ },
+ "fixes_sent": {
+  "Left": 2873,
+  "Right": 2873
+ },
+ "fixes_held_no_pose": {
+  "Left": 14,
+  "Right": 14
+ },
+ "warnings": [],
+ "held_at_start": {},
+ "fixes_used_rejected": {
+  "Left": [
+   "2871",
+   "0"
+  ],
+  "Right": [
+   "2872",
+   "0"
+  ]
+ },
+ "replans": [
+  {
+   "t_run": 30.95,
+   "source": "retry",
+   "cpu_s": 6.174,
+   "budget_s": 2.0,
+   "events": [
+    {
+     "robot": "Left",
+     "action": "stopped",
+     "reason": "its step failed"
+    },
+    {
+     "robot": "Right",
+     "action": "continues",
+     "reason": "path clear for the next 2.0 s; carries on 1 step(s), then holds; no safe route yet, stays put until the next re-plan"
+    }
+   ],
+   "new_makespan_s": 1.0,
+   "stranded": [
+    "Left",
+    "Right"
+   ],
+   "obstacle": null,
+   "states": {
+    "Left": {
+     "pose": [
+      56.47,
+      16.48,
+      -0.3244567079457459
+     ],
+     "step": 17,
+     "in_progress": true,
+     "dwell_left_s": null,
+     "ended": "plywood edge at 56.5 16.5 -18.6 line"
+    },
+    "Right": {
+     "pose": [
+      66.81,
+      44.21,
+      2.7358036025011114
+     ],
+     "step": 16,
+     "in_progress": true,
+     "dwell_left_s": null,
+     "ended": null
+    }
+   },
+   "old_plan": 0
+  },
+  {
+   "t_run": 37.13,
+   "source": "retry",
+   "cpu_s": 3.969,
+   "budget_s": 2.0,
+   "events": [
+    {
+     "robot": "Left",
+     "action": "continues",
+     "reason": "path clear for the next 2.0 s; carries on 1 step(s), then holds; no safe route yet, stays put until the next re-plan"
+    },
+    {
+     "robot": "Right",
+     "action": "stopped",
+     "reason": "its step failed"
+    }
+   ],
+   "new_makespan_s": 0.8,
+   "stranded": [
+    "Left",
+    "Right"
+   ],
+   "obstacle": null,
+   "states": {
+    "Left": {
+     "pose": [
+      56.89,
+      16.53,
+      -0.3111922056305889
+     ],
+     "step": 0,
+     "in_progress": false,
+     "dwell_left_s": null,
+     "ended": null
+    },
+    "Right": {
+     "pose": [
+      65.52,
+      44.72,
+      2.8221974004748307
+     ],
+     "step": 0,
+     "in_progress": false,
+     "dwell_left_s": null,
+     "ended": null
+    }
+   },
+   "old_plan": 1
+  },
+  {
+   "t_run": 44.13,
+   "source": "retry",
+   "cpu_s": 3.153,
+   "budget_s": 6.0,
+   "events": [
+    {
+     "robot": "Left",
+     "action": "holds",
+     "reason": "was waiting for a route; gets one now; no safe route yet, stays put until the next re-plan"
+    },
+    {
+     "robot": "Right",
+     "action": "holds",
+     "reason": "was waiting for a route; gets one now; no safe route yet, stays put until the next re-plan"
+    }
+   ],
+   "new_makespan_s": 0.0,
+   "stranded": [
+    "Left",
+    "Right"
+   ],
+   "obstacle": null,
+   "states": {
+    "Left": {
+     "pose": [
+      61.1,
+      15.89,
+      -0.017278759594743863
+     ],
+     "step": 1,
+     "in_progress": false,
+     "dwell_left_s": null,
+     "ended": null
+    },
+    "Right": {
+     "pose": [
+      61.28,
+      45.35,
+      3.1332150731802204
+     ],
+     "step": 1,
+     "in_progress": false,
+     "dwell_left_s": null,
+     "ended": null
+    }
+   },
+   "old_plan": 2
+  },
+  {
+   "t_run": 50.29,
+   "source": "retry",
+   "cpu_s": 5.505,
+   "budget_s": 12.0,
+   "events": [
+    {
+     "robot": "Left",
+     "action": "holds",
+     "reason": "was waiting for a route; gets one now; no safe route yet, stays put until the next re-plan"
+    },
+    {
+     "robot": "Right",
+     "action": "holds",
+     "reason": "was waiting for a route; gets one now; no safe route yet, stays put until the next re-plan"
+    }
+   ],
+   "new_makespan_s": 0.0,
+   "stranded": [
+    "Left",
+    "Right"
+   ],
+   "obstacle": null,
+   "states": {
+    "Left": {
+     "pose": [
+      61.12,
+      15.9,
+      -0.02007128639793479
+     ],
+     "step": 0,
+     "in_progress": false,
+     "dwell_left_s": null,
+     "ended": null
+    },
+    "Right": {
+     "pose": [
+      61.32,
+      45.34,
+      3.129026282975434
+     ],
+     "step": 0,
+     "in_progress": false,
+     "dwell_left_s": null,
+     "ended": null
+    }
+   },
+   "old_plan": 3
+  },
+  {
+   "t_run": 58.81,
+   "source": "retry",
+   "cpu_s": 8.785,
+   "budget_s": 12.0,
+   "events": [
+    {
+     "robot": "Left",
+     "action": "holds",
+     "reason": "was waiting for a route; gets one now; no safe route yet, stays put until the next re-plan"
+    },
+    {
+     "robot": "Right",
+     "action": "holds",
+     "reason": "was waiting for a route; gets one now; no safe route yet, stays put until the next re-plan"
+    }
+   ],
+   "new_makespan_s": 0.0,
+   "stranded": [
+    "Left",
+    "Right"
+   ],
+   "obstacle": null,
+   "states": {
+    "Left": {
+     "pose": [
+      61.12,
+      15.9,
+      -0.024783675378319478
+     ],
+     "step": 0,
+     "in_progress": false,
+     "dwell_left_s": null,
+     "ended": null
+    },
+    "Right": {
+     "pose": [
+      61.33,
+      45.33,
+      3.125012025695847
+     ],
+     "step": 0,
+     "in_progress": false,
+     "dwell_left_s": null,
+     "ended": null
+    }
+   },
+   "old_plan": 4
+  },
+  {
+   "t_run": 70.61,
+   "source": "retry",
+   "cpu_s": 7.754,
+   "budget_s": 12.0,
+   "events": [
+    {
+     "robot": "Left",
+     "action": "holds",
+     "reason": "was waiting for a route; gets one now; no safe route yet, stays put until the next re-plan"
+    },
+    {
+     "robot": "Right",
+     "action": "holds",
+     "reason": "was waiting for a route; gets one now; no safe route yet, stays put until the next re-plan"
+    }
+   ],
+   "new_makespan_s": 0.0,
+   "stranded": [
+    "Left",
+    "Right"
+   ],
+   "obstacle": null,
+   "states": {
+    "Left": {
+     "pose": [
+      61.13,
+      15.9,
+      -0.030019663134302467
+     ],
+     "step": 0,
+     "in_progress": false,
+     "dwell_left_s": null,
+     "ended": null
+    },
+    "Right": {
+     "pose": [
+      61.34,
+      45.33,
+      3.1215213671918582
+     ],
+     "step": 0,
+     "in_progress": false,
+     "dwell_left_s": null,
+     "ended": null
+    }
+   },
+   "old_plan": 5
+  },
+  {
+   "t_run": 81.38,
+   "source": "retry",
+   "cpu_s": 8.399,
+   "budget_s": 12.0,
+   "events": [
+    {
+     "robot": "Left",
+     "action": "holds",
+     "reason": "was waiting for a route; gets one now; no safe route yet, stays put until the next re-plan"
+    },
+    {
+     "robot": "Right",
+     "action": "holds",
+     "reason": "was waiting for a route; gets one now; no safe route yet, stays put until the next re-plan"
+    }
+   ],
+   "new_makespan_s": 0.0,
+   "stranded": [
+    "Left",
+    "Right"
+   ],
+   "obstacle": null,
+   "states": {
+    "Left": {
+     "pose": [
+      61.13,
+      15.9,
+      -0.03298672286269283
+     ],
+     "step": 0,
+     "in_progress": false,
+     "dwell_left_s": null,
+     "ended": null
+    },
+    "Right": {
+     "pose": [
+      61.35,
+      45.33,
+      3.1196015050146646
+     ],
+     "step": 0,
+     "in_progress": false,
+     "dwell_left_s": null,
+     "ended": null
+    }
+   },
+   "old_plan": 6
+  },
+  {
+   "t_run": 92.79,
+   "source": "retry",
+   "cpu_s": 5.58,
+   "budget_s": 12.0,
+   "events": [
+    {
+     "robot": "Left",
+     "action": "holds",
+     "reason": "was waiting for a route; gets one now; no safe route yet, stays put until the next re-plan"
+    },
+    {
+     "robot": "Right",
+     "action": "holds",
+     "reason": "was waiting for a route; gets one now; no safe route yet, stays put until the next re-plan"
+    }
+   ],
+   "new_makespan_s": 0.0,
+   "stranded": [
+    "Left",
+    "Right"
+   ],
+   "obstacle": null,
+   "states": {
+    "Left": {
+     "pose": [
+      61.13,
+      15.9,
+      -0.035430183815484885
+     ],
+     "step": 0,
+     "in_progress": false,
+     "dwell_left_s": null,
+     "ended": null
+    },
+    "Right": {
+     "pose": [
+      61.35,
+      45.33,
+      3.11785617576267
+     ],
+     "step": 0,
+     "in_progress": false,
+     "dwell_left_s": null,
+     "ended": null
+    }
+   },
+   "old_plan": 7
+  },
+  {
+   "t_run": 101.38,
+   "source": "retry",
+   "cpu_s": 9.035,
+   "budget_s": 12.0,
+   "events": [
+    {
+     "robot": "Left",
+     "action": "holds",
+     "reason": "was waiting for a route; gets one now; no safe route yet, stays put until the next re-plan"
+    },
+    {
+     "robot": "Right",
+     "action": "holds",
+     "reason": "was waiting for a route; gets one now; no safe route yet, stays put until the next re-plan"
+    }
+   ],
+   "new_makespan_s": 0.0,
+   "stranded": [
+    "Left",
+    "Right"
+   ],
+   "obstacle": null,
+   "states": {
+    "Left": {
+     "pose": [
+      61.13,
+      15.9,
+      -0.03577924966588375
+     ],
+     "step": 0,
+     "in_progress": false,
+     "dwell_left_s": null,
+     "ended": null
+    },
+    "Right": {
+     "pose": [
+      61.35,
+      45.33,
+      3.116808978211474
+     ],
+     "step": 0,
+     "in_progress": false,
+     "dwell_left_s": null,
+     "ended": null
+    }
+   },
+   "old_plan": 8
+  },
+  {
+   "t_run": 113.43,
+   "source": "retry",
+   "cpu_s": 8.729,
+   "budget_s": 12.0,
+   "events": [
+    {
+     "robot": "Left",
+     "action": "holds",
+     "reason": "was waiting for a route; gets one now; no safe route yet, stays put until the next re-plan"
+    },
+    {
+     "robot": "Right",
+     "action": "holds",
+     "reason": "was waiting for a route; gets one now; no safe route yet, stays put until the next re-plan"
+    }
+   ],
+   "new_makespan_s": 0.0,
+   "stranded": [
+    "Left",
+    "Right"
+   ],
+   "obstacle": null,
+   "states": {
+    "Left": {
+     "pose": [
+      61.13,
+      15.9,
+      -0.03787364476827695
+     ],
+     "step": 0,
+     "in_progress": false,
+     "dwell_left_s": null,
+     "ended": null
+    },
+    "Right": {
+     "pose": [
+      61.36,
+      45.32,
+      3.114540050183881
+     ],
+     "step": 0,
+     "in_progress": false,
+     "dwell_left_s": null,
+     "ended": null
+    }
+   },
+   "old_plan": 9
+  },
+  {
+   "t_run": 125.17,
+   "source": "retry",
+   "cpu_s": 7.82,
+   "budget_s": 12.0,
+   "events": [
+    {
+     "robot": "Left",
+     "action": "holds",
+     "reason": "was waiting for a route; gets one now; no safe route yet, stays put until the next re-plan"
+    },
+    {
+     "robot": "Right",
+     "action": "holds",
+     "reason": "was waiting for a route; gets one now; no safe route yet, stays put until the next re-plan"
+    }
+   ],
+   "new_makespan_s": 0.0,
+   "stranded": [
+    "Left",
+    "Right"
+   ],
+   "obstacle": null,
+   "states": {
+    "Left": {
+     "pose": [
+      61.13,
+      15.9,
+      -0.039269908169872414
+     ],
+     "step": 0,
+     "in_progress": false,
+     "dwell_left_s": null,
+     "ended": null
+    },
+    "Right": {
+     "pose": [
+      61.36,
+      45.32,
+      3.1113984575302913
+     ],
+     "step": 0,
+     "in_progress": false,
+     "dwell_left_s": null,
+     "ended": null
+    }
+   },
+   "old_plan": 10
+  },
+  {
+   "t_run": 136.01,
+   "source": "retry",
+   "cpu_s": 7.854,
+   "budget_s": 12.0,
+   "events": [
+    {
+     "robot": "Left",
+     "action": "holds",
+     "reason": "was waiting for a route; gets one now; no safe route yet, stays put until the next re-plan"
+    },
+    {
+     "robot": "Right",
+     "action": "holds",
+     "reason": "was waiting for a route; gets one now; no safe route yet, stays put until the next re-plan"
+    }
+   ],
+   "new_makespan_s": 0.0,
+   "stranded": [
+    "Left",
+    "Right"
+   ],
+   "obstacle": null,
+   "states": {
+    "Left": {
+     "pose": [
+      61.13,
+      15.9,
+      -0.041015237421866746
+     ],
+     "step": 0,
+     "in_progress": false,
+     "dwell_left_s": null,
+     "ended": null
+    },
+    "Right": {
+     "pose": [
+      61.36,
+      45.32,
+      3.1065115356247075
+     ],
+     "step": 0,
+     "in_progress": false,
+     "dwell_left_s": null,
+     "ended": null
+    }
+   },
+   "old_plan": 11
+  },
+  {
+   "t_run": 146.88,
+   "source": "retry",
+   "cpu_s": 5.434,
+   "budget_s": 12.0,
+   "events": [
+    {
+     "robot": "Left",
+     "action": "holds",
+     "reason": "was waiting for a route; gets one now; no safe route yet, stays put until the next re-plan"
+    },
+    {
+     "robot": "Right",
+     "action": "holds",
+     "reason": "was waiting for a route; gets one now; no safe route yet, stays put until the next re-plan"
+    }
+   ],
+   "new_makespan_s": 0.0,
+   "stranded": [
+    "Left",
+    "Right"
+   ],
+   "obstacle": null,
+   "states": {
+    "Left": {
+     "pose": [
+      61.13,
+      15.9,
+      -0.04241150082346221
+     ],
+     "step": 0,
+     "in_progress": false,
+     "dwell_left_s": null,
+     "ended": null
+    },
+    "Right": {
+     "pose": [
+      61.36,
+      45.32,
+      3.1045916734475134
+     ],
+     "step": 0,
+     "in_progress": false,
+     "dwell_left_s": null,
+     "ended": null
+    }
+   },
+   "old_plan": 12
+  },
+  {
+   "t_run": 155.32,
+   "source": "retry",
+   "cpu_s": 6.807,
+   "budget_s": 12.0,
+   "events": [
+    {
+     "robot": "Left",
+     "action": "holds",
+     "reason": "was waiting for a route; gets one now; no safe route yet, stays put until the next re-plan"
+    },
+    {
+     "robot": "Right",
+     "action": "holds",
+     "reason": "was waiting for a route; gets one now; no safe route yet, stays put until the next re-plan"
+    }
+   ],
+   "new_makespan_s": 0.0,
+   "stranded": [
+    "Left",
+    "Right"
+   ],
+   "obstacle": null,
+   "states": {
+    "Left": {
+     "pose": [
+      61.13,
+      15.9,
+      -0.04310963252425994
+     ],
+     "step": 0,
+     "in_progress": false,
+     "dwell_left_s": null,
+     "ended": null
+    },
+    "Right": {
+     "pose": [
+      61.36,
+      45.32,
+      3.10249727834512
+     ],
+     "step": 0,
+     "in_progress": false,
+     "dwell_left_s": null,
+     "ended": null
+    }
+   },
+   "old_plan": 13
+  },
+  {
+   "t_run": 165.14,
+   "source": "retry",
+   "cpu_s": 6.879,
+   "budget_s": 12.0,
+   "events": [
+    {
+     "robot": "Left",
+     "action": "holds",
+     "reason": "was waiting for a route; gets one now; no safe route yet, stays put until the next re-plan"
+    },
+    {
+     "robot": "Right",
+     "action": "holds",
+     "reason": "was waiting for a route; gets one now; no safe route yet, stays put until the next re-plan"
+    }
+   ],
+   "new_makespan_s": 0.0,
+   "stranded": [
+    "Left",
+    "Right"
+   ],
+   "obstacle": null,
+   "states": {
+    "Left": {
+     "pose": [
+      61.13,
+      15.9,
+      -0.043807764225057666
+     ],
+     "step": 0,
+     "in_progress": false,
+     "dwell_left_s": null,
+     "ended": null
+    },
+    "Right": {
+     "pose": [
+      61.36,
+      45.32,
+      3.1005774161679267
+     ],
+     "step": 0,
+     "in_progress": false,
+     "dwell_left_s": null,
+     "ended": null
+    }
+   },
+   "old_plan": 14
+  },
+  {
+   "t_run": 175.03,
+   "source": "retry",
+   "cpu_s": 6.656,
+   "budget_s": 12.0,
+   "events": [
+    {
+     "robot": "Left",
+     "action": "holds",
+     "reason": "was waiting for a route; gets one now; no safe route yet, stays put until the next re-plan"
+    },
+    {
+     "robot": "Right",
+     "action": "holds",
+     "reason": "was waiting for a route; gets one now; no safe route yet, stays put until the next re-plan"
+    }
+   ],
+   "new_makespan_s": 0.0,
+   "stranded": [
+    "Left",
+    "Right"
+   ],
+   "obstacle": null,
+   "states": {
+    "Left": {
+     "pose": [
+      61.13,
+      15.9,
+      -0.0445058959258554
+     ],
+     "step": 0,
+     "in_progress": false,
+     "dwell_left_s": null,
+     "ended": null
+    },
+    "Right": {
+     "pose": [
+      61.36,
+      45.32,
+      3.0995302186167297
+     ],
+     "step": 0,
+     "in_progress": false,
+     "dwell_left_s": null,
+     "ended": null
+    }
+   },
+   "old_plan": 15
+  },
+  {
+   "t_run": 184.7,
+   "source": "retry",
+   "cpu_s": 6.696,
+   "budget_s": 12.0,
+   "events": [
+    {
+     "robot": "Left",
+     "action": "holds",
+     "reason": "was waiting for a route; gets one now; no safe route yet, stays put until the next re-plan"
+    },
+    {
+     "robot": "Right",
+     "action": "holds",
+     "reason": "was waiting for a route; gets one now; no safe route yet, stays put until the next re-plan"
+    }
+   ],
+   "new_makespan_s": 0.0,
+   "stranded": [
+    "Left",
+    "Right"
+   ],
+   "obstacle": null,
+   "states": {
+    "Left": {
+     "pose": [
+      61.13,
+      15.9,
+      -0.04520402762665313
+     ],
+     "step": 0,
+     "in_progress": false,
+     "dwell_left_s": null,
+     "ended": null
+    },
+    "Right": {
+     "pose": [
+      61.36,
+      45.32,
+      3.0977848893647355
+     ],
+     "step": 0,
+     "in_progress": false,
+     "dwell_left_s": null,
+     "ended": null
+    }
+   },
+   "old_plan": 16
+  },
+  {
+   "t_run": 194.41,
+   "source": "retry",
+   "cpu_s": 6.511,
+   "budget_s": 12.0,
+   "events": [
+    {
+     "robot": "Left",
+     "action": "holds",
+     "reason": "was waiting for a route; gets one now; no safe route yet, stays put until the next re-plan"
+    },
+    {
+     "robot": "Right",
+     "action": "holds",
+     "reason": "was waiting for a route; gets one now; no safe route yet, stays put until the next re-plan"
+    }
+   ],
+   "new_makespan_s": 0.0,
+   "stranded": [
+    "Left",
+    "Right"
+   ],
+   "obstacle": null,
+   "states": {
+    "Left": {
+     "pose": [
+      61.13,
+      15.9,
+      -0.04729842272904633
+     ],
+     "step": 0,
+     "in_progress": false,
+     "dwell_left_s": null,
+     "ended": null
+    },
+    "Right": {
+     "pose": [
+      61.36,
+      45.32,
+      3.0949923625615448
+     ],
+     "step": 0,
+     "in_progress": false,
+     "dwell_left_s": null,
+     "ended": null
+    }
+   },
+   "old_plan": 17
+  },
+  {
+   "t_run": 203.93,
+   "source": "retry",
+   "cpu_s": 6.776,
+   "budget_s": 12.0,
+   "events": [
+    {
+     "robot": "Left",
+     "action": "holds",
+     "reason": "was waiting for a route; gets one now; no safe route yet, stays put until the next re-plan"
+    },
+    {
+     "robot": "Right",
+     "action": "holds",
+     "reason": "was waiting for a route; gets one now; no safe route yet, stays put until the next re-plan"
+    }
+   ],
+   "new_makespan_s": 0.0,
+   "stranded": [
+    "Left",
+    "Right"
+   ],
+   "obstacle": null,
+   "states": {
+    "Left": {
+     "pose": [
+      61.13,
+      15.9,
+      -0.04991641660703782
+     ],
+     "step": 0,
+     "in_progress": false,
+     "dwell_left_s": null,
+     "ended": null
+    },
+    "Right": {
+     "pose": [
+      61.36,
+      45.32,
+      3.0925489016087524
+     ],
+     "step": 0,
+     "in_progress": false,
+     "dwell_left_s": null,
+     "ended": null
+    }
+   },
+   "old_plan": 18
+  },
+  {
+   "t_run": 213.72,
+   "source": "retry",
+   "cpu_s": 7.251,
+   "budget_s": 12.0,
+   "events": [
+    {
+     "robot": "Left",
+     "action": "holds",
+     "reason": "was waiting for a route; gets one now; no safe route yet, stays put until the next re-plan"
+    },
+    {
+     "robot": "Right",
+     "action": "holds",
+     "reason": "was waiting for a route; gets one now; no safe route yet, stays put until the next re-plan"
+    }
+   ],
+   "new_makespan_s": 0.0,
+   "stranded": [
+    "Left",
+    "Right"
+   ],
+   "obstacle": null,
+   "states": {
+    "Left": {
+     "pose": [
+      61.13,
+      15.9,
+      -0.05166174585903215
+     ],
+     "step": 0,
+     "in_progress": false,
+     "dwell_left_s": null,
+     "ended": null
+    },
+    "Right": {
+     "pose": [
+      61.36,
+      45.32,
+      3.089058243104764
+     ],
+     "step": 0,
+     "in_progress": false,
+     "dwell_left_s": null,
+     "ended": null
+    }
+   },
+   "old_plan": 19
+  },
+  {
+   "t_run": 223.99,
+   "source": "retry",
+   "cpu_s": 7.267,
+   "budget_s": 12.0,
+   "events": [
+    {
+     "robot": "Left",
+     "action": "holds",
+     "reason": "was waiting for a route; gets one now; no safe route yet, stays put until the next re-plan"
+    },
+    {
+     "robot": "Right",
+     "action": "holds",
+     "reason": "was waiting for a route; gets one now; no safe route yet, stays put until the next re-plan"
+    }
+   ],
+   "new_makespan_s": 0.0,
+   "stranded": [
+    "Left",
+    "Right"
+   ],
+   "obstacle": null,
+   "states": {
+    "Left": {
+     "pose": [
+      61.13,
+      15.9,
+      -0.05201081170943102
+     ],
+     "step": 0,
+     "in_progress": false,
+     "dwell_left_s": null,
+     "ended": null
+    },
+    "Right": {
+     "pose": [
+      61.36,
+      45.32,
+      3.086265716301573
+     ],
+     "step": 0,
+     "in_progress": false,
+     "dwell_left_s": null,
+     "ended": null
+    }
+   },
+   "old_plan": 20
+  },
+  {
+   "t_run": 234.27,
+   "source": "retry",
+   "cpu_s": 7.179,
+   "budget_s": 12.0,
+   "events": [
+    {
+     "robot": "Left",
+     "action": "holds",
+     "reason": "was waiting for a route; gets one now; no safe route yet, stays put until the next re-plan"
+    },
+    {
+     "robot": "Right",
+     "action": "holds",
+     "reason": "was waiting for a route; gets one now; no safe route yet, stays put until the next re-plan"
+    }
+   ],
+   "new_makespan_s": 0.0,
+   "stranded": [
+    "Left",
+    "Right"
+   ],
+   "obstacle": null,
+   "states": {
+    "Left": {
+     "pose": [
+      61.13,
+      15.9,
+      -0.05305800926062762
+     ],
+     "step": 0,
+     "in_progress": false,
+     "dwell_left_s": null,
+     "ended": null
+    },
+    "Right": {
+     "pose": [
+      61.36,
+      45.32,
+      3.082600524872385
+     ],
+     "step": 0,
+     "in_progress": false,
+     "dwell_left_s": null,
+     "ended": null
+    }
+   },
+   "old_plan": 21
+  },
+  {
+   "t_run": 244.46,
+   "source": "retry",
+   "cpu_s": 6.286,
+   "budget_s": 12.0,
+   "events": [
+    {
+     "robot": "Left",
+     "action": "holds",
+     "reason": "was waiting for a route; gets one now; no safe route yet, stays put until the next re-plan"
+    },
+    {
+     "robot": "Right",
+     "action": "holds",
+     "reason": "was waiting for a route; gets one now; no safe route yet, stays put until the next re-plan"
+    }
+   ],
+   "new_makespan_s": 0.0,
+   "stranded": [
+    "Left",
+    "Right"
+   ],
+   "obstacle": null,
+   "states": {
+    "Left": {
+     "pose": [
+      61.13,
+      15.9,
+      -0.05480333851262195
+     ],
+     "step": 0,
+     "in_progress": false,
+     "dwell_left_s": null,
+     "ended": null
+    },
+    "Right": {
+     "pose": [
+      61.36,
+      45.32,
+      3.0808551956203907
+     ],
+     "step": 0,
+     "in_progress": false,
+     "dwell_left_s": null,
+     "ended": null
+    }
+   },
+   "old_plan": 22
+  },
+  {
+   "t_run": 253.76,
+   "source": "retry",
+   "cpu_s": 6.286,
+   "budget_s": 12.0,
+   "events": [
+    {
+     "robot": "Left",
+     "action": "holds",
+     "reason": "was waiting for a route; gets one now; no safe route yet, stays put until the next re-plan"
+    },
+    {
+     "robot": "Right",
+     "action": "holds",
+     "reason": "was waiting for a route; gets one now; no safe route yet, stays put until the next re-plan"
+    }
+   ],
+   "new_makespan_s": 0.0,
+   "stranded": [
+    "Left",
+    "Right"
+   ],
+   "obstacle": null,
+   "states": {
+    "Left": {
+     "pose": [
+      61.13,
+      15.9,
+      -0.05742133239061344
+     ],
+     "step": 0,
+     "in_progress": false,
+     "dwell_left_s": null,
+     "ended": null
+    },
+    "Right": {
+     "pose": [
+      61.36,
+      45.32,
+      3.0787608005179976
+     ],
+     "step": 0,
+     "in_progress": false,
+     "dwell_left_s": null,
+     "ended": null
+    }
+   },
+   "old_plan": 23
+  },
+  {
+   "t_run": 263.06,
+   "source": "retry",
+   "cpu_s": 6.485,
+   "budget_s": 12.0,
+   "events": [
+    {
+     "robot": "Left",
+     "action": "holds",
+     "reason": "was waiting for a route; gets one now; no safe route yet, stays put until the next re-plan"
+    },
+    {
+     "robot": "Right",
+     "action": "holds",
+     "reason": "was waiting for a route; gets one now; no safe route yet, stays put until the next re-plan"
+    }
+   ],
+   "new_makespan_s": 0.0,
+   "stranded": [
+    "Left",
+    "Right"
+   ],
+   "obstacle": null,
+   "states": {
+    "Left": {
+     "pose": [
+      61.13,
+      15.9,
+      -0.059864793343405505
+     ],
+     "step": 0,
+     "in_progress": false,
+     "dwell_left_s": null,
+     "ended": null
+    },
+    "Right": {
+     "pose": [
+      61.36,
+      45.32,
+      3.0777136029668006
+     ],
+     "step": 0,
+     "in_progress": false,
+     "dwell_left_s": null,
+     "ended": null
+    }
+   },
+   "old_plan": 24
+  },
+  {
+   "t_run": 272.56,
+   "source": "retry",
+   "cpu_s": 6.515,
+   "budget_s": 12.0,
+   "events": [
+    {
+     "robot": "Left",
+     "action": "holds",
+     "reason": "was waiting for a route; gets one now; no safe route yet, stays put until the next re-plan"
+    },
+    {
+     "robot": "Right",
+     "action": "holds",
+     "reason": "was waiting for a route; gets one now; no safe route yet, stays put until the next re-plan"
+    }
+   ],
+   "new_makespan_s": 0.0,
+   "stranded": [
+    "Left",
+    "Right"
+   ],
+   "obstacle": null,
+   "states": {
+    "Left": {
+     "pose": [
+      61.13,
+      15.9,
+      -0.06265732014659643
+     ],
+     "step": 0,
+     "in_progress": false,
+     "dwell_left_s": null,
+     "ended": null
+    },
+    "Right": {
+     "pose": [
+      61.36,
+      45.32,
+      3.077364537116402
+     ],
+     "step": 0,
+     "in_progress": false,
+     "dwell_left_s": null,
+     "ended": null
+    }
+   },
+   "old_plan": 25
+  },
+  {
+   "t_run": 282.09,
+   "source": "retry",
+   "cpu_s": 6.084,
+   "budget_s": 12.0,
+   "events": [
+    {
+     "robot": "Left",
+     "action": "holds",
+     "reason": "was waiting for a route; gets one now; no safe route yet, stays put until the next re-plan"
+    },
+    {
+     "robot": "Right",
+     "action": "holds",
+     "reason": "was waiting for a route; gets one now; no safe route yet, stays put until the next re-plan"
+    }
+   ],
+   "new_makespan_s": 0.0,
+   "stranded": [
+    "Left",
+    "Right"
+   ],
+   "obstacle": null,
+   "states": {
+    "Left": {
+     "pose": [
+      61.13,
+      15.9,
+      -0.06928957130417489
+     ],
+     "step": 0,
+     "in_progress": false,
+     "dwell_left_s": null,
+     "ended": null
+    },
+    "Right": {
+     "pose": [
+      61.36,
+      45.32,
+      3.0775390700416017
+     ],
+     "step": 0,
+     "in_progress": false,
+     "dwell_left_s": null,
+     "ended": null
+    }
+   },
+   "old_plan": 26
+  },
+  {
+   "t_run": 291.19,
+   "source": "retry",
+   "cpu_s": 6.028,
+   "budget_s": 12.0,
+   "events": [
+    {
+     "robot": "Left",
+     "action": "holds",
+     "reason": "was waiting for a route; gets one now; no safe route yet, stays put until the next re-plan"
+    },
+    {
+     "robot": "Right",
+     "action": "holds",
+     "reason": "was waiting for a route; gets one now; no safe route yet, stays put until the next re-plan"
+    }
+   ],
+   "new_makespan_s": 0.0,
+   "stranded": [
+    "Left",
+    "Right"
+   ],
+   "obstacle": null,
+   "states": {
+    "Left": {
+     "pose": [
+      61.13,
+      15.9,
+      -0.07435102613495843
+     ],
+     "step": 0,
+     "in_progress": false,
+     "dwell_left_s": null,
+     "ended": null
+    },
+    "Right": {
+     "pose": [
+      61.36,
+      45.32,
+      3.079109866368396
+     ],
+     "step": 0,
+     "in_progress": false,
+     "dwell_left_s": null,
+     "ended": null
+    }
+   },
+   "old_plan": 27
+  },
+  {
+   "t_run": 300.23,
+   "source": "retry",
+   "cpu_s": 6.071,
+   "budget_s": 12.0,
+   "events": [
+    {
+     "robot": "Left",
+     "action": "holds",
+     "reason": "was waiting for a route; gets one now; no safe route yet, stays put until the next re-plan"
+    },
+    {
+     "robot": "Right",
+     "action": "holds",
+     "reason": "was waiting for a route; gets one now; no safe route yet, stays put until the next re-plan"
+    }
+   ],
+   "new_makespan_s": 0.0,
+   "stranded": [
+    "Left",
+    "Right"
+   ],
+   "obstacle": null,
+   "states": {
+    "Left": {
+     "pose": [
+      61.13,
+      15.9,
+      -0.08185594191853406
+     ],
+     "step": 0,
+     "in_progress": false,
+     "dwell_left_s": null,
+     "ended": null
+    },
+    "Right": {
+     "pose": [
+      61.36,
+      45.32,
+      3.0824259919471855
+     ],
+     "step": 0,
+     "in_progress": false,
+     "dwell_left_s": null,
+     "ended": null
+    }
+   },
+   "old_plan": 28
+  },
+  {
+   "t_run": 309.31,
+   "source": "retry",
+   "cpu_s": 5.909,
+   "budget_s": 12.0,
+   "events": [
+    {
+     "robot": "Left",
+     "action": "holds",
+     "reason": "was waiting for a route; gets one now; no safe route yet, stays put until the next re-plan"
+    },
+    {
+     "robot": "Right",
+     "action": "holds",
+     "reason": "was waiting for a route; gets one now; no safe route yet, stays put until the next re-plan"
+    }
+   ],
+   "new_makespan_s": 0.0,
+   "stranded": [
+    "Left",
+    "Right"
+   ],
+   "obstacle": null,
+   "states": {
+    "Left": {
+     "pose": [
+      61.13,
+      15.9,
+      -0.0890117918517108
+     ],
+     "step": 0,
+     "in_progress": false,
+     "dwell_left_s": null,
+     "ended": null
+    },
+    "Right": {
+     "pose": [
+      61.36,
+      45.32,
+      3.0867893150771715
+     ],
+     "step": 0,
+     "in_progress": false,
+     "dwell_left_s": null,
+     "ended": null
+    }
+   },
+   "old_plan": 29
+  }
+ ],
+ "dockings_reported": [],
+ "boards_not_visited": {},
+ "sensor_obstacles": 0,
+ "sensor_stops": [],
+ "robots_out": [],
+ "plans_refused": 0,
+ "front_stop": {
+  "readings": 3,
+  "stop_cm": {
+   "Left": 10.0,
+   "Right": 12.0
+  },
+  "unconfirmed": {
+   "added": 0
+  },
+  "no_plan_drops": 0
+ },
+ "rejoins": [],
+ "confirm_checks": [],
+ "battery": {
+  "Left": 94,
+  "Right": 98
+ },
+ "boot": {
+  "Left": "6EB5",
+  "Right": "881F"
+ },
+ "start_checks": {
+  "Left": {
+   "firmware": "2026-11-05d",
+   "battery": 95,
+   "boot": "6EB5",
+   "restarted": false,
+   "stop_limit": {
+    "limit_cm": 10.0,
+    "rule": "ceiling",
+    "floor_cm": null,
+    "ceiling_cm": 10.0
+   },
+   "place_cm": 0.72,
+   "heading_deg": 0.2,
+   "heading_rule": "measured (facing check); straightened if off"
+  },
+  "Right": {
+   "firmware": "2026-11-05d",
+   "battery": 99,
+   "boot": "881F",
+   "restarted": false,
+   "stop_limit": {
+    "limit_cm": 12.0,
+    "rule": "cap",
+    "floor_cm": null,
+    "ceiling_cm": 12.0
+   },
+   "place_cm": 0.23,
+   "heading_deg": 1.7,
+   "heading_rule": "measured (facing check); straightened if off"
+  },
+  "facing": {
+   "Left": {
+    "heading": 90.2,
+    "off": 0.2,
+    "ok": true
+   },
+   "Right": {
+    "heading": 91.7,
+    "off": 1.7,
+    "ok": true
+   }
+  },
+  "settings_resent": 0,
+  "plan_gap": {
+   "closest_cm": 10.0,
+   "pair": [
+    "Left",
+    "Right"
+   ],
+   "t": 85.1,
+   "start_cm": 74.56,
+   "judged_cm": 10.0,
+   "judged_pair": [
+    "Left",
+    "Right"
+   ],
+   "judged_t": 85.1
+  }
+ },
+ "straighten": {
+  "tries": [
+   {
+    "measured": {
+     "Left": [
+      17.71,
+      16.93,
+      90.2
+     ],
+     "Right": [
+      104.88,
+      16.8,
+      91.7
+     ]
+    },
+    "side_only": {
+     "Left": false,
+     "Right": false
+    },
+    "start": {
+     "Left": [
+      17.0,
+      17.0,
+      90.0
+     ],
+     "Right": [
+      105.0,
+      17.0,
+      90.0
+     ]
+    }
+   }
+  ],
+  "result": "ready after 0 correction(s)"
+ },
+ "blind": [
+  {
+   "robot": "Left",
+   "dist_cm": 0.0,
+   "blind_s": 0.34,
+   "err_cm": 0.17,
+   "cam": [
+    56.94,
+    16.6
+   ],
+   "own": [
+    56.83,
+    16.47
+   ],
+   "src": "both",
+   "t_run": 33.47
+  },
+  {
+   "robot": "Right",
+   "dist_cm": 0.0,
+   "blind_s": 0.34,
+   "err_cm": 0.11,
+   "cam": [
+    65.62,
+    44.61
+   ],
+   "own": [
+    65.55,
+    44.69
+   ],
+   "src": "both",
+   "t_run": 33.47
+  },
+  {
+   "robot": "Left",
+   "dist_cm": 0.0,
+   "blind_s": 0.59,
+   "err_cm": 0.03,
+   "cam": [
+    61.13,
+    15.93
+   ],
+   "own": [
+    61.13,
+    15.9
+   ],
+   "src": "both",
+   "t_run": 96.4
+  },
+  {
+   "robot": "Right",
+   "dist_cm": 0.0,
+   "blind_s": 0.59,
+   "err_cm": 0.05,
+   "cam": [
+    61.4,
+    45.31
+   ],
+   "own": [
+    61.35,
+    45.33
+   ],
+   "src": "both",
+   "t_run": 96.4
+  }
+ ],
+ "on_problem": "stop",
+ "lost_robot_points": "reassign",
+ "kept_going": [],
+ "points": [],
+ "points_skipped": [],
+ "points_reassigned": [],
+ "turn_pause": {
+  "on": true,
+  "robots": {
+   "Left": {
+    "pauses": 4,
+    "added_s": 1.27,
+    "both": 4,
+    "one_camera": 0,
+    "timed_out": 0,
+    "longest_s": 0.342
+   },
+   "Right": {
+    "pauses": 4,
+    "added_s": 1.18,
+    "both": 4,
+    "one_camera": 0,
+    "timed_out": 0,
+    "longest_s": 0.372
+   }
+  }
+ },
+ "mirror": {
+  "on": true,
+  "robots": [
+   "Left",
+   "Right"
+  ],
+  "target_s": 0.5,
+  "target_cm": 3.0,
+  "points": [
+   {
+    "key": "17.0,44.0#1",
+    "label": "mow lane 1 end",
+    "time_err_s": 0.05,
+    "pos_err_cm": 0.27,
+    "pos_from": "cam",
+    "first": "Left",
+    "t_run": 3.6,
+    "lane_end": true,
+    "ok": true
+   },
+   {
+    "key": "27.3,44.0#1",
+    "label": "mow lane 2 start",
+    "time_err_s": 0.004,
+    "pos_err_cm": 0.17,
+    "pos_from": "cam",
+    "first": "Right",
+    "t_run": 6.8,
+    "lane_end": true,
+    "ok": true
+   },
+   {
+    "key": "27.3,17.0#1",
+    "label": "mow lane 2 end",
+    "time_err_s": 0.122,
+    "pos_err_cm": 0.05,
+    "pos_from": "cam",
+    "first": "Left",
+    "t_run": 12.25,
+    "lane_end": true,
+    "ok": true
+   },
+   {
+    "key": "46.0,30.5#1",
+    "label": "meet",
+    "time_err_s": 0.206,
+    "pos_err_cm": 0.92,
+    "pos_from": "cam",
+    "first": "Right",
+    "t_run": 22.98,
+    "lane_end": false,
+    "ok": true
+   }
+  ],
+  "lane_ends": {
+   "time_s": {
+    "max": 0.122,
+    "median": 0.05,
+    "n": 3
+   },
+   "pos_cm": {
+    "max": 0.27,
+    "median": 0.17,
+    "n": 3
+   },
+   "within_target": 3
+  },
+  "all_points": {
+   "time_s": {
+    "max": 0.206,
+    "median": 0.086,
+    "n": 4
+   },
+   "pos_cm": {
+    "max": 0.92,
+    "median": 0.22,
+    "n": 4
+   }
+  },
+  "holds": [
+   {
+    "robot": "Right",
+    "key": "46.0,30.5#1",
+    "s": 2.06,
+    "t_run": 12.67
+   }
+  ],
+  "retimed_legs": {
+   "Left": 4,
+   "Right": 5
+  }
+ },
+ "simulator": {
+  "dockings": [],
+  "min_body_gap_cm": 16.09,
+  "min_body_gap_at": [
+   "Left",
+   "Right",
+   38.04
+  ],
+  "min_static_clearance_cm": Infinity,
+  "min_static_at": null,
+  "collision": false,
+  "events": [],
+  "packets_lost": {
+   "Left": {
+    "to_robot": 0,
+    "from_robot": 0
+   },
+   "Right": {
+    "to_robot": 0,
+    "from_robot": 0
+   }
+  },
+  "robot_runs": {
+   "Left": [
+    {
+     "run": "6EB5-1",
+     "exp": "follow",
+     "result": "stopped:stop command"
+    }
+   ],
+   "Right": [
+    {
+     "run": "881F-1",
+     "exp": "follow",
+     "result": "stopped:stop command"
+    }
+   ]
+  },
+  "tof_sees_robots": true,
+  "seed": 3,
+  "true_sides": {
+   "x_min": {
+    "kind": "unknown"
+   },
+   "x_max": {
+    "kind": "unknown"
+   },
+   "y_min": {
+    "kind": "unknown"
+   },
+   "y_max": {
+    "kind": "unknown"
+   }
+  },
+  "min_open_edge_cm": 9.87,
+  "min_open_edge_at": [
+   "Left",
+   4.09
+  ],
+  "hung": [],
+  "min_com_open_edge_cm": {
+   "Left": 15.12,
+   "Right": 15.3
+  },
+  "edge_trips": {
+   "Left": [
+    {
+     "t": 30.92,
+     "cue": "line",
+     "axle_in_cm": 16.79,
+     "pose": [
+      56.33,
+      16.79,
+      -18.1
+     ]
+    }
+   ],
+   "Right": [
+    {
+     "t": 30.98,
+     "cue": "line",
+     "axle_in_cm": 16.14,
+     "pose": [
+      65.67,
+      44.86,
+      161.4
+     ]
+    }
+   ]
+  },
+  "edge_misses": {
+   "Left": [],
+   "Right": []
+  },
+  "board_cm": [
+   0.0,
+   0.0,
+   122.0,
+   61.0
+  ],
+  "drop_cm": 1.9
+ }
+}

@@ -1,0 +1,176 @@
+21:39:41 CAMERAS: the site's camera 2 is switched off (cameras.side.use false): camera 1 alone; the table is shared over what it reads
+21:39:41 NOTE: the roof's height is not measured yet: 6.0 cm used (PLACEHOLDER; tags.height_cm in the site)
+21:39:41 Frames: not saved. The Pi's card: 11.1 GB free (the run ends cleanly under 1 GB).
+21:39:41 TAGS: simulator: the robots carry their slot names and tags (no wiggle-first binding in a dry run; --sim-bind runs it)
+21:39:41 TABLE SHARING: table shared between 1 robot over the readable area (20 of 40 points; Alpha 20)
+21:39:41 SKIPPED (20 points): P21: the camera does not read tags there: read rate 10 % (camera model: a tag needs 14 px to read); P22: the camera does not read tags there: read rate 10 % (camera model: a tag needs 14 px to read); P23: the camera does not read tags there: read rate 10 % (camera model: a tag needs 14 px to read); P24: the camera does not read tags there: read rate 10 % (camera model: a tag needs 14 px to read); P25: the camera does not read tags there: read rate 10 % (camera model: a tag needs 14 px to read); P26: the camera does not read tags there: read rate 10 % (camera model: a tag needs 14 px to read); P27: the camera does not read tags there: read rate 10 % (camera model: a tag needs 14 px to read); P28: the camera does not read tags there: read rate 10 % (camera model: a tag needs 14 px to read); P29: the camera does not read tags there: read rate 10 % (camera model: a tag needs 14 px to read); P30: the camera does not read tags there: read rate 10 % (camera model: a tag needs 14 px to read); P31: the camera does not read tags there: read rate 10 % (camera model: a tag needs 14 px to read); P32: the camera does not read tags there: read rate 10 % (camera model: a tag needs 14 px to read); P33: the camera does not read tags there: read rate 10 % (camera model: a tag needs 14 px to read); P34: the camera does not read tags there: read rate 10 % (camera model: a tag needs 14 px to read); P35: the camera does not read tags there: read rate 10 % (camera model: a tag needs 14 px to read); P36: the camera does not read tags there: read rate 10 % (camera model: a tag needs 14 px to read); P37: the camera does not read tags there: read rate 10 % (camera model: a tag needs 14 px to read); P38: the camera does not read tags there: read rate 10 % (camera model: a tag needs 14 px to read); P39: the camera does not read tags there: read rate 10 % (camera model: a tag needs 14 px to read); P40: the camera does not read tags there: read rate 10 % (camera model: a tag needs 14 px to read)
+21:39:41 READABLE AREA (# reads, . not; x along the table, y up):
+##########..........
+##########..........
+##########..........
+##########..........
+##########..........
+##########..........
+##########..........
+##########..........
+#########...........
+21:39:41 P09: (17, 57.5) in used instead of the sheet's (17, 37.5) in (confirmed by Jay-Sun 3 Nov (spreadsheet correct))
+21:39:41 P10: (33, 37.5) in used instead of the sheet's (33, 27.5) in (confirmed by Jay-Sun 3 Nov (spreadsheet correct))
+21:39:42 speeds pinned for this site: drive 10 cm/s, turn 60 deg/s, final approach 5 cm/s
+21:39:42 mission production on a 396 x 168 cm table, robots Alpha: planned in 0.7 s, done in 190 s, closest inf cm
+21:39:42 on a problem: KEEP GOING (said once, logged, worked round; a lost robot's points go to the robots still running)
+21:39:42 tag bridge starting (each robot found by its roof tag, wherever it is)
+21:39:47 the robots start now. To stop them at any moment: Ctrl+C
+21:39:47 SYNC MARK start: 2026-11-05T21:39:47.924-05:00 (Pi clock: Not known whether this computer's clock is set by the internet (no timedatectl or chronyc).)
+Starting the simulated robots: /home/claude/alvik-fleet-capstone/tools/sim/fleet_sim.py --map /tmp/claude-0/-home-claude/fff6dc9c-5876-54f9-92a7-a08483d3d5c7/scratchpad/reh/edge/mission.json --plan /tmp/claude-0/-home-claude/fff6dc9c-5876-54f9-92a7-a08483d3d5c7/scratchpad/reh/edge/run/plan_given.json --out /tmp/claude-0/-home-claude/fff6dc9c-5876-54f9-92a7-a08483d3d5c7/scratchpad/reh/edge/run/sim --seed 5 --quiet --fixes-to 127.0.0.1:5010 --drop-cm=74 --fix-hz=0 --tag-cams=/tmp/claude-0/-home-claude/fff6dc9c-5876-54f9-92a7-a08483d3d5c7/scratchpad/reh/edge/tag_cams.json --edge-miss=Alpha --persist
+Waiting for robots: Alpha ...
+  Alpha: firmware 2026-11-05d, battery 98 %, boot DB91  [battery floor: 25 % (the default)]
+21:39:53 setup: overhead 36, side 36 pictures, 60 tag reads (22 ms a picture)
+21:39:53 setup: reference tags read: overhead 20, 23, 24, 25; side 21, 22, 24, 25
+21:40:00 setup: The table measures 396.2 x 167.6 cm (+- 0.3 / 0.1).
+21:40:00 setup: Reference tags read: overhead 20, 23, 24, 25; side 21, 22, 24, 25.
+21:40:00 setup: Side tag 24: 203.0 cm along its edge (+- 0.2), measured by the cameras.
+21:40:00 setup: Side tag 25: 204.8 cm along its edge (+- 0.2), measured by the cameras.
+21:40:00 setup: overhead: lens 175 cm above the table, tilted 3 deg; tags fit to 0.17 px, reference tags 0.13 px, stickers 0.9 px
+21:40:00 setup: side: lens 199 cm above the table, tilted 2 deg; tags fit to 0.20 px, reference tags 0.14 px, stickers 1.0 px
+21:40:00 setup: check table length: cameras 396.2, typed 396.2, agree by 0.0
+21:40:00 setup: check table width: cameras 167.6, typed 167.6, agree by 0.0
+21:40:00 setup: check tag read size / printed: cameras 0.9823, typed 1.0, agree by -0.0177
+21:40:00 setup: check reference tag read size / printed: cameras 0.9962, typed 1.0, agree by -0.0038
+21:40:00 setup: overhead placed from 4 reference tags (20, 23, 24, 25)
+21:40:00 setup: side placed from 4 reference tags (21, 22, 24, 25)
+21:40:00 setup: reference tags: table 397.1 x 168.0 cm to start with
+21:40:00 setup: Camera height cross-check: with the robots' roof tags overhead 175 cm, side 199 cm; from the flat reference tags alone overhead 201 cm, side 205 cm (flat tags alone cannot tell height from zoom when a camera looks straight down: the roof tags, 6.0 cm up, decide it; a big gap with few roof reads: drive the robots about, then Refit).
+21:40:00 setup: Typed measurements used; the tags read 1.8 % smaller than printed (fitted; tags alone would make the table 399.8 x 169.0 cm).
+21:40:00 setup: Every typed measurement agrees with the cameras.
+21:40:00 setup: Alpha's roof tag: height 5.7 cm (+- 0.6; typed 6.2 cm): used for Alpha; tilt 0.3 deg (+- 0.6): level, OK; offset from the turning point: not measured at Measure (the robots stand still; it is measured from the sync spin after a run).
+21:40:00 setup (simulator truth): {"overhead": {"median_cm": 0.11, "worst_cm": 0.68, "height_cm": 175.2, "true_height_cm": 200.0, "f": 743.9, "true_f": 849.3}, "side": {"median_cm": 0.05, "worst_cm": 0.15, "height_cm": 198.6, "true_height_cm": 200.0, "f": 842.7, "true_f": 849.3}, "stickers_worst_cm": 0.86, "side_tags_along_off_cm": {"24": -0.1, "25": -0.01}}
+Facing check: which way each robot faces, from its roof tag (nothing moves; about 1 s) ...
+  Alpha faces -89 deg (its roof tag (overhead 15 reads)): 179 deg off its start heading (backwards)
+  facing check done in 1.6 s
+  settings read back: Alpha 20 ok
+Floor check: each robot stands still while its distance sensor reads the floor (2.5 s) ...
+[   0.0] floor check: Alpha: stop limit 12.0 cm (the usual; floor check: no floor in reach of the stop (nothing under 40 cm in its path))
+Start straightening: each robot's measured pose against its start pose
+  Alpha was 179 deg off (backwards): it turns on the spot to face the y = 167.6 side
+  Alpha was 179 deg off (backwards): turned to face the y = 167.6 side
+Facing check: which way each robot faces, from its roof tag (nothing moves; about 1 s) ...
+  Alpha faces 88 deg (its roof tag (overhead 15 reads)): 2 deg off its start heading
+  facing check done in 1.5 s
+  Alpha: re-check 0.6 cm and 2 deg off its start (allowed 3 cm, 8 deg): ready
+  Alpha: ready at (149.6, 83.1) facing 88 deg
+  plan's closest approach inf cm (safety net 8.0 cm)
+Robots ready: Alpha at 149.6,83.1,88
+[   0.0] plan plan-0bbe350796 started: 1 robots, 109 steps, planned 189.6 s
+[   8.4] POINT point P11 (Alpha): ±1.2 cm, one camera (overhead)
+[  10.0]   Alpha 5/109
+[  12.5] KEEP GOING: Alpha: the camera and its own pose disagreed by 25.4 cm for 1.0 s: its pose was set to the camera's (the camera is trusted), the run goes on
+[  12.5] WARNING: Alpha: camera and its own pose disagree by 25.4 cm: halted, its pose set from the camera, and the others re-plan round it
+[  13.3] Alpha continues: path clear for the next 2.0 s; carries on 1 step(s), then holds
+[  13.3] new plan in 0.26 s (first safe plan, robots told 0.5 s ahead; a shorter one is searched for next); everyone done about 180 s after the event
+[  13.7] improvement try: done at 193 s instead of 193 s, not kept
+[  14.5] Alpha: HEADING RE-LEARNED: two stretches in a row it moved -180 deg from where its roof tag says it faces: its tag's headings are corrected by -180 deg from now on (observed); its pose is set again
+[  20.0]   Alpha 0/103
+[  28.7] POINT point P20 (Alpha): ±1.2 cm, one camera (overhead)
+[  30.0]   Alpha 5/103
+[  30.0]     Alpha: step 5: standing after its turn until the camera agrees
+[  38.0] POINT point P19 (Alpha): ±1.2 cm, one camera (overhead)
+[  40.0]   Alpha 10/103
+[  40.0]     Alpha: step 10: standing after its turn until the camera agrees
+[  47.3] POINT point P13 (Alpha): ±1.2 cm, one camera (overhead)
+[  50.0]   Alpha 15/103
+[  55.5] POINT point P14 (Alpha): ±1.2 cm, one camera (overhead)
+[  60.0]   Alpha 21/103
+[  64.8] POINT point P02 (Alpha): ±1.2 cm, one camera (overhead)
+[  70.0]   Alpha 27/103
+[  74.1] POINT point P04 (Alpha): ±1.2 cm, one camera (overhead)
+[  80.0]   Alpha 32/103
+[  83.4] POINT point P01 (Alpha): ±1.2 cm, one camera (overhead)
+[  90.0]   Alpha 37/103
+[  91.3] POINT point P08 (Alpha): ±1.2 cm, one camera (overhead)
+[  99.8] POINT point P03 (Alpha): ±1.2 cm, one camera (overhead)
+[ 100.1]   Alpha 43/103
+[ 109.1] POINT point P05 (Alpha): ±1.2 cm, one camera (overhead)
+[ 110.1]   Alpha 48/103
+[ 117.5] POINT point P09 (Alpha): ±1.2 cm, one camera (overhead)
+[ 120.1]   Alpha 54/103
+[ 126.8] POINT point P06 (Alpha): ±1.2 cm, one camera (overhead)
+[ 130.1]   Alpha 59/103
+[ 136.7] POINT point P07 (Alpha): ±1.2 cm, one camera (overhead)
+[ 140.1]   Alpha 65/103
+[ 145.2] POINT point P16 (Alpha): ±1.2 cm, one camera (overhead)
+[ 150.1]   Alpha 71/103
+[ 153.7] POINT point P18 (Alpha): ±1.2 cm, one camera (overhead)
+[ 160.1]   Alpha 77/103
+[ 162.4] POINT point P15 (Alpha): ±1.2 cm, one camera (overhead)
+[ 170.1]   Alpha 83/103
+[ 173.0] POINT point P12 (Alpha): ±1.2 cm, one camera (overhead)
+[ 180.1]   Alpha 88/103
+[ 185.3] POINT point P17 (Alpha): ±1.2 cm, one camera (overhead)
+[ 190.1]   Alpha 94/103
+[ 193.6] POINT point P10 (Alpha): ±1.2 cm, one camera (overhead)
+[ 200.1]   Alpha 99/103
+[ 205.1] all robots done
+
+Result: done after 206.3 s (first plan said 189.6 s), 2 plan(s)
+Steps sent {'Alpha': 112}; resent {'Alpha': 0}
+Camera fixes sent {'Alpha': 1246}; used/ignored on the robots {'Alpha': ('1216', '13')}; held (the robot had no pose yet) {'Alpha': 13}
+WARNINGS (2; each was handled without stopping the run):
+  - Alpha: the camera and its own pose disagreed by 25.4 cm for 1.0 s: its pose was set to the camera's (the camera is trusted), the run goes on
+  - Alpha: camera and own pose disagreed 25.4 cm: pose reset from the camera
+Pause after turns, Alpha: 20 pauses added 7.2 s (longest 0.5 s); both cameras 0, one camera 20, timed out 0
+  re-plan at 13.0 s (retry): 0.26 s to compute
+  re-plan at 13.3 s (improve): 0.36 s to compute, not kept
+Keep going: 1 problem(s) worked round without stopping the run
+Confidence at each point (± = 95 %; 20 points):
+  point P11 (Alpha): ±1.2 cm, one camera (overhead)
+  point P20 (Alpha): ±1.2 cm, one camera (overhead)
+  point P19 (Alpha): ±1.2 cm, one camera (overhead)
+  point P13 (Alpha): ±1.2 cm, one camera (overhead)
+  point P14 (Alpha): ±1.2 cm, one camera (overhead)
+  point P02 (Alpha): ±1.2 cm, one camera (overhead)
+  point P04 (Alpha): ±1.2 cm, one camera (overhead)
+  point P01 (Alpha): ±1.2 cm, one camera (overhead)
+  point P08 (Alpha): ±1.2 cm, one camera (overhead)
+  point P03 (Alpha): ±1.2 cm, one camera (overhead)
+  point P05 (Alpha): ±1.2 cm, one camera (overhead)
+  point P09 (Alpha): ±1.2 cm, one camera (overhead)
+  point P06 (Alpha): ±1.2 cm, one camera (overhead)
+  point P07 (Alpha): ±1.2 cm, one camera (overhead)
+  point P16 (Alpha): ±1.2 cm, one camera (overhead)
+  point P18 (Alpha): ±1.2 cm, one camera (overhead)
+  point P15 (Alpha): ±1.2 cm, one camera (overhead)
+  point P12 (Alpha): ±1.2 cm, one camera (overhead)
+  point P17 (Alpha): ±1.2 cm, one camera (overhead)
+  point P10 (Alpha): ±1.2 cm, one camera (overhead)
+Simulator truth: closest two robots inf cm (None); closest to a board/brick inf cm (None); contact: no
+Simulator truth, table edge: closest a body came to an open part 6.4 cm (['Alpha', 83.67]); hung over the edge: none
+Saved to /tmp/claude-0/-home-claude/fff6dc9c-5876-54f9-92a7-a08483d3d5c7/scratchpad/reh/edge/run
+21:43:44 SYNC MARK end: 2026-11-05T21:43:44.185-05:00 (Pi clock: Not known whether this computer's clock is set by the internet (no timedatectl or chronyc).)
+21:43:45 SYNC WIGGLE Alpha: 1793932816.821 -> 1793932822.149 (Pi clock, 5.3 s)
+21:43:45 camera track: /tmp/claude-0/-home-claude/fff6dc9c-5876-54f9-92a7-a08483d3d5c7/scratchpad/reh/edge/run/camera_track.csv (Alpha 2671)
+21:43:45 wheel+gyro odometry, no camera corrections: /tmp/claude-0/-home-claude/fff6dc9c-5876-54f9-92a7-a08483d3d5c7/scratchpad/reh/edge/run/odometry_raw.csv (Alpha 10649)
+21:43:45 pose timeline: /tmp/claude-0/-home-claude/fff6dc9c-5876-54f9-92a7-a08483d3d5c7/scratchpad/reh/edge/pose_timeline.csv (Alpha, camera tag 1338, Alpha, robot's own pose 2007)
+21:43:45 POINT point P11 (Alpha): ±1.2 cm, one camera (overhead)  [simulator truth: 0.5 cm off, inside]
+21:43:45 POINT point P20 (Alpha): ±1.2 cm, one camera (overhead)  [simulator truth: 0.4 cm off, inside]
+21:43:45 POINT point P19 (Alpha): ±1.2 cm, one camera (overhead)  [simulator truth: 0.5 cm off, inside]
+21:43:45 POINT point P13 (Alpha): ±1.2 cm, one camera (overhead)  [simulator truth: 0.4 cm off, inside]
+21:43:45 POINT point P14 (Alpha): ±1.2 cm, one camera (overhead)  [simulator truth: 0.4 cm off, inside]
+21:43:45 POINT point P02 (Alpha): ±1.2 cm, one camera (overhead)  [simulator truth: 0.3 cm off, inside]
+21:43:45 POINT point P04 (Alpha): ±1.2 cm, one camera (overhead)  [simulator truth: 0.2 cm off, inside]
+21:43:45 POINT point P01 (Alpha): ±1.2 cm, one camera (overhead)  [simulator truth: 0.1 cm off, inside]
+21:43:45 POINT point P08 (Alpha): ±1.2 cm, one camera (overhead)  [simulator truth: 0.1 cm off, inside]
+21:43:45 POINT point P03 (Alpha): ±1.2 cm, one camera (overhead)  [simulator truth: 0.1 cm off, inside]
+21:43:45 POINT point P05 (Alpha): ±1.2 cm, one camera (overhead)  [simulator truth: 0.1 cm off, inside]
+21:43:45 POINT point P09 (Alpha): ±1.2 cm, one camera (overhead)  [simulator truth: 0.2 cm off, inside]
+21:43:45 POINT point P06 (Alpha): ±1.2 cm, one camera (overhead)  [simulator truth: 0.1 cm off, inside]
+21:43:45 POINT point P07 (Alpha): ±1.2 cm, one camera (overhead)  [simulator truth: 0.2 cm off, inside]
+21:43:45 POINT point P16 (Alpha): ±1.2 cm, one camera (overhead)  [simulator truth: 0.2 cm off, inside]
+21:43:45 POINT point P18 (Alpha): ±1.2 cm, one camera (overhead)  [simulator truth: 0.3 cm off, inside]
+21:43:45 POINT point P15 (Alpha): ±1.2 cm, one camera (overhead)  [simulator truth: 0.5 cm off, inside]
+21:43:45 POINT point P12 (Alpha): ±1.2 cm, one camera (overhead)  [simulator truth: 0.5 cm off, inside]
+21:43:45 POINT point P17 (Alpha): ±1.2 cm, one camera (overhead)  [simulator truth: 0.4 cm off, inside]
+21:43:45 POINT point P10 (Alpha): ±1.2 cm, one camera (overhead)  [simulator truth: 0.1 cm off, inside]
+21:43:45 keep going: 1 problem(s) worked round without stopping the run
+21:43:45 result: done; saved in /tmp/claude-0/-home-claude/fff6dc9c-5876-54f9-92a7-a08483d3d5c7/scratchpad/reh/edge
+exit 0

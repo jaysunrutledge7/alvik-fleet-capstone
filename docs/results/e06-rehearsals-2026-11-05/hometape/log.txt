@@ -1,0 +1,289 @@
+22:21:26 Frames: not saved. The Pi's card: 10.9 GB free (the run ends cleanly under 1 GB).
+22:21:31 mission Monday, 2 robots on a 122 x 61 cm table, robots Left, Right: planned in 4.5 s, done in 106 s, closest 10.0 cm
+22:21:31   meet at (61, 30), about 26 s in
+22:21:31   circle 1.5 times, r 15 cm (anticlockwise)
+22:21:31   Chicken round 1: both ready about 77 s in
+22:21:31   Chicken: swerve at 15 cm, never under 8 cm; each jogs 70 deg to its own side, 9.8 cm over, and they pass with the bodies 10 cm apart to swapped ends (run 32 cm)
+22:21:31   Left and Right mirror each other across the middle line (x = 61.0 cm): symmetric lanes, the innermost pair 26.4 cm apart; mirrored legs at 8 cm/s, re-timed between 5 and 10 cm/s
+22:21:31 on a problem: stop the run (as before)
+22:21:31 camera bridge starting (it learns the empty floor round the robots: keep hands out of the picture)
+22:21:36 the robots start now. To stop them at any moment: Ctrl+C
+22:21:36 SYNC MARK start: 2026-11-05T22:21:36.028-05:00 (Pi clock: Not known whether this computer's clock is set by the internet (no timedatectl or chronyc).)
+Starting the simulated robots: /home/claude/alvik-fleet-capstone/tools/sim/fleet_sim.py --map /tmp/claude-0/-home-claude/fff6dc9c-5876-54f9-92a7-a08483d3d5c7/scratchpad/reh/hometape/mission.json --plan /tmp/claude-0/-home-claude/fff6dc9c-5876-54f9-92a7-a08483d3d5c7/scratchpad/reh/hometape/run/plan_given.json --out /tmp/claude-0/-home-claude/fff6dc9c-5876-54f9-92a7-a08483d3d5c7/scratchpad/reh/hometape/run/sim --seed 3 --quiet --fixes-to 127.0.0.1:5010 --fix-hz=0 --serve-live=8765 --live-calib-out=/tmp/claude-0/-home-claude/fff6dc9c-5876-54f9-92a7-a08483d3d5c7/scratchpad/reh/hometape/run/sim/table_camera.json --live-side=8766 --live-side-calib-out=/tmp/claude-0/-home-claude/fff6dc9c-5876-54f9-92a7-a08483d3d5c7/scratchpad/reh/hometape/run/sim/side_camera.json --tape=61,0,61,122 --persist
+Waiting for robots: Left, Right ...
+  Left: firmware 2026-11-05d, battery 95 %, boot 6EB5; Right: firmware 2026-11-05d, battery 99 %, boot 881F  [battery floor: 25 % (the default)]
+  Left: its own settings: follow_look_cm 10
+Facing check: which way each robot faces, from its lights (nothing moves; about 8 s) ...
+  Left faces 90 deg (both cameras (overhead 90, side 90)): 0 deg off its start heading
+  Right faces 92 deg (both cameras (overhead 91, side 92)): 2 deg off its start heading
+  facing check done in 5.0 s
+  settings read back: Left 21 ok, Right 20 ok
+Floor check: each robot stands still while its distance sensor reads the floor (2.5 s) ...
+[   0.0] floor check: Left: stop limit 10.0 cm (its own setting; floor check: no floor in reach of the stop (nothing under 40 cm in its path))
+[   0.0] floor check: Right: stop limit 12.0 cm (the usual; floor check: no floor in reach of the stop (nothing under 40 cm in its path))
+Start straightening: each robot's measured pose against its start pose
+  Left is on its start spot (0.7 cm, 0 deg off): no correction
+  Right is on its start spot (0.2 cm, 2 deg off): no correction
+  Left: ready at (17.7, 16.9) facing 90 deg
+  Right: ready at (104.9, 16.8) facing 92 deg
+  plan's closest approach 10.0 cm (safety net 8.0 cm)
+Robots ready: Left at 17.7,16.9,90, Right at 104.9,16.8,92
+[   0.0] plan plan-8712cb021e started: 2 robots, 129 steps, planned 106.5 s
+[  10.0]   Left 5/65  Right 5/64
+[  10.6] mirroring: Right waits where it is for Left (about 1.3 s; even at 5 cm/s it would reach the next matching point early)
+[  14.6] mirroring: at the planned speed Left would reach the next matching point 2.7 s after Right: its next leg at 10.0 cm/s (planned 8)
+[  14.7] mirroring: at the planned speed Right would reach the next matching point 2.3 s before Left: its next leg at 5.0 cm/s (planned 8)
+[  20.0]   Left 11/65  Right 10/64
+[  30.0]   Left 16/65  Right 15/64
+[  31.0] Left: its line sensors saw a dark line 17 cm inside the table (the camera): a SURFACE MARK, not an edge (logged); its line cue is off for this run, the bottom zone's drop check stays on; re-planning
+[  31.0] Right: its line sensors saw a dark line 17 cm inside the table (the camera): a SURFACE MARK, not an edge (logged); its line cue is off for this run, the bottom zone's drop check stays on; re-planning
+[  37.1] Left stopped: its step failed
+[  37.1] Right continues: path clear for the next 2.0 s; carries on 1 step(s), then holds; no safe route yet, stays put until the next re-plan
+[  37.1] new plan in 6.17 s (first safe plan, robots told 0.5 s ahead; a shorter one is searched for next); everyone done about 1 s after the event
+[  40.0]   Left 1/1  Right 1/1
+[  40.0]     Left: done
+[  40.0]     Right: done
+[  41.1] Left continues: path clear for the next 2.0 s; carries on 1 step(s), then holds; no safe route yet, stays put until the next re-plan
+[  41.1] Right stopped: its step failed
+[  41.1] new plan in 3.97 s (first safe plan, robots told 0.5 s ahead; a shorter one is searched for next); everyone done about 1 s after the event
+[  44.1] retrying a route for Left, Right (6 s allowed)
+[  47.3] Left holds: was waiting for a route; gets one now; no safe route yet, stays put until the next re-plan
+[  47.3] Right holds: was waiting for a route; gets one now; no safe route yet, stays put until the next re-plan
+[  47.3] new plan in 3.15 s (first safe plan, robots told 0.5 s ahead; a shorter one is searched for next); everyone done about 0 s after the event
+[  50.0]   Left 0/0  Right 0/0
+[  50.0]     Left: done
+[  50.0]     Right: done
+[  50.3] retrying a route for Left, Right (12 s allowed)
+[  55.8] Left holds: was waiting for a route; gets one now; no safe route yet, stays put until the next re-plan
+[  55.8] Right holds: was waiting for a route; gets one now; no safe route yet, stays put until the next re-plan
+[  55.8] new plan in 5.51 s (first safe plan, robots told 0.5 s ahead; a shorter one is searched for next); everyone done about 0 s after the event
+[  58.8] retrying a route for Left, Right (12 s allowed)
+[  60.1]   Left 0/0  Right 0/0
+[  60.1]     Left: done
+[  60.1]     Right: done
+[  67.6] Left holds: was waiting for a route; gets one now; no safe route yet, stays put until the next re-plan
+[  67.6] Right holds: was waiting for a route; gets one now; no safe route yet, stays put until the next re-plan
+[  67.6] new plan in 8.78 s (first safe plan, robots told 0.5 s ahead; a shorter one is searched for next); everyone done about 0 s after the event
+[  70.1]   Left 0/0  Right 0/0
+[  70.1]     Left: done
+[  70.1]     Right: done
+[  70.6] retrying a route for Left, Right (12 s allowed)
+[  78.4] Left holds: was waiting for a route; gets one now; no safe route yet, stays put until the next re-plan
+[  78.4] Right holds: was waiting for a route; gets one now; no safe route yet, stays put until the next re-plan
+[  78.4] new plan in 7.75 s (first safe plan, robots told 0.5 s ahead; a shorter one is searched for next); everyone done about 0 s after the event
+[  80.1]   Left 0/0  Right 0/0
+[  80.1]     Left: done
+[  80.1]     Right: done
+[  81.4] retrying a route for Left, Right (12 s allowed)
+[  89.8] Left holds: was waiting for a route; gets one now; no safe route yet, stays put until the next re-plan
+[  89.8] Right holds: was waiting for a route; gets one now; no safe route yet, stays put until the next re-plan
+[  89.8] new plan in 8.40 s (first safe plan, robots told 0.5 s ahead; a shorter one is searched for next); everyone done about 0 s after the event
+[  90.1]   Left 0/0  Right 0/0
+[  90.1]     Left: done
+[  90.1]     Right: done
+[  92.8] retrying a route for Left, Right (12 s allowed)
+[  98.4] Left holds: was waiting for a route; gets one now; no safe route yet, stays put until the next re-plan
+[  98.4] Right holds: was waiting for a route; gets one now; no safe route yet, stays put until the next re-plan
+[  98.4] new plan in 5.58 s (first safe plan, robots told 0.5 s ahead; a shorter one is searched for next); everyone done about 0 s after the event
+[ 100.1]   Left 0/0  Right 0/0
+[ 100.1]     Left: done
+[ 100.1]     Right: done
+[ 101.4] retrying a route for Left, Right (12 s allowed)
+[ 110.1]   Left 0/0  Right 0/0
+[ 110.1]     Left: done
+[ 110.1]     Right: done
+[ 110.4] Left holds: was waiting for a route; gets one now; no safe route yet, stays put until the next re-plan
+[ 110.4] Right holds: was waiting for a route; gets one now; no safe route yet, stays put until the next re-plan
+[ 110.4] new plan in 9.03 s (first safe plan, robots told 0.5 s ahead; a shorter one is searched for next); everyone done about 0 s after the event
+[ 113.4] retrying a route for Left, Right (12 s allowed)
+[ 120.1]   Left 0/0  Right 0/0
+[ 120.1]     Left: done
+[ 120.1]     Right: done
+[ 122.2] Left holds: was waiting for a route; gets one now; no safe route yet, stays put until the next re-plan
+[ 122.2] Right holds: was waiting for a route; gets one now; no safe route yet, stays put until the next re-plan
+[ 122.2] new plan in 8.73 s (first safe plan, robots told 0.5 s ahead; a shorter one is searched for next); everyone done about 0 s after the event
+[ 125.2] retrying a route for Left, Right (12 s allowed)
+[ 130.1]   Left 0/0  Right 0/0
+[ 130.1]     Left: done
+[ 130.1]     Right: done
+[ 133.0] Left holds: was waiting for a route; gets one now; no safe route yet, stays put until the next re-plan
+[ 133.0] Right holds: was waiting for a route; gets one now; no safe route yet, stays put until the next re-plan
+[ 133.0] new plan in 7.82 s (first safe plan, robots told 0.5 s ahead; a shorter one is searched for next); everyone done about 0 s after the event
+[ 136.0] retrying a route for Left, Right (12 s allowed)
+[ 140.1]   Left 0/0  Right 0/0
+[ 140.1]     Left: done
+[ 140.1]     Right: done
+[ 143.9] Left holds: was waiting for a route; gets one now; no safe route yet, stays put until the next re-plan
+[ 143.9] Right holds: was waiting for a route; gets one now; no safe route yet, stays put until the next re-plan
+[ 143.9] new plan in 7.85 s (first safe plan, robots told 0.5 s ahead; a shorter one is searched for next); everyone done about 0 s after the event
+[ 146.9] retrying a route for Left, Right (12 s allowed)
+[ 150.1]   Left 0/0  Right 0/0
+[ 150.1]     Left: done
+[ 150.1]     Right: done
+[ 152.3] Left holds: was waiting for a route; gets one now; no safe route yet, stays put until the next re-plan
+[ 152.3] Right holds: was waiting for a route; gets one now; no safe route yet, stays put until the next re-plan
+[ 152.3] new plan in 5.43 s (first safe plan, robots told 0.5 s ahead; a shorter one is searched for next); everyone done about 0 s after the event
+[ 155.3] retrying a route for Left, Right (12 s allowed)
+[ 160.1]   Left 0/0  Right 0/0
+[ 160.1]     Left: done
+[ 160.1]     Right: done
+[ 162.1] Left holds: was waiting for a route; gets one now; no safe route yet, stays put until the next re-plan
+[ 162.1] Right holds: was waiting for a route; gets one now; no safe route yet, stays put until the next re-plan
+[ 162.1] new plan in 6.81 s (first safe plan, robots told 0.5 s ahead; a shorter one is searched for next); everyone done about 0 s after the event
+[ 165.1] retrying a route for Left, Right (12 s allowed)
+[ 170.1]   Left 0/0  Right 0/0
+[ 170.1]     Left: done
+[ 170.1]     Right: done
+[ 172.0] Left holds: was waiting for a route; gets one now; no safe route yet, stays put until the next re-plan
+[ 172.0] Right holds: was waiting for a route; gets one now; no safe route yet, stays put until the next re-plan
+[ 172.0] new plan in 6.88 s (first safe plan, robots told 0.5 s ahead; a shorter one is searched for next); everyone done about 0 s after the event
+[ 175.0] retrying a route for Left, Right (12 s allowed)
+[ 180.1]   Left 0/0  Right 0/0
+[ 180.1]     Left: done
+[ 180.1]     Right: done
+[ 181.7] Left holds: was waiting for a route; gets one now; no safe route yet, stays put until the next re-plan
+[ 181.7] Right holds: was waiting for a route; gets one now; no safe route yet, stays put until the next re-plan
+[ 181.7] new plan in 6.66 s (first safe plan, robots told 0.5 s ahead; a shorter one is searched for next); everyone done about 0 s after the event
+[ 184.7] retrying a route for Left, Right (12 s allowed)
+[ 190.1]   Left 0/0  Right 0/0
+[ 190.1]     Left: done
+[ 190.1]     Right: done
+[ 191.4] Left holds: was waiting for a route; gets one now; no safe route yet, stays put until the next re-plan
+[ 191.4] Right holds: was waiting for a route; gets one now; no safe route yet, stays put until the next re-plan
+[ 191.4] new plan in 6.70 s (first safe plan, robots told 0.5 s ahead; a shorter one is searched for next); everyone done about 0 s after the event
+[ 194.4] retrying a route for Left, Right (12 s allowed)
+[ 200.1]   Left 0/0  Right 0/0
+[ 200.1]     Left: done
+[ 200.1]     Right: done
+[ 200.9] Left holds: was waiting for a route; gets one now; no safe route yet, stays put until the next re-plan
+[ 200.9] Right holds: was waiting for a route; gets one now; no safe route yet, stays put until the next re-plan
+[ 200.9] new plan in 6.51 s (first safe plan, robots told 0.5 s ahead; a shorter one is searched for next); everyone done about 0 s after the event
+[ 203.9] retrying a route for Left, Right (12 s allowed)
+[ 210.2]   Left 0/0  Right 0/0
+[ 210.2]     Left: done
+[ 210.2]     Right: done
+[ 210.7] Left holds: was waiting for a route; gets one now; no safe route yet, stays put until the next re-plan
+[ 210.7] Right holds: was waiting for a route; gets one now; no safe route yet, stays put until the next re-plan
+[ 210.7] new plan in 6.78 s (first safe plan, robots told 0.5 s ahead; a shorter one is searched for next); everyone done about 0 s after the event
+[ 213.7] retrying a route for Left, Right (12 s allowed)
+[ 220.2]   Left 0/0  Right 0/0
+[ 220.2]     Left: done
+[ 220.2]     Right: done
+[ 221.0] Left holds: was waiting for a route; gets one now; no safe route yet, stays put until the next re-plan
+[ 221.0] Right holds: was waiting for a route; gets one now; no safe route yet, stays put until the next re-plan
+[ 221.0] new plan in 7.25 s (first safe plan, robots told 0.5 s ahead; a shorter one is searched for next); everyone done about 0 s after the event
+[ 224.0] retrying a route for Left, Right (12 s allowed)
+[ 230.2]   Left 0/0  Right 0/0
+[ 230.2]     Left: done
+[ 230.2]     Right: done
+[ 231.3] Left holds: was waiting for a route; gets one now; no safe route yet, stays put until the next re-plan
+[ 231.3] Right holds: was waiting for a route; gets one now; no safe route yet, stays put until the next re-plan
+[ 231.3] new plan in 7.27 s (first safe plan, robots told 0.5 s ahead; a shorter one is searched for next); everyone done about 0 s after the event
+[ 234.3] retrying a route for Left, Right (12 s allowed)
+[ 240.2]   Left 0/0  Right 0/0
+[ 240.2]     Left: done
+[ 240.2]     Right: done
+[ 241.5] Left holds: was waiting for a route; gets one now; no safe route yet, stays put until the next re-plan
+[ 241.5] Right holds: was waiting for a route; gets one now; no safe route yet, stays put until the next re-plan
+[ 241.5] new plan in 7.18 s (first safe plan, robots told 0.5 s ahead; a shorter one is searched for next); everyone done about 0 s after the event
+[ 244.5] retrying a route for Left, Right (12 s allowed)
+[ 250.2]   Left 0/0  Right 0/0
+[ 250.2]     Left: done
+[ 250.2]     Right: done
+[ 250.8] Left holds: was waiting for a route; gets one now; no safe route yet, stays put until the next re-plan
+[ 250.8] Right holds: was waiting for a route; gets one now; no safe route yet, stays put until the next re-plan
+[ 250.8] new plan in 6.29 s (first safe plan, robots told 0.5 s ahead; a shorter one is searched for next); everyone done about 0 s after the event
+[ 253.8] retrying a route for Left, Right (12 s allowed)
+[ 260.1] Left holds: was waiting for a route; gets one now; no safe route yet, stays put until the next re-plan
+[ 260.1] Right holds: was waiting for a route; gets one now; no safe route yet, stays put until the next re-plan
+[ 260.1] new plan in 6.29 s (first safe plan, robots told 0.5 s ahead; a shorter one is searched for next); everyone done about 0 s after the event
+[ 260.2]   Left 0/0  Right 0/0
+[ 260.2]     Left: done
+[ 260.2]     Right: done
+[ 263.1] retrying a route for Left, Right (12 s allowed)
+[ 269.6] Left holds: was waiting for a route; gets one now; no safe route yet, stays put until the next re-plan
+[ 269.6] Right holds: was waiting for a route; gets one now; no safe route yet, stays put until the next re-plan
+[ 269.6] new plan in 6.49 s (first safe plan, robots told 0.5 s ahead; a shorter one is searched for next); everyone done about 0 s after the event
+[ 270.2]   Left 0/0  Right 0/0
+[ 270.2]     Left: done
+[ 270.2]     Right: done
+[ 272.6] retrying a route for Left, Right (12 s allowed)
+[ 279.1] Left holds: was waiting for a route; gets one now; no safe route yet, stays put until the next re-plan
+[ 279.1] Right holds: was waiting for a route; gets one now; no safe route yet, stays put until the next re-plan
+[ 279.1] new plan in 6.51 s (first safe plan, robots told 0.5 s ahead; a shorter one is searched for next); everyone done about 0 s after the event
+[ 280.2]   Left 0/0  Right 0/0
+[ 280.2]     Left: done
+[ 280.2]     Right: done
+[ 282.1] retrying a route for Left, Right (12 s allowed)
+[ 288.2] Left holds: was waiting for a route; gets one now; no safe route yet, stays put until the next re-plan
+[ 288.2] Right holds: was waiting for a route; gets one now; no safe route yet, stays put until the next re-plan
+[ 288.2] new plan in 6.08 s (first safe plan, robots told 0.5 s ahead; a shorter one is searched for next); everyone done about 0 s after the event
+[ 290.2]   Left 0/0  Right 0/0
+[ 290.2]     Left: done
+[ 290.2]     Right: done
+[ 291.2] retrying a route for Left, Right (12 s allowed)
+[ 297.2] Left holds: was waiting for a route; gets one now; no safe route yet, stays put until the next re-plan
+[ 297.2] Right holds: was waiting for a route; gets one now; no safe route yet, stays put until the next re-plan
+[ 297.2] new plan in 6.03 s (first safe plan, robots told 0.5 s ahead; a shorter one is searched for next); everyone done about 0 s after the event
+[ 300.2] retrying a route for Left, Right (12 s allowed)
+[ 300.3]   Left 0/0  Right 0/0
+[ 300.3]     Left: done
+[ 300.3]     Right: done
+[ 306.3] Left holds: was waiting for a route; gets one now; no safe route yet, stays put until the next re-plan
+[ 306.3] Right holds: was waiting for a route; gets one now; no safe route yet, stays put until the next re-plan
+[ 306.3] new plan in 6.07 s (first safe plan, robots told 0.5 s ahead; a shorter one is searched for next); everyone done about 0 s after the event
+[ 309.3] retrying a route for Left, Right (12 s allowed)
+[ 310.3]   Left 0/0  Right 0/0
+[ 310.3]     Left: done
+[ 310.3]     Right: done
+[ 315.2] Left holds: was waiting for a route; gets one now; no safe route yet, stays put until the next re-plan
+[ 315.2] Right holds: was waiting for a route; gets one now; no safe route yet, stays put until the next re-plan
+[ 315.2] new plan in 5.91 s (first safe plan, robots told 0.5 s ahead; a shorter one is searched for next); everyone done about 0 s after the event
+[ 318.2] retrying a route for Left, Right (12 s allowed)
+[ 318.2] out of re-plans (30); stopping everyone
+
+Result: out of re-plans after 319.4 s (first plan said 106.5 s), 31 plan(s)
+Steps sent {'Left': 20, 'Right': 19}; resent {'Left': 0, 'Right': 0}
+Camera fixes sent {'Left': 2873, 'Right': 2873}; used/ignored on the robots {'Left': ('2871', '0'), 'Right': ('2872', '0')}; held (the robot had no pose yet) {'Left': 14, 'Right': 14}
+Pause after turns, Left: 4 pauses added 1.3 s (longest 0.3 s); both cameras 4, one camera 0, timed out 0
+Pause after turns, Right: 4 pauses added 1.2 s (longest 0.4 s); both cameras 4, one camera 0, timed out 0
+  re-plan at 30.9 s (retry): 6.17 s to compute
+  re-plan at 37.1 s (retry): 3.97 s to compute
+  re-plan at 44.1 s (retry): 3.15 s to compute
+  re-plan at 50.3 s (retry): 5.50 s to compute
+  re-plan at 58.8 s (retry): 8.79 s to compute
+  re-plan at 70.6 s (retry): 7.75 s to compute
+  re-plan at 81.4 s (retry): 8.40 s to compute
+  re-plan at 92.8 s (retry): 5.58 s to compute
+  re-plan at 101.4 s (retry): 9.04 s to compute
+  re-plan at 113.4 s (retry): 8.73 s to compute
+  re-plan at 125.2 s (retry): 7.82 s to compute
+  re-plan at 136.0 s (retry): 7.85 s to compute
+  re-plan at 146.9 s (retry): 5.43 s to compute
+  re-plan at 155.3 s (retry): 6.81 s to compute
+  re-plan at 165.1 s (retry): 6.88 s to compute
+  re-plan at 175.0 s (retry): 6.66 s to compute
+  re-plan at 184.7 s (retry): 6.70 s to compute
+  re-plan at 194.4 s (retry): 6.51 s to compute
+  re-plan at 203.9 s (retry): 6.78 s to compute
+  re-plan at 213.7 s (retry): 7.25 s to compute
+  re-plan at 224.0 s (retry): 7.27 s to compute
+  re-plan at 234.3 s (retry): 7.18 s to compute
+  re-plan at 244.5 s (retry): 6.29 s to compute
+  re-plan at 253.8 s (retry): 6.29 s to compute
+  re-plan at 263.1 s (retry): 6.49 s to compute
+  re-plan at 272.6 s (retry): 6.51 s to compute
+  re-plan at 282.1 s (retry): 6.08 s to compute
+  re-plan at 291.2 s (retry): 6.03 s to compute
+  re-plan at 300.2 s (retry): 6.07 s to compute
+  re-plan at 309.3 s (retry): 5.91 s to compute
+Simulator truth: closest two robots 16.09 cm (['Left', 'Right', 38.04]); closest to a board/brick inf cm (None); contact: no
+Simulator truth, table edge: closest a body came to an open part 9.87 cm (['Left', 4.09]); hung over the edge: none
+Saved to /tmp/claude-0/-home-claude/fff6dc9c-5876-54f9-92a7-a08483d3d5c7/scratchpad/reh/hometape/run
+22:27:11 SYNC MARK end: 2026-11-05T22:27:11.243-05:00 (Pi clock: Not known whether this computer's clock is set by the internet (no timedatectl or chronyc).)
+22:27:11 mirroring: 3 lane ends, time apart max 0.12 s (median 0.05), position max 0.3 cm (median 0.2); 3 within 0.5 s and 3 cm
+22:27:12 camera track: /tmp/claude-0/-home-claude/fff6dc9c-5876-54f9-92a7-a08483d3d5c7/scratchpad/reh/hometape/run/camera_track.csv (Left 4852, Right 4852)
+22:27:13 wheel+gyro odometry, no camera corrections: /tmp/claude-0/-home-claude/fff6dc9c-5876-54f9-92a7-a08483d3d5c7/scratchpad/reh/hometape/run/odometry_raw.csv (Left 15975, Right 15978)
+22:27:13 pose timeline: /tmp/claude-0/-home-claude/fff6dc9c-5876-54f9-92a7-a08483d3d5c7/scratchpad/reh/hometape/pose_timeline.csv (Left, camera 4852, Right, camera 4852, Right, robot's own pose 3070, Left, robot's own pose 3068)
+22:27:13 result: out of re-plans; saved in /tmp/claude-0/-home-claude/fff6dc9c-5876-54f9-92a7-a08483d3d5c7/scratchpad/reh/hometape
+exit 1

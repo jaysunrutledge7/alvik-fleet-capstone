@@ -1,0 +1,43 @@
+Free roam: /tmp/claude-0/-home-claude/fff6dc9c-5876-54f9-92a7-a08483d3d5c7/scratchpad/reh/fr1 (seed 32856, battery floor 10 %, lost: reckon)
+Waiting for the robots: Left, Center, Right ...
+  Left: safety layers on and read back (tilt stop 5 deg, edge guard 3)
+[    0.0] Left    safety armed: safe_edge 3, edge_bot_cm 11, tilt_stop_deg 5, tilt_ms 300, safe_lift 1
+  Center: safety layers on and read back (tilt stop 5 deg, edge guard 3)
+[    0.0] Center  safety armed: safe_edge 3, edge_bot_cm 11, tilt_stop_deg 5, tilt_ms 300, safe_lift 1
+  Right: safety layers on and read back (tilt stop 5 deg, edge guard 3)
+[    0.0] Right   safety armed: safe_edge 3, edge_bot_cm 11, tilt_stop_deg 5, tilt_ms 300, safe_lift 1
+  Left: firmware 2026-11-05d, battery 99%: speed and steer changes while driving, watchdog on; motion: CURVES (never stops on purpose)
+[    0.0] Left    firmware: 2026-11-05d (fspd/fsteer/watchdog)
+  Center: firmware 2026-11-05d, battery 99%: speed and steer changes while driving, watchdog on; motion: CURVES (never stops on purpose)
+[    0.0] Center  firmware: 2026-11-05d (fspd/fsteer/watchdog)
+  Right: firmware 2026-11-05d, battery 99%: speed and steer changes while driving, watchdog on; motion: CURVES (never stops on purpose)
+[    0.0] Right   firmware: 2026-11-05d (fspd/fsteer/watchdog)
+Waiting for the camera and each robot's own pose ...
+[    0.0] Left    motion: curves (continuous: firmware 2026-11-05d)
+  Left joins at 52.0, 33.0 (facing -17 deg)
+[    0.0] Center  motion: curves (continuous: firmware 2026-11-05d)
+  Center joins at 32.2, 80.9 (facing -128 deg)
+[    0.0] Right   motion: curves (continuous: firmware 2026-11-05d)
+  Right joins at 92.3, 83.7 (facing -119 deg)
+Free roam: Center, Left, Right, until each is at 10 % or 0.1 h. Ctrl+C (or ./run-fleet-pi.sh freeroam-stop) stops every robot.
+Board assumed: x 0 to 122 cm, y 0 to 122 cm (122 x 122 cm, from the simulator's board). Moves end 16 cm or more inside it (90 x 90 cm usable); turns on the spot 9.2 cm in. Walls or objects inside it are found during the run: each front stop or edge-guard stop becomes a keep-out (events: keep-out; keepouts.csv).
+[   60.0] Left move 99% 18 moves; Center move 99% 20 moves; Right move 99% 23 moves
+[  120.0] Left move 99% 38 moves; Center move 98% 35 moves; Right move 98% 38 moves
+[  135.7] Right   lost: camera lost it at 78.2, 23.6: dead reckoning, bubble 2.0 cm
+[  145.6] Right   find me: bubble too big (bubble 16.2 cm): eases to a stop, then wiggles
+[  148.1] Right   seen again: after 12.5 s, 77.7 cm and 288 deg blind: odometry was 1.0 cm off at the picture's time (bubble 19.1; the fix was 0.17 s old)
+[  173.7] Left    lost: camera lost it at 36.4, 17.7: dead reckoning, bubble 2.0 cm
+[  180.1] Left move 98% 58 moves; Center move 98% 53 moves; Right move 98% 56 moves
+[  181.2] Left    seen again: after 7.5 s, 65.9 cm and 221 deg blind: odometry was 0.9 cm off at the picture's time (bubble 14.2; the fix was 0.19 s old)
+[  240.1] Left move 98% 75 moves; Center move 97% 68 moves; Right move 97% 71 moves
+[  283.7] Center  lost: camera lost it at 65.6, 55.2: dead reckoning, bubble 2.0 cm
+[  292.9] Center  find me: bubble too big (bubble 16.2 cm): eases to a stop, then wiggles
+[  293.1] Center  trophy break: lost near an edge: stands until seen
+[  300.1] Left move 97% 88 moves; Center idle 97% 80 moves; Right move 97% 90 moves
+[  302.2] Center  seen again: after 18.5 s, 76.9 cm and 222 deg blind: odometry was 1.1 cm off at the picture's time (bubble 16.3; the fix was 0.20 s old)
+
+The run ends: the time cap (0.1 h).
+[  360.0] -       end: the time cap (0.1 h)
+Report: /tmp/claude-0/-home-claude/fff6dc9c-5876-54f9-92a7-a08483d3d5c7/scratchpad/reh/fr1/report.md
+Free roam folder: /tmp/claude-0/-home-claude/fff6dc9c-5876-54f9-92a7-a08483d3d5c7/scratchpad/reh/fr1
+exit 0

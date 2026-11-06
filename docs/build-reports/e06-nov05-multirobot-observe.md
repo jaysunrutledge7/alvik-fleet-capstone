@@ -118,7 +118,47 @@ The new card on Mission Control's Production screen: one button runs every robot
 
 ### 4. Rehearsals (simulator)
 
-{{REHEARSALS}}
+Every school rehearsal broke the guesses at once: roof tags turned on their robots (Alpha 180 deg, Bravo 90, Charlie
+-90), camera 2 switched off, a patch the camera cannot read (x 150-200, y 0-50 cm), the camera's clock 0.7 s off,
+seam tape across the table at x 99 cm, and Alpha restarting at 70 s (its settings and compass check gone). The robots
+were found by the real binding code (`--sim-bind`), so the counts, wiggles, nudges and compass checks are the real
+ones. Evidence: docs/results/e06-rehearsals-2026-11-05/ (each run's log, sim truth, split, summary).
+
+| Rehearsal | Found / tags | Points: shared, done, skipped (why) | Contact | Closest bodies | Closest body to an edge | Run ended? |
+|---|---|---|---|---|---|---|
+| School, 1 robot | 1; tag -180 found | 16 readable, 16 done; 24 skipped at the start (camera does not read there) | no | - | 6.7 cm | no (Alpha's restart: re-checked and calibrated, held once more for 36 s, back in) |
+| School, 2 robots | 2; -180 and +90 found | 16 (8 + 8), 15 done; 24 skipped at the start, 1 in the run (no room to turn there) | no | 24.2 cm | 6.2 cm | no |
+| School, 3 robots | 3; -180, +90, -90 found | 18 (6 + 6 + 6), 18 done; 22 skipped at the start | no | 20.8 cm | 8.4 cm | no |
+| School, 1 robot, tag turned 180 and NO nudge (the heading watch alone) | - | 20, 20 done | no | - | 6.4 cm | no: HEADING RE-LEARNED after two stretches |
+| Home, 2 robots, Monday program | (lights) | - | no | 9.95 cm | 9.2 cm | no |
+| Home, 2 robots, seam tape across the board | - | - | no | 16.1 cm | 9.9 cm | **yes**: both robots' line sensors hit the tape at once, logged as SURFACE MARKS; then the Monday program found no route for 30 re-plans ("out of re-plans"). The same happens with surface marks switched off (old way), so it is the program's re-plan near an edge, not this build (phase 3) |
+| Calibration, 2 robots (AL-1DC0 tag 180, AL-2B7F tag 90, coast 0.08 s, tape, asleep) | 2; both found | P01-P20 quick tours | - | - | middle 20.8 cm from an edge (12.3 cm from a keep-out) | no; fits wheel 0.9759 / 0.9755 (true 0.976), gyro 1.091 / 1.092 (true 1.086); stop lead applied, C's fixed part per leg -0.4 to +0.2 cm (7-10 legs a tour: the quick tours are thin) |
+| Calibration, 1 robot, tag 90, unreadable patch at P13 | 1 | P13 skipped after 4 losses, then by the map | - | - | - | no (before: "lost the roof tag on the way to P13 four times: stopped") |
+| Free roam (home board, 3 robots, 6 min, firmware 11-05d) | safety layers read back x 3 | - | 0 contacts | no reflex event let circles touch | - | no; moving 97-99 %, 10,404 candidate moves refused by the side-edge invariant (the menu picks others) |
+
+![rehearsals](../screenshots/2026-11-05/e06-feature-rehearsals-no-contact-closest-robots-and-edges.png)
+
+Each row is one final rehearsal: the blue dot is how close two robot bodies came, the orange square how close a body
+came to the table's edge (simulator truth); every dot is right of its dashed line.
+
+**Found by the rehearsals and fixed (each re-run after):**
+
+| Found | Fix |
+|---|---|
+| The facing check turned robots to match a turned tag (the bridge knew the offset, facing.py did not) | facing.py applies the tag offsets |
+| A robot rejoined on the camera's last spot, 36 cm stale, and came to 5.3 cm of another robot | rejoin only on a fresh fix (the newest drained first) |
+| After a restart a robot's heading was 105 deg off the camera's while its position agreed; it refused every fix and drove to 9.5 cm of the x = 0 edge, stopped by its drop check | the camera guard checks heading (at the picture's time) as well as position |
+| A drop trip placed an 80 cm strip across the middle of the table (the robot's own pose was off) | the edge goes where the camera has the robot; interior trips are a small keep-out |
+| A back-off after a drop was halted by the camera guard | the guard leaves a backing-off robot alone |
+| Recovery steps were taken for "old steps" (a re-plan every 5 s) | its own steps are recognised |
+| A recovery ended 1 cm inside the unreadable patch | it drives 10 cm past the last read spot |
+| A 0.4 cm step judged "did not move" made re-plans repeat | moves under 3 cm are not judged |
+| Trip / hazard obstacles had a source the map refuses: the run crashed at its end | valid sources |
+| The new checks read `t_run` before the run started: the home run crashed at its start | guarded |
+| Robots lost at the picture's corner (tag at 3 sizes from the border) | the readability seed keeps 5 tag sizes inside |
+| The calibration ended when it lost the tag 4 times on the way to one point | the point is skipped, the tour goes on |
+
+The full fleet suite then found five more, all fixed (rerun: 645 passed, 9 skipped): the binding wiggle averaged two heading readings either side of 180 deg as 0 (a +90 turn read as -91, robot not bound: now averaged round the circle; an old fault the new start headings exposed); free roam declared `--attended` twice (the ladder's flag, same meaning: kept once); the surface-mark check read the coordinator's settings where a test had none; two tests still expected the old park spots and the old blank tag height.
 
 ### 5. Measure: cameras over typed values (built, not switched on)
 
@@ -175,7 +215,21 @@ height error moves a robot's camera position 0.8-2.2 cm (x 0-200 cm), inside the
 
 ## Conclusion
 
-{{CONCLUSION}}
+- The visit-points run now works with however many robots stand where the camera sees them: in the simulator 1, 2 and 3
+  robots were found, every turned tag (90, 180, -90 deg) was found by its 6 cm nudge, and with one camera the 16-18
+  readable points were shared and done with no contact (closest bodies 20.8 cm, bodies 6.2 cm or more from the
+  edges), the unreadable half skipped with its reason, and no run ended. Without the nudge, the heading watch found a
+  180 deg tag after two 8 cm stretches.
+- The calibration's "overshoot" was a fixed 3-5 mm overrun per leg, not the wheel fit (C's own legs give the same
+  scale, 0.9765 vs 0.9759); the stop lead removes it on the real legs (+0.43 -> 0.00 cm mean), and the report now
+  shows scale and fixed parts apart.
+- Every run type sets and reads back the robot's tilt stop and drop check; a tilt or drop is kept out and backed away
+  from only over its own trail or camera-shown room; a robot whose pose (or heading) disagrees with the camera is
+  stopped and re-seeded; moves "done" without moving are failures, never repeated unchanged; no planned path lets the
+  robot's possible-locations circle cross an edge.
+- Rehearsals found 12 real faults in the new code and the old flows around it (above); each was fixed and re-run.
+- Left open: the Monday program's re-plan after a tape crossing (home), the planner-reserved recovery corridor, the
+  height fit (designed), Measure's cameras-win (built, off on evidence).
 
 ## What's next
 
@@ -193,9 +247,9 @@ height error moves a robot's camera position 0.8-2.2 cm (x 0-200 cm), inside the
   spots and next planned steps; the planner does not reserve the recovery corridor for them (question 2).
 - **Tag heights solved by the program**: designed, not built (section 6); one seed for every robot now.
 - **Rehearsing a trip in every run type on the full chain**: the edge-miss mission run never reached an edge (the
-  heading watch turned it round first); trips are proven in the controller cases (free roam), in the first 2-robot
-  rehearsal (a real drop trip at the y = 0 edge, which exposed the back-off being halted by the camera guard: fixed)
-  and in unit tests for calibration's back-off plan.
+  heading watch turned it round first); trips are proven in the controller cases (free roam), in the 2-robot rehearsals
+  (two real drop trips: one exposed the back-off being halted by the camera guard, one the 80 cm interior strip;
+  both fixed) and in the observe.back_out_plan tests.
 - **Free roam at school**: not rehearsed on the school table (home board only); it refuses to start there without
   `--attended`.
 
@@ -276,8 +330,9 @@ estimators side by side.
 2. A lost robot in a mission now drives forwards to where it was last read (+10 cm), checked against the edges and
    the others' next steps, but the others' plans do not wait for it. Enough for Monday, or do you want the planner
    to reserve that path first (phase 3)?
-3. The standing-tilt (2.5 deg for 2 s) and accelerometer (0.03 g) numbers are guesses from one analysis. Run the bench
-   DOE (a wheel over 1 / 2 / 3 cm) before Monday, or go with them?
+3. No tilt bench test (Nick 21:38): the standing-tilt (2.5 deg for 2 s) and accelerometer (0.03 g) numbers stay as
+   chosen numbers with a DOE note in observe.py. Should the first real school session's raw.csv be used to re-pick
+   them (a read-only check after the run), or leave them until a DOE is scheduled?
 4. The stop lead exists only in the calibration. Use it in missions too (each robot's lead from its last calibration,
    kept on the Pi)?
 

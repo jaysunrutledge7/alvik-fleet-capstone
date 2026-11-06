@@ -1,0 +1,59 @@
+{
+ "mode": "auto",
+ "robots": {
+  "Alpha": [
+   149.86,
+   82.55
+  ]
+ },
+ "orders": {
+  "Alpha": [
+   "P05",
+   "P03",
+   "P01",
+   "P08",
+   "P09",
+   "P06",
+   "P04",
+   "P02",
+   "P07",
+   "P10",
+   "P17",
+   "P14",
+   "P16",
+   "P13",
+   "P18",
+   "P11",
+   "P19",
+   "P20",
+   "P12",
+   "P15"
+  ]
+ },
+ "skipped": {
+  "P21": "the camera does not read tags there: read rate 10 % (camera model: a tag needs 14 px to read)",
+  "P22": "the camera does not read tags there: read rate 10 % (camera model: a tag needs 14 px to read)",
+  "P23": "the camera does not read tags there: read rate 10 % (camera model: a tag needs 14 px to read)",
+  "P24": "the camera does not read tags there: read rate 10 % (camera model: a tag needs 14 px to read)",
+  "P25": "the camera does not read tags there: read rate 10 % (camera model: a tag needs 14 px to read)",
+  "P26": "the camera does not read tags there: read rate 10 % (camera model: a tag needs 14 px to read)",
+  "P27": "the camera does not read tags there: read rate 10 % (camera model: a tag needs 14 px to read)",
+  "P28": "the camera does not read tags there: read rate 10 % (camera model: a tag needs 14 px to read)",
+  "P29": "the camera does not read tags there: read rate 10 % (camera model: a tag needs 14 px to read)",
+  "P30": "the camera does not read tags there: read rate 10 % (camera model: a tag needs 14 px to read)",
+  "P31": "the camera does not read tags there: read rate 10 % (camera model: a tag needs 14 px to read)",
+  "P32": "the camera does not read tags there: read rate 10 % (camera model: a tag needs 14 px to read)",
+  "P33": "the camera does not read tags there: read rate 10 % (camera model: a tag needs 14 px to read)",
+  "P34": "the camera does not read tags there: read rate 10 % (camera model: a tag needs 14 px to read)",
+  "P35": "the camera does not read tags there: read rate 10 % (camera model: a tag needs 14 px to read)",
+  "P36": "the camera does not read tags there: read rate 10 % (camera model: a tag needs 14 px to read)",
+  "P37": "the camera does not read tags there: read rate 10 % (camera model: a tag needs 14 px to read)",
+  "P38": "the camera does not read tags there: read rate 10 % (camera model: a tag needs 14 px to read)",
+  "P39": "the camera does not read tags there: read rate 10 % (camera model: a tag needs 14 px to read)",
+  "P40": "the camera does not read tags there: read rate 10 % (camera model: a tag needs 14 px to read)"
+ },
+ "words": [
+  "table shared between 1 robot over the readable area (20 of 40 points; Alpha 20)"
+ ],
+ "homes": {}
+}

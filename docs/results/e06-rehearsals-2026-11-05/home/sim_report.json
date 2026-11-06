@@ -1,0 +1,80 @@
+{
+ "dockings": [],
+ "min_body_gap_cm": 9.95,
+ "min_body_gap_at": [
+  "Left",
+  "Right",
+  87.64
+ ],
+ "min_static_clearance_cm": Infinity,
+ "min_static_at": null,
+ "collision": false,
+ "events": [],
+ "packets_lost": {
+  "Left": {
+   "to_robot": 0,
+   "from_robot": 0
+  },
+  "Right": {
+   "to_robot": 0,
+   "from_robot": 0
+  }
+ },
+ "robot_runs": {
+  "Left": [
+   {
+    "run": "1E7A-1",
+    "exp": "follow",
+    "result": "stopped:stop command"
+   }
+  ],
+  "Right": [
+   {
+    "run": "5067-1",
+    "exp": "follow",
+    "result": "stopped:stop command"
+   }
+  ]
+ },
+ "tof_sees_robots": true,
+ "seed": 2,
+ "true_sides": {
+  "x_min": {
+   "kind": "unknown"
+  },
+  "x_max": {
+   "kind": "unknown"
+  },
+  "y_min": {
+   "kind": "unknown"
+  },
+  "y_max": {
+   "kind": "unknown"
+  }
+ },
+ "min_open_edge_cm": 9.21,
+ "min_open_edge_at": [
+  "Right",
+  45.14
+ ],
+ "hung": [],
+ "min_com_open_edge_cm": {
+  "Left": 15.12,
+  "Right": 14.43
+ },
+ "edge_trips": {
+  "Left": [],
+  "Right": []
+ },
+ "edge_misses": {
+  "Left": [],
+  "Right": []
+ },
+ "board_cm": [
+  0.0,
+  0.0,
+  122.0,
+  61.0
+ ],
+ "drop_cm": 1.9
+}

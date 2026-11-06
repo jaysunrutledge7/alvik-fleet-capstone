@@ -1,0 +1,223 @@
+22:33:50 CAMERAS: the site's camera 2 is switched off (cameras.side.use false): camera 1 alone; the table is shared over what it reads
+22:33:50 Frames: not saved. The Pi's card: 10.9 GB free (the run ends cleanly under 1 GB).
+22:33:50 NOTE: sticker P16 is missing on the table: its point is still visited by its typed coordinates (nothing here needs to see the sticker)
+22:33:54 AUTO: the camera sees 3 roof tags on the table: waiting for 3 robots to answer
+22:33:56 Found: Alpha at 127.0.0.2, Charlie at 127.0.0.4, Bravo at 127.0.0.3
+22:33:57   Alpha restarted since its last compass check (woken from sleep): the compass check now (a few degrees of wiggle, no spin, no roll; about 10 s)
+22:34:07   Alpha: compass check done
+22:34:09   Alpha: safety layers on and read back: safe_edge 2, edge_bot_cm 11, tilt_stop_deg 5, tilt_ms 300, safe_lift 1
+22:34:10   Charlie: safety layers on and read back: safe_edge 2, edge_bot_cm 11, tilt_stop_deg 5, tilt_ms 300, safe_lift 1
+22:34:11   Bravo: safety layers on and read back: safe_edge 2, edge_bot_cm 11, tilt_stop_deg 5, tilt_ms 300, safe_lift 1
+22:34:18   tag 0: turned +89 deg with Alpha's wiggle, -1 deg from where it started after it
+22:34:18   tag 1: turned -0 deg with Alpha's wiggle, -1 deg from where it started after it
+22:34:18   tag 2: turned +0 deg with Alpha's wiggle, +1 deg from where it started after it
+22:34:18   Alpha: bound by the wiggle (no pin yet)
+22:34:25   tag 0: turned +2 deg with Charlie's wiggle, +3 deg from where it started after it
+22:34:25   tag 1: turned +2 deg with Charlie's wiggle, +3 deg from where it started after it
+22:34:25   tag 2: turned +87 deg with Charlie's wiggle, +1 deg from where it started after it
+22:34:25   Charlie: bound by the wiggle (no pin yet)
+22:34:32   tag 0: turned -2 deg with Bravo's wiggle, -1 deg from where it started after it
+22:34:32   tag 1: turned +91 deg with Bravo's wiggle, +1 deg from where it started after it
+22:34:32   tag 2: turned +3 deg with Bravo's wiggle, +0 deg from where it started after it
+22:34:32   Bravo: bound by the wiggle (no pin yet)
+22:34:37 HEADING CHECK Alpha: moved 5.9 cm at -179 deg from the tag's heading: tag heading offset -180 deg  <- the tag is turned on the robot; every camera heading of tag 0 corrected (observed, not typed)
+22:34:40 HEADING CHECK Charlie: moved 5.9 cm at -89 deg from the tag's heading: tag heading offset -90 deg  <- the tag is turned on the robot; every camera heading of tag 2 corrected (observed, not typed)
+22:34:44 HEADING CHECK Bravo: moved 6.1 cm at 92 deg from the tag's heading: tag heading offset +90 deg  <- the tag is turned on the robot; every camera heading of tag 1 corrected (observed, not typed)
+22:34:44 Slots (pinned, then nearest home): Alpha -> Alpha, Charlie -> Bravo, Bravo -> Charlie
+22:34:44 Not renamed on the robots (tags.rename_to_slot false): in this run Charlie is Bravo, Bravo is Charlie
+22:34:44 Bound: Alpha = tag 0, Bravo = tag 2, Charlie = tag 1
+22:34:44 ROBOTS FOUND: 3 (Alpha,Bravo,Charlie)
+22:34:44 TAG HEADINGS (observed by the nudge): Alpha -180 deg, Bravo -90 deg, Charlie +90 deg
+22:34:44 TAGS from the wiggle (simulator): Alpha = tag 0, Bravo = tag 2, Charlie = tag 1
+22:34:44 TABLE SHARING: table shared between 3 robots over the readable area (18 of 40 points; Alpha 6, Bravo 6, Charlie 6)
+22:34:44 SKIPPED (22 points): P04: the camera does not read tags there: read rate 10 % (camera model: a tag needs 14 px to read); P19: the camera does not read tags there: read rate 10 % (camera model: a tag needs 14 px to read); P21: the camera does not read tags there: read rate 10 % (camera model: a tag needs 14 px to read); P22: the camera does not read tags there: read rate 10 % (camera model: a tag needs 14 px to read); P23: the camera does not read tags there: read rate 10 % (camera model: a tag needs 14 px to read); P24: the camera does not read tags there: read rate 10 % (camera model: a tag needs 14 px to read); P25: the camera does not read tags there: read rate 10 % (camera model: a tag needs 14 px to read); P26: the camera does not read tags there: read rate 10 % (camera model: a tag needs 14 px to read); P27: the camera does not read tags there: read rate 10 % (camera model: a tag needs 14 px to read); P28: the camera does not read tags there: read rate 10 % (camera model: a tag needs 14 px to read); P29: the camera does not read tags there: read rate 10 % (camera model: a tag needs 14 px to read); P30: the camera does not read tags there: read rate 10 % (camera model: a tag needs 14 px to read); P31: the camera does not read tags there: read rate 10 % (camera model: a tag needs 14 px to read); P32: the camera does not read tags there: read rate 10 % (camera model: a tag needs 14 px to read); P33: the camera does not read tags there: read rate 10 % (camera model: a tag needs 14 px to read); P34: the camera does not read tags there: read rate 10 % (camera model: a tag needs 14 px to read); P35: the camera does not read tags there: read rate 10 % (camera model: a tag needs 14 px to read); P36: the camera does not read tags there: read rate 10 % (camera model: a tag needs 14 px to read); P37: the camera does not read tags there: read rate 10 % (camera model: a tag needs 14 px to read); P38: the camera does not read tags there: read rate 10 % (camera model: a tag needs 14 px to read); P39: the camera does not read tags there: read rate 10 % (camera model: a tag needs 14 px to read); P40: the camera does not read tags there: read rate 10 % (camera model: a tag needs 14 px to read)
+22:34:44 READABLE AREA (# reads, . not; x along the table, y up):
+....................
+##########..........
+##########..........
+##########..........
+##########..........
+##########..........
+##########..........
+##########..........
+###.................
+22:34:44 P09: (17, 57.5) in used instead of the sheet's (17, 37.5) in (confirmed by Jay-Sun 3 Nov (spreadsheet correct))
+22:34:44 P10: (33, 37.5) in used instead of the sheet's (33, 27.5) in (confirmed by Jay-Sun 3 Nov (spreadsheet correct))
+22:34:45 speeds pinned for this site: drive 10 cm/s, turn 60 deg/s, final approach 5 cm/s
+22:34:46 mission production on a 396 x 168 cm table, robots Alpha, Bravo, Charlie: planned in 1.0 s, done in 64 s, closest 21.3 cm
+22:34:46 on a problem: KEEP GOING (said once, logged, worked round; a lost robot's points go to the robots still running)
+22:34:46 tag bridge starting (each robot found by its roof tag, wherever it is)
+22:34:51 the robots start now. To stop them at any moment: Ctrl+C
+22:34:51 SYNC MARK start: 2026-11-05T22:34:51.133-05:00 (Pi clock: Not known whether this computer's clock is set by the internet (no timedatectl or chronyc).)
+Starting the simulated robots: /home/claude/alvik-fleet-capstone/tools/sim/fleet_sim.py --map /tmp/claude-0/-home-claude/fff6dc9c-5876-54f9-92a7-a08483d3d5c7/scratchpad/reh/s3/mission.json --plan /tmp/claude-0/-home-claude/fff6dc9c-5876-54f9-92a7-a08483d3d5c7/scratchpad/reh/s3/run/plan_given.json --out /tmp/claude-0/-home-claude/fff6dc9c-5876-54f9-92a7-a08483d3d5c7/scratchpad/reh/s3/run/sim --seed 4 --quiet --fixes-to 127.0.0.1:5010 --drop-cm=74 --fix-hz=0 --tag-cams=/tmp/claude-0/-home-claude/fff6dc9c-5876-54f9-92a7-a08483d3d5c7/scratchpad/reh/s3/tag_cams.json --tape=99,0,99,167.6 --sweep-cond=/tmp/claude-0/-home-claude/fff6dc9c-5876-54f9-92a7-a08483d3d5c7/scratchpad/reh/s3/sim_cond.json --persist
+Waiting for robots: Alpha, Bravo, Charlie ...
+  Alpha: firmware 2026-11-05d, battery 89 %, boot 7564; Bravo: firmware 2026-11-05d, battery 92 %, boot D3E1; Charlie: firmware 2026-11-05d, battery 90 %, boot 5300  [battery floor: 25 % (the default)]
+22:34:55 setup: overhead 35, side 35 pictures, 105 tag reads (12 ms a picture)
+22:34:55 setup: reference tags read: overhead 20, 23, 24, 25; side 21, 22, 24, 25
+22:35:23 setup: The table measures 396.2 x 167.5 cm (+- 0.3 / 0.1).
+22:35:23 setup: Reference tags read: overhead 20, 23, 24, 25; side 21, 22, 24, 25.
+22:35:23 setup: Side tag 24: 215.5 cm along its edge (+- 0.2), measured by the cameras.
+22:35:23 setup: Side tag 25: 198.5 cm along its edge (+- 0.1), measured by the cameras.
+22:35:23 setup: overhead: lens 251 cm above the table, tilted 2 deg; tags fit to 1.96 px, reference tags 0.39 px, stickers 1.1 px
+22:35:23 setup: side: lens 213 cm above the table, tilted 4 deg; tags fit to nan px, reference tags 0.21 px, stickers 1.0 px
+22:35:23 setup: check table length: cameras 396.23, typed 396.2, agree by 0.03
+22:35:23 setup: check table width: cameras 167.54, typed 167.6, agree by -0.06
+22:35:23 setup: check tag read size / printed: cameras 0.9619, typed 1.0, agree by -0.0381
+22:35:23 setup: check reference tag read size / printed: cameras 0.9894, typed 1.0, agree by -0.0106
+22:35:23 setup: overhead placed from 4 reference tags (20, 23, 24, 25)
+22:35:23 setup: side placed from 4 reference tags (21, 22, 24, 25)
+22:35:23 setup: reference tags: table 397.1 x 168.0 cm to start with
+22:35:23 setup: Camera height cross-check: with the robots' roof tags overhead 251 cm, side 213 cm; from the flat reference tags alone overhead 212 cm, side 202 cm (flat tags alone cannot tell height from zoom when a camera looks straight down: the roof tags, 6.2 cm up, decide it; a big gap with few roof reads: drive the robots about, then Refit).
+22:35:23 setup: Typed measurements used; the tags read 3.8 % smaller than printed (fitted; tags alone would make the table 403.7 x 170.5 cm).
+22:35:23 setup: Every typed measurement agrees with the cameras.
+22:35:23 setup: Alpha's roof tag: height not measurable here (the cameras' +- is 3.6 cm): typed 6.2 cm kept; only one camera sees it, and one camera cannot tell the tag's height from its size: measure from the table to the tag's middle with a ruler and type it (tags.heights_cm); tilt not checked yet: one camera looking nearly straight down at a still tag cannot tell a tilt; it is checked after a run's sync spin (Refit). Meanwhile look at the tag from the side: it should sit flat; offset from the turning point: not measured at Measure (the robots stand still; it is measured from the sync spin after a run).
+22:35:23 setup: Charlie's roof tag: height not measurable here (the cameras' +- is 3.0 cm): typed 6.2 cm kept; only one camera sees it, and one camera cannot tell the tag's height from its size: measure from the table to the tag's middle with a ruler and type it (tags.heights_cm); tilt not checked yet: one camera looking nearly straight down at a still tag cannot tell a tilt; it is checked after a run's sync spin (Refit). Meanwhile look at the tag from the side: it should sit flat; offset from the turning point: not measured at Measure (the robots stand still; it is measured from the sync spin after a run).
+22:35:23 setup: Bravo's roof tag: height not measurable here (the cameras' +- is 3.0 cm): typed 6.2 cm kept; only one camera sees it, and one camera cannot tell the tag's height from its size: measure from the table to the tag's middle with a ruler and type it (tags.heights_cm); tilt not checked yet: one camera looking nearly straight down at a still tag cannot tell a tilt; it is checked after a run's sync spin (Refit). Meanwhile look at the tag from the side: it should sit flat; offset from the turning point: not measured at Measure (the robots stand still; it is measured from the sync spin after a run).
+22:35:23 setup (simulator truth): {"overhead": {"median_cm": 0.46, "worst_cm": 1.13, "height_cm": 251.3, "true_height_cm": 200.0, "f": 1059.3, "true_f": 849.3}, "side": {"median_cm": 0.18, "worst_cm": 0.57, "height_cm": 212.6, "true_height_cm": 200.0, "f": 899.6, "true_f": 849.3}, "stickers_worst_cm": 0.91, "side_tags_along_off_cm": {"24": -0.11, "25": 0.13}}
+Facing check: which way each robot faces, from its roof tag (nothing moves; about 1 s) ...
+  Alpha faces 87 deg (its roof tag (overhead 7 reads)): 3 deg off its start heading
+  Bravo faces 89 deg (its roof tag (overhead 7 reads)): 1 deg off its start heading
+  Charlie faces 91 deg (its roof tag (overhead 7 reads)): 1 deg off its start heading
+  facing check done in 1.3 s
+  settings read back: Alpha 20 ok, Bravo 20 ok, Charlie 20 ok
+Floor check: each robot stands still while its distance sensor reads the floor (2.5 s) ...
+[   0.0] floor check: Alpha: stop limit 12.0 cm (the usual; floor check: no floor in reach of the stop (nothing under 40 cm in its path))
+[   0.0] floor check: Bravo: stop limit 12.0 cm (the usual; floor check: no floor in reach of the stop (nothing under 40 cm in its path))
+[   0.0] floor check: Charlie: stop limit 12.0 cm (the usual; floor check: no floor in reach of the stop (nothing under 40 cm in its path))
+Start straightening: each robot's measured pose against its start pose
+  Alpha was 3 deg off: it turns on the spot to face the y = 167.6 side
+  Bravo is on its start spot (1.0 cm, 1 deg off): no correction
+  Charlie is on its start spot (1.0 cm, 1 deg off): no correction
+  Alpha was 3 deg off: turned to face the y = 167.6 side
+Facing check: which way each robot faces, from its roof tag (nothing moves; about 1 s) ...
+  Alpha faces 91 deg (its roof tag (overhead 8 reads)): 1 deg off its start heading
+  Bravo faces 89 deg (its roof tag (overhead 8 reads)): 1 deg off its start heading
+  Charlie faces 91 deg (its roof tag (overhead 8 reads)): 1 deg off its start heading
+  facing check done in 1.3 s
+  Alpha: re-check 0.7 cm and 1 deg off its start (allowed 3 cm, 8 deg): ready
+  Bravo: re-check 1.0 cm and 1 deg off its start (allowed 3 cm, 8 deg): ready
+  Charlie: re-check 1.0 cm and 1 deg off its start (allowed 3 cm, 8 deg): ready
+  Alpha: ready at (150.5, 82.1) facing 91 deg
+  Bravo: ready at (81.2, 141.1) facing 89 deg
+  Charlie: ready at (29.5, 31.7) facing 91 deg
+  plan's closest approach 21.3 cm (safety net 8.0 cm)
+Robots ready: Alpha at 150.5,82.1,91, Bravo at 81.2,141.1,89, Charlie at 29.5,31.7,91
+[   0.0] plan plan-bb377c6782 started: 3 robots, 112 steps, planned 63.5 s
+[   8.3] POINT point P07 (Bravo): ±1.3 cm, one camera (overhead)
+[   8.3] POINT point P01 (Charlie): ±1.3 cm, one camera (overhead)
+[   8.4] POINT point P11 (Alpha): ±1.3 cm, one camera (overhead)
+[  10.0]   Alpha 6/38  Bravo 6/38  Charlie 6/36
+[  15.4] POINT point P08 (Charlie): ±1.3 cm, one camera (overhead)
+[  16.9] POINT point P16 (Bravo): ±1.3 cm, one camera (overhead)
+[  17.2] POINT point P18 (Alpha): ±1.3 cm, one camera (overhead)
+[  20.0]   Alpha 13/38  Bravo 11/38  Charlie 12/36
+[  24.7] POINT point P06 (Charlie): ±1.3 cm, one camera (overhead)
+[  25.6] POINT point P15 (Alpha): ±1.3 cm, one camera (overhead)
+[  26.0] POINT point P17 (Bravo): ±1.3 cm, one camera (overhead)
+[  28.6] Charlie: after its turn the camera did not agree within 1.5 cm in 3 s (one camera (overhead), 1.8 cm apart): driving on, as before the pause
+[  30.0]   Alpha 17/38  Bravo 18/38  Charlie 17/36
+[  30.5] Alpha: after its turn the camera did not agree within 1.5 cm in 3 s (one camera (overhead), 1.6 cm apart): driving on, as before the pause
+[  35.6] POINT point P09 (Charlie): ±1.3 cm, one camera (overhead)
+[  36.2] POINT point P14 (Bravo): ±1.3 cm, one camera (overhead)
+[  38.7] POINT point P12 (Alpha): ±1.3 cm, one camera (overhead)
+[  40.0]   Alpha 22/38  Bravo 23/38  Charlie 21/36
+[  40.5] Charlie: after its turn the camera did not agree within 1.5 cm in 3 s (one camera (overhead), 3.5 cm apart): driving on, as before the pause
+[  40.9] Bravo: after its turn the camera did not agree within 1.5 cm in 3 s (one camera (overhead), 3.7 cm apart): driving on, as before the pause
+[  47.2] POINT point P05 (Charlie): ±1.3 cm, one camera (overhead)
+[  47.4] POINT point P20 (Alpha): ±14.6 cm, odometry for 190 cm since the last camera fix (55 s ago)
+[  48.4] POINT point P02 (Bravo): ±1.3 cm, one camera (overhead)
+[  48.7] Alpha: Alpha follow: nothing from the laptop for 4279 ms; standing still
+[  50.0]   Alpha 28/38  Bravo 27/38  Charlie 26/36
+[  51.4] Charlie: after its turn the camera did not agree within 1.5 cm in 3 s (one camera (overhead), 3.1 cm apart): driving on, as before the pause
+[  51.7] Alpha: after its turn the camera did not agree within 1.5 cm in 3 s (no fix, no fix): driving on, as before the pause
+[  52.3] Alpha: no camera sees it: driving on its own wheels and gyro (at most 40 cm)
+[  53.2] Bravo: after its turn the camera did not agree within 1.5 cm in 3 s (one camera (overhead), 4.2 cm apart): driving on, as before the pause
+[  54.3] Alpha: seen again after 24 cm with no camera; its own pose was 5.8 cm off: set to the camera's, and it steers back onto its planned line
+[  59.1] POINT point P13 (Alpha): ±1.3 cm, one camera (overhead)
+[  59.1] POINT point P03 (Charlie): ±1.3 cm, one camera (overhead)
+[  60.0]   Alpha 32/38  Bravo 31/38  Charlie 31/36
+[  60.7] POINT point P10 (Bravo): ±1.3 cm, one camera (overhead)
+[  68.2] KEEP GOING: Charlie: the camera and its own pose disagreed by 6.2 cm for 1.0 s: its pose was set to the camera's (the camera is trusted), the run goes on
+[  68.2] WARNING: Charlie: camera and its own pose disagree by 6.2 cm: halted, its pose set from the camera, and the others re-plan round it
+[  68.8] Alpha continues: path clear for the next 2.0 s; carries on 1 step(s), then holds
+[  68.8] Bravo done: already finished
+[  68.8] Charlie done: already finished
+[  68.8] new plan in 0.09 s (first safe plan, robots told 0.5 s ahead; a shorter one is searched for next); everyone done about 5 s after the event
+[  69.0] improvement try: done at 74 s instead of 73 s, not kept
+[  70.0]   Alpha 0/4  Bravo 0/0  Charlie 0/0
+[  71.6] Alpha is held: restarted mid-run (boot 8913, was 7564): it lost its calibration and its steps. It is a fixed obstacle where it stopped until it is heard again (then it rejoins); the others re-plan and carry on
+[  71.6] Alpha still held: its points were handed over and are done, so the run ends without waiting for it
+[  71.7] Alpha is talking again: checking it (boot ID, camera) before it rejoins
+[  71.9] Bravo done: already finished
+[  71.9] Charlie done: already finished
+[  71.9] new plan in 0.24 s (first safe plan, robots told 0.5 s ahead; a shorter one is searched for next); everyone done about 0 s after the event
+[  72.1] improvement try: done at 72 s instead of 72 s, not kept
+[  72.1] all robots done
+
+Result: done after 73.3 s (first plan said 63.5 s), 3 plan(s)
+Steps sent {'Alpha': 37, 'Bravo': 38, 'Charlie': 36}; resent {'Alpha': 0, 'Bravo': 0, 'Charlie': 0}
+Camera fixes sent {'Alpha': 372, 'Bravo': 433, 'Charlie': 433}; used/ignored on the robots {'Alpha': ('0', '323'), 'Bravo': ('0', '432'), 'Charlie': ('0', '432')}; held (the robot had no pose yet) {'Alpha': 13, 'Bravo': 13, 'Charlie': 13}
+WARNINGS (2; each was handled without stopping the run):
+  - Charlie: the camera and its own pose disagreed by 6.2 cm for 1.0 s: its pose was set to the camera's (the camera is trusted), the run goes on
+  - Charlie: camera and own pose disagreed 6.2 cm: pose reset from the camera
+Pause after turns, Alpha: 4 pauses added 6.0 s (longest 3.0 s); both cameras 0, one camera 2, timed out 2
+Pause after turns, Bravo: 4 pauses added 6.0 s (longest 3.0 s); both cameras 0, one camera 2, timed out 2
+Pause after turns, Charlie: 4 pauses added 9.0 s (longest 3.0 s); both cameras 0, one camera 1, timed out 3
+  re-plan at 68.7 s (retry): 0.09 s to compute
+  re-plan at 68.8 s (improve): 0.11 s to compute, not kept
+  re-plan at 71.6 s (robot_out): 0.24 s to compute
+  re-plan at 71.9 s (improve): 0.20 s to compute, not kept
+Keep going: 1 problem(s) worked round without stopping the run
+Confidence at each point (± = 95 %; 18 points):
+  point P07 (Bravo): ±1.3 cm, one camera (overhead)
+  point P01 (Charlie): ±1.3 cm, one camera (overhead)
+  point P11 (Alpha): ±1.3 cm, one camera (overhead)
+  point P08 (Charlie): ±1.3 cm, one camera (overhead)
+  point P16 (Bravo): ±1.3 cm, one camera (overhead)
+  point P18 (Alpha): ±1.3 cm, one camera (overhead)
+  point P06 (Charlie): ±1.3 cm, one camera (overhead)
+  point P15 (Alpha): ±1.3 cm, one camera (overhead)
+  point P17 (Bravo): ±1.3 cm, one camera (overhead)
+  point P09 (Charlie): ±1.3 cm, one camera (overhead)
+  point P14 (Bravo): ±1.3 cm, one camera (overhead)
+  point P12 (Alpha): ±1.3 cm, one camera (overhead)
+  point P05 (Charlie): ±1.3 cm, one camera (overhead)
+  point P20 (Alpha): ±14.6 cm, odometry for 190 cm since the last camera fix (55 s ago)
+  point P02 (Bravo): ±1.3 cm, one camera (overhead)
+  point P13 (Alpha): ±1.3 cm, one camera (overhead)
+  point P03 (Charlie): ±1.3 cm, one camera (overhead)
+  point P10 (Bravo): ±1.3 cm, one camera (overhead)
+Simulator truth: closest two robots 20.77 cm (['Alpha', 'Bravo', 24.98]); closest to a board/brick inf cm (None); contact: no
+Simulator truth, table edge: closest a body came to an open part 8.36 cm (['Bravo', 24.08]); hung over the edge: none
+  sim event: {'kind': 'robot_restart', 'robot': 'Alpha', 't': 70.01, 'boot_s': 3.0}
+  sim event: {'kind': 'wifi_drop_start', 'robot': 'Alpha', 't': 70.01}
+  sim event: {'kind': 'wifi_drop_end', 'robot': 'Alpha', 't': 73.01}
+Saved to /tmp/claude-0/-home-claude/fff6dc9c-5876-54f9-92a7-a08483d3d5c7/scratchpad/reh/s3/run
+22:36:51 SYNC MARK end: 2026-11-05T22:36:51.716-05:00 (Pi clock: Not known whether this computer's clock is set by the internet (no timedatectl or chronyc).)
+22:36:52 SYNC WIGGLE Alpha: 1793936137.352 -> 1793936142.729 (Pi clock, 5.4 s)
+22:36:52 SYNC WIGGLE Bravo: 1793936137.352 -> 1793936142.593 (Pi clock, 5.2 s)
+22:36:52 SYNC WIGGLE Charlie: 1793936137.352 -> 1793936142.657 (Pi clock, 5.3 s)
+22:36:52 camera track: /tmp/claude-0/-home-claude/fff6dc9c-5876-54f9-92a7-a08483d3d5c7/scratchpad/reh/s3/run/camera_track.csv (Alpha 928, Bravo 1046, Charlie 1046)
+22:36:52 wheel+gyro odometry, no camera corrections: /tmp/claude-0/-home-claude/fff6dc9c-5876-54f9-92a7-a08483d3d5c7/scratchpad/reh/s3/run/odometry_raw.csv (Alpha 3380, Bravo 3866, Charlie 3865)
+22:36:52 pose timeline: /tmp/claude-0/-home-claude/fff6dc9c-5876-54f9-92a7-a08483d3d5c7/scratchpad/reh/s3/pose_timeline.csv (Bravo, camera tag 523, Charlie, camera tag 523, Alpha, camera tag 465, Alpha, robot's own pose 618, Bravo, robot's own pose 698, Charlie, robot's own pose 698)
+22:36:52 POINT point P07 (Bravo): ±1.3 cm, one camera (overhead)  [simulator truth: 0.8 cm off, inside]
+22:36:52 POINT point P01 (Charlie): ±1.3 cm, one camera (overhead)  [simulator truth: 0.9 cm off, inside]
+22:36:52 POINT point P11 (Alpha): ±1.3 cm, one camera (overhead)  [simulator truth: 0.8 cm off, inside]
+22:36:52 POINT point P08 (Charlie): ±1.3 cm, one camera (overhead)  [simulator truth: 0.8 cm off, inside]
+22:36:52 POINT point P16 (Bravo): ±1.3 cm, one camera (overhead)  [simulator truth: 0.8 cm off, inside]
+22:36:52 POINT point P18 (Alpha): ±1.3 cm, one camera (overhead)  [simulator truth: 0.8 cm off, inside]
+22:36:52 POINT point P06 (Charlie): ±1.3 cm, one camera (overhead)  [simulator truth: 0.6 cm off, inside]
+22:36:52 POINT point P15 (Alpha): ±1.3 cm, one camera (overhead)  [simulator truth: 0.9 cm off, inside]
+22:36:52 POINT point P17 (Bravo): ±1.3 cm, one camera (overhead)  [simulator truth: 0.4 cm off, inside]
+22:36:52 POINT point P09 (Charlie): ±1.3 cm, one camera (overhead)  [simulator truth: 0.8 cm off, inside]
+22:36:52 POINT point P14 (Bravo): ±1.3 cm, one camera (overhead)  [simulator truth: 0.5 cm off, inside]
+22:36:52 POINT point P12 (Alpha): ±1.3 cm, one camera (overhead)  [simulator truth: 0.8 cm off, inside]
+22:36:52 POINT point P05 (Charlie): ±1.3 cm, one camera (overhead)  [simulator truth: 0.8 cm off, inside]
+22:36:52 POINT point P20 (Alpha): ±14.6 cm, odometry for 190 cm since the last camera fix (55 s ago)  [simulator truth: 5.0 cm off, inside]
+22:36:52 POINT point P02 (Bravo): ±1.3 cm, one camera (overhead)  [simulator truth: 0.6 cm off, inside]
+22:36:52 POINT point P13 (Alpha): ±1.3 cm, one camera (overhead)  [simulator truth: 0.8 cm off, inside]
+22:36:52 POINT point P03 (Charlie): ±1.3 cm, one camera (overhead)  [simulator truth: 0.8 cm off, inside]
+22:36:52 POINT point P10 (Bravo): ±1.3 cm, one camera (overhead)  [simulator truth: 0.3 cm off, inside]
+22:36:52 keep going: 1 problem(s) worked round without stopping the run
+22:36:52 result: done; saved in /tmp/claude-0/-home-claude/fff6dc9c-5876-54f9-92a7-a08483d3d5c7/scratchpad/reh/s3
+exit 0
