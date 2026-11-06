@@ -21,6 +21,11 @@ pictures a second (-1 to +1; near 0 = no link, or temperature barely varied).
 | 20261102-145816-doe | unknown | 70.1 / 77.9 | 0 | 100 / 0 / 0 % | 25.0 / - / - | 0.04 | 0.01 |
 
 ## Readings (newest first)
+- **20261105-155001-freeroam (home free roam, 15:54-19:54, 4 h, three robots, cooling unknown):** not in the table:
+  the free roam does not log cpu.csv, so `heat_tracker.py` stops with "no cpu.csv" and there is no temperature to
+  read. perf.csv alone: the camera handled 25.0 pictures a second (median) throughout, picture age 0.02 s, with 5-minute
+  delay spikes at each new video file (results/freeroam-2026-11-05-4h-analysis.md). Next: add the cpu logger to the free
+  roam runner.
 - **20261102-145816-doe (low-battery DOE loop in keep-going mode, 14:58-15:56, 58 min, afternoon, three robots,
   cooling not in the logs):** the coolest DOE loop in this tracker by median: 73 C on average while robots drove (top 77.9 C),
   then down to 61-62 C after 15:35, when every robot was silent and the loop only held them (median 70.1 C, 0 minutes
