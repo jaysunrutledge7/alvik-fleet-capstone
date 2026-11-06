@@ -1431,6 +1431,20 @@ class CalibRun:
             send = lead_value(value, speed, getattr(self, "lead", None))
         self._sent, self._speed = send, speed
         r = self.rb.leg(kind, send, on_tick=self.watch)
+        if r["result"] == "refused" and "compass" in (r.get("info") or ""):
+            # (11-05h, Observe then trust: robot state) it restarted mid-run (settings and compass check gone): the
+            # compass check and the safety layers again, then the leg (it never started, so it is not a repeat)
+            say("  %s restarted (it refused the leg: %s): compass check and safety layers again" % (self.name,
+                                                                                                r.get("info")))
+            self.ev("restarted", robot=self.name, info=r.get("info"))
+            self.ensure_compass(self.rb)
+            ok_, w_ = arm_safety(self.rb, self.a.safe_edge)
+            if not ok_:
+                raise RunEnd("%s restarted and its safety layers did not read back (%s): stopped" % (self.name, w_))
+            for k_ in PARAMS:                      # its values for this phase (a restart puts the stored ones back)
+                self.rb.set_checked(k_, (getattr(self, "fit", None) or {}).get("new", self.phase_a_values).get(
+                    k_, self.phase_a_values[k_]))
+            r = self.rb.leg(kind, send, on_tick=self.watch)
         self._leg_moving = False
         self.odo_step(r)
         hz = (getattr(self.link, "tilt_hazard", {}) or {}).pop(self.rb.name, None)
@@ -2538,6 +2552,8 @@ def start_sim(a, S, folder):
         cmd += ["--true-cal", "%s=%s" % (q[0], a.sim_true_also or a.sim_true)]
     for fv in a.sim_fw:
         cmd += ["--fw", fv]
+    for tp in getattr(a, "sim_tape", None) or []:
+        cmd += ["--tape", tp]                  # (11-05h) a seam's dark tape the line sensors see
     if getattr(a, "sim_coast", None):
         for n_ in [name] + [q.split(":")[0] for q in a.sim_also]:
             cmd += ["--stop-coast", "%s=%s" % (n_, a.sim_coast)]
@@ -2626,6 +2642,8 @@ def main(argv=None):
                              VIEW_X_MAX_CM - VIEW_MARGIN_CM))
     ap.add_argument("--park-spots", default="", help="spots in order, e.g. P09,P01,P05 (default: the site's "
                     "calibration.park_spots). School 5 Nov: P11 reads poorly in the room light, so start and park on P09")
+    ap.add_argument("--sim-tape", action="append", default=[], metavar="X0,Y0,X1,Y1",
+                    help="(simulator) a dark tape line on the table (the school seam's tape)")
     ap.add_argument("--sim-coast", default="", help="(simulator) every robot's wheels run down with this time "
                     "constant (s) after a brake: 0.08 reproduces AL-1DC0's overrun at school (5 Nov 19:34)")
     ap.add_argument("--sleep-at-end", action="store_true", default=None,

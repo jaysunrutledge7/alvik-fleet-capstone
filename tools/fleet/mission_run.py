@@ -416,7 +416,7 @@ def resolve_site(args):
         os.environ["MIRLT_CONF_DIR"] = site["conf_dir"]
     if tr in ("tags", "none", "lights") and args.robots == "Left,Right" and site and site.get("tracking") == "tags":
         args.robots = ",".join(r["name"] for r in site["robots"])        # the site's robots, not home's
-    args.auto_robots = str(args.robots).strip().lower() == "auto"
+    args.auto_robots = str(getattr(args, "robots", "")).strip().lower() == "auto"
     if args.auto_robots:
         # (11-05h, Observe then trust) however many robots are on the table: found by the wiggle. The simulator's
         # robots: --sim-robots of them, named as the binding would name them
@@ -424,7 +424,7 @@ def resolve_site(args):
         args.robots = ",".join(WB.auto_slots(site, max(1, int(getattr(args, "sim_robots", 2) or 2)))) if args.dry \
             else ",".join(WB.auto_slots(site, 1))
     side = ((site or {}).get("cameras") or {}).get("side") or {}
-    if side.get("use") is False and not args.no_side and tr == "tags":
+    if side.get("use") is False and not getattr(args, "no_side", False) and tr == "tags":
         args.no_side = True
         say("CAMERAS: the site's camera 2 is switched off (cameras.side.use false): camera 1 alone; the table is "
             "shared over what it reads")
@@ -750,7 +750,11 @@ def dry_bind(args, out):
     args.tags_ = WB.tags_with_binding(args.tags_, rec)
     args.aliases_ = {}
     take_binding(args, rec)
-    args.sim_homes_ = {n: homes.get(n) for n in rec["slots"]}
+    # the simulated robots are physical things: the slot the binding gave each one carries ITS spot and ITS turned tag
+    # into the mission's picture simulator (slots may come out swapped: the robot standing nearer Alpha's home is Alpha)
+    phys = {r_["slot"]: r_["name_before"] for r_ in rec.get("robots") or []}
+    args.sim_homes_ = {sl: homes.get(p_) for sl, p_ in phys.items()}
+    args.sim_yaw_slot_ = {sl: float(yaw[p_]) for sl, p_ in phys.items() if p_ in yaw}
     say("TAGS from the wiggle (simulator): %s" % ", ".join("%s = tag %d" % kv for kv in sorted(rec["slots"].items())))
     return 0
 
@@ -946,7 +950,9 @@ def run(args):
         for lr in args.cam_low_res:
             c_, _, wh = lr.partition("=")
             tcfg.setdefault("low_res", {})[c_] = [int(v) for v in wh.split("x")]
-        if args.sim_tag_yaw:
+        if getattr(args, "sim_yaw_slot_", None) is not None:
+            tcfg["tag_yaw"] = dict(args.sim_yaw_slot_)      # (11-05h) by the binding's slots (the physical robots)
+        elif args.sim_tag_yaw:
             # (11-05h) tags turned on their robots: drawn turned (the tag reads DEG less than the nose)
             tcfg["tag_yaw"] = {k: float(v) for k, v in (kv.split("=") for kv in args.sim_tag_yaw.split(","))}
         if args.sim_dark:

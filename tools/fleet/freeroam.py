@@ -128,6 +128,7 @@ class Runner:
         self.rect = rect
         self.safe_edge_used = site_safe_edge(a)
         self.params_read = {}
+        self.boots = {}
         self.q = queue.Queue()
         self.link = AC.Link(outdir, ips)
         self.link.session.quiet = True
@@ -190,6 +191,9 @@ class Runner:
                 if m:
                     self.fw[name] = m.group(1)
                     c.on_fw(name, m.group(1))
+                m = re.search(r"boot ([0-9A-F]{4})\)", vals)
+                if m:
+                    self.on_boot(name, m.group(1))
                 m = re.search(r"battery (\d+)%", vals)
                 if m:
                     c.on_battery(name, int(m.group(1)), t)
@@ -250,6 +254,32 @@ class Runner:
                                           _fnum(row.get("lineC")))
             except (ValueError, IndexError):
                 continue
+
+    def on_boot(self, name, boot):
+        """(11-05h, Observe then trust: robot state) Its boot id changed: the robot restarted (a power dip, a sleep
+        check-in), which wipes every `set` (the safety layers too) and its compass check (it then refuses to turn).
+        Shared rule (observe.restarted): the safety layers are set again and the compass check run (a few degrees of
+        wiggle, no spin, no roll) before its follow run starts again; said and logged."""
+        import observe as OB
+        import calib_room as CRM
+        prev = self.boots.get(name)
+        self.boots[name] = boot
+        if prev is None or not OB.restarted({"boot": prev}, {"boot": boot}):
+            return
+        c = self.ctrl
+        c.event(c.R[name], "restarted", "boot %s (was %s): safety layers set again, compass check, then its follow run"
+                % (boot, prev))
+        r = c.R[name]
+        if r.move is not None:
+            c.end_move(r)
+        for cmd in safe_cmds(self.safe_edge_used) + ["set follow_look_cm %.1f" % FOLLOW_LOOK_CM] + \
+                border_cmds(self.rect):
+            self.send(name, cmd)
+        self.send(name, "set calib_spin_deg 0")
+        self.send(name, CRM.caps_cmd([(d, 0.0) for d in CRM.CAP_DEGS]))
+        self.run_exp[name] = "follow"          # the calibrate's RUNEND starts the follow run again (drain)
+        self.send(name, "calibrate")
+        self.restarts[name] += 1
 
     def fixes(self):
         c = self.ctrl

@@ -1464,6 +1464,7 @@ class Coordinator:
         import copy
         b.out = why
         b.out_kind = kind
+        b.blind = None             # (11-05h) its blind distance starts again when it rejoins (seen at the re-check)
         b.out_entry = copy.deepcopy(self.plan["robots"].get(b.name)) if b.name in self.plan["robots"] else None
         b.out_ids, b.out_stat = list(b.ids), [dict(x) for x in b.stat]
         b.back_t = None
@@ -3439,6 +3440,8 @@ class Coordinator:
                 self.halt_all()
                 return
 
+    RECOVER_BEYOND_CM = 10.0  # (11-05h) the recovery drives this far past the last read spot, back into readable ground
+                              # (chosen: a robot body; DOE note: 5 / 10 / 15 cm against recoveries seen again)
     RECOVER_GAP_CM = 16.0     # (11-05h) a lost robot's straight recovery must keep its middle this far (plus its blind
                               # error) from every other robot's middle, now and along their next planned steps: two
                               # half bodies (4.75 x 2) + the 8 cm net, rounded down; chosen. DOE note: not needed,
@@ -3458,7 +3461,10 @@ class Coordinator:
         if not lc or b.pose is None:
             return False
         x, y, th = b.pose
-        back = min(bl["dist"], math.hypot(x - lc[0], y - lc[1]), OB.BACK_OFF_CM * 4)
+        # to where it was last read and RECOVER_BEYOND_CM on (the last read is at the unreadable patch's border: the
+        # rehearsal's robot stopped 1 cm inside the dark patch, still unseen)
+        back = min(bl["dist"], math.hypot(x - lc[0], y - lc[1])) + self.RECOVER_BEYOND_CM
+        back = min(back, OB.BACK_OFF_CM * 4 + self.RECOVER_BEYOND_CM)
         if back < 3.0:
             return False
         # (11-05h, protection 4: never a blind reverse) it turns on the spot to face where it was last read and drives
@@ -3509,14 +3515,48 @@ class Coordinator:
         rm = getattr(self, "readmap", None)
         if rm is not None:
             k_, item = self.current_task(b.name)
-            pt = self.point_of(item.get("label")) if isinstance(item, dict) else None
-            if pt is not None and not rm.readable(*pt[:2])[0]:
+            lab_ = self.point_of(item.get("label")) if isinstance(item, dict) else None
+            xy_ = (self.m.get("spots") or {}).get(lab_[6:]) if lab_ else None
+            if xy_ is not None and not rm.readable(xy_[0], xy_[1])[0]:
                 lab = self.skip_current_point(b.name, "the camera does not read tags there (%s)" %
-                                              rm.readable(*pt[:2])[1])
+                                              rm.readable(xy_[0], xy_[1])[1])
                 if lab:
                     self.say("%s: point %s skipped: the camera does not read tags there (learned in this run)" % (
                         b.name, lab))
+            self.skip_unreadable()
         return True
+
+    def skip_unreadable(self, min_tries=3):
+        """(11-05h) Every robot's points not done that lie where this run has LEARNED the camera does not read tags
+        (min_tries reads missed there, not just the start guess) are skipped with that reason; the run carries on."""
+        rm = getattr(self, "readmap", None)
+        if rm is None:
+            return []
+        out = []
+        for n, entry in (self.plan.get("robots") or {}).items():
+            k0, _ = self.current_task(n)
+            vo = entry.get("visit_order") or []
+            for j in reversed(range(len(vo))):
+                v = vo[j]
+                if k0 is None or j <= k0 or not isinstance(v, dict):
+                    continue
+                lab_ = self.point_of(v.get("label"))
+                xy_ = (self.m.get("spots") or {}).get(lab_[6:]) if lab_ else None
+                if xy_ is None:
+                    continue
+                cell = rm.ij(xy_[0], xy_[1])
+                ok_, why_ = rm.readable(xy_[0], xy_[1])
+                if not ok_ and rm.tries.get(cell, 0) >= min_tries:
+                    del vo[j]
+                    rec = dict(robot=n, point=lab_, why="the camera does not read tags there (learned: %s)" % why_,
+                               t_run=round(now() - self.t_run, 2) if self.t_run else None)
+                    self.__dict__.setdefault("skipped", []).append(rec)
+                    self.log("point_skipped", **rec)
+                    out.append(lab_)
+        if out:
+            self.say("SKIPPED (learned in this run, the camera does not read tags there): %s; the run carries on" %
+                     ", ".join(out))
+        return out
 
     def blind_end(self, b, bl):
         """Seen again after driving blind: how far its own pose was off, and the reset when needed."""
