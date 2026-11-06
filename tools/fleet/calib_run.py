@@ -1500,6 +1500,16 @@ class CalibRun:
                                                                                      out_["words"]))
         if kind == "go" and not interrupted and r["result"] == "done":
             self.watch_heading(row, value)
+        try:
+            # (11-05h) where it was blind (the estimate) counts as a miss; where the leg ended seen, as a read
+            rm_ = self.readmap()
+            if interrupted and kind == "go" and cam0 is not None:
+                hx = math.radians(cam0[2])                      # where the leg was taking it (it went blind there)
+                for _ in range(3):
+                    rm_.add(cam0[0] + value * math.cos(hx), cam0[1] + value * math.sin(hx), False)
+            rm_.add(cam1[0], cam1[1], True)
+        except Exception:  # noqa: BLE001
+            pass
         if interrupted:
             # (11-05c) a leg the camera lost and the robot was stopped in (then recovered or held): not in the fit
             row["interrupted"] = True
@@ -1560,6 +1570,11 @@ class CalibRun:
                         raise                      # the outermost goto aims again
                     say("  after the recovery: aiming at %s again from where the camera sees it" % (name or lab))
                     cam, odometry = e.cam, False
+            if lab in self.S.points and lab != self.S.park_label:
+                # (11-05h, Observe then trust: an unreadable area narrows the run, it does not end it) the camera loses
+                # the tag on the way to this point every time: the point is left out of this robot's tours
+                raise SkipPoint(cam, "the camera lost the roof tag on the way to %s four times (it does not read tags "
+                                     "there)" % lab)
             raise RunEnd("lost the roof tag on the way to %s four times: stopped" % (name or lab))
         finally:
             self._goto_depth -= 1
@@ -1719,7 +1734,25 @@ class CalibRun:
                 self.ev("skip_point", point=lab, why="%s (%.1f cm)" % pk)
                 say("  %s skipped: %s stands there" % (lab, pk[0]))
                 continue
-            cam = self.goto(lab, phase, k, cam=cam)
+            rm = self.readmap()
+            ok_, why_ = rm.readable(*self.S.points[lab])
+            if not ok_ and rm.tries.get(rm.ij(*self.S.points[lab]), 0) >= 3:
+                # (11-05h, Observe then trust) learned in this run: the camera does not read the tag there (the typed
+                # view limit stays a first guess): left out of the tours, said, the run carries on
+                self.ev("skip_point", point=lab, why="the camera does not read tags there (%s)" % why_)
+                say("  %s skipped: the camera does not read tags there (learned in this run: %s)" % (lab, why_))
+                continue
+            try:
+                cam = self.goto(lab, phase, k, cam=cam)
+            except SkipPoint as e:
+                self.ev("skip_point", point=lab, why=e.why)
+                say("  %s skipped: %s; the tour goes on" % (lab, e.why))
+                self.skipped_pts = set(getattr(self, "skipped_pts", set())) | {lab}
+                hx_ = self.readmap()
+                for _ in range(3):
+                    hx_.add(*self.S.points[lab], False)
+                cam = e.cam or self.cam_pose()
+                continue
             x, y = self.S.points[lab]
             self.ev("point", phase=phase, tour=k, point=lab, cam=cam, off_cm=math.hypot(cam[0] - x, cam[1] - y))
             time.sleep(max(0.0, DWELL_S - MEASURE_S - SETTLE_S))
@@ -2253,6 +2286,16 @@ class CalibRun:
                 raise RunEnd("the camera lost the tag after the heading check: nothing else moved")
         return c1
 
+    def readmap(self):
+        """(11-05h) This run's readability map (shared by the robots of one run through the parent): every leg's end
+        read or not by the camera, where the robot was."""
+        host = getattr(self, "parent", None) or self
+        if getattr(host, "rm", None) is None:
+            import observe as OB
+            host.rm = OB.ReadMap(self.S.L, self.S.W)
+            host.rm.seed(lambda x_, y_: 0.9, "taken as readable until the run learns otherwise")
+        return host.rm
+
     def after_trip(self, r, cam0):
         """(11-05h, Nick 20:46) A leg stopped by the robot's tilt stop or its edge guard's drop: that spot is a
         discovered edge (a keep-out for the rest of the run), the robot backs straight away from it (never forward:
@@ -2452,6 +2495,14 @@ def lead_value(value, speed, lead):
 
 class RunEnd(Exception):
     pass
+
+
+class SkipPoint(Exception):
+    """(11-05h) a tour point the camera cannot be relied on to see: left out, the tour goes on from where it is."""
+
+    def __init__(self, cam, why):
+        super().__init__(why)
+        self.cam, self.why = cam, why
 
 
 class Recovered(Exception):

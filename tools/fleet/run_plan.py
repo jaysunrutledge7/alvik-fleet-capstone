@@ -1820,6 +1820,11 @@ class Coordinator:
         """Back into the plan: its steps as they were when it went out (nothing to wait for), its pose from the camera,
         its out-obstacle off the map; then everyone re-plans from where they are."""
         n = b.name
+        t_end = now() + 2.0
+        while now() < t_end and (getattr(b, "cam_t", None) is None or now() - b.cam_t > self.REJOIN_FRESH_S):
+            self.drain()          # (11-05h) the re-check blocked the fixes for a while: take the newest before judging
+            self.fixes()
+            time.sleep(0.05)
         cam = b.last_cam
         if cam is None or now() - (getattr(b, "cam_t", None) or 0.0) > self.REJOIN_FRESH_S:
             # (11-05h, rehearsal s3: a robot rejoined on the camera's LAST spot, 36 cm from where it really was, and
@@ -2719,6 +2724,14 @@ class Coordinator:
     def backoff_report(self, b, sid, state, info):
         bo = getattr(b, "backoff", None)
         if bo and sid == bo.get("turn_id"):
+            if state == "failed" and bo.get("kind") == "recover" and info.startswith("halted"):
+                # (11-05h) the run itself halted it (everyone holds while another robot is checked): not a failed
+                # recovery; it may recover again once the run goes on
+                b.backoff = None
+                if getattr(b, "blind", None):
+                    b.blind["recovered"] = False
+                self.log("recover_interrupted", robot=b.name, info=info)
+                return True
             if state == "failed":
                 return self.backoff_report(b, bo["id"], "failed", "the turn: " + info)
             return True                        # the recovery's turn: its drive follows
@@ -2726,6 +2739,11 @@ class Coordinator:
             return False
         b.backoff = None
         self.log("trip_back_off", robot=b.name, result=state, info=info)
+        if bo["kind"] == "recover" and state == "failed" and (info or "").startswith("halted"):
+            if getattr(b, "blind", None):
+                b.blind["recovered"] = False          # halted by the run itself: it may recover again
+            self.log("recover_interrupted", robot=b.name, info=info)
+            return True
         if bo["kind"] == "recover":
             self.log("recover_end", robot=b.name, result=state, info=info,
                      seen=getattr(b, "cam_t", None) is not None and now() - b.cam_t <= self.BLIND_AFTER_S)

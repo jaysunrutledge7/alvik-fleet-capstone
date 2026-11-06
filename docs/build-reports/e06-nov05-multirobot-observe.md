@@ -129,6 +129,50 @@ tape fixes the scale. Observe-then-trust says the evidence wins, so the switch e
 "cameras" / "typed") but the default stays "typed", and every typed value is still checked against the cameras and a
 disagreement over 1.5 % said (as before). Question 1.
 
+### 6. Tag heights and scale solved by the program (Nick 21:44): what is done now, and the design for phase 3
+
+**Now.** Measure already fits each roof tag's height (and tilt) by its TAG ID wherever two cameras see it (roof_cal,
+site_fit: the rehearsal's setup fitted 5.9 +- 0.6 cm and 7.2 +- 1.6 cm for a true 6.0 cm, typed 6.19); the binding
+carries a tag's fitted height to whichever robot wears it, so a height no longer belongs to a site robot NAME. The
+typed 6.19 cm is now the one seed for every robot (`tags.height_cm`): a third robot no longer falls back to the 6.0
+placeholder, and AL-1DC0 no longer borrows "Alpha's" value. With ONE camera (school tonight) Measure cannot pin a
+height and the seed is used, said in the setup words, as before.
+
+**Why not more in phase 1 (measured / worked out):**
+
+| Source Nick named | What it can give | The catch |
+|---|---|---|
+| Printed tag size (8 cm) vs apparent size | range along the camera ray -> height: h = Hc - k (Hc - h_used) / size_ratio | needs the blur factor k to 0.3 % and the camera height Hc to 2 cm for +-1 cm; in the rehearsal Measure's camera height came out 218 cm for a true 200 cm, and k 0.985 (both fitted, not known) |
+| Roof square 9.5 cm, body size | the same as above with a bigger target | the roof's edge is low contrast in the pictures (not detected today) |
+| Parallax while turning on the spot | a tag OFF the axle traces a circle whose apparent radius scales by (Hc - h_used)/(Hc - h) | the school tags are centred on the axle (offset 0.1 cm in the rehearsal): no circle, no information |
+| Known-length drives after the wheel fit | every camera position scales about the camera's nadir by (Hc - h_used)/(Hc - h): a uniform scale | identical to a wheel_scale error: the fit cannot tell them apart (circular) |
+| Reference tags on the table (height 0) | k and the camera pose at height 0 | they are 12 cm tags: their blur is not the 8 cm tags' blur |
+| A robot standing on a typed sticker | its camera position is displaced from the sticker radially (about the nadir) by (h - h_used) r / Hc | hand placement +-1 cm gives +-1 cm per placement; several stickers average it |
+
+**Design for phase 3 (one fit, with uncertainty):** a single least-squares fit per run over every robot's tag
+height h_i and the camera's height and pose, from (1) robots standing on typed stickers at the start and at parking
+(radial offsets about the nadir), (2) the tag-size ratio with the blur modelled as a fixed corner inset in pixels
+(fitted from the reference tags, applied to the 8 cm tags by size, not as a ratio), (3) two-camera parallax wherever
+camera 2 sees the robot, and (4) the off-axle circle when a tag is mounted off centre; the typed 6.19 cm as a prior of
++-1 cm. Expected (worked out, not measured): +-0.5 cm with 3 stickers and 2,000 size reads; the fitted height then
+feeds the bridge for the rest of the run and is kept per tag on the Pi. Effect today: at the school geometry a 1 cm
+height error moves a robot's camera position 0.8-2.2 cm (x 0-200 cm), inside the 13 cm edge margin.
+
+### 7. Jay-Sun's agreements of 5 Nov: how each is honoured
+
+| Agreement | In the code |
+|---|---|
+| Robots drive at school only with Jay-Sun in the room | site `attended_only`: free roam refuses without `--attended`; calibration and missions say it at the start; Mission Control's Visit points asks "Is he here?" |
+| Experiments: camera = ground truth; odometry never camera-corrected | odometry_raw.csv is rebuilt offline from the robots' RAW wheel and gyro rows (run_exports.py), never from the robot's own (fused) pose, so no fpose, re-seed or recovery of this build can enter it; the robot's fused pose stays in follow.csv as before; the shakedown stays a no-camera run (tracking none) |
+| Clock alignment from timestamps and the sync wiggle only; no RFID | nothing in this build reads RFID; the RFID tools stay off |
+| Robots and tags (Alvik 3 = AL-1DC0 tag 2, Alvik 4 = AL-EB54 tag 3, Alvik 5 = AL-E7DC tag 4; Alpha 0, Bravo 1; 5 spare) | typed pins in the site as first guesses; every run's check wiggle confirms the tag that turns, and a different one re-binds it, said |
+| Sticker P16 is lost | runs drive to typed coordinates and need no sticker; the run says P16 is missing |
+| Hourly sleep check-in at school (AL-1DC0 died on the 10-minute one) | site `sleep_checkin_min` 60: the idle sleeper and `--sleep-at-end` use it (the robots stay awake after a run by default) |
+| One console at a time on UDP 5005 | the run stops before anything moves and says another program (Jay-Sun's console) is listening, and to ask him |
+| Lighting fixed across experiments | the tag bridge logs each camera's picture brightness (brightness.csv, every 2 s) and says LIGHTING CHANGED at 15 % from the first minute |
+| Half the table needs Dr. Sodhi's OK | an experiment whose points the cameras cannot read is refused, naming the points (`--allow-half-table` with that OK) |
+| Table frame (0,0) at the A3 corner | unchanged (the reference tags' frame) |
+
 ## Conclusion
 
 {{CONCLUSION}}
