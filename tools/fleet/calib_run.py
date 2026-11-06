@@ -1473,15 +1473,16 @@ class CalibRun:
         row = self.leg_row(phase, tour, kind, label, value, r, cam0, cam1, t0, t1, corrected, held)
         if kind == "go" and r["result"] == "done" and not interrupted:
             import observe as OB
-            if OB.done_too_fast(abs(value) / (speed or SPEED_CMS), row["dt"] if row["dt"] > 0 else t1 - t0,
-                                row["cam_len"], value):
+            out_ = OB.move_outcome(value, row["dt"] if row["dt"] > 0 else t1 - t0, wheel_cm=row["bel_len"],
+                                   cam_moved_cm=row["cam_len"], cam_fresh=True, robot_info=r.get("info") or "")
+            if out_["verdict"] != "moved":
                 # (11-05h, protection 3) reported done far too fast with no camera motion: NOT done; out of the fit
                 row["interrupted"] = True
                 self.ev("done_without_moving", n=self.leg_n, label=label, value=value, took_s=row["dt"],
                         cam_cm=round(row["cam_len"], 2))
-                say("  %s: the %.0f cm leg was reported done in %.2f s while the camera saw %.1f cm: NOT done (left "
-                    "out of the fit; the next leg is aimed from the camera)" % (self.name, value, row["dt"],
-                                                                               row["cam_len"]))
+                say("  %s: the %.0f cm leg was reported done in %.2f s: %s: NOT done (left out of the fit; the next "
+                    "leg is aimed from the camera, never the same leg unchanged)" % (self.name, value, row["dt"],
+                                                                                     out_["words"]))
         if kind == "go" and not interrupted and r["result"] == "done":
             self.watch_heading(row, value)
         if interrupted:
@@ -2260,17 +2261,26 @@ class CalibRun:
         say("SAFETY: %s's %s stop tripped (%s) at %.0f, %.0f: that spot is now kept out; backing straight away %.0f cm "
             "(never forward)" % (self.name, "tilt" if kind == "tilt" else "edge (drop)", r.get("info"), x, y,
                                  OB.BACK_OFF_CM))
-        # (11-05h, protection 4) backing away is itself a reverse: only with camera-confirmed room behind
+        # (11-05h, 4') backing away is a reverse: over the leg it has just driven (its own trail: it came forwards
+        # from cam0 along its heading, no camera needed), or with a fresh camera fix showing room behind; else hold
         cam_now = self.cam_pose(0.6)
         others = [tuple(np.array(k_["polygon"]).mean(0)) for k_ in self.S.keepouts if k_.get("kind") == "robot"]
-        ok_, why_ = OB.reverse_room(cam_now, OB.BACK_OFF_CM, (0.0, 0.0, self.S.L, self.S.W), unc_cm=1.0,
-                                    others=others, cam_age_s=0.0 if cam_now else None)
+        tr = OB.Trail()
+        if cam0 is not None and r.get("start") and r.get("end") and r["result"] != "refused":
+            came = math.hypot(r["end"][0] - r["start"][0], r["end"][1] - r["start"][1])
+            for k_ in range(int(came) + 1):
+                tr.add(x - (came - k_) * math.cos(math.radians(th)), y - (came - k_) * math.sin(math.radians(th)), th)
+        how, L_, why_ = OB.back_out_plan(OB.BACK_OFF_CM, trail=tr, bubble_cm=1.0, cam=cam_now,
+                                         cam_age_s=0.0 if cam_now else None, rect=(0.0, 0.0, self.S.L, self.S.W),
+                                         others=others, tilted=True)
+        ok_ = how in ("reverse_trail", "reverse_camera") and L_ >= 3.0
         if not ok_:
             self.ev("trip", kind=kind, info=r.get("info"), at=[round(x, 1), round(y, 1), round(th, 1)], keepout=ko,
                     back_off="refused", back_info=why_)
             raise RunEnd("%s tripped its %s stop and backing away is not safe (%s): it stands where it is; nothing "
                          "else moves it" % (self.name, kind, why_))
-        rb_ = self.rb.leg("go", -OB.BACK_OFF_CM, timeout=15.0)
+        say("  backing away: %s" % why_)
+        rb_ = self.rb.leg("go", -min(OB.BACK_OFF_CM, L_), timeout=15.0)
         self.odo_step(rb_)
         self.ev("trip", kind=kind, info=r.get("info"), at=[round(x, 1), round(y, 1), round(th, 1)], keepout=ko,
                 back_off=rb_.get("result"), back_info=rb_.get("info"))

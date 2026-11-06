@@ -449,6 +449,9 @@ class FleetSim:
                 # fit) is wrong; the edge sensors and the hang model use the real one, the planner the map's
                 f = {"x_min": tf[0], "y_min": tf[1], "x_max": tf[2], "y_max": tf[3]}
                 self.cfg.session.board_cm = list(tf)
+            for tp in getattr(args, "tape", None) or []:
+                # (11-05h) --tape X0,Y0,X1,Y1: a dark tape line on the table (school 5 Nov: the black tape over the seam)
+                self.cfg.session.tape_lines = list(self.cfg.session.tape_lines) + [[float(v) for v in tp.split(",")]]
             if getattr(args, "drop_cm", None):
                 # --drop-cm: how far the floor is below the table top past an open edge (a conference table: about
                 # 74 cm; home's plywood: 1.9 cm). The bottom zone then reads the room's floor, far below
@@ -1192,6 +1195,8 @@ def main(argv=None):
                          "AL-1DC0=0.97,1.03,0.3 (the school calibration rehearsal)")
     ap.add_argument("--fw", action="append", default=[], metavar="NAME=VERSION",
                     help="that robot runs this firmware version (e.g. 2026-10-29b: no save / unsave)")
+    ap.add_argument("--tape", action="append", default=[], metavar="X0,Y0,X1,Y1",
+                    help="(11-05h) a dark tape line on the table that the line sensors see (a seam's tape)")
     ap.add_argument("--stop-coast", action="append", default=[], metavar="NAME=TAU_S",
                     help="that robot's wheels run down with this time constant after a brake (default the model's "
                          "brake_tau_s); 0.08 reproduces AL-1DC0's overrun at school, 5 Nov")

@@ -509,7 +509,8 @@ def serve_live(sim, cfg, out_dir):
             if n == 1:
                 cv2.imwrite(os.path.join(out_dir, "live_first_%s.png" % c.name), img)
             with cond:
-                latest[c.name][0] = (body, n, t_cap + 0.04)
+                latest[c.name][0] = (body, n, t_cap + 0.04 + float(cfg.get("clock_skew_s") or 0.0))   # (11-05h)
+                #                                                            a camera clock off by clock_skew_s
                 cond.notify_all()
         _time.sleep(max(0.0, period - (_time.time() - t_cap)))
     for srv in servers:

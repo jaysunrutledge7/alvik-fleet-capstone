@@ -251,6 +251,10 @@ def bind_for_run(site, slots, link, eye, ips=(), wake_min=3.0, dry=False, folder
     # (11-05h, Observe then trust) each robot's roof tag heading against its nose: a 6 cm nudge (clear both ways, the
     # other robots kept out), before any run drives on the tag's heading (school 5 Nov: AL-1DC0's tag read 180 off)
     yaw = {}
+    if seen:
+        # the camera's view limit is a typed guess (calibration's VIEW_X_MAX_CM): a robot the camera reads where it
+        # stands is inside the view (observed); only the edges, the outlets and the other robots limit the nudge
+        S.view_x = max(S.view_x, max(p_[0] for p_ in seen.values()) + 2 * OB.NUDGE_CM + 10.0)
     if heading_check:
         for rb in robots:
             t = b.get(rb.name)

@@ -625,6 +625,7 @@ class Robot(FollowMixin, DockMixin, E02Mixin):
         return min(self.tof_m.max_range_cm, self.tof()[2] * (1 + self.tof_m.top_extra_pct / 100))
 
     HANG_COM_AHEAD_CM = 1.5     # a guess (no measurement): the centre of mass this far ahead of the axle
+    WHEEL_TILT_DEG = 3.5        # (11-05h) one wheel over an open edge, the body still on: Center's 3.4 deg (5 Nov)
     HANG_TILT_DEG = 10.0        # the 2026-10-25 21:45 reading of Left hanging (pitch -9.7, RAW 10.2 from its level)
 
     def tilt_now(self, rng=None, tn=None):
@@ -636,6 +637,15 @@ class Robot(FollowMixin, DockMixin, E02Mixin):
         pitch = -math.degrees(self.acc_bias[0]) + rng.gauss(0, tn)
         if getattr(self, "hung", False):
             pitch -= self.HANG_TILT_DEG
+        elif self.cfg.session.board_cm and not self.lifted:
+            # (11-05h, home 5 Nov: Center sat 3.4 deg tilted, a wheel at the x = 0 edge) a wheel past an open edge
+            # (the body not hung): it sits tilted WHEEL_TILT_DEG towards that side
+            c, sn = math.cos(self.th), math.sin(self.th)
+            for side in (1.0, -1.0):
+                wx, wy = self.x - side * 4.5 * sn, self.y + side * 4.5 * c
+                if self.past_open_edge(wx, wy) > 0.5:
+                    roll += side * self.WHEEL_TILT_DEG
+                    break
         return roll, pitch
 
     # ---- the plywood board (session.board_cm) ----

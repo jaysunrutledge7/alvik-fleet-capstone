@@ -215,6 +215,15 @@ def build(args, out):
             say(w_)
     else:
         m = table_map(args.table, ["Left", "Center", "Right"])
+    if not ((getattr(args, "site_", None) or {}).get("walls", False)):
+        # (11-05h, Nick 21:14) neither the home board nor the school table has a wall or rim: every side is a drop for
+        # every safety layer, whatever the map says (a side marked barrier by a warm-up is kept out of as an edge)
+        for k_ in FM.SIDES:
+            sd = (m.get("sides") or {}).get(k_) or {}
+            if sd.get("kind") in ("barrier", "partial"):
+                say("SIDES: %s was marked %s; this site has no walls (site walls: false): treated as an open drop" % (
+                    k_, sd.get("kind")))
+                m = WS.set_side(m, k_, "open", source="site has no walls (11-05h)")
     if args.program:
         with open(args.program) as f:
             prog = json.load(f)
@@ -665,6 +674,39 @@ def OB_edge_ok(p, args):
     return min(p[0], p[1], L - p[0], W - p[1]) >= 25.0
 
 
+class _BindCam:
+    """(11-05h, simulator) The point-fix camera for the dry binding, made from the SAME simulated cameras the mission's
+    picture simulator draws (camera 2 left out when it is off), so a robot reads in the binding exactly where it reads
+    in the run."""
+
+    def __init__(self, args):
+        import numpy as np
+        import tag_cam as TCAM
+        tb = (args.site_ or {}).get("table") or {}
+        L, W = float(tb.get("length_cm") or 396.2), float(tb.get("width_cm") or 167.6)
+        cfg = TCAM.default_config(table=(L, W), size=tuple(int(v) for v in args.cam_size.split("x")),
+                                  seed=args.seed + 4, refs=uses_refs(args))
+        self.cams = [c for c in TCAM.cams_from_config(cfg) if not (c.name == "side" and args.no_side)]
+        self.C = np.array(self.cams[0].C, float)
+        self.dark = [[float(v) for v in d.split(",")] for d in (args.sim_dark or [])]
+
+    def tag_px(self, x, y, z, s, th_deg=0.0):
+        import observe as OB
+        if any(d[0] <= x <= d[2] and d[1] <= y <= d[3] for d in self.dark):
+            return None
+        best = None
+        for c in self.cams:
+            p = c.project([[x, y, z]])[0]
+            if not (0 <= p[0] < c.W and 0 <= p[1] < c.H):
+                continue
+            v = OB.tag_px(lambda P, c=c: c.project(P), x, y, z, s)
+            best = v if best is None else max(best, v)
+        return best
+
+    def flat(self, x, y, h):
+        return x, y
+
+
 def dry_bind(args, out):
     """(11-05h, simulator) The real binding (wiggle_bind.bind_for_run: robots found however many, firmware, compass
     check after a restart, safety layers read back, the wiggle, the heading nudge) against fleet_sim's robots and the
@@ -688,7 +730,7 @@ def dry_bind(args, out):
                        sim_true="1,1,0", sim_true_also="", sim_sleep="0.2:0.05", sim_fw=[])
     sp, ips = CRN.start_sim(sa, S, folder)
     link = CRN.Link(folder)
-    eye = CRN.SimEye(folder, CRN.FIX_PORT + 100, CRN.SchoolCamera(), {n: ids[n] for n in names}, seed=args.seed)
+    eye = CRN.SimEye(folder, CRN.FIX_PORT + 100, _BindCam(args), {n: ids[n] for n in names}, seed=args.seed)
     try:
         time.sleep(1.0)
         rec = WB.bind_for_run(args.site_, ["auto"] if args.auto_robots else names, link, eye, ips=ips, wake_min=2.0,
@@ -907,6 +949,8 @@ def run(args):
             tcfg["tag_yaw"] = {k: float(v) for k, v in (kv.split("=") for kv in args.sim_tag_yaw.split(","))}
         if args.sim_dark:
             tcfg["dark"] = [[float(v) for v in d.split(",")] for d in args.sim_dark]
+        if args.sim_clock_skew:
+            tcfg["clock_skew_s"] = float(args.sim_clock_skew)     # (11-05h) the pictures stamped on a skewed clock
         tcp = os.path.join(out, "tag_cams.json")
         with open(tcp, "w") as f:
             json.dump(tcfg, f, indent=1)
@@ -1350,6 +1394,8 @@ def main(argv=None):
                    "point-fix simulator first (found however many, heading nudge, compass check after a restart)")
     g.add_argument("--sim-tag-yaw", default="", metavar="NAME=DEG,...", help="(11-05h) those robots' roof tags are "
                    "turned on them by DEG (the simulator draws and reads them so)")
+    g.add_argument("--sim-clock-skew", type=float, default=0.0, metavar="S",
+                   help="(11-05h) the simulated cameras stamp their pictures S s off the Pi's clock")
     g.add_argument("--sim-dark", action="append", default=[], metavar="X0,Y0,X1,Y1",
                    help="(11-05h) the cameras cannot read tags in this rectangle (cm)")
     g.add_argument("--sim-free", default="", help="simulated free space (GB), e.g. card=0.8,drive=50: the guard's "

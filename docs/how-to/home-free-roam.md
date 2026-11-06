@@ -1,5 +1,22 @@
 # Home free roam: three robots moving at once until their batteries run down
 
+## New on 5 Nov evening (build e06): safety checks by themselves
+
+Nothing new to type. The free roam now, by itself:
+
+- sets each robot's tilt stop and edge guard and **reads them back** at the start (`safety layers on and read back`);
+  a robot whose settings do not read back stays out of the run;
+- stops a robot whose own position disagrees with the camera's by more than 5 cm for 2 s and resets it from the camera
+  (`pose re-seeded`) before its next move;
+- treats a robot standing tilted more than 2.5 deg for 2 s as a hazard (a wheel over an edge): that spot is kept out
+  and it only backs away when the camera shows room behind it (`tilt stop` / `standing tilt`);
+- counts a move "done" in a fraction of its time without the camera seeing it move as NOT done (`done without
+  moving`);
+- never reverses without the camera showing room behind it;
+- keeps the robots awake when they park (`--sleep-parked` puts them to sleep as before);
+- writes `cpu.csv` (the Pi's load and heat) for the heat tracker.
+
+
 Left, Center and Right drive around the home board **at the same time, all the time**, each choosing its own moves,
 until each battery reaches **10 %** (it then parks near an edge and goes to sleep) or **4 hours** pass. You start it
 from the Pi and walk away. It keeps running when you close the window, log out of SSH, or switch Tailscale to another

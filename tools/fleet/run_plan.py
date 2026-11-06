@@ -507,6 +507,10 @@ class Coordinator:
             return
         row = dict(zip(cols, vals))
         try:
+            rows_ = b.__dict__.setdefault("raw_ev", {}).setdefault("rows", [])
+            fr_ = row.get("dC_cm")
+            rows_.append((t, float(row.get("ax") or 0.0), float(fr_) if fr_ not in (None, "") else None))
+            del rows_[:-600]
             w = b.__dict__.setdefault("twatch", OB.TiltWatch())
             ev = w.feed(t, float(row["roll_deg"]), float(row["pitch_deg"]), float(row.get("v_cms") or 0.0))
         except (KeyError, ValueError, TypeError):
@@ -519,28 +523,53 @@ class Coordinator:
                 ev["dev_deg"], ev["for_s"]), "tilt")
 
     def fast_done(self, b, i, st, t):
-        """(11-05h, protection 3) A drive step reported done in under a tenth of its planned time while the camera saw
-        the robot move under 1 cm (or a fifth of the step) did not happen."""
+        """(11-05h, 3') A drive step reported done: did it happen? observe.move_outcome fuses its own pose (the wheels),
+        the accelerometer and front range during the step (RAW), the time against what is physically possible and the
+        camera only when fresh; impossibility decides alone. (3b) the failure is remembered: the re-plan starts from
+        where it is, so the same step is not sent again unchanged; three at one spot = a hazard kept out."""
         import observe as OB
         stp = self.steps(b.name)[i]
         if stp.get("type") != "drive" or not st.get("t_started"):
             return False
         L = math.hypot(stp["to"][0] - stp["from"][0], stp["to"][1] - stp["from"][1])
-        exp = L / max(0.5, float(stp.get("speed") or 5.0))
+        took = t - st["t_started"]
+        p0 = getattr(b, "step_pose0", {}).get(i)
+        wheel = math.hypot(b.pose[0] - p0[0], b.pose[1] - p0[1]) if (p0 and b.pose) else None
         h = getattr(b, "cam_hist", None) or []
-        moved = None
-        if h and getattr(b, "cam_t", None) is not None and t - b.cam_t <= self.BLIND_AFTER_S:
+        moved, fresh = None, bool(h and getattr(b, "cam_t", None) is not None and t - b.cam_t <= self.BLIND_AFTER_S)
+        if fresh:
             before = [q for q in h if q[1] <= st["t_started"]]
             q0 = before[-1] if before else h[0]
             moved = math.hypot(h[-1][2] - q0[2], h[-1][3] - q0[3])
-        if OB.done_too_fast(exp, t - st["t_started"], moved, L):
-            self.n_fast_done = getattr(self, "n_fast_done", 0) + 1
-            self.log("done_without_moving", robot=b.name, i=i, took_s=round(t - st["t_started"], 3),
-                     expected_s=round(exp, 2), cam_moved_cm=None if moved is None else round(moved, 2))
-            self.say("%s: step %d reported done in %.2f s (planned %.1f s) with no camera motion: counted as NOT "
-                     "done; re-planning from where the camera has it" % (b.name, i, t - st["t_started"], exp))
-            return True
-        return False
+        ev = getattr(b, "raw_ev", None) or {}
+        acc = None
+        ax = [a for tt, a, fr in ev.get("rows", []) if tt >= st["t_started"]]
+        if len(ax) >= 5:
+            a = sorted(ax)
+            acc = max(abs(v - a[len(a) // 2]) for v in a) >= 0.03
+        fr = [f_ for tt, a, f_ in ev.get("rows", []) if tt >= st["t_started"] and f_ is not None and 0 < f_ < 60]
+        out = OB.move_outcome(L, took, wheel_cm=wheel, accel_rolling=acc,
+                              front_change_cm=(fr[0] - fr[-1]) if len(fr) >= 4 else None,
+                              front_expect_cm=(-L if stp.get("reverse") else L) if len(fr) >= 4 else None,
+                              cam_moved_cm=moved, cam_fresh=fresh, robot_info=st.get("info") or "")
+        if out["verdict"] == "moved":
+            return False
+        self.n_fast_done = getattr(self, "n_fast_done", 0) + 1
+        fm = b.__dict__.setdefault("fmem", OB.FailMemory())
+        pos = b.pose or stp["from"]
+        fm.add(t, "drive", -1 if stp.get("reverse") else 1, L, pos[0], pos[1])
+        self.log("did_not_move", robot=b.name, i=i, took_s=round(took, 3), length_cm=round(L, 1), **{
+            k: v for k, v in out.items() if k != "blind_ok"})
+        self.say("%s: step %d (%.0f cm) reported done in %.2f s: %s: counted as NOT done; re-planning from where it is "
+                 "(never the same step unchanged)" % (b.name, i, L, took, out["words"]))
+        if fm.escalate(pos[0], pos[1]):
+            ob = {"id": "hazard-%s-%d" % (b.name, len(fm.fails)), "shape": "circle", "center": [round(pos[0], 1),
+                  round(pos[1], 1)], "radius": 6.0, "source": "hazard: moves failed here"}
+            self.say("%s: %d moves failed at %.0f, %.0f: a hazard, kept out for everyone" % (
+                b.name, OB.FailMemory.ESCALATE_N, pos[0], pos[1]))
+            self.add_obstacle(ob)
+            b.fmem = OB.FailMemory()
+        return True
 
     def floor_feed(self, b, vals):
         """One RAW row for the floor check: the five front zones, when the robot stands still (no step, no speed)."""
@@ -617,6 +646,7 @@ class Coordinator:
             if st["status"] in ("sent", "acked"):
                 st["status"] = "started"
                 st["t_started"] = t
+                b.__dict__.setdefault("step_pose0", {})[i] = (x, y, th)
                 st["pose_started"] = (x, y, th)
                 stp = self.steps(b.name)[i]
                 if stp["type"] == "dance" and not stp.get("dance_ms"):
@@ -772,6 +802,8 @@ class Coordinator:
         if state != "nopose":
             self.odometer(b, t, x, y, v[12])
             b.pose, b.pose_t = (x, y, th), t
+            import observe as OB
+            b.__dict__.setdefault("trail", OB.Trail()).add(x, y, th)     # (11-05h, 4'a) its breadcrumb trail
             self.echo_pose(b, t, ms, x, y, th, state)
             ph = b.__dict__.setdefault("pose_hist", [])       # (laptop time of the pose, x, y, th): blind_watch
             ph.append(((ms / 1000.0 + b.offset) if b.offset is not None else t, x, y, th))
@@ -2617,13 +2649,21 @@ class Coordinator:
         ob["cue"] = kind
         ob["source"] = "%s trip (discovered edge)" % kind
         bx, by = OB.back_off_target(x, y, th)
-        # (11-05h, protection 4) the back-off is a reverse: only with camera-confirmed room behind
+        # (11-05h, 4') the back-off is a reverse: only over space shown safe: its own trail (the way it came, no camera
+        # needed) or a fresh camera fix with room behind; a tilted robot cannot turn (look before backing), so else it
+        # holds
         cam, ct = getattr(b, "last_cam", None), getattr(b, "cam_t", None)
         f = self.m["floor"]
         others = [o.pose[:2] for o in self.bots.values() if o is not b and not o.out and o.pose is not None]
-        ok_, why_ = OB.reverse_room((cam[0], cam[1], cam[2] if cam[2] is not None else th) if cam else None,
-                                    OB.BACK_OFF_CM, (f["x_min"], f["y_min"], f["x_max"], f["y_max"]), unc_cm=1.0,
-                                    others=others, cam_age_s=None if ct is None else now() - ct)
+        fresh = cam is not None and ct is not None and now() - ct <= self.BLIND_AFTER_S
+        how, L_, why_ = OB.back_out_plan(OB.BACK_OFF_CM, trail=getattr(b, "trail", None), bubble_cm=1.0,
+                                         cam=(cam[0], cam[1], cam[2] if cam[2] is not None else th) if fresh else None,
+                                         cam_age_s=0.0 if fresh else None,
+                                         rect=(f["x_min"], f["y_min"], f["x_max"], f["y_max"]), others=others,
+                                         turn_clear=False, tilted=True)
+        ok_ = how in ("reverse_trail", "reverse_camera")
+        if ok_ and L_ < OB.BACK_OFF_CM:
+            bx, by = OB.back_off_target(x, y, th, L_)
         if not ok_:
             self.log("trip", robot=b.name, i=i, kind=kind, info=info, obstacle=ob, back_off="refused: " + why_)
             self.say("%s: its %s stopped it (%s): kept out; backing away is NOT safe (%s): it is held where it stands"
@@ -2642,7 +2682,7 @@ class Coordinator:
         b.backoff = dict(id=sid, t=now(), ob=ob, kind=kind)
         self.__dict__.setdefault("trips", []).append(dict(robot=b.name, kind=kind, at=[round(x, 1), round(y, 1),
                                                                                        round(th, 1)], info=info))
-        self.log("trip", robot=b.name, i=i, kind=kind, info=info, obstacle=ob, back_off=text)
+        self.log("trip", robot=b.name, i=i, kind=kind, info=info, obstacle=ob, back_off=text, evidence=why_)
         self.say("%s: its %s stopped it (%s): that spot is kept out (a discovered edge); it backs straight away %.0f "
                  "cm, never forward, then the robots re-plan" % (
                      b.name, "tilt stop" if kind == "tilt" else "edge guard's drop check", info, OB.BACK_OFF_CM))
@@ -3324,8 +3364,8 @@ class Coordinator:
         f = self.m["floor"]
         rect = (f["x_min"], f["y_min"], f["x_max"], f["y_max"])
         for b in self.bots.values():
-            if b.out or b.pose is None:
-                continue
+            if b.out or b.pose is None or getattr(b, "backoff", None):
+                continue                       # (11-05h) a robot recovering / backing off is handled by its report
             ct = getattr(b, "cam_t", None)
             bl = getattr(b, "blind", None)
             if ct is not None and t - ct <= self.BLIND_AFTER_S:
@@ -3350,7 +3390,14 @@ class Coordinator:
             body_edge = min(b.pose[0] - rect[0], rect[2] - b.pose[0], b.pose[1] - rect[1], rect[3] - b.pose[1]) - 4.75
             err = self.BLIND_ERR_BASE_CM + self.BLIND_ERR_PER_CM * bl["dist"]
             why = None
-            if bl["dist"] > self.BLIND_MAX_CM:
+            import observe as OB
+            ov = OB.overlap_cm(b.pose[0], b.pose[1], err, rect)
+            if ov > 0:
+                # (11-05h, Nick 21:14, hard invariant) its possible-locations circle (half diagonal + the blind error)
+                # reaches past an edge: it stops; only a move that shrinks that (the straight recovery inwards) follows
+                why = "with no camera seeing it, its possible-locations circle (body + %.1f cm blind error) reaches " \
+                      "%.1f cm past an edge" % (err, ov)
+            elif bl["dist"] > self.BLIND_MAX_CM:
                 why = "it drove %.0f cm with no camera seeing it (the limit is %.0f cm)" % (bl["dist"], self.BLIND_MAX_CM)
             elif body_edge - err < self.BLIND_EDGE_CM:
                 why = ("with no camera seeing it, its body may be %.1f cm from an edge (its own pose %.1f cm, less the "
@@ -3404,14 +3451,17 @@ class Coordinator:
         bx, by = x + back * math.cos(math.radians(hd)), y + back * math.sin(math.radians(hd))
         err = self.BLIND_ERR_BASE_CM + self.BLIND_ERR_PER_CM * (bl["dist"] + back)
         f = self.m["floor"]
-        if min(x - f["x_min"], f["x_max"] - x, y - f["y_min"], f["y_max"] - y) - 6.72 - err < self.BLIND_EDGE_CM:
-            self.log("recover_refused", robot=b.name, why="no room to turn")
+        rect = (f["x_min"], f["y_min"], f["x_max"], f["y_max"])
+        # (11-05h, hard invariant) the turn on the spot sweeps its circle where it stands; the drive must keep the
+        # circle (growing with the blind error per cm) inside, or at least shrink an overlap it already has
+        ok_, why_ = OB.path_ok([(x, y)] + [(x + (bx - x) * k / 10.0, y + (by - y) * k / 10.0) for k in range(1, 11)],
+                               self.BLIND_ERR_BASE_CM + self.BLIND_ERR_PER_CM * bl["dist"], rect,
+                               unc_per_cm=self.BLIND_ERR_PER_CM)
+        if not ok_:
+            self.log("recover_refused", robot=b.name, why=why_)
             return False
         for k in range(11):
             px, py = x + (bx - x) * k / 10.0, y + (by - y) * k / 10.0
-            if min(px - f["x_min"], f["x_max"] - px, py - f["y_min"], f["y_max"] - py) - 4.75 - err < self.BLIND_EDGE_CM:
-                self.log("recover_refused", robot=b.name, why="edge", at=[round(px, 1), round(py, 1)])
-                return False
             for o in self.bots.values():
                 if o is b or o.out or o.pose is None:
                     continue

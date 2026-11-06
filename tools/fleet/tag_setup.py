@@ -118,6 +118,14 @@ def groups_from_reads(reads, still=True):
     return out
 
 
+def _measure_trust():
+    try:
+        import sites as SI
+        return str(SI.load(None).get("measure_trust") or "typed")
+    except (Exception, SystemExit):  # noqa: BLE001
+        return "typed"
+
+
 def make_obs(sizes, corners, stickers, tags, groups, table=None, distances=None, refs=None, ref_cfg=None,
              typed_along=None):
     """The site fit's input. sizes {cam: [W, H]}; corners {cam: {"1": [u, v], ...}}; stickers {label: {"cams": {cam:
@@ -126,6 +134,9 @@ def make_obs(sizes, corners, stickers, tags, groups, table=None, distances=None,
     obs = {"cameras": {c: {"size": list(sz)} for c, sz in sizes.items()}, "corners": corners,
            "stickers": stickers or {}, "tag_cm": float(tags["tag_cm"]), "tag_height_cm": float(tags["height_cm"]),
            "tag_groups": groups, "table": table or None, "distances": distances or [],
+           # (11-05h) cameras (default: the typed table and stickers only seed the fit; Nick approved 5 Nov) or typed
+           # (the old way: the tape trusted to 3 mm): the site's measure_trust
+           "measure_trust": _measure_trust(),
            # (2026-11-03) each robot's roof measured (roof_cal.py): its name, the typed height (None: placeholder),
            # and the switch (the site's tags.roof_check, default on)
            "tag_names": {str(i): n for n, i in (tags.get("ids") or {}).items()},

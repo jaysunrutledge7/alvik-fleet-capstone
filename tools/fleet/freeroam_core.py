@@ -614,6 +614,8 @@ class Controller:
         r.own = (t, x, y, th, state, cur)
         r.pc = None
         r.own_hist.append((t, x, y, th))
+        import observe as OB
+        r.__dict__.setdefault("trail", OB.Trail()).add(x, y, th)      # (11-05h, 4'a) its breadcrumb trail
         if len(r.own_hist) > 200:          # ~20 s at 10 a second: covers a camera delay of several seconds
             del r.own_hist[:50]
         if r.lost is not None and prev is not None:
@@ -888,9 +890,34 @@ class Controller:
     def others(self, r):
         return [o for o in self.R.values() if o is not r and o.traj is not None and o.mode != "gone"]
 
+    def unc(self, r):
+        """(11-05h) Its pose uncertainty now (cm): the camera's error, the bubble when lost, the camera's staleness
+        and the clock's doubt (the measured delay's upper end) at its planned speed."""
+        import observe as OB
+        age = (self.t - (r.cam_arr if r.cam_arr is not None else r.cam[0])) if (r.cam is not None and r.lost is None) \
+            else 0.0
+        return OB.uncertainty_cm(PLAN_M0, r.bubble if r.lost else 0.0, age, 10.0, 0.0)
+
+    def invariant_ok(self, r, tr):
+        """(11-05h, Nick 21:14, hard invariant) The possible-locations circle (half diagonal + its uncertainty, grown
+        per cm when lost) never overlaps the board's edge (every side a drop, home too) or a keep-out anywhere along
+        the move's samples, the turn's sweep included; a robot already overlapping may only shrink it."""
+        import observe as OB
+        pts = [(float(x), float(y)) for x, y in zip(tr.x, tr.y)]
+        p = self.pos(r)
+        if p is not None:
+            pts = [tuple(p)] + pts
+        kos = [(q["x"], q["y"], q["r"]) for q in self.keepouts]
+        ok, why = OB.path_ok(pts, self.unc(r), self.rect, kos, BLIND_PER_CM if r.lost is not None else 0.0)
+        if not ok:
+            self.counts["invariant_refused"] = self.counts.get("invariant_refused", 0) + 1
+        return ok
+
     def feasible(self, r, tr, edge_extra=0.0, gap_relax=0.0, ignore=(), away=False):
         """away: a robot that already stands too close may still take a move that never brings it closer (each
         sample at least its start's clearance - 0.5 cm) and ends clear (the escape and yield rungs)."""
+        if not self.invariant_ok(r, tr):
+            return False
         e = tr.end
         if edge_dist(self.rect, e[0], e[1]) < EDGE_CC + edge_extra + (r.bubble if r.lost else 0.0):
             return False
@@ -1013,17 +1040,23 @@ class Controller:
         further from the edge than it starts."""
         p, h = self.pos(r), self.heading(r)
         import observe as OB
-        if r.lost is not None or r.cam is None or not self.fresh(r):
-            # (11-05h, protection 4) never a blind reverse: the robot cannot see behind and the edge guard is off
-            self.counts["reverse_refused"] = self.counts.get("reverse_refused", 0) + 1
-            return None
+        # (11-05h, 4'; Nick 21:11) a reverse only over space shown safe by evidence that fits its uncertainty: its own
+        # breadcrumb trail (no camera needed), or a fresh camera fix showing room behind; else none (the ladder's
+        # turn on the spot then forward is the "look before backing")
         e0 = edge_dist(self.rect, *p)
         others = [self.pos(o) for o in self.others(r) if self.pos(o) is not None]
         kos = [(q["x"], q["y"], q["r"]) for q in self.keepouts]
+        fresh = r.cam is not None and self.fresh(r) and r.lost is None
+        fm = getattr(r, "fmem", None)
         for L in Ls:
-            ok, why_ = OB.reverse_room((p[0], p[1], h), L, self.rect, unc_cm=r.bubble if r.lost else 0.0,
-                                       others=others, keepouts=kos)
-            if not ok:
+            if fm is not None and fm.same("back off" if not inward else "reverse", -1, L, p[0], p[1]):
+                continue                               # (3b) failed here before: not repeated unchanged
+            how, L_ok, why_ = OB.back_out_plan(L, trail=getattr(r, "trail", None), bubble_cm=r.bubble if r.lost
+                                               else 0.0, cam=(p[0], p[1], h) if fresh else None,
+                                               cam_age_s=0.0 if fresh else None, rect=self.rect, others=others,
+                                               keepouts=kos)
+            if how not in ("reverse_trail", "reverse_camera") or L_ok < L - 0.5:
+                self.counts["reverse_refused"] = self.counts.get("reverse_refused", 0) + 1
                 continue
             tr = Traj.move(self.t + 0.2, p, wrap180(h + 180.0), 0.0, L, BACK_V, m0=self.margin0(r))
             e1 = edge_dist(self.rect, *tr.end)
@@ -1031,7 +1064,7 @@ class Controller:
             if e1 < (HALF + 1.0 if inward else TURN_EDGE_CC) + (r.bubble if r.lost else 0.0) or \
                     (inward and e1 < e0 + 1.0):
                 continue
-            if not self.keepout_ok(r, tr):
+            if not self.keepout_ok(r, tr) or not self.invariant_ok(r, tr):
                 continue
             if all(clearance_profile(tr, o.traj, now=self.t)[-1] >= REFLEX_CC for o in self.others(r)):
                 return ("back off" if not inward else "reverse"), None, 0.0, L, BACK_V, tr
@@ -1160,6 +1193,19 @@ class Controller:
         r.cam_off = (0.0, 0.0)
         r.busy_until = max(r.busy_until, self.t + 1.0)
 
+    def on_raw_evidence(self, name, t, ax, front_cm, line_c):
+        """(11-05h, 3') The robot's own sensors during a move, for the move's outcome: the accelerometer's jolts and
+        vibration (ax), the front range (dC_cm), the middle line sensor."""
+        r = self.R.get(name)
+        if r is None or r.move is None:
+            return
+        ev = r.move.setdefault("ev", dict(ax=[], front=[], line=[]))
+        ev["ax"].append(ax)
+        ev["front"].append(front_cm)
+        ev["line"].append(line_c)
+        for k in ("ax", "front", "line"):
+            del ev[k][:-400]
+
     def on_raw(self, name, t, roll, pitch, v_cms):
         """(11-05h, protection 2) The robot's own roll / pitch (RAW rows): a STANDING tilt over observe.STAND_TILT_DEG
         for STAND_TILT_S (Center sat at 3.4 deg, under the 5 deg tilt stop, for 64 min) is a hazard: a keep-out where
@@ -1284,32 +1330,78 @@ class Controller:
                 self.event(r, "step failed", info)
         self.end_move(r)
 
+    ACCEL_JOLT_G = 0.03      # (3') the accelerometer "felt it roll": a jolt this far from its median (g) during the
+                             # move. Chosen (no measured rolling vibration yet). DOE note: yes, RAW ax standing vs
+                             # rolling vs wheels slipping on the bench sets it
+    LINE_CHANGE = 15.0       # the middle line sensor's reading moved this much over the move (its noise ~5)
+
     def fast_done(self, r, mv):
-        """(11-05h, protection 3; Left's 4,289 reverses 'done in 0.05 s without moving') A move reported done in under a
-        tenth of its time while the camera saw it move under 1 cm: NOT done. Twice in a row: the robot and the
-        controller disagree on where it is: it is stopped and its pose re-seeded from the camera."""
+        """(11-05h, 3' and 3b; Nick 21:11) A move reported done: did it happen? observe.move_outcome fuses the wheels
+        (its own pose), the accelerometer, the front range, the line sensor, the time it took and, only when fresh, the
+        camera; physical impossibility decides alone (Left's 4,289 reverses 'done in 0.05 s'). Not moved = a failure,
+        remembered (FailMemory) so the same action is never repeated unchanged; failures piling up at one spot
+        escalate. Moved with the camera blind but its own sensors agreeing: accepted, the bubble grown."""
         import observe as OB
         est = turn_s(mv["turn"]) + (drive_s(mv["L"], mv["v"]) if mv["L"] else 0.0)
-        took = self.t - mv["t0"]
-        moved = None
-        if r.cam is not None and self.fresh(r) and r.cam_hist:
+        took = self.t - mv.get("t_drive", mv["t0"]) if mv.get("t_drive") else self.t - mv["t0"]
+        if not mv["L"]:
+            return False
+        own0 = self.own_at(r, mv.get("t_drive") or mv["t0"])
+        wheel = math.dist(own0[:2], (r.own[1], r.own[2])) if (own0 and r.own) else None
+        cam_moved = None
+        fresh = r.cam is not None and self.fresh(r) and r.lost is None
+        if fresh and r.cam_hist:
             before = [q for q in r.cam_hist if q[0] <= mv["t0"]]
             q0 = before[-1] if before else r.cam_hist[0]
-            moved = math.dist(q0[1:], (r.cam[1], r.cam[2]))
-        if not mv["L"] or not OB.done_too_fast(est, took, moved, mv["L"]):
+            cam_moved = math.dist(q0[1:], (r.cam[1], r.cam[2]))
+        ev = mv.get("ev") or {}
+        acc = None
+        if len(ev.get("ax") or []) >= 5:
+            a = sorted(ev["ax"])
+            med = a[len(a) // 2]
+            acc = max(abs(v - med) for v in a) >= self.ACCEL_JOLT_G
+        fr = [v for v in ev.get("front") or [] if v is not None and 0 < v < 60]
+        fchg = (fr[0] - fr[-1]) if len(fr) >= 4 else None
+        fexp = (mv["L"] if not mv.get("rev") and mv["kind"] not in ("back off", "reverse") else -mv["L"]) \
+            if fchg is not None else None
+        ln = [v for v in ev.get("line") or [] if v is not None]
+        lchg = (max(ln) - min(ln) >= self.LINE_CHANGE) if len(ln) >= 5 else None
+        out = OB.move_outcome(mv["L"], took, wheel_cm=wheel, accel_rolling=acc, front_change_cm=fchg,
+                              front_expect_cm=fexp, line_changed=lchg, cam_moved_cm=cam_moved, cam_fresh=fresh,
+                              robot_info=mv.get("info", ""))
+        mv["outcome"] = out
+        if out["verdict"] == "moved":
+            if out["blind_ok"] and r.lost is not None:
+                self.grow_bubble(r)
             r.fast_n = 0
             return False
-        r.fast_n = getattr(r, "fast_n", 0) + 1
         self.counts["fast_done"] = self.counts.get("fast_done", 0) + 1
-        self.event(r, "done without moving", "move %d reported done in %.2f s (expected %.1f), camera moved %s: "
-                   "counted as NOT done" % (mv["n"], took, est, "%.1f cm" % moved if moved is not None else "?"))
-        if r.fast_n >= 2 and r.cam is not None:
-            self.out(r, "fpose %.2f %.2f %.2f %.2f %.2f" % (r.cam[1], r.cam[2], self.heading(r), 1.0, 3.0))
-            r.cam_off = (0.0, 0.0)
-            r.busy_until = self.t + 2.0
-            self.event(r, "pose re-seeded", "two moves in a row done without moving: its pose set from the camera")
-            r.fast_n = 0
+        p = self.pos(r) or (mv["p0"][0], mv["p0"][1])
+        fm = r.__dict__.setdefault("fmem", OB.FailMemory())
+        fm.add(self.t, mv["kind"], -1 if mv["kind"] in ("back off", "reverse") else 1, mv["L"], p[0], p[1])
+        self.event(r, "did not move", "move %d (%s %.0f cm) reported done in %.2f s (expected %.1f): %s: counted as "
+                   "NOT done; never repeated unchanged" % (mv["n"], mv["kind"], mv["L"], took, est, out["words"]))
+        if fm.escalate(p[0], p[1]):
+            self.hazard(r, p, "%d moves failed here" % OB.FailMemory.ESCALATE_N)
         return True
+
+    def hazard(self, r, p, why):
+        import observe as OB
+        """(11-05h, 3b) Failures piling up at one spot: a keep-out there for everyone, its pose re-seeded from the
+        camera when it has a fresh fix (else a find-me), and a full stop said, instead of the same action again."""
+        q = dict(x=round(p[0], 1), y=round(p[1], 1), r=KEEP_R * 3, t=round(self.t, 2), robot=r.name, src="hazard",
+                 edge_cm=round(edge_dist(self.rect, *p), 1), d_cm=0.0)
+        self.keepouts.append(q)
+        self.log("keepouts", dict(q, what="hazard: " + why))
+        self.counts["hazards"] = self.counts.get("hazards", 0) + 1
+        self.event(r, "hazard", "%s at %.0f, %.0f: kept out for everyone; %s" % (
+            why, p[0], p[1], "its pose re-seeded from the camera" if (r.cam and self.fresh(r)) else "find-me"))
+        if r.cam is not None and self.fresh(r):
+            self.out(r, "fpose %.2f %.2f %.2f %.2f %.2f" % (r.cam[1], r.cam[2], self.heading(r), 1.0, 3.0))
+        r.fmem = OB.FailMemory()       # a fresh start after the hazard is marked
+        r.busy_until = self.t + 2.0
+        if not r.stopped_hard:
+            self.trophy_break(r, "hazard: " + why)
 
     def end_move(self, r):
         p = self.pos(r)
@@ -1663,6 +1755,8 @@ class Controller:
         """A curve plan (samples + loop disc) keeps the edges (every sample's middle LOOP_EDGE in, plus its margin
         beyond the base; the loop disc inside), the keep-outs and everyone's reservations. away: a robot already too
         close to an edge or another robot may take it if it never gets closer and ends clear."""
+        if not self.invariant_ok(r, tr):
+            return False
         x0, y0, x1, y1 = self.rect
         bub = r.bubble if r.lost else 0.0
         xs, ys, ms = tr.x[:-1], tr.y[:-1], tr.m[:-1]

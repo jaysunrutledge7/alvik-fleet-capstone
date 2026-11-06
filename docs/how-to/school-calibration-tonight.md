@@ -1,5 +1,43 @@
 # At school: the calibration run (zones 1-2)
 
+## New for Monday (build e06, 5 Nov evening): what changed, and the one new button
+
+Nothing new to type. Steps 1-10 below are the same; what the software now checks by itself:
+
+- **Any number of robots.** Put every robot you want to use on the table where the camera sees it (zones 1-2 at the
+  TV end). The run counts the roof tags, waits for that many robots to answer, and each robot wiggles in turn so the
+  run knows which tag is on which robot.
+- **Which way each roof tag faces.** Right after its wiggle, each robot drives **6 cm forward** (only if there is room
+  both ways). That tells the run if its tag is stuck on turned round. You will see `HEADING CHECK AL-xxxx: ... tag
+  heading offset +0 deg` (or `+180 deg  <- the tag is turned on the robot`). Both are fine: the run corrects it. The
+  run keeps checking on every straight drive; `HEADING RE-LEARNED` means it found a change and carried on.
+- **Where the camera reads.** Points the camera cannot read are **skipped, with the reason**, instead of ending the
+  run (`SKIPPED (n points): P21: the camera does not read tags there ...`). With one camera at the TV end that is the
+  far half of the table.
+- **Safety layers checked at the start of every run.** Each robot gets its tilt stop and its edge (drop) check, and
+  they are read back: `AL-xxxx: safety layers on and read back: safe_edge 2, edge_bot_cm 11, tilt_stop_deg 5 ...`.
+  A robot whose settings do not read back is not moved.
+- **If a robot tips or meets an edge** it stops, that spot is kept out for the rest of the run, and it backs away
+  only if the camera shows room behind it (`SAFETY: ... backing straight away 10 cm (never forward)`). If there is no
+  safe way back it stands still and the run says so. Then take it back to a sticker by hand.
+- **Robots stay awake at the end** (they used to be put to sleep, and waking restarts them). Mission Control puts them
+  to sleep after **30 minutes** with no run.
+- **The calibration's distance** now also corrects a small fixed overrun at the end of every leg (about 3-5 mm); the
+  card's report shows `Stop overrun`.
+- **Any camera name.** One camera plugged in is used as the overhead camera, whatever its name.
+
+### The new button: Visit points (Browser)
+
+1. **Browser**: Mission Control, click **Production** in the top bar.
+2. In the card **Visit points**, press **Visit points**, then **OK**.
+3. You should see, within a minute, in the Pi window or the run's log: `AUTO: the camera sees N roof tags`, each robot
+   wiggling and then nudging 6 cm forward, `ROBOTS FOUND: N (Alpha, Bravo ...)`, `TABLE SHARING: ...` and the list of
+   skipped points.
+4. **To stop at any moment**: press **Stop** in the same card (red while a run is going). Every robot stops where it is.
+
+To try it without robots first, press **Simulator rehearsal** in the same card.
+
+
 Updated 5 Nov, 11:00 answers (build e04). At the school conference table. One robot, **Alvik 3** (WiFi name AL-1DC0),
 stands on sticker **P11**, maybe **asleep** (it wakes for 20 s every 10 minutes). Its roof tag is id 2. Nobody needs to
 type which tag is on which robot: the run finds out by itself (the robot wiggles; the tag that wiggles with it is its

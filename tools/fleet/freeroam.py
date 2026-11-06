@@ -60,6 +60,13 @@ SAFE = ["set safe_edge 3", "set edge_dir 0", "set edge_thr 150", "set edge_n 3",
 DISK_CHECK_S = 60.0
 
 
+def _fnum(v):
+    try:
+        return float(v)
+    except (TypeError, ValueError):
+        return None
+
+
 def site_safe_edge(a):
     """--safe-edge, else the site in use's (school 2), else 3."""
     if getattr(a, "safe_edge", None) is not None:
@@ -239,6 +246,8 @@ class Runner:
                     if cols:
                         row = dict(zip(cols, vals))
                         c.on_raw(name, t, float(row["roll_deg"]), float(row["pitch_deg"]), float(row.get("v_cms") or 0))
+                        c.on_raw_evidence(name, t, float(row.get("ax") or 0.0), _fnum(row.get("dC_cm")),
+                                          _fnum(row.get("lineC")))
             except (ValueError, IndexError):
                 continue
 

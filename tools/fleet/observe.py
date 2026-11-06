@@ -578,10 +578,13 @@ STAND_TILT_S = 2.0       # ... for this long while not driving = a hazard (a whe
                          # test with a wheel over a 1 / 2 / 3 cm drop, standing and driving, sets both
 STAND_V_CMS = 1.0        # "not driving": its own speed under this
 LEVEL_N = 25             # its level: the median of this many standing samples at the start (RAW 50 / s: half a second)
-FAST_DONE_FRAC = 0.1     # (3) a move reported done in under this share of its expected time ...
-FAST_DONE_CAM_CM = 1.0   # ... while the camera saw it move under this (or under 20 % of its length) = NOT done
-REVERSE_MARGIN_CM = 3.0  # (4) a reverse needs camera-confirmed room behind: its length + the body's back half (6 cm)
-BODY_BACK_CM = 6.0       # + this margin + the pose's uncertainty, to every edge, keep-out and other robot
+PHYS_MAX_CMS = 30.0      # (3') nothing an Alvik does covers ground faster than this (its top speed ~ 20 cm/s): a move
+                         # "done" faster is physically impossible = a robot-side refusal or failure, whatever else says
+REVERSE_MARGIN_CM = 3.0  # (4') a reverse shown safe by the camera: the body's back (BODY_BACK_CM behind the axle) stays
+BODY_BACK_CM = 6.0       # this margin + the pose uncertainty inside every edge and off keep-outs and robots
+TRAIL_TOL_CM = 2.0       # (4'a) the breadcrumb trail: a reverse follows the robot's own recent path when every point of
+TRAIL_TOL_DEG = 8.0      # the reverse stays within this (plus the odometry bubble) of where it drove, along its heading
+TURN_R_CM = 6.72         # the body's half diagonal: the circle a turn on the spot sweeps
 
 
 class PoseAgree:
@@ -644,18 +647,159 @@ class TiltWatch:
 
 
 def done_too_fast(expected_s, took_s, cam_moved_cm, length_cm):
-    """(3) A move reported done in under FAST_DONE_FRAC of its expected time while the camera saw it move less than
-    FAST_DONE_CAM_CM (or under 20 % of its length): it did NOT happen (the robot and the controller disagree on where it
-    is). cam_moved_cm None (no camera): judged on the time alone only for moves of 3 cm or more."""
-    if expected_s is None or expected_s <= 0 or took_s is None:
+    """Kept for the callers of the first version: physical impossibility only (see move_outcome)."""
+    return impossible(length_cm, took_s)
+
+
+def impossible(length_cm, took_s):
+    """(3') A move of 3 cm or more "done" faster than PHYS_MAX_CMS allows did not happen (a robot-side refusal or
+    failure), whatever any other signal says."""
+    return length_cm is not None and abs(length_cm) >= 3.0 and took_s is not None and \
+        took_s < abs(length_cm) / PHYS_MAX_CMS
+
+
+def move_outcome(length_cm, took_s, wheel_cm=None, accel_rolling=None, gyro_deg=None, turn_deg=0.0,
+                 front_change_cm=None, front_expect_cm=None, line_changed=None, cam_moved_cm=None, cam_fresh=False,
+                 robot_info=""):
+    """(3', Nick 5 Nov 21:11: move outcome by evidence fusion) Did a move happen? Each independent signal votes
+    (0 = did not move, 1 = moved) with its own weight; no single one decides, except physical impossibility.
+      wheel_cm        what the wheels counted (its LEG record / own pose), weight 1: wheels can spin on the spot
+      accel_rolling   the accelerometer felt it roll (start / stop jolts, vibration), weight 1.5
+      gyro_deg        the gyro's turn (for a turn), weight 1.5
+      front_change_cm the front range to what is ahead changed by about front_expect_cm, weight 2 (only when a thing
+                      is in range ahead)
+      line_changed    the line sensors' surface readings changed while it moved, weight 0.5
+      cam_moved_cm    the camera saw it move, weight 3, only with a fresh confident fix
+    Returns dict(verdict "moved" | "not_moved" | "impossible", score 0-1, used [sources], words, blind_ok: moved with
+    no camera = accept it and grow the dead-reckoning bubble). robot_info: its own reason for ending early, logged."""
+    L = abs(length_cm or 0.0)
+    used, num, den = [], 0.0, 0.0
+    if impossible(L, took_s):
+        return dict(verdict="impossible", score=0.0, used=["time"], blind_ok=False,
+                    words="%.0f cm in %.2f s is not physically possible: a robot-side refusal or failure%s" % (
+                        L, took_s, (" (it said: %s)" % robot_info) if robot_info else ""))
+
+    def vote(name, v, w):
+        nonlocal num, den
+        used.append(name)
+        num += w * max(0.0, min(1.0, v))
+        den += w
+    if wheel_cm is not None and L > 0:
+        vote("wheels", abs(wheel_cm) / L, 1.0)
+    if gyro_deg is not None and abs(turn_deg) >= 10:
+        vote("gyro", abs(gyro_deg) / abs(turn_deg), 1.5)
+    if accel_rolling is not None and L > 0:
+        vote("accelerometer", 1.0 if accel_rolling else 0.0, 1.5)
+    if front_change_cm is not None and front_expect_cm and abs(front_expect_cm) >= 2.0:
+        vote("front range", abs(front_change_cm) / abs(front_expect_cm), 2.0)
+    if line_changed is not None and L > 0:
+        vote("line sensors", 1.0 if line_changed else 0.3, 0.5)
+    if cam_fresh and cam_moved_cm is not None and L > 0:
+        vote("camera", abs(cam_moved_cm) / L, 3.0)
+    if den == 0:
+        return dict(verdict="moved", score=0.5, used=[], blind_ok=False, words="no evidence either way (taken as done)")
+    sc = num / den
+    verdict = "moved" if sc >= 0.5 else "not_moved"
+    own = [u for u in used if u != "camera"]
+    blind_ok = verdict == "moved" and "camera" not in used and len(own) >= 2
+    return dict(verdict=verdict, score=round(sc, 2), used=used, blind_ok=blind_ok,
+                words="%s (score %.2f from %s)%s" % ("moved" if verdict == "moved" else "did NOT move", sc,
+                                                    ", ".join(used), (" (it said: %s)" % robot_info) if robot_info
+                                                    else ""))
+
+
+class FailMemory:
+    """(3b) Never repeat a failed action unchanged. Each failed action is kept with where it was tried; the same kind,
+    direction and length (within 25 %) from within SAME_SPOT_CM of a failed one is refused; failures piling up at one
+    spot escalate (ESCALATE_N: a hazard there, the others kept out, re-seed / find-me)."""
+    SAME_SPOT_CM = 5.0
+    ESCALATE_N = 3
+    ESCALATE_CM = 8.0
+
+    def __init__(self):
+        self.fails = []
+
+    def add(self, t, kind, sign, length_cm, x, y):
+        self.fails.append((t, kind, sign, float(length_cm or 0.0), float(x), float(y)))
+        del self.fails[:-50]
+
+    def same(self, kind, sign, length_cm, x, y):
+        L = float(length_cm or 0.0)
+        for _, k, sg, l0, fx, fy in self.fails:
+            if k == kind and sg == sign and math.hypot(x - fx, y - fy) <= self.SAME_SPOT_CM and \
+                    abs(L - l0) <= 0.25 * max(abs(l0), 1.0):
+                return True
         return False
-    if took_s >= FAST_DONE_FRAC * expected_s:
-        return False
-    if length_cm is not None and abs(length_cm) < 3.0:
-        return False
-    if cam_moved_cm is None:
-        return True
-    return cam_moved_cm < max(FAST_DONE_CAM_CM, 0.2 * abs(length_cm or 0.0))
+
+    def escalate(self, x, y):
+        return sum(1 for f in self.fails if math.hypot(x - f[4], y - f[5]) <= self.ESCALATE_CM) >= self.ESCALATE_N
+
+
+class Trail:
+    """(4'a) The breadcrumb trail: the robot's own recent poses (its odometry, x, y, heading). Ground it has just
+    driven over is known safe; a reverse of L cm is safe when the last L cm it drove were forwards along (about) its
+    present heading, within the odometry bubble."""
+
+    def __init__(self, keep_cm=60.0):
+        self.pts = []          # (x, y, th)
+        self.keep = keep_cm
+
+    def add(self, x, y, th):
+        if self.pts and math.hypot(x - self.pts[-1][0], y - self.pts[-1][1]) < 0.5:
+            return
+        self.pts.append((float(x), float(y), float(th)))
+        d, k = 0.0, len(self.pts) - 1
+        while k > 0 and d < self.keep:
+            d += math.hypot(self.pts[k][0] - self.pts[k - 1][0], self.pts[k][1] - self.pts[k - 1][1])
+            k -= 1
+        del self.pts[:max(0, k - 1)]
+
+    def clear(self):
+        self.pts = []
+
+    def reverse_ok(self, L, bubble_cm=0.0):
+        """(ok, cm covered): the last L cm of the trail run straight back along the present heading."""
+        if len(self.pts) < 2:
+            return False, 0.0
+        x, y, th = self.pts[-1]
+        h = math.radians(th)
+        ux, uy = math.cos(h), math.sin(h)
+        cov = 0.0
+        for k in range(len(self.pts) - 1, 0, -1):
+            px, py = self.pts[k - 1][:2]
+            back = -((px - x) * ux + (py - y) * uy)          # how far behind (along the heading)
+            side = abs(-(px - x) * uy + (py - y) * ux)
+            if side > TRAIL_TOL_CM + bubble_cm or abs(wrap180(self.pts[k - 1][2] - th)) > TRAIL_TOL_DEG + 10.0:
+                break
+            cov = max(cov, back)
+            if cov >= L:
+                return True, cov
+        return cov >= L, cov
+
+
+def back_out_plan(L, trail=None, bubble_cm=0.0, cam=None, cam_age_s=None, rect=None, others=(), keepouts=(),
+                  turn_clear=None, tilted=False):
+    """(4', Nick 5 Nov 21:11) How to get out backwards, by the evidence that covers the swept space:
+      (a) "reverse_trail": back along its own breadcrumb trail (no camera needed), up to what the trail covers;
+      (c) "reverse_camera": a fresh confident camera fix shows room behind (reverse_room);
+      (d) "turn_forward": look before backing: turn on the spot (turn_clear: the body circle's sweep is shown clear;
+          never while tilted: the firmware refuses turns then) so the front sensors check the way, then drive forward;
+      (e) "hold": nothing shows any direction safe: hold and call for the camera / a person.
+    Returns (how, length_cm, words)."""
+    if trail is not None:
+        ok, cov = trail.reverse_ok(L, bubble_cm)
+        if ok:
+            return "reverse_trail", L, "back along its own trail (%.0f cm driven there)" % cov
+        if cov >= 3.0 and cam is None:
+            return "reverse_trail", round(cov, 1), "back along its own trail, only the %.0f cm it covers" % cov
+    if cam is not None and rect is not None:
+        ok, why = reverse_room(cam, L, rect, unc_cm=bubble_cm, others=others, keepouts=keepouts, cam_age_s=cam_age_s)
+        if ok:
+            return "reverse_camera", L, "the camera shows room behind"
+    if turn_clear and not tilted:
+        return "turn_forward", 0.0, "turns on the spot (its sweep is clear) so its front sensors check the way"
+    return "hold", 0.0, "nothing shows a safe way out (no trail behind, no camera room%s): it holds; the camera or a " \
+                        "person is needed" % (", tilted: no turn" if tilted else "")
 
 
 def reverse_room(cam, length_cm, rect, unc_cm=0.0, others=(), keepouts=(), cam_age_s=0.0):
@@ -683,3 +827,64 @@ def reverse_room(cam, length_cm, rect, unc_cm=0.0, others=(), keepouts=(), cam_a
             if math.hypot(bx - ox, by - oy) < BODY_BACK_CM + REVERSE_MARGIN_CM + unc_cm:
                 return False, "another robot behind it"
     return True, "room behind (camera)"
+
+
+# =============================================================================================== the side-edge invariant
+# (Nick 5 Nov 21:14) The robot has no sideways sensor, so a shallow approach to a side edge is seen by nothing on the
+# robot. Hard invariant in every run type: the robot's POSSIBLE-LOCATIONS circle (the body's half diagonal + its pose
+# uncertainty: camera error, the dead-reckoning bubble, the camera's staleness x its speed, clock doubt) never overlaps
+# the workspace perimeter (every table / board side is an open drop, home included, less EDGE_MARGIN_CM; discovered
+# edges and keep-outs) - not at a move's end and not anywhere along its swept path (a turn's corner sweep included:
+# the circle already covers any heading). When the circle has grown so the robot's spot violates it, the only moves
+# allowed shrink the overlap.
+HALF_DIAG_CM = 6.72      # the 9.5 cm body's half diagonal (any heading)
+EDGE_MARGIN_CM = 1.0     # chosen: the circle stays this far inside every side (the table's edge itself is the drop)
+
+
+def uncertainty_cm(base_cm=1.0, bubble_cm=0.0, cam_age_s=0.0, speed_cms=0.0, clock_doubt_s=0.0):
+    """The pose uncertainty (cm): the camera's own error (base), the dead-reckoning bubble, how far it may have gone
+    since the camera's (stale) picture, and a clock doubt (seconds the camera's time may be off) at its speed."""
+    return base_cm + bubble_cm + abs(speed_cms) * (max(0.0, cam_age_s) + max(0.0, clock_doubt_s))
+
+
+def overlap_cm(x, y, unc_cm, rect, keepouts=()):
+    """How far the possible-locations circle at (x, y) reaches past the perimeter (cm; <= 0: inside). rect: (x0, y0,
+    x1, y1) of the drop; keepouts: (x, y, r) discs."""
+    R = HALF_DIAG_CM + unc_cm + EDGE_MARGIN_CM
+    e = min(x - rect[0], rect[2] - x, y - rect[1], rect[3] - y)
+    worst = R - e
+    for kx, ky, kr in keepouts:
+        worst = max(worst, R + kr - math.hypot(x - kx, y - ky))
+    return worst
+
+
+def path_ok(points, unc_cm, rect, keepouts=(), unc_per_cm=0.0):
+    """(ok, words) for a move swept through points [(x, y), ...] (the whole path, sampled): the circle, growing by
+    unc_per_cm per cm driven (odometry), never overlaps. A robot whose start already overlaps may only take a move
+    whose overlap never grows and ends smaller (towards the interior)."""
+    if not points:
+        return True, ""
+    o0 = overlap_cm(points[0][0], points[0][1], unc_cm, rect, keepouts)
+    d, prev, worst = 0.0, points[0], o0
+    for p in points[1:]:
+        d += math.hypot(p[0] - prev[0], p[1] - prev[1])
+        prev = p
+        o = overlap_cm(p[0], p[1], unc_cm + unc_per_cm * d, rect, keepouts)
+        if o0 <= 0 and o > 0:
+            return False, "its possible-locations circle would reach %.1f cm past the edge at %.0f, %.0f" % (o, p[0],
+                                                                                                             p[1])
+        if o0 > 0 and o > worst + 0.05:
+            return False, "it already overlaps the edge by %.1f cm: only moves that shrink that are allowed" % o0
+        worst = max(worst, o) if o0 <= 0 else min(worst, max(o, worst))
+    o_end = overlap_cm(points[-1][0], points[-1][1], unc_cm + unc_per_cm * d, rect, keepouts)
+    if o0 > 0 and o_end >= o0 - 0.05:
+        return False, "it overlaps the edge by %.1f cm and this move does not shrink it" % o0
+    return True, ""
+
+
+def max_len_for(unc_cm, unc_per_cm, room_cm):
+    """Planning shrinks moves as uncertainty grows: the longest straight move whose end circle still fits in room_cm
+    (the distance from its middle to the perimeter along the way)."""
+    if unc_per_cm <= 0:
+        return float("inf")
+    return max(0.0, (room_cm - HALF_DIAG_CM - EDGE_MARGIN_CM - unc_cm) / unc_per_cm)

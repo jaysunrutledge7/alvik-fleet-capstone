@@ -183,7 +183,7 @@ def test_tilt_watch_standing_tilt():
 def test_done_too_fast():
     assert OB.done_too_fast(4.0, 0.05, 0.1, 14.0)          # Left's 4,289 reverses
     assert not OB.done_too_fast(4.0, 3.5, 0.1, 14.0)
-    assert not OB.done_too_fast(4.0, 0.2, 12.0, 14.0)       # the camera saw it move: fine
+    assert OB.done_too_fast(4.0, 0.2, 12.0, 14.0)           # (3') 14 cm in 0.2 s is impossible whatever the camera
     assert not OB.done_too_fast(1.0, 0.05, None, 1.0)
 
 
@@ -197,3 +197,65 @@ def test_reverse_room():
     assert not ok and "blind" in w
     ok, w = OB.reverse_room((60, 61, 0), 14, rect, others=[(40, 61)])
     assert not ok
+
+
+def test_side_edge_invariant():
+    rect = (0, 0, 122, 122)
+    # a shallow approach to the x = 0 edge (Center, 5 Nov): 27 deg off the edge line, ending 5 cm from it
+    pts = [(21 - k * 0.5, 74 - k * 1.0) for k in range(32)]
+    ok, w = OB.path_ok(pts, OB.uncertainty_cm(1.0), rect)
+    assert not ok
+    # the same move from the middle is fine
+    assert OB.path_ok([(60, 60), (60, 40)], 1.0, rect)[0]
+    # camera stale 2 s at 10 cm/s: the circle grows 20 cm, so a spot 25 cm in already overlaps
+    u = OB.uncertainty_cm(1.0, cam_age_s=2.0, speed_cms=10.0)
+    assert OB.overlap_cm(25, 60, u, rect) > 0
+    assert not OB.path_ok([(25, 60), (20, 60)], u, rect)[0]          # towards the edge: refused
+    assert OB.path_ok([(25, 60), (45, 60)], u, rect)[0]              # inwards: allowed (shrinks)
+    # odometry growth over the path: a long blind drive along the edge is refused, a short one allowed
+    along = [(12, 20 + k) for k in range(60)]
+    assert not OB.path_ok(along, 1.0, rect, unc_per_cm=0.1)[0]
+    assert OB.max_len_for(1.0, 0.5, 10.0) < 3.0 and OB.max_len_for(1.0, 0.0, 10.0) == float("inf")
+
+
+def test_evidence_fusion_cases():
+    # Left's reverse: 14 cm "done" in 0.05 s: impossible, whatever else says
+    o = OB.move_outcome(14, 0.05, wheel_cm=14, cam_moved_cm=None)
+    assert o["verdict"] == "impossible"
+    # wheels slip: the wheels counted 14 cm, the accelerometer felt nothing, the front range did not change
+    o = OB.move_outcome(14, 3.0, wheel_cm=14, accel_rolling=False, front_change_cm=0.2, front_expect_cm=14)
+    assert o["verdict"] == "not_moved"
+    # camera washed out, own sensors agree it moved: accepted, bubble grown
+    o = OB.move_outcome(14, 3.0, wheel_cm=13.5, accel_rolling=True, front_change_cm=13, front_expect_cm=14)
+    assert o["verdict"] == "moved" and o["blind_ok"]
+    # the camera alone cannot overrule three own sensors
+    o = OB.move_outcome(14, 3.0, wheel_cm=14, accel_rolling=True, front_change_cm=14, front_expect_cm=14,
+                        cam_moved_cm=0.0, cam_fresh=True)
+    assert o["verdict"] == "moved"
+
+
+def test_fail_memory_never_repeats_unchanged():
+    fm = OB.FailMemory()
+    fm.add(0, "back off", -1, 14, 10, 50)
+    assert fm.same("back off", -1, 14, 11, 50)
+    assert not fm.same("back off", -1, 6, 11, 50)          # a different length is allowed
+    assert not fm.same("back off", 1, 14, 11, 50)
+    fm.add(1, "back off", -1, 6, 10, 51)
+    fm.add(2, "reverse", -1, 10, 9, 50)
+    assert fm.escalate(10, 50)
+
+
+def test_trail_and_back_out_plan():
+    tr = OB.Trail()
+    for k in range(30):                                     # drove 30 cm forward along +x
+        tr.add(10 + k, 50, 0.0)
+    ok, cov = tr.reverse_ok(10)
+    assert ok and cov >= 10
+    how, L, w = OB.back_out_plan(10, trail=tr)
+    assert how == "reverse_trail"                           # (a): no camera needed
+    tr2 = OB.Trail()
+    tr2.add(10, 50, 0.0)
+    how, L, w = OB.back_out_plan(10, trail=tr2, cam=None, turn_clear=True)
+    assert how == "turn_forward"                            # (d) look before backing
+    how, L, w = OB.back_out_plan(10, trail=tr2, cam=None, turn_clear=True, tilted=True)
+    assert how == "hold"                                    # (e)

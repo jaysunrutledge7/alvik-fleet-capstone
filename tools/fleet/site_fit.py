@@ -51,6 +51,8 @@ for p in (HERE, os.path.join(TOOLS, "recognition"), os.path.join(TOOLS, "sim")):
 CLICK_SD_PX = 2.0        # a person's click on a table corner (corner_setup.CLICK_SD_PX). DOE note there
 STICKER_SD_PX = 1.5      # a click on a 2 cm round sticker's middle. Chosen; DOE: Nick clicks one sticker 5 times
 TAG_SD_PX = 0.35         # tag_geom.CORNER_SD_PX
+TYPED_SEED_SD_CM = 5.0   # (11-05h) measure_trust "cameras": a typed value weighs as a 5 cm guess (a seed), so the tag
+                         # reads decide. Chosen. DOE note: compare the cameras' size with a careful tape on each table
 TYPED_SD_CM = 0.3        # a tape measurement (typed size, coordinates, distances). Chosen: a careful tape. No DOE
 HFOV_PRIOR_DEG = 70.0    # a typical webcam (Logitech C920: 70.4 deg). The focal length's starting value and weak prior
 F_PRIOR_FRAC = 0.25      # the prior's 1-sigma, as a share of f: weak (the tags and corners decide it when they can)
@@ -213,6 +215,13 @@ class Problem:
         self.s = float(obs["tag_cm"])
         self.H = float(obs["tag_height_cm"])
         self.use_typed = use_typed
+        # (11-05h, Nick approved 5 Nov 20:28: the CAMERAS WIN over typed sizes and sticker spots) "cameras": a typed
+        # value is only a seed (TYPED_SEED_SD_CM: it steers the start, the tag reads decide) and a disagreement is
+        # said; "typed": the tape is trusted to TYPED_SD_CM as before (the switch: the site's measure_trust).
+        # DEFAULT "typed" for now: in this file's simulator (seed 2) "cameras" made the table 394.0 x 166.0 cm (true
+        # 396.2 x 167.6) and the worst sticker 4.4 cm off, against 396.3 x 167.5 and 2.4 cm with the tape (e06 report)
+        self.trust = str(obs.get("measure_trust") or "typed")
+        self.typed_sd = TYPED_SEED_SD_CM if self.trust == "cameras" else TYPED_SD_CM
         self.fit_k1 = fit_k1
         self.fit_height = fit_height
         self.stickers = sorted(obs.get("stickers", {}))
@@ -350,16 +359,16 @@ class Problem:
                 out.append(((uv - np.asarray(corners, float)) / TAG_SD_PX).ravel())
         if self.use_typed:
             if self.typed_L:
-                out.append(np.array([(L - self.typed_L) / TYPED_SD_CM, (W - self.typed_W) / TYPED_SD_CM]))
+                out.append(np.array([(L - self.typed_L) / self.typed_sd, (W - self.typed_W) / self.typed_sd]))
             for sid in self.stickers:
                 xy = self.obs["stickers"][sid].get("xy_cm")
                 if xy is not None:
-                    out.append((stk[sid] - np.asarray(xy, float)) / TYPED_SD_CM)
+                    out.append((stk[sid] - np.asarray(xy, float)) / self.typed_sd)
             for a_, b_, dcm in self.obs.get("distances", []):
                 if a_ in stk and b_ in stk:
-                    out.append(np.array([(np.linalg.norm(stk[a_] - stk[b_]) - dcm) / TYPED_SD_CM]))
+                    out.append(np.array([(np.linalg.norm(stk[a_] - stk[b_]) - dcm) / self.typed_sd]))
             for i, v in self.typed_along.items():
-                out.append(np.array([(along[i] - v) / TYPED_SD_CM]))
+                out.append(np.array([(along[i] - v) / self.typed_sd]))
         if "_kref" in self.lay:
             out.append(np.array([(kref - 1.0) / TAG_SCALE_SD]))
         if self.fit_height:
@@ -926,8 +935,10 @@ def full(obs, fit_k1=None, untyped_check=True):
         a = _roof_hold(obs, a, dict(use_typed=False, fit_k1=fit_k1, roof_fit=rf))
         _roof_words(a, obs)
         return a
-    b = solve(obs, use_typed=True, fit_k1=fit_k1, fit_tag_scale=True, roof_fit=rf)
-    b = _roof_hold(obs, b, dict(use_typed=True, fit_k1=fit_k1, fit_tag_scale=True, roof_fit=rf))
+    ts = str(obs.get("measure_trust") or "typed") != "cameras"   # cameras win: the tags' printed size is the scale
+    b = solve(obs, use_typed=True, fit_k1=fit_k1, fit_tag_scale=ts, roof_fit=rf)
+    b = _roof_hold(obs, b, dict(use_typed=True, fit_k1=fit_k1, fit_tag_scale=ts, roof_fit=rf))
+    b["measure_trust"] = "typed" if ts else "cameras"
     a = solve(obs, use_typed=False, fit_k1=fit_k1, x_start=None) if untyped_check else \
         {"size_cm": b["size_cm"], "size_sd_cm": b.get("size_sd_cm")}
     rows, words = checks(obs, b)
@@ -955,6 +966,9 @@ def full(obs, fit_k1=None, untyped_check=True):
         except Exception as e:    # noqa: BLE001  (a check never stops the setup)
             words.append("(height cross-check not made: %s)" % e)
     b["checks"] = rows
+    if not ts:
+        b["words"] = b["words"] + ["The CAMERAS decide the table (measure_trust cameras): the typed values were only a "
+                                   "first guess; any disagreement over %.1f %% is listed above." % (100 * AGREE_FRAC)]
     b["words"] = b["words"] + words + [
         "Typed measurements used; the tags read %.1f %% %s than printed (fitted%s)." % (
             100 * abs(k - 1), "larger" if k >= 1 else "smaller",
