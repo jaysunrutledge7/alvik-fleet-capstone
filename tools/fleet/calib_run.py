@@ -61,7 +61,8 @@ for p in (HERE, TOOLS, os.path.join(TOOLS, "sim"), os.path.join(TOOLS, "recognit
 
 import numpy as np   # noqa: E402
 
-VERSION = "2026-11-05f"     # 11-05f: heading check (the school tag reads 180 deg off the nose: legs ran backwards, 1 cm from the edge).
+VERSION = "2026-11-05g"     # 11-05g: --view-x-max (zone 1 only while the far end reads poorly).
+VERSION_F = "2026-11-05f"     # 11-05f: heading check (the school tag reads 180 deg off the nose: legs ran backwards, 1 cm from the edge).
 VERSION_E = "2026-11-05e"     # 11-05e: --safe-edge / calibration.safe_edge (school: 2, the tape seam tripped the line sensors).
 VERSION_D = "2026-11-05d"     # 11-05d: recovery jump used the camera time as a position; hold again until a pose (school 18:33 crash). 11-05c: lost-tag recovery; arc phase
 PY = sys.executable
@@ -1029,6 +1030,8 @@ class CalibRun:
         os.makedirs(folder, exist_ok=True)
         self.a, self.folder, self.parent = a, folder, parent
         self.S = Site(site, park_label or PARK_SPOTS[0])
+        if getattr(a, "view_x_max", None):
+            self.S.view_x = float(a.view_x_max)   # (11-05g) the tag reads only this far up the table in this light
         self.site = site
         self.events = open(os.path.join(folder, "events.jsonl"), "a")
         self.status = {"version": VERSION, "phase": "starting", "robot": None, "tag": None, "words": "Starting",
@@ -2331,6 +2334,12 @@ def main(argv=None):
                          "even for a robot calibrated before (default: only its first calibration on this site)")
     bl.add_argument("--from-saved", dest="baseline", action="store_const", const="saved",
                     help="phase A starts from the robot's saved values even on its first calibration")
+    ap.add_argument("--sim-start", default="", help="simulator: the sticker the robot starts on (default P11)")
+    ap.add_argument("--view-x-max", type=float, default=None,
+                    help="points and legs past this x (cm from the TV end) are skipped as out of the camera's view "
+                         "(default %.0f). School 5 Nov: the roof tag read reliably to about x 100 cm in the room light "
+                         "and the run ended losing it on the way to P11 (x 150): 110 keeps zone 1 (P01-P10)" % (
+                             VIEW_X_MAX_CM - VIEW_MARGIN_CM))
     ap.add_argument("--park-spots", default="", help="spots in order, e.g. P09,P01,P05 (default: the site's "
                     "calibration.park_spots). School 5 Nov: P11 reads poorly in the room light, so start and park on P09")
     ap.add_argument("--safe-edge", type=int, default=None, choices=[0, 1, 2, 3],
