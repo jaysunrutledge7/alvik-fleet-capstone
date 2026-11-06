@@ -742,12 +742,23 @@ class Coordinator:
                 b.guard_since = None
                 continue
             d = math.hypot(cam[0] - b.pose[0], cam[1] - b.pose[1])
-            if d <= lim:
+            # (11-05h, rehearsal s2: after a restart a robot's own heading was 105 deg off the camera's while its
+            # position still agreed; it refused every fix and drove to 9.5 cm of the x = 0 edge before its drop check
+            # stopped it) the heading counts too: over HEAD_GUARD_DEG for the same time = the same reset, heading
+            # from the camera
+            dth = 0.0
+            if cam[2] is not None:
+                ch = getattr(b, "cam_hist", None) or []
+                own_ = self.pose_at(b, ch[-1][0]) if ch else None      # its own heading AT THE PICTURE'S TIME
+                oth = own_[3] if own_ is not None else b.pose[2]          # (the camera lags ~0.3 s: turns)
+                dth = abs(((cam[2] - oth + 180.0) % 360.0) - 180.0)
+            if d <= lim and dth <= self.HEAD_GUARD_DEG:
                 b.guard_since = None
                 continue
             if getattr(b, "guard_since", None) is None:
                 b.guard_since = t
-                self.log("cam_guard_start", robot=b.name, d_cm=round(d, 2), cam=cam, own=list(b.pose))
+                self.log("cam_guard_start", robot=b.name, d_cm=round(d, 2), dth_deg=round(dth, 1), cam=cam,
+                         own=list(b.pose))
             elif t - b.guard_since >= self.CAM_GUARD_S and self.holds_one() and not \
                     getattr(self, "straightening", False):
                 # its own pose has drifted from the camera's: that robot alone is halted and its pose set from the
@@ -2609,7 +2620,7 @@ class Coordinator:
             return                                      # we stopped it for a re-plan
         import observe as OB
         tk = OB.trip_kind(info)
-        if tk == "line":
+        if tk == "line" and getattr(self.args, "surface_marks", "auto") != "off":
             # (11-05h, Observe then trust) the line sensors alone: with the camera putting the robot well inside the
             # table it is a mark on the surface (school 5 Nov: the black tape over the seam), not an edge. Logged;
             # that robot's line cue is switched off for the rest of the run (the bottom zone stays on), re-planned
@@ -2678,8 +2689,22 @@ class Coordinator:
         import observe as OB
         x, y, th = (pose[0], pose[1], pose[2]) if pose else (b.pose or (0, 0, 0))
         self.n_sensor_obstacles += 1
-        ob = self.edge_boundary(b, (x, y, th), "plywood edge at %.2f %.2f %.2f %s" % (
-            x, y, th, "bottom" if kind == "drop" else "line"))
+        cam_, ct_ = getattr(b, "last_cam", None), getattr(b, "cam_t", None)
+        if cam_ is not None and cam_[2] is not None and ct_ is not None and now() - ct_ <= 1.0:
+            # (11-05h, rehearsal s2: the robot's own pose was 13 cm and 105 deg off) the discovered edge is placed where
+            # the CAMERA has the robot, when it has it fresh; the robot's own pose is the fallback
+            ex_, ey_, eth_ = cam_[0], cam_[1], cam_[2]
+        else:
+            ex_, ey_, eth_ = x, y, th
+        ob = self.edge_boundary(b, (ex_, ey_, eth_), "plywood edge at %.2f %.2f %.2f %s" % (
+            ex_, ey_, eth_, "bottom" if kind == "drop" else "line"))
+        f0 = self.m["floor"]
+        if min(ex_ - f0["x_min"], f0["x_max"] - ex_, ey_ - f0["y_min"], f0["y_max"] - ey_) > 20.0:
+            # well inside the table by the camera: not the table's edge (a hole, a box's edge, a false reading): a
+            # small keep-out where the nose was, not an 80 cm strip across the table
+            k_ = OB.trip_keepout(ex_, ey_, eth_)
+            ob = {"id": ob["id"], "shape": "circle", "center": k_["center"], "radius": k_["radius"] + 3.0,
+                  "source": "edge_guard", "time": ob.get("time"), "cue": kind}
         ob["cue"] = kind                       # source stays edge_guard (a discovered edge: tilt or drop)
         ob["why"] = "%s trip (discovered edge)" % kind
         bx, by = OB.back_off_target(x, y, th)
@@ -3472,6 +3497,8 @@ class Coordinator:
                 self.halt_all()
                 return
 
+    HEAD_GUARD_DEG = 25.0     # (11-05h) own heading vs the camera's (tag, offset corrected) over this = a reset, as
+                              # the position guard. Chosen: well over a turn's error (3-7 deg) and the tag's noise (1 deg)
     REJOIN_FRESH_S = 1.0      # (11-05h) a held robot rejoins only on a camera fix this fresh (chosen: 10 fixes a second,
                               # the blind threshold 0.6 s plus slack)
     RECOVER_BEYOND_CM = 10.0  # (11-05h) the recovery drives this far past the last read spot, back into readable ground
@@ -5253,6 +5280,9 @@ def main(argv=None):
     ap.add_argument("--lost-robot-points", choices=("reassign", "skip"), default="reassign",
                     help="with --on-problem keep_going: a robot that is out hands its production points not done to "
                          "the robots still running (reassign, default), or they are listed as not done (skip)")
+    ap.add_argument("--surface-marks", choices=["auto", "off"], default="auto",
+                    help="(11-05h) auto: a line-sensor trip the camera puts well inside the table is a surface mark "
+                         "(logged; that robot's line cue off); off: every line trip is an edge (the old way)")
     ap.add_argument("--readmap", default="", help="(11-05h) the mission's readability map at the start "
                     "(observe.ReadMap JSON); learned on during the run, saved as readmap.json")
     ap.add_argument("--bridge-events", default="", help="the tag bridge's events.jsonl: a bumped camera's size counts "
