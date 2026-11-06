@@ -16,3 +16,15 @@
   robots' own data and the camera and then account for it — the goal is dropping a new robot on an unknown surface
   and driving on it accurately. Mapping a feature by hand (e.g. typing a seam's position) is allowed only as a
   stand-in for initial data-gathering runs, never as the finished method.
+- **Observe, then trust (Nick, 2026-11-05):** every belief the software holds about the physical setup (how sensors
+  and tags are mounted, names, addresses, positions, heights, clocks, surfaces, camera coverage, robot state) is a
+  starting guess, not a fact. (1) Check it against live evidence at the start and throughout (e.g. the first drive's
+  direction checks the tag's heading). (2) When evidence disagrees, the evidence wins: adapt, log what was learned,
+  carry on; stop only when safety can't be kept. (3) Fuse every available signal (tag pose, motion in the picture,
+  wheel odometry, gyro, accelerometer, front and line sensors); a disagreement between sources is information, not a
+  reason to drop one. Exception: Jay-Sun's RFID data is never an input. (4) Degrade gracefully: a lost tag, a missing
+  camera or an unreadable area narrows what a run does instead of ending it. (5) The simulator deliberately breaks the
+  guesses (tags turned, wrong camera names, a missing camera, clock skew, surface marks, robots restarting, dark
+  patches) so tests catch rigidity before the real table does. "Discover, don't pre-map" above is this rule's surface
+  case. Switches kept under "Keep features, switch them off" are decided automatically by default and live out of a
+  new user's way.
