@@ -2331,6 +2331,8 @@ def main(argv=None):
                          "even for a robot calibrated before (default: only its first calibration on this site)")
     bl.add_argument("--from-saved", dest="baseline", action="store_const", const="saved",
                     help="phase A starts from the robot's saved values even on its first calibration")
+    ap.add_argument("--park-spots", default="", help="spots in order, e.g. P09,P01,P05 (default: the site's "
+                    "calibration.park_spots). School 5 Nov: P11 reads poorly in the room light, so start and park on P09")
     ap.add_argument("--safe-edge", type=int, default=None, choices=[0, 1, 2, 3],
                     help="the robot's own edge guard: 0 off, 1 line sensors, 2 the distance sensor's bottom zone (a real "
                          "drop), 3 both (default: the site's calibration.safe_edge, else 3). School 5 Nov: the line "
@@ -2395,7 +2397,8 @@ def main(argv=None):
     if a.baseline == "auto":
         a.baseline = str(cal_conf.get("baseline") or "auto")
         a.baseline = a.baseline if a.baseline in ("auto", "defaults", "saved") else "auto"
-    a.park_spots = tuple(cal_conf.get("park_spots") or PARK_SPOTS)
+    a.park_spots = tuple(x.strip() for x in a.park_spots.split(",") if x.strip()) if a.park_spots else \
+        tuple(cal_conf.get("park_spots") or PARK_SPOTS)
     if a.lost_policy is None:      # (11-05c) the site's calibration.lost_policy, else recover
         a.lost_policy = str(cal_conf.get("lost_policy") or "recover")
     a.pins = a.pins and bool((site.get("tags") or {}).get("pin", True))
