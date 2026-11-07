@@ -183,6 +183,7 @@ class CamFrames(threading.Thread):
                     pf = h.get("x-frame", k)
                     k += 1
                     self.n_in += 1
+                    self.latest = (t, body)          # (e09, B4) the newest picture, for a snapshot
                     if not self.saving:
                         continue
                     self.saver.add(body, t, pf)
@@ -306,6 +307,24 @@ class Frames:
         for c in self.cams:
             c.saver.event(kind, text, t=t, robot=robot)
 
+    def snapshot(self, folder, name):
+        """(e09, B4: Nick 7 Nov) Each camera's newest picture saved as <folder>/<name>_<camera>.jpg (the JPEG as it
+        came, nothing decoded). Returns the paths written."""
+        out = []
+        os.makedirs(folder, exist_ok=True)
+        for c in self.cams:
+            lt = getattr(c, "latest", None)
+            if lt is None:
+                continue
+            path = os.path.join(folder, "%s_%s.jpg" % (name, c.cam))
+            try:
+                with open(path, "wb") as f:
+                    f.write(lt[1])
+                out.append(path)
+            except OSError as e:
+                say("  (picture not saved: %s)" % e)
+        return out
+
     def close(self):
         self.closed = True
         for c in self.cams:
@@ -352,6 +371,13 @@ class Tail(threading.Thread):
                 e = json.loads(ln)
             except ValueError:
                 continue
+            if e.get("event") == "picture_wanted":
+                # (e09, B4) run_plan was unsure about a robot near an edge with nobody there: a picture of the moment
+                try:
+                    self.frames.snapshot(os.path.join(os.path.dirname(self.path), "pictures"), "%s_%s" % (
+                        time.strftime("%H%M%S"), e.get("robot", "")))
+                except Exception:       # noqa: BLE001
+                    pass
             kind = clip_kind(e)
             if kind:
                 self.frames.event(kind, e.get("info") or e.get("text") or e.get("state") or "", t=e.get("t"),

@@ -48,7 +48,10 @@ for p in (HERE, TOOLS):
 import freeroam_core as FC   # noqa: E402
 
 PY = sys.executable
-VERSION = "freeroam-runner-2026-11-07a"   # 11-07a (e08 Phase A): --edge-rule, --pose-rule, --keepout-rule,
+VERSION = "freeroam-runner-2026-11-07b"   # 11-07b (e09 Phase B): the tracking layer on the bridge's fixes, RAW to each
+                                          # robot's filter, pictures (B4), the brick watch on, --pose-source,
+                                          # --gyro-heading, --old-tracking, --no-brick-watch
+                                          # 11-07a (e08 Phase A): --edge-rule, --pose-rule, --keepout-rule,
                                           # --silent-out, --no-tilt-recovery, --stop-lead; attended runs ask questions
                                           # (Mission Control's card); a failed heading crawl joins held, not out
                                           # 11-05d: --motion curves|stopturn, arc calibration save
@@ -145,7 +148,20 @@ class Runner:
                                   drill=a.reflex_drill if a.dry else 0.0, motion=a.motion,
                                   edge_rule=a.edge_rule, pose_rule=a.pose_rule, keepout_rule=a.keepout_rule,
                                   silent_out=a.silent_out, tilt_recovery=not a.no_tilt_recovery,
-                                  attended=a.attended, questions=asks, leads=stop_leads(a, names))
+                                  attended=a.attended, questions=asks, leads=stop_leads(a, names),
+                                  pose_source=getattr(a, "pose_source", None),
+                                  gyro_heading=getattr(a, "gyro_heading", False) or None)
+        # (e09, Phase B1) the ONE tracking layer: the bridge's fixes (outlines, lights, lock-on) are named again here
+        # against the robots' own poses, with the close-pass guard (wiggle first), the camera watch, the parked watch
+        import tracking_layer as TL
+        old = bool(getattr(a, "old_tracking", False))
+        self.layer = TL.TrackingLayer(names, TL.sources_for("lights", old=old),
+                                      identity="predict" if old else None, parked_watch=not old,
+                                      brick_watch=False, cluster=not old, camera_watch=not old,
+                                      log=lambda kind, row: self.tables(kind, row),
+                                      wiggle=None if old else (lambda n, why: self.ctrl.identity_wiggle(
+                                          self.ctrl.R[n], why)))
+        self.ctrl.fix_fn = self.fix_to_robot
         self.held = dict(getattr(a, "_held", None) or {})
         self.ctrl.arc_save_on = not a.no_arc_save
         self.offsets = {n: [] for n in names}
@@ -261,6 +277,7 @@ class Runner:
                         c.on_raw(name, t, float(row["roll_deg"]), float(row["pitch_deg"]), float(row.get("v_cms") or 0))
                         c.on_raw_evidence(name, t, float(row.get("ax") or 0.0), _fnum(row.get("dC_cm")),
                                           _fnum(row.get("lineC")))
+                        self.raw_to_filter(name, t, row)
             except (ValueError, IndexError):
                 continue
 
@@ -290,6 +307,60 @@ class Runner:
         self.send(name, "calibrate")
         self.restarts[name] += 1
 
+    def raw_to_filter(self, name, t, row):
+        """(e09, B2) A RAW row to the robot's filter, in true units (raw_units), on this clock (its ms + offset)."""
+        import fused_pose as FPm
+        try:
+            v, w = FPm.raw_true(row)
+            ms = float(row.get("ms") or 0.0)
+            o = self.offsets.get(name) or []
+            tt = ms / 1000.0 + min(q[1] for q in o) if o else t
+            still = abs(float(row.get("wl_rpm") or 0)) < FPm.STILL_RPM and abs(float(row.get("wr_rpm") or 0)) < \
+                FPm.STILL_RPM
+            line = tuple(_fnum(row.get(k)) for k in ("lineL", "lineC", "lineR"))
+            self.ctrl.on_raw_full(name, tt, v, w, _fnum(row.get("gz")), still, _fnum(row.get("ax")),
+                                  _fnum(row.get("dC_cm")), line)
+        except (TypeError, ValueError):
+            pass
+
+    def fix_to_robot(self, name, t, x, y):
+        """(e09, B2) The filter's position sent to the robot in a camera gap (its own pose drifts more)."""
+        o = self.offsets.get(name) or []
+        if not o:
+            return
+        off = min(v for tt, v in o)
+        ms = int(round((t - off) * 1000))
+        self.send(name, "fix %d %.2f %.2f - %.2f %.2f" % (ms, x, y, 2.0, 5.0))
+
+    def pictures(self):
+        """(e09, B4) Pictures the controller asked for (unsure near an edge with nobody there, a parked robot moved):
+        each camera's newest picture into <session>/pictures/."""
+        for p in self.ctrl.take_pictures():
+            name = "%s_%s_%s" % (time.strftime("%H%M%S"), p["robot"], "".join(
+                ch if ch.isalnum() else "-" for ch in p["why"])[:40].strip("-"))
+            paths = self.frames.snapshot(os.path.join(self.dir, "pictures"), name) if self.frames is not None else []
+            self.tables("pictures", dict(t=p["t"], robot=p["robot"], why=p["why"], files=";".join(
+                os.path.basename(q) for q in paths) or "(no camera pictures: frames not saved in this run)"))
+            if self.frames is not None:
+                self.frames.event("other", p["why"], robot=p["robot"])
+
+    @staticmethod
+    def det_of(ev):
+        """A bridge fix as a tracking-layer sighting: roof tags and lock-ons keep their name; outlines and lights are
+        named again by the layer."""
+        import tracking_layer as TL
+        src = str(ev.get("src") or "")
+        kind = src.split(":")[-1]
+        th = ev.get("th")
+        th = None if th is None else float(th)
+        if src.startswith("tag_bridge") or kind == "tags":
+            return TL.Det("tags", float(ev["t"]), ev["x"], ev["y"], th, ev.get("robot"), ev.get("sigma"))
+        if kind == "lock":
+            return TL.Det("lock", float(ev["t"]), ev["x"], ev["y"], th, ev.get("robot"), ev.get("sigma"))
+        if kind == "lights":
+            return TL.Det("lights", float(ev["t"]), ev["x"], ev["y"], th, None, ev.get("sigma"))
+        return TL.Det("motion", float(ev["t"]), ev["x"], ev["y"], th, None, ev.get("sigma"))
+
     def fixes(self):
         c = self.ctrl
         now = self.AC.now()
@@ -302,21 +373,45 @@ class Runner:
                                                      if ev.get("type") == "fix"]
             evs = [e for due, e in self.held if due <= now]
             self.held = [(due, e) for due, e in self.held if due > now]
+        # (e09, B1) obstacles from the bridge's brick watch: kept out by every robot
         for ev in evs:
-            if ev.get("type") != "fix":
-                continue
+            if ev.get("type") == "obstacle" and ev.get("center") is not None:
+                cx, cy = ev["center"][:2]
+                c.on_obstacle(dict(x=float(cx), y=float(cy), r=float(ev.get("radius") or 6.0),
+                                   src="camera: new object (brick watch)"))
+        # (e09, B1) one picture's fixes through the tracking layer (one batch per picture time)
+        batch = {}
+        for ev in evs:
+            if ev.get("type") == "fix" and ev.get("robot") in c.R:
+                batch.setdefault(round(float(ev["t"]), 3), []).append(ev)
+        named = []
+        for tp in sorted(batch):
+            for ev in batch[tp]:
+                if self.layer.T[ev["robot"]].sure is None:
+                    # its first fix: the bridge found it at the start (lights, L0) and named it; the layer starts there
+                    self.layer.seed(ev["robot"], tp, float(ev["x"]), float(ev["y"]), "start")
+            for n, r in c.R.items():
+                if r.own is not None:
+                    oa = c.own_at(r, tp - c.clock) or r.own[1:4]      # its own pose at the picture's time
+                    self.layer.own(n, tp, oa[0], oa[1], oa[2], r.own[4] == "idle")
+            for f in self.layer.feed(tp, [self.det_of(ev) for ev in batch[tp]]):
+                named.append(dict(type="fix", robot=f["robot"], t=f["t"], x=f["x"], y=f["y"], th=f["th"],
+                                  sigma=f["sigma"], src=f["src"], sigma_th=3.0))
+        c.camera_proven = self.layer.proven
+        for pe in self.layer.take_parked():
+            c.on_parked_moved(pe)
+        for ev in named:
             n = ev.get("robot")
-            if n not in c.R:
-                continue
             th = ev.get("th")
             # (11-05c) the arrival time too: the controller measures the camera's delay and compares each fix with
             # the robot's own pose at the picture's time
             c.on_fix(n, float(ev["t"]), float(ev["x"]), float(ev["y"]), None if th is None else float(th),
-                     arrival=now)
+                     arrival=now, sigma=ev.get("sigma"), src=ev.get("src"))
             self.track.write("%.3f,%s,%.2f,%.2f,%s,%.3f\n" % (ev["t"], n, ev["x"], ev["y"], "" if th is None else
                                                                "%.1f" % th, now))
             o = self.offsets.get(n) or []
-            if not o or now - self.fix_last[n] < 1.0 / FIX_HZ or c.R[n].lost is not None:
+            if not o or now - self.fix_last[n] < 1.0 / FIX_HZ or c.R[n].lost is not None or \
+                    not getattr(c.R[n], "fix_used", True):
                 continue
             off = min(v for tt, v in o if tt > now - 30.0) if any(tt > now - 30.0 for tt, _ in o) else o[-1][1]
             ms = int(round((float(ev["t"]) - c.clock - off) * 1000))     # the picture's time on this clock
@@ -453,6 +548,7 @@ class Runner:
             self.drain()
             self.fixes()
             c.tick(now)
+            self.pictures()                        # (e09, B4)
             if c.all_out():
                 why = "every robot is out (battery %d %%, or silent)" % c.floor
                 break
@@ -481,7 +577,8 @@ class Runner:
         st = dict(version=VERSION, core=FC.VERSION, t0=self.t0, now=self.AC.now(), ended=why, seed=self.a.seed,
                   robots={n: dict(mode=r.mode, out=r.out_why, battery=r.battery, moves=r.n_moves, fw=self.fw.get(n),
                                   lost=r.lost is not None) for n, r in c.R.items()},
-                  counts=c.counts)
+                  counts=c.counts, tracking=self.layer.summary(),
+                  filters={n: (r.fp.summary() if r.fp is not None else None) for n, r in c.R.items()})
         tmp = os.path.join(self.dir, "state.json.tmp")
         with open(tmp, "w") as f:
             json.dump(st, f, indent=1, default=str)
@@ -696,6 +793,10 @@ def real_start(a, outdir):
             bcmd += LD.side_bias_args(kb)
     if a.no_lights:
         bcmd += ["--no-lights"]
+    if not getattr(a, "no_brick_watch", False):
+        bcmd += ["--brick-watch"]          # (e09) the "what changed" watch on in free roam (7 Nov audit: never on)
+    if getattr(a, "old_tracking", False):
+        bcmd += ["--no-lock"]              # (e09) the lock-on off: the tracking before e09
     bf = open(os.path.join(outdir, "bridge.txt"), "w")
     br = subprocess.Popen(["nice", "-n", "5"] + bcmd, stdout=bf, stderr=subprocess.STDOUT)
     say("Camera bridge started (%s)." % ", ".join(names))
@@ -778,6 +879,17 @@ def main(argv=None):
                          "checked, rejoins)")
     ap.add_argument("--heading-out", action="store_true",
                     help="(e08, A7: the old way) a robot whose heading crawl fails stays out (default: joins held)")
+    ap.add_argument("--pose-source", choices=("ekf", "blend"), default=None,
+                    help="(e09, B2) the robots' poses from one filter per robot (ekf) or the one-step blend as before "
+                         "with the filter beside it, logged (blend, the default after e09); MIRLT_POSE_SOURCE sets it too")
+    ap.add_argument("--gyro-heading", action="store_true",
+                    help="(e09, B3, OFF by default) the heading from the raw gyro rate, its bias taken at every "
+                         "standstill; MIRLT_GYRO_HEADING=1 sets it too")
+    ap.add_argument("--old-tracking", action="store_true",
+                    help="(e09, B1) the tracking before e09: the bridge's names by prediction, no close-pass guard, no "
+                         "camera watch, no parked watch")
+    ap.add_argument("--no-brick-watch", action="store_true",
+                    help="(e09) the camera's \"what changed\" watch off (on by default since e09)")
     ap.add_argument("--no-tilt-recovery", action="store_true",
                     help="(e08, A3: the old way) a tilted robot with no room to back away stands")
     ap.add_argument("--stop-lead", action="append", default=[], metavar="NAME=SPEED:CM,...",
@@ -867,6 +979,10 @@ def main(argv=None):
                     rules=dict(safety_rules=SR.VERSION, edge=a.edge_rule or SR.EDGE_RULE, pose=a.pose_rule or SR.POSE_RULE,
                                keepouts=a.keepout_rule or SR.KEEPOUT_RULE, silent_out=a.silent_out,
                                tilt_recovery=not a.no_tilt_recovery, tilt=SR.tilt_limits(), attended=a.attended),
+                    tracking=dict(layer=__import__("tracking_layer").VERSION, filter=__import__("fused_pose").VERSION,
+                                  pose_source=a.pose_source or __import__("fused_pose").POSE_SOURCE,
+                                  gyro_heading=bool(a.gyro_heading), old_tracking=bool(a.old_tracking),
+                                  brick_watch=not a.no_brick_watch),
                     lost_mode=a.lost_mode, dry=a.dry, reflex_drill=a.reflex_drill, started=dt.datetime.now().isoformat(timespec="seconds"),
                     argv=sys.argv[1:])
     try:

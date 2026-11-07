@@ -160,7 +160,15 @@ class Sim:
                  lost_mode="reckon", out_dir=None, names=("Left", "Center", "Right"), lat_max=0.04, drill=0.0,
                  cam_delay=None, cam_clock=0.0, wall_in=0.0, trap=False, fw=None, starts=None, motion="curves",
                  fws=None, v_min=None, edge_physics=False, own_off=(), silent=(), held=None, cam_misplace=(),
-                 phantoms=0.0, ctrl_kw=None, own_start=None):
+                 phantoms=0.0, ctrl_kw=None, own_start=None, board=None, camera="names", scene=None, layer_kw=None,
+                 sensors=False, pushes=(), bricks=(), cam_gaps=()):
+        # (e09, Phase B) board: another table (the school's); camera "names" (the camera names every fix, as before) or
+        # "detections" (fastsim_sources: tags / motion / lock-on / lights sightings with no names except tags and
+        # locks, through the ONE tracking layer: names CAN swap); scene: dark / glare patches, tag read limit, two
+        # robots driven past each other; sensors: RAW rows carry wheels, raw gyro rate (bias, scale), accelerometer,
+        # front and line sensors (the filter's inputs); pushes: (name, t, dx, dy) a parked robot pushed; bricks:
+        # (t, x, y) an object put on the table
+        self.board = tuple(board) if board else BOARD
         self.rng = random.Random(seed * 7919 + 13)
         self.seed, self.hours = seed, hours
         self.t = 0.0
@@ -172,7 +180,8 @@ class Sim:
         self.names = list(names)
         # start spots: 30 cm in, 40 apart, random headings (as the ladder's dry board)
         while True:
-            pts = [(self.rng.uniform(30, 92), self.rng.uniform(30, 92)) for _ in names]
+            pts = [(self.rng.uniform(self.board[0] + 30, min(self.board[2] - 30, self.board[0] + 92)),
+                    self.rng.uniform(self.board[1] + 30, self.board[3] - 30)) for _ in names]
             if all(math.dist(pts[i], pts[j]) >= 40 for i in range(len(pts)) for j in range(i + 1, len(pts))):
                 break
         if fw:
@@ -184,10 +193,10 @@ class Sim:
             b.fw, b.new_fw, b.arc = f, f >= FC.FRESH_FW, f >= FC.ARC_FW
         self.cam_delay, self.cam_clock = cam_delay, cam_clock
         # the real walls: the believed board, its x_min side wall_in cm further in (the planner is not told)
-        self.walls = (BOARD[0] + wall_in, BOARD[1], BOARD[2], BOARD[3])
+        self.walls = (self.board[0] + wall_in, self.board[1], self.board[2], self.board[3])
         if trap:            # Right: 7 cm from the y_max edge, facing out (Right, 5 Nov: stood 3 min 6.6 cm in)
             b = self.bots[names[-1]]
-            b.x, b.y, b.th = 60.0, BOARD[3] - 7.0, 88.0
+            b.x, b.y, b.th = 60.0, self.board[3] - 7.0, 88.0
             b.ox, b.oy, b.oth = b.x, b.y, b.th
             for o in self.bots.values():
                 if o is not b and math.dist((o.x, o.y), (b.x, b.y)) < 40:
@@ -197,7 +206,7 @@ class Sim:
             b = self.bots[n]
             b.x, b.y, b.th = st
             b.ox, b.oy, b.oth = st
-        self.ctrl = FC.Controller(names, BOARD, self.ctrl_out, self.ctrl_log, seed=seed, lost_mode=lost_mode,
+        self.ctrl = FC.Controller(names, self.board, self.ctrl_out, self.ctrl_log, seed=seed, lost_mode=lost_mode,
                                   drill=drill, motion=motion, v_min_avoid=v_min, **(ctrl_kw or {}))
         # (e08) rehearsal injections
         self.edge_physics = edge_physics
@@ -211,6 +220,22 @@ class Sim:
             b = self.bots[n]
             b.ox, b.oy, b.oth = st
         self.next_raw = {n: 0.0 for n in names}
+        # (e09) the raw sensors (sensors=True) and the camera's sightings (camera="detections")
+        self.sensors = bool(sensors)
+        for k, b in enumerate(self.bots.values()):
+            r = random.Random(seed * 211 + k)
+            # MEASURED (e09, 5 / 6 Nov logs): the raw gyro's standing bias 0.40-0.76 deg/s, drifting ~0.02 deg/s over
+            # hours; CHOSEN: its scale error +-0.5 % (it agrees with the camera-fitted firmware heading within ~1 %)
+            b.gz_bias, b.gz_scale = r.uniform(0.40, 0.76), r.uniform(-0.005, 0.005)
+            b.prev_th = b.th
+            b.rawq = []
+        self.camera_mode = camera
+        self.pushes = list(pushes)
+        self.bricks = list(bricks)
+        self.src = None
+        if camera == "detections":
+            import fastsim_sources as FS
+            self.src = FS.CameraSources(self, scene or {}, layer_kw or {})
 
         # (11-05d) truth: each robot's true speed every step; speed-zero moments (under 0.3 cm/s for 0.1 s or more)
         self.speed = {n: dict(moving_s=0.0, alive_s=0.0, zero_s=0.0, zero_run=0.0, zeros=0, why={}) for n in names}
@@ -226,6 +251,9 @@ class Sim:
                     d = self.rng.uniform(2, 25)
                     self.gaps[n].append((t, t + d))
                     t += d + self.rng.expovariate(1 / 480.0)
+        for (nm, t0, dur) in cam_gaps:          # (e09) a camera gap for one robot (rehearsal c: 40 s)
+            self.gaps[nm].append((t0, t0 + dur))
+        self.cam_gaps = list(cam_gaps)
         self.cam_q = []
         self.next_fix = {n: self.rng.uniform(0, 0.08) for n in names}
         self.next_follow = {n: 0.0 for n in names}
@@ -302,6 +330,8 @@ class Sim:
             c.on_fspd(name)
         elif kind == "raw":
             c.on_raw(name, self.t, args[0], args[1], args[2])
+        elif kind == "rawfull" and hasattr(c, "on_raw_full"):
+            c.on_raw_full(name, args[0], *args[1:])
 
     def robot_cmd(self, name, text):
         b = self.bots[name]
@@ -403,7 +433,7 @@ class Sim:
             if fwd > 0 and abs(lat) < lat_max:
                 best = min(best, fwd - 9.5)
         x0, y0, x1, y1 = self.walls
-        if self.edge_physics and self.walls == BOARD:
+        if self.edge_physics and self.walls == self.board:
             return best                 # (e08) the board's edges are open drops: nothing there for the front sensor
         for l in (-4.0, 0.0, 4.0):
             px, py = b.x + 4.75 * c - l * sn, b.y + 4.75 * sn + l * c
@@ -570,7 +600,7 @@ class Sim:
         nx = b.x + d * (1 + b.wheel_err) * math.cos(math.radians(b.th))
         ny = b.y + d * (1 + b.wheel_err) * math.sin(math.radians(b.th))
         x0, y0, x1, y1 = self.walls
-        if self.walls != BOARD and nx < x0 + 4.75:        # a real wall: the body stops at it (wheels slip)
+        if self.walls != self.board and nx < x0 + 4.75:        # a real wall: the body stops at it (wheels slip)
             self.stats["wall_hits"] += 1
             nx = x0 + 4.75
         b.x, b.y = nx, ny
@@ -584,23 +614,23 @@ class Sim:
     def frees(self, b, s):
         """A reverse that works the wheel still on the board frees a hung robot: its line's end lies towards that
         wheel's side (the steering drives that wheel harder), or the robot is no longer over (a pivot freed it)."""
-        on = [w for w in self.wheels(b) if FC.edge_dist(BOARD, *w) > 0.0]
+        on = [w for w in self.wheels(b) if FC.edge_dist(self.board, *w) > 0.0]
         if len(on) != 1:
             return True
         c, sn = math.cos(math.radians(b.th)), math.sin(math.radians(b.th))
         side = -sn * (s["x1"] - b.x) + c * (s["y1"] - b.y)          # + = towards its left
-        left_on = FC.edge_dist(BOARD, *self.wheels(b)[0]) > 0.0
+        left_on = FC.edge_dist(self.board, *self.wheels(b)[0]) > 0.0
         return (side > 0.8 and left_on) or (side < -0.8 and not left_on)
 
     def edge_check(self, b):
         if not self.edge_physics or b.dead:
             return
-        if FC.edge_dist(BOARD, b.x, b.y) < 0.0:
+        if FC.edge_dist(self.board, b.x, b.y) < 0.0:
             self.stats["falls"] += 1
             b.dead, b.v, b.state = True, 0.0, "idle"
             self.ctrl.event(self.ctrl.R[b.name], "fell (sim)", "its middle went over the edge")
             return
-        over = [FC.edge_dist(BOARD, *w) < 0.0 for w in self.wheels(b)]
+        over = [FC.edge_dist(self.board, *w) < 0.0 for w in self.wheels(b)]
         if any(over) and not getattr(b, "hung", False):
             b.hung = True
             self.stats["hangs"] += 1
@@ -616,7 +646,7 @@ class Sim:
         # the line sensors (safe_edge 3): a forward drive whose nose passes the edge stops
         if b.cur is not None and b.cur["type"] in ("D", "R") and not b.cur.get("rev") and not getattr(b, "hung", False):
             c, sn = math.cos(math.radians(b.th)), math.sin(math.radians(b.th))
-            if FC.edge_dist(BOARD, b.x + 4.0 * c, b.y + 4.0 * sn) < -0.5:
+            if FC.edge_dist(self.board, b.x + 4.0 * c, b.y + 4.0 * sn) < -0.5:
                 self.stats["edge_trips"] += 1
                 b.v = 0.0
                 b.report(self, b.cur["id"], "failed", "plywood edge at %.1f %.1f %.1f line" % (b.ox, b.oy, b.oth))
@@ -632,6 +662,26 @@ class Sim:
             self.next_raw[n] = self.t + 0.1
             tilt = HUNG_TILT if getattr(b, "hung", False) else 0.0
             self.up(b, "raw", tilt + b.rng.gauss(0, 0.15), b.rng.gauss(0, 0.15), b.v)
+            if self.sensors:
+                # (e09) the filter's inputs, in true units (as fused_pose.raw_true gives from a real RAW row): the
+                # wheels' speed and turn (they read what the robot's own pose does; the wheels turn 2.5 % more than the
+                # body: MEASURED 1.02-1.035 x the gyro), the raw gyro (true turn x (1 + scale error) + its bias), the
+                # accelerometer (a jolt when hung), front and line sensors
+                dt = 0.1
+                w_own = wrap180(b.oth - getattr(b, "prev_oth", b.oth)) / dt
+                w_true = wrap180(b.th - b.prev_th) / dt
+                b.prev_oth, b.prev_th = b.oth, b.th
+                b.gz_bias += b.rng.gauss(0, 0.0005)
+                still = abs(b.v) < 0.05 and abs(w_own) < 0.5
+                gz = 0.0 if still and abs(w_true) < 0.5 else w_true * (1 + b.gz_scale)
+                gz += b.gz_bias + b.rng.gauss(0, 0.03)
+                rev = b.cur is not None and b.cur.get("rev")      # b.v is a speed; a reverse drive goes back
+                v = 0.0 if still else b.v * (-1.0 if rev else 1.0)
+                ww = 0.0 if still else w_own * 1.025 + b.rng.gauss(0, 0.5)
+                line = (900.0, 900.0, 900.0) if (self.edge_physics and getattr(b, "hung", False)) else (50.0, 50.0,
+                                                                                                         50.0)
+                ax = (0.5 if getattr(b, "hung", False) and not still else b.rng.gauss(0, 0.02))
+                self.up(b, "rawfull", self.t, v, ww, gz, still, ax, self.front_cm(b), line)
 
     # -- (11-05d) firmware 2026-11-05c curves ---------------------------------------------------------------------------
     def move_truth(self, b, v, w):
@@ -644,7 +694,7 @@ class Sim:
         nx = b.x + d * (1 + b.wheel_err) * math.cos(math.radians(b.th))
         ny = b.y + d * (1 + b.wheel_err) * math.sin(math.radians(b.th))
         x0 = self.walls[0]
-        if self.walls != BOARD and nx < x0 + 4.75:
+        if self.walls != self.board and nx < x0 + 4.75:
             self.stats["wall_hits"] += 1
             nx = x0 + 4.75
         if getattr(b, "hung", False):
@@ -753,6 +803,9 @@ class Sim:
         return any(a <= t < b for a, b in self.gaps[n])
 
     def camera(self):
+        if self.src is not None:            # (e09) sightings through the one tracking layer
+            self.src.frame()
+            return
         for n, b in self.bots.items():
             if self.t >= self.next_fix[n]:
                 self.next_fix[n] = self.t + 1 / 12.0
@@ -845,16 +898,49 @@ class Sim:
             self.zero_rows.append(dict(t=round(self.t, 2), robot=n, dur_s=round(sp["zero_run"], 2), why=why,
                                        state=self.bots[n].state, kind=(r.move or {}).get("kind")))
 
+    def pos_errors(self):
+        """(e09) every 0.5 s: how far the controller's position for each robot is from the truth (and on the far side of
+        the tag-readable area, when the scene has one)."""
+        if self.t - getattr(self, "_pe_t", -1.0) < 0.5:
+            return
+        self._pe_t = self.t
+        pe = self.__dict__.setdefault("pe", {n: [] for n in self.names})
+        far = (self.src.scene.get("tag_x_max") if self.src is not None else None)
+        for n, b in self.bots.items():
+            r = self.ctrl.R[n]
+            if b.dead or r.mode in ("out", "gone", "start"):
+                continue
+            p = self.ctrl.pos(r)
+            if p is None:
+                continue
+            e = round(math.hypot(p[0] - b.x, p[1] - b.y), 2)
+            pe[n].append((e, int(far is not None and b.x > far), round(self.ctrl.unc(r), 2)))
+            self.__dict__.setdefault("pe_t", {}).setdefault(n, []).append((round(self.t, 2), e))
+
+    def points_reached(self):
+        """(e09, rehearsal a) points of a 30 cm grid (stickers) a robot's true middle came within 5 cm of."""
+        pts = getattr(self, "points", None)
+        if not pts or self.t - getattr(self, "_pr_t", -1.0) < 0.25:
+            return
+        self._pr_t = self.t
+        got = self.__dict__.setdefault("reached", set())
+        for b in self.bots.values():
+            for k, (px, py) in enumerate(pts):
+                if k not in got and abs(b.x - px) < 5.0 and abs(b.y - py) < 5.0 and math.hypot(b.x - px, b.y - py) < 5.0:
+                    got.add(k)
+
     def truth(self):
+        self.points_reached()
+        self.pos_errors()
         self.speed_truth()
         bs = list(self.bots.values())
         for i in range(len(bs)):
             a = bs[i]
-            e = FC.edge_dist(BOARD, a.x, a.y) - FC.HALF
+            e = FC.edge_dist(self.board, a.x, a.y) - FC.HALF
             self.stats["edge_min"] = min(self.stats["edge_min"], e + FC.HALF - FC.BODY / 2 * 1.0)
             if not a.dead:
-                ec = FC.edge_dist(BOARD, a.x, a.y)
-                eb = min(FC.edge_dist(BOARD, *q) for q in corners(a.x, a.y, a.th))
+                ec = FC.edge_dist(self.board, a.x, a.y)
+                eb = min(FC.edge_dist(self.board, *q) for q in corners(a.x, a.y, a.th))
                 if ec < self.stats["edge_min_centre"]:
                     self.stats["edge_min_centre"] = ec
                 if eb < self.stats["edge_min_body"]:
@@ -862,7 +948,7 @@ class Sim:
                     self.stats["edge_min_at"] = dict(t=round(self.t, 1), robot=a.name, x=round(a.x, 1), y=round(a.y, 1))
                 if getattr(a, "hung", False):
                     self.stats["hung_s"] += DT
-            if FC.edge_dist(BOARD, a.x, a.y) < FC.BODY / 2:
+            if FC.edge_dist(self.board, a.x, a.y) < FC.BODY / 2:
                 self.stats["off_board"] += 1
             for j in range(i + 1, len(bs)):
                 b = bs[j]
@@ -902,6 +988,18 @@ class Sim:
             c.on_fix(n, 0.0 + self.cam_clock, b.x, b.y, b.th, arrival=0.0 + (self.cam_delay or 0.15))
             c.on_heard(n, 0.0)
         c.tick(0.0)
+        if self.src is not None:
+            for n, b in self.bots.items():
+                self.src.layer.seed(n, 0.0, b.x, b.y, "start")      # where the start found it (lights / tags)
+        if hasattr(c, "fix_fn"):
+            # (e09) the filter's position to the robot in camera gaps (the runner's fix command, its own time)
+            c.fix_fn = lambda n, t, x, y: self.down.send(self.t, self.fuse, n, x, y, None, self.t)
+        if self.sensors:
+            # (e09) the robots stand a second before the run (the compass check and the start's find, as on the Pi):
+            # their raw gyro's bias is taken there
+            for k_ in range(10):
+                for n, b in self.bots.items():
+                    c.on_raw_full(n, -1.0 + 0.1 * k_, 0.0, 0.0, b.gz_bias + b.rng.gauss(0, 0.03), True)
         if self.edge_physics:
             # (e08) each robot's level, taken standing on the board before the run (the firmware's compass check)
             for n in self.names:
@@ -918,7 +1016,7 @@ class Sim:
             else:
                 c.begin(n)
         for b in self.bots.values():           # (e08) a robot placed hung at the start (rehearsal b)
-            if self.edge_physics and any(FC.edge_dist(BOARD, *w) < 0.0 for w in self.wheels(b)):
+            if self.edge_physics and any(FC.edge_dist(self.board, *w) < 0.0 for w in self.wheels(b)):
                 b.hung = True
                 self.stats["hangs"] += 1
         next_tick = 0.0
@@ -937,7 +1035,7 @@ class Sim:
                 if t0 <= self.t < t0 + DT:
                     b = self.bots[nm]
                     if dx is None:          # "in": dy cm towards the board's middle (it believes it is further in)
-                        mx, my = (BOARD[0] + BOARD[2]) / 2 - b.x, (BOARD[1] + BOARD[3]) / 2 - b.y
+                        mx, my = (self.board[0] + self.board[2]) / 2 - b.x, (self.board[1] + self.board[3]) / 2 - b.y
                         L_ = math.hypot(mx, my) or 1.0
                         dx, dy = dy * mx / L_, dy * my / L_
                     b.ox, b.oy = b.ox + dx, b.oy + dy
@@ -949,6 +1047,11 @@ class Sim:
                 b.mute = t0 <= self.t < t0 + dur
                 if b.mute != was:
                     c.event(c.R[nm], "silent (sim)" if b.mute else "back (sim)", "%.0f s" % dur)
+            for (nm, t0, dx, dy) in self.pushes:           # (e09) a parked robot pushed (truth only)
+                if t0 <= self.t < t0 + DT:
+                    b = self.bots[nm]
+                    b.x, b.y = b.x + dx, b.y + dy
+                    self.ctrl.event(self.ctrl.R[nm], "pushed (sim)", "%.1f, %.1f cm" % (dx, dy))
             for b in self.bots.values():
                 self.bot_step(b)
             self.raw()
@@ -1032,7 +1135,41 @@ class Sim:
                                                            "leads_used")},
                     keepouts_end=len(c.keepouts),
                     held_end={n: (r.held or {}).get("kind") for n, r in c.R.items() if getattr(r, "held", None)},
-                    moving_pct={n: v["moving_pct"] for n, v in speed["robot"].items()})
+                    moving_pct={n: v["moving_pct"] for n, v in speed["robot"].items()},
+                    phase_b=self.phase_b())
+
+    def phase_b(self):
+        """(e09) the Phase B measures: tracking (% of pictures each robot had a fix, on the far side too; wrong fixes and
+        name swaps against the truth), position error (the controller's estimate against the truth), the filter."""
+        import statistics as STS
+        c = self.ctrl
+        pe = getattr(self, "pe", {})
+        err = {}
+        for n, rows in pe.items():
+            if not rows:
+                continue
+            e = sorted(r[0] for r in rows)
+            ef = sorted(r[0] for r in rows if r[1])
+            cov = sum(1 for r in rows if r[0] <= r[2]) / len(rows)
+            err[n] = dict(median=round(STS.median(e), 2), p95=e[min(len(e) - 1, int(0.95 * len(e)))], max=e[-1],
+                          far_median=round(STS.median(ef), 2) if ef else None,
+                          far_p95=ef[min(len(ef) - 1, int(0.95 * len(ef)))] if ef else None,
+                          covered_pct=round(100.0 * cov, 1))
+        out = dict(pose_source=c.pose_source, gyro_heading=c.gyro_heading, camera=self.camera_mode,
+                   pos_err=err, counts={k: c.counts.get(k) for k in (
+                       "ekf_disagree", "gap_forwards", "gyro_heading_fixes", "identity_wiggles", "camera_objects",
+                       "parked_moved", "pictures")},
+                   filters={n: (r.fp.summary() if r.fp is not None else None) for n, r in c.R.items()})
+        if self.src is not None:
+            out["tracking"] = self.src.summary()
+        pts = getattr(self, "points", None)
+        if pts:
+            got = getattr(self, "reached", set())
+            fx = self.src.scene.get("tag_x_max") if self.src is not None else None
+            out["points"] = dict(n=len(pts), reached=len(got),
+                                 far_n=sum(1 for p in pts if fx is not None and p[0] > fx),
+                                 far_reached=sum(1 for k in got if fx is not None and pts[k][0] > fx))
+        return out
 
 
 def _longest(rows):

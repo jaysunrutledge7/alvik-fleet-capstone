@@ -226,7 +226,7 @@ def ref_expected(models, site_fit_path, cfg=None):
 
 class Bridge:
     def __init__(self, tags, cams, send, out, observe=False, robots=None, say=None, ref_expected=None, ref_cfg=None,
-                 roofs=None):
+                 roofs=None, lock=True):
         """tags: load_tags(); cams: {name: CameraModel}; send(msg). roofs: {tag id: roof dict} (roof_cal.roofs_for_bridge;
         None or {}: every robot flat at tags.height_cm, as before)."""
         self.tags = tags
@@ -247,8 +247,14 @@ class Bridge:
         self.sent_t = {}
         self.unconfirmed = {}      # robot -> TagPose (a jump waiting for a second read)
         self.lock = threading.Lock()
-        self.counts = {n: dict(reads=0, fixes=0, refused_size=0, refused_jump=0, both=0, **{c: 0 for c in cams})
+        self.counts = {n: dict(reads=0, fixes=0, refused_size=0, refused_jump=0, both=0, lock=0, **{c: 0 for c in cams})
                        for n in self.ids.values()}
+        # (e09, Phase B1) the lock-on, seeded by each robot's tag read while it stands still: where the tags stop
+        # reading (beyond about x 100 cm of the school table) the robot is still followed, by its own look
+        import lock_bank as LB
+        self.lockbank = {c: LB.LockBank(m, float(tags.get("height_cm", 6.0)) - 1.0, enabled=bool(lock))
+                         for c, m in cams.items()}
+        self.lock_sent = {}
         self.frames = {c: 0 for c in cams}
         self.ms = {c: [] for c in cams}
         self.spread = []
@@ -293,9 +299,16 @@ class Bridge:
         n = msg.get("robot")
         if n in self.counts:
             try:
-                self.own[n] = (float(msg["x"]), float(msg["y"]), float(msg["th"]), float(msg["t"]))
+                new = (float(msg["x"]), float(msg["y"]), float(msg["th"]), float(msg["t"]))
             except (KeyError, TypeError, ValueError):
-                pass
+                return
+            old = self.own.get(n)
+            st = self.__dict__.setdefault("_own_still", {})
+            if old is not None and math.hypot(new[0] - old[0], new[1] - old[1]) < 0.3 and abs(new[2] - old[2]) < 1.0:
+                st[n] = st.get(n, 0.0) + max(0.0, new[3] - old[3])        # (e09) how long it has stood still
+            else:
+                st[n] = 0.0
+            self.own[n] = new
 
     def predict(self, cam_name, t):
         cam = self.cams[cam_name]
@@ -417,7 +430,41 @@ class Bridge:
             out.append((n, p, used))
         with self.lock:
             self.flush(t)
+        try:
+            self.lock_step(cam_name, grey, t, {n for n, _, u in out if u == "yes"}, out)
+        except Exception as e:      # noqa: BLE001  (the lock-on never stops the tags' fixes)
+            self.event("lock_error", cam=cam_name, why=str(e))
         return out
+
+    LOCK_STILL_S = 0.4      # CHOSEN: its own pose has not moved this long: standing still, its look can be taken
+
+    def lock_step(self, cam_name, grey, t, read, out):
+        """(e09) Robots read by their tag in this picture and standing still: their lock is (re)seeded there. Robots NOT
+        read: their lock looks for them (near their own pose) and its place goes out as a fix, src tag_bridge:lock."""
+        lb = self.lockbank.get(cam_name)
+        if lb is None or not lb.enabled:
+            return
+        here = {n: (p.x, p.y) for n, p, u in out if u == "yes"}
+        for n in self.counts:
+            o = self.own.get(n)
+            if n in read:
+                still = o is not None and getattr(self, "_own_still", {}).get(n, 0.0) >= self.LOCK_STILL_S
+                if still:
+                    others = [v for m, v in here.items() if m != n] + [(q[0], q[1]) for m, q in self.last.items()
+                                                                        if m != n]
+                    lb.seed(n, grey, t, here[n][0], here[n][1], others)
+                continue
+            pred = (o[0], o[1]) if (o is not None and abs(t - o[3]) < 2.0) else None
+            f = lb.step(n, grey, t, predict=pred, still=getattr(self, "_own_still", {}).get(n, 0.0) >= self.LOCK_STILL_S)
+            if f is None or self.observe:
+                continue
+            if t - self.lock_sent.get(n, 0.0) < 1.0 / FIX_HZ * 0.9 or t - self.sent_t.get(n, 0.0) < 0.5:
+                continue            # a tag fix is fresher: the lock is for when the tags do not read
+            self.lock_sent[n] = t
+            self.counts[n]["lock"] += 1
+            self.send({"type": "fix", "robot": n, "t": round(t, 4), "x": round(f[0], 2), "y": round(f[1], 2),
+                       "th": None, "sigma": 1.2, "sigma_th": 9.0, "src": "tag_bridge:lock", "score": round(f[2], 2)})
+            self.track_w.writerow(["%.4f" % t, n, "%.2f" % f[0], "%.2f" % f[1], "lock", "", "", cam_name])
 
     def accept(self, n, p):
         c = self.counts[n]
@@ -512,7 +559,8 @@ class Bridge:
              "roofs": {self.robot_of.get(i, str(i)): v for i, v in self.roofs.items()},
              "ref_watch": {c: {"moved": w.moved, "last_median_px": None if not w.last or w.last[0] is None
                                else round(w.last[0], 2), "tags": sorted(w.expected, key=int)}
-                           for c, w in self.refw.items()}}
+                           for c, w in self.refw.items()},
+             "lock": {c: lb.summary() for c, lb in self.lockbank.items()}}
         with open(os.path.join(self.out, "bridge_summary.json"), "w") as f:
             json.dump(s, f, indent=1, default=str)
         return s
@@ -559,6 +607,7 @@ def main(argv=None):
     ap.add_argument("--max-s", type=float, default=0)
     ap.add_argument("--wait-calib-s", type=float, default=20.0)
     ap.add_argument("--no-ref-watch", action="store_true", help="do not watch the reference tags (a bumped camera)")
+    ap.add_argument("--no-lock", action="store_true", help="(e09) no lock-on: tags only, as before e09")
     ap.add_argument("--ref-fit", default="", help="the setup's site_fit.json (default: beside the first camera model)")
     a = ap.parse_args(argv)
     tags = load_tags(a.tags, a.site)
@@ -604,7 +653,8 @@ def main(argv=None):
     roofs, rwords = RC.roofs_for_bridge(cal_dir, tags)
     for w in rwords:
         print("Roof: " + w, flush=True)
-    br = Bridge(tags, models, send, out, observe=a.observe, robots=robots, ref_expected=rexp, roofs=roofs)
+    br = Bridge(tags, models, send, out, observe=a.observe, robots=robots, ref_expected=rexp, roofs=roofs,
+                lock=not a.no_lock)
     print("Tag bridge: %s tags (%s cm, %s cm up) on %s; cameras %s; fixes to %s%s. Logs: %s" % (
         tags.get("family"), tags.get("tag_cm"), tags.get("height_cm"),
         ", ".join("%s=%d" % kv for kv in tags["ids"].items()), ", ".join(models), a.to,

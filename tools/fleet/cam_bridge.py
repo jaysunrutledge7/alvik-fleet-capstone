@@ -224,6 +224,12 @@ class Bridge:
         self.last_still_head = {n: None for n in starts}
         self.bw = None
         self.obstacles = []
+        # (e09, Phase B1) the lock-on beside the motion detector (it was only in the old E02 runner): seeded on a robot
+        # the detector sees sure while it stands still, it finds that robot when the detector does not
+        import lock_bank as LB
+        self.lockbank = LB.LockBank(cam, getattr(self.trk, "z", 4.0), enabled=not getattr(args, "no_lock", False))
+        self.own_state = {}
+        self.lock_fix_t = {}
         self.track_f = open(os.path.join(log_dir, "track.csv"), "w", newline="")
         self.track_w = csv.writer(self.track_f)
         self.track_w.writerow(["t", "robot", "x", "y", "status", "sent_th", "why", "src"])
@@ -243,6 +249,7 @@ class Bridge:
         if n not in self.starts:
             return
         self.trk.own_pose(n, msg["x"], msg["y"], msg["th"], msg["t"])
+        self.__dict__.setdefault("own_state", {})[n] = str(msg.get("state") or "")
         if not self.has_pose[n]:
             self.has_pose[n] = True
             self.own_first = getattr(self, "own_first", {})
@@ -406,6 +413,10 @@ class Bridge:
                         self.event("heading", robot=n, th=round(th, 2), how="travel")
             self.track_w.writerow(["%.4f" % t, n, "%.2f" % st["x"], "%.2f" % st["y"], st["status"],
                                    "" if sent_th is None else "%.2f" % sent_th, st.get("why") or "", st.get("src") or ""])
+            try:
+                self.lock_step(n, st, img, t, new_obs, sts)
+            except Exception as e:      # noqa: BLE001  (the lock-on never stops the detector's fixes)
+                self.event("lock_error", robot=n, why=str(e))
             if self.args.observe:
                 self.turn_watch(n, st, t)
         for (te, robot, what) in list(self.trk.events):
@@ -424,6 +435,35 @@ class Bridge:
             self.say("%.0f pictures/s%s; %s" % (rate, "" if self.trk.side is None else " (+ side)", "; ".join(
                 "%s %s%s %d fixes" % (n, sts[n]["status"], (" by " + sts[n]["src"]) if sts[n].get("src") else "",
                                       self.counts[n]["fixes"]) for n in sts)))
+
+    def lock_step(self, n, st, img, t, new_obs, sts):
+        """(e09) A robot the detector sees SURE while its own pose says it stands (state idle): its lock is (re)seeded
+        there. A robot the detector misses (predicted / lost; not when it is unsure because merged or contested with
+        another): its lock looks for it near its own-pose prediction; found: a fix, src cam_bridge:lock."""
+        lb = self.lockbank
+        if not lb.enabled or img is None or not self.ready:
+            return
+        if lb.floor is None and getattr(self.trk, "bg", None) is not None:
+            lb.set_floor(np.clip(self.trk.bg, 0, 255).astype(np.uint8))
+        if st["status"] == "seen":
+            if new_obs and self.has_pose[n] and self.own_state.get(n) in ("idle", ""):
+                others = [(o["x"], o["y"]) for m, o in sts.items() if m != n]
+                lb.seed(n, img, t, st["x"], st["y"], others)
+            return
+        if st["status"] not in ("predicted", "lost") or not self.has_pose[n]:
+            return
+        try:
+            px, py = self.trk.predict(n, t)
+        except Exception:      # noqa: BLE001
+            px, py = st["x"], st["y"]
+        f = lb.step(n, img, t, predict=(px, py), still=self.own_state.get(n) == "idle")
+        if f is None or self.args.observe or t - self.lock_fix_t.get(n, 0.0) < 0.08:
+            return
+        self.lock_fix_t[n] = t
+        self.counts[n]["lock"] = self.counts[n].get("lock", 0) + 1
+        self.send({"type": "fix", "robot": n, "t": round(t, 4), "x": round(f[0], 2), "y": round(f[1], 2), "th": None,
+                   "sigma": 1.2, "sigma_th": HEADING_SIGMA_DEG, "src": "cam_bridge:lock", "score": round(f[2], 2)})
+        self.counts[n]["fixes"] += 1
 
     def relearn(self, n, st):
         """A robot first seen RELEARN_CM or more from the spot it was given (put down off its start spot: Monday's start
@@ -627,6 +667,7 @@ def main(argv=None):
                     help="x,y cm: the side camera's offset against the overhead to start from (the remote ladder and "
                          "DOE loop pass what their own tracker learned; default: the side calibration file's)")
     ap.add_argument("--no-lights", action="store_true", help="no lights-as-markers fallback")
+    ap.add_argument("--no-lock", action="store_true", help="(e09) no lock-on beside the motion detector (as before e09)")
     ap.add_argument("--margin-cm", type=float, default=8.0, help="a robot's centre may be this far past an open side")
     ap.add_argument("--out", help="log folder (default logs/<date-time>-bridge)")
     ap.add_argument("--max-s", type=float, default=0, help="stop after this long (0: until Ctrl+C)")

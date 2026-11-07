@@ -47,8 +47,14 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 if _HERE not in sys.path:
     sys.path.insert(0, _HERE)
 import safety_rules as SR   # noqa: E402  (e08 Phase A: the rules shared with run_plan and observe)
+import fused_pose as FP     # noqa: E402  (e09 Phase B: one filter per robot, fed by the tracking layer and RAW)
 
-VERSION = "freeroam-2026-11-07a"     # 11-07a (e08 Phase A): fused position (A1), the derived edge rule on every swept
+VERSION = "freeroam-2026-11-07b"     # 11-07b (e09 Phase B): the filter's pose and uncertainty for the planner and the
+                                     # edge rule (pose_source "ekf"; "blend" the one-step blend as before), fixes with a
+                                     # source and sigma from the tracking layer, the identity wiggle, camera objects and
+                                     # parked-robot moves as evidence, a picture asked when unsure near an edge alone,
+                                     # B3 heading from the raw gyro (switch, off)
+                                     # 11-07a (e08 Phase A): fused position (A1), the derived edge rule on every swept
                                      # path with a sure / unsure judgement (A2), tilt recovery tries (A3), heading watch,
                                      # stop lead, surface marks (A5), fading keep-outs (A6), held robots rejoin (A7)
                                      # 11-05d: continuous curves (motion style "curves", firmware 2026-11-05c)
@@ -436,6 +442,9 @@ class Robot:
         self.arc_pts = []               # (11-05d) camera spots during the current curve piece (the arc fit)
         self.arc_fits = []              # (k ratio, length ratio) per fitted piece
         self.arc_scales = None          # (arc_k_scale, arc_d_scale) the robot said it uses (boot / saved lines)
+        self.fp = None                  # (e09) its filter (fused_pose.FusedPose), made by the controller
+        self.gap_fwd_t = -1e9
+        self.gyro_fix_t = -1e9
 
     @property
     def new_fw(self):
@@ -447,12 +456,21 @@ class Controller:
     def __init__(self, names, rect, out, log, seed=1, lost_mode="reckon", battery_floor=BATTERY_FLOOR,
                  park_sleep=True, fw_override=None, drill=0.0, motion="curves", v_min_avoid=None, edge_rule=None,
                  tracking="lights", attended=False, questions=None, silent_out=False, leads=None, pose_rule=None,
-                 keepout_rule=None, tilt_recovery=True, heading_watch=True):
+                 keepout_rule=None, tilt_recovery=True, heading_watch=True, pose_source=None, gyro_heading=None):
         # (e08 Phase A) switches, each with the old behaviour on its other side (CLAUDE.md keep features, switch off):
         #   edge_rule "derived" | "fixed" (EDGE_CC 16 / LOOP_EDGE 9.2 as before); pose_rule "widen" | "wait2s";
         #   keepout_rule "fade" | "permanent"; silent_out False (held, rejoins) | True (out at 120 s as before);
         #   tilt_recovery True (the tries) | False (stands as before); heading_watch True | False
         self.edge_rule = edge_rule or SR.EDGE_RULE
+        # (e09, Phase B) pose_source "ekf" (one filter per robot: fused_pose.FusedPose) | "blend" (as before);
+        # gyro_heading: B3, the heading from the raw gyro rate with its bias taken at every standstill (OFF by default)
+        self.pose_source = pose_source or FP.POSE_SOURCE
+        self.gyro_heading = FP.GYRO_HEADING if gyro_heading is None else bool(gyro_heading)
+        self.fix_fn = None               # host: fix_fn(name, t, x, y) forwards a fused position to the robot (gaps)
+        self.pictures = []               # (B4) pictures the host should save: dict(t, robot, why)
+        self.camera_proven = True        # (e09) set by the host from its tracking layer: the camera's picture has turned
+                                         # the robots the way their own gyros did. Until then a camera spot never sets a
+                                         # robot's own pose by itself (no re-seed) nor names "inward" for an unsure robot
         self.pose_rule = pose_rule or SR.POSE_RULE
         self.keepout_rule = keepout_rule or SR.KEEPOUT_RULE
         self.tracking = tracking
@@ -563,7 +581,7 @@ class Controller:
             r.bat_logged = (pct, t)
             self.log("battery", dict(t=round(t, 1), robot=name, pct=pct))
 
-    def on_fix(self, name, t, x, y, th=None, arrival=None):
+    def on_fix(self, name, t, x, y, th=None, arrival=None, sigma=None, src=None):
         """A camera fix stamped t (the picture's time on the camera's clock), arrived at `arrival` (this controller's
         clock; None: it counts as arriving now with no delay, as the tests and older callers give it). (11-05c) The
         delay is measured online; the fix is compared with the robot's own pose AT THE PICTURE'S TIME, never now."""
@@ -606,6 +624,7 @@ class Controller:
                 return
         r.cam = (t, x, y, th)
         r.cam_arr = arr
+        self.fp_fix(r, t, x, y, th, sigma, src)
         if r.curve and r.move is not None and r.move.get("curve") and r.move["phase"] == "drive":
             r.arc_pts.append((x, y))
         if oa is not None:
@@ -650,6 +669,11 @@ class Controller:
             return          # (11-05c) a record sent before our fpose reached it: the old frame
         prev = r.own
         r.own = (t, x, y, th, state, cur)
+        if r.fp is not None and r.fp.started:
+            if t - getattr(r, "fpose_t", -1e9) < 0.5:
+                r.fp.reset_own_turn()              # its heading was just set (fpose): no turn across it
+            else:
+                r.fp.own_turn(t, th)               # (e09) the robot's own heading's turn, as a reading
         r.pc = None
         r.own_hist.append((t, x, y, th))
         import observe as OB
@@ -745,6 +769,11 @@ class Controller:
         if r.pc is not None and r.pc[0] == self.t:
             return r.pc[1]
         p = None
+        if self.ekf_live(r):
+            q = r.fp.pose(self.t)                   # (e09, B2) the filter's estimate now
+            p = (q[0], q[1])
+            r.pc = (self.t, p)
+            return p
         if r.lost is None and r.cam is not None:
             q = self.projected(r, r.cam[0], r.cam[1], r.cam[2])
             p = (q[0], q[1]) if q else (r.cam[1], r.cam[2])
@@ -834,6 +863,8 @@ class Controller:
             self.clock = new
 
     def heading(self, r):
+        if self.gyro_heading and self.ekf_live(r) and r.fp.gh.heading_deg() is not None:
+            return r.fp.gh.heading_deg()          # (e09, B3) the raw gyro's heading (the robot is told it too)
         if r.own is not None:
             return r.own[3]
         return r.cam[3] if r.cam and r.cam[3] is not None else 0.0
@@ -843,6 +874,10 @@ class Controller:
 
     # -- dead reckoning --------------------------------------------------------------------------------------------
     def grow_bubble(self, r):
+        if self.ekf_live(r):
+            # (e09, B2) the filter's own uncertainty, grown by its wheels and gyro since the camera last saw it
+            r.bubble = max(BLIND_BASE, r.fp.unc_cm(self.t))
+            return
         L = r.lost
         lat = L["after_turn"] * math.sin(math.radians(BLIND_TURN_FRAC * L["turn"]))
         r.bubble = BLIND_BASE + BLIND_PER_CM * L["drive"] + lat
@@ -915,6 +950,12 @@ class Controller:
             r.fpose_t = self.t
         r.lost, r.bubble = None, 0.0
         r.pc = None
+        if self.ekf_live(r):
+            if jump > REACQUIRE_CM:
+                q = self.projected(r, t, x, y, th) or (x, y, th)
+                r.fp.reset(self.t, q[0], q[1], None, 1.0)
+            else:
+                r.fp.fix(t, x, y, th, None, "camera", now=self.t)
         if r.lost_hold:
             r.lost_hold = False
         if r.stopped_hard and (r.adj is None or r.adj["kind"] != "stop"):
@@ -935,6 +976,8 @@ class Controller:
         age = (self.t - (r.cam_arr if r.cam_arr is not None else r.cam[0])) if (r.cam is not None and r.lost is None) \
             else 0.0
         u = OB.uncertainty_cm(PLAN_M0, r.bubble if r.lost else 0.0, age, 10.0, 0.0)
+        if self.ekf_live(r):
+            u = r.fp.unc_cm(self.t)                 # (e09, B2) the filter's: staleness and blind driving inside it
         pf = r.__dict__.get("pfuse")
         # (e08, A1) its own pose vs the camera: the disagreement widens the uncertainty AT ONCE (no 2 s wait)
         return u + (pf.unc_extra() if (pf is not None and r.lost is None) else 0.0)
@@ -1384,6 +1427,9 @@ class Controller:
                                   unc_cm=round(self.unc(r), 2)))
         if not ev:
             return
+        if not self.camera_proven:
+            self.counts["reseeds_waiting"] = self.counts.get("reseeds_waiting", 0) + 1
+            return                  # (e09) not before the camera is proven (a wrong camera name would pull every pose)
         self.counts["reseeds"] = self.counts.get("reseeds", 0) + 1
         h = th if th is not None else self.heading(r)
         q = self.projected(r, self.t, cam[0], cam[1], h) or (cam[0], cam[1], h)
@@ -1428,6 +1474,129 @@ class Controller:
             self.halt(r, "standing tilt")
             self.end_move(r)
         self.tilt_trip(r, "standing tilt %.1f deg for %.1f s (a wheel over an edge?)" % (ev["dev_deg"], ev["for_s"]))
+
+    # -- (e09, Phase B) the filter, the tracking layer's evidence, pictures --------------------------------------------
+    GAP_FWD_S = 1.0          # CHOSEN: in a camera gap the filter's position goes to the robot this often (as a fix)
+    GAP_FWD_MAX_CM = 8.0     # CHOSEN: ... only while the filter's uncertainty is under this (its dead reckoning beat
+                             # the robot's own: 1.5 against 2.3 cm after 10 s on the 5 Nov logs)
+    GYRO_FIX_S = 5.0         # CHOSEN: B3: the gyro heading goes to a standing robot at most this often ...
+    GYRO_FIX_DEG = 1.0       # ... when its own heading is this far off it
+
+    def ekf_live(self, r):
+        """The filter is in charge of r's pose: pose_source "ekf", started, and its RAW rows flowing (a robot whose RAW
+        stopped falls back to the one-step blend until they come again)."""
+        fp = r.fp
+        return self.pose_source == "ekf" and fp is not None and fp.started and fp.last_raw_t is not None and \
+            self.t - fp.last_raw_t < 1.0
+
+    def fp_fix(self, r, t, x, y, th, sigma=None, src=None):
+        if r.fp is None:
+            return                  # (the filter is made by the robot's first RAW row: no RAW, no filter)
+        res = r.fp.fix(t, x, y, th, sigma, src or "camera", now=self.t, hold_disagree=not self.camera_proven)
+        # (e09) a fix the filter held back (a disagreement while the camera is not proven) is not sent to the robot
+        r.fix_used = bool(res is None or res.get("used", True)) or self.pose_source != "ekf"
+        if res and res.get("disagree_cm", 0.0) > 0 and res.get("d2", 0.0) > FP.GATE_D2:
+            self.counts["ekf_disagree"] = self.counts.get("ekf_disagree", 0) + 1
+        r.pc = None
+
+    def on_raw_full(self, name, t, v_cms, w_dps, gz_dps=None, still=None, ax=None, front_cm=None, line=None):
+        """(e09, B2) One RAW row in true units (raw_units): the robot's wheels, raw gyro rate, accelerometer, front and
+        line sensors, for its filter."""
+        r = self.R.get(name)
+        if r is None:
+            return                  # (the filter runs in both pose sources: in "blend" beside it, logged only)
+        if r.fp is None:
+            r.fp = FP.FusedPose(r.name, gyro_heading=self.gyro_heading)
+            if r.cam is not None:
+                r.fp.start(r.cam[0], r.cam[1], r.cam[2], r.cam[3] if r.cam[3] is not None else self.heading(r),
+                           1.0, 10.0 if r.cam[3] is not None else 30.0)
+        r.fp.raw(t, v_cms, w_dps, gz_dps, still, ax, front_cm, line)
+        if r.fp.started and r.fp.gh.th is None and r.own is not None:
+            r.fp.gh.set(r.own[3])
+        r.pc = None
+
+    def gap_forward(self, r):
+        """(e09, B2) In a camera gap the robot's own pose drifts by its wheels and library yaw; the filter's (wheels, raw
+        gyro, learned wheel scale) drifts less: sent to the robot as a fix every GAP_FWD_S while it is sure enough."""
+        if self.fix_fn is None or not self.ekf_live(r) or r.lost is None or self.t - r.gap_fwd_t < self.GAP_FWD_S or \
+                not self.camera_proven:
+            return                  # (not while the camera is not proven: the filter may have taken its picture)
+        u = r.fp.unc_cm(self.t)
+        if u is None or u > self.GAP_FWD_MAX_CM:
+            return
+        q = r.fp.pose(self.t)
+        r.gap_fwd_t = self.t
+        self.counts["gap_forwards"] = self.counts.get("gap_forwards", 0) + 1
+        self.fix_fn(r.name, self.t, q[0], q[1])
+
+    def gyro_watch(self, r):
+        """(e09, B3, switch gyro_heading, OFF by default) A standing robot whose own heading (library yaw x gyro_scale)
+        is off the raw gyro's heading is told the gyro's (fpose: its own position kept)."""
+        if not self.gyro_heading or not self.ekf_live(r) or r.own is None or r.mode != "idle":
+            return
+        h = r.fp.gh.heading_deg()
+        if h is None or self.t - r.gyro_fix_t < self.GYRO_FIX_S or abs(wrap180(h - r.own[3])) < self.GYRO_FIX_DEG:
+            return
+        r.gyro_fix_t = self.t
+        self.counts["gyro_heading_fixes"] = self.counts.get("gyro_heading_fixes", 0) + 1
+        self.out(r, "fpose %.2f %.2f %.2f %.2f %.2f" % (r.own[1], r.own[2], h, 1.0, 1.0))
+
+    def identity_wiggle(self, r, why="identity"):
+        """(e09, B1 wiggle first) The tracking layer cannot tell r from a robot it passed closely: r wiggles on its spot
+        (the find-me wiggle) so the camera's turning outline names it."""
+        if r.mode in ("out", "gone", "start") or getattr(r, "held", None):
+            return
+        if r.move is not None and r.move.get("kind") == "wiggle":
+            return
+        self.counts["identity_wiggles"] = self.counts.get("identity_wiggles", 0) + 1
+        self.event(r, "identity wiggle", why)
+        if r.move is not None:
+            self.halt(r, "identity wiggle")
+            self.end_move(r)
+        r.wiggle_due = 0.0
+        r.busy_until = self.t
+        if r.mode == "idle" and self.pos(r) is not None:
+            self.find_me(r)
+        else:
+            r.want_wiggle = self.t
+
+    def on_obstacle(self, ob):
+        """(e09, B1 brick watch) Something new stands on the table (the camera's "what changed" watch): a confirmed
+        keep-out for every robot (the camera saw it: safety_rules.keepout_confirmed)."""
+        q = dict(x=float(ob["x"]), y=float(ob["y"]), r=float(ob.get("r", 6.0)), t=round(self.t, 2), robot="-",
+                 src=str(ob.get("src", "camera: new object")), edge_cm=round(edge_dist(self.rect, ob["x"], ob["y"]), 1),
+                 d_cm=0.0, owner=None, confirmed=True)
+        self.keepouts.append(q)
+        self.counts["camera_objects"] = self.counts.get("camera_objects", 0) + 1
+        self.log("keepouts", dict(q, what="new object seen by the camera"))
+        self.event(None, "camera object", "something new at %.0f, %.0f: kept out" % (q["x"], q["y"]))
+
+    def on_parked_moved(self, ev):
+        """(e09, B1 parked watch) A robot whose wheels stood still was moved (pushed, picked up and put down): its pose
+        is taken from the camera (the evidence wins), its filter re-seeded, the moment logged and a picture asked."""
+        r = self.R.get(ev.get("robot"))
+        if r is None:
+            return
+        self.counts["parked_moved"] = self.counts.get("parked_moved", 0) + 1
+        self.event(r, "moved while parked", "the camera saw it move %.1f cm while its wheels stood: its pose is set "
+                   "from the camera" % ev.get("d_cm", 0.0))
+        h = self.heading(r)
+        self.out(r, "fpose %.2f %.2f %.2f %.2f %.2f" % (ev["x"], ev["y"], h, 1.0, 5.0))
+        r.fpose_t = self.t
+        if r.fp is not None and r.fp.started:
+            r.fp.reset(self.t, ev["x"], ev["y"], None, 1.0)
+        r.cam_off = (0.0, 0.0)
+        r.pc = None
+        self.want_picture(r, "moved while parked")
+
+    def want_picture(self, r, why):
+        """(e09, B4) The host saves a camera picture of this moment into the session folder."""
+        self.pictures.append(dict(t=round(self.t, 2), robot=r.name if r else "-", why=why))
+        self.counts["pictures"] = self.counts.get("pictures", 0) + 1
+
+    def take_pictures(self):
+        p, self.pictures = self.pictures, []
+        return p
 
     def border_fire(self, r, info):
         """(e08, Nick 7 Nov) the robots' own 6 cm virtual border is left as it is; how often it fires is counted and
@@ -1910,6 +2079,8 @@ class Controller:
             if self.attended:
                 self.ask(r, "%s may be near the board's edge (%s). Is it near the edge?" % (r.name, j["why"]),
                          ("It is near the edge", "It is clear of the edge"))
+            else:
+                self.want_picture(r, "unsure near an edge (%s)" % j["why"])     # (e09, B4: Nick 7 Nov)
         a = self.answered(r)
         if a is not None:
             r.person_says = ("clear" if "clear" in a.lower() else "near", self.t, p)
@@ -1924,7 +2095,7 @@ class Controller:
                 self.trophy_break(r, "unsure near an edge: held while a person is asked")
             return
         own = (r.own[1], r.own[2]) if r.own is not None else None
-        cam = (r.cam[1], r.cam[2]) if (r.cam is not None and self.fresh(r)) else None
+        cam = (r.cam[1], r.cam[2]) if (r.cam is not None and self.fresh(r) and self.camera_proven) else None
         p, h = self.pos(r), self.heading(r)
         for rev in (True, False):
             if not SR.inward_agreed(self.rect, own, cam, h, reverse=rev):
@@ -3088,6 +3259,12 @@ class Controller:
         self.adj_watch()
         half = int(t * 2) != int((t - 0.05) * 2)
         for r in self.R.values():
+            self.gap_forward(r)                        # (e09, B2) the filter's position to the robot in camera gaps
+            self.gyro_watch(r)                         # (e09, B3) switch, off by default
+            if getattr(r, "want_wiggle", None) is not None and r.mode == "idle" and self.pos(r) is not None:
+                r.want_wiggle = None
+                r.wiggle_due = 0.0
+                self.find_me(r)
             if getattr(r, "held", None):
                 self.held_check(r)                     # (e08, A7) held as an obstacle, checked, rejoins
                 if r.mode not in ("gone",):

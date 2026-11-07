@@ -501,6 +501,7 @@ class Coordinator:
                 continue
             if rtype == "RAW":
                 self.tilt_feed(b, t, vals)     # (11-05h, protection 2) the standing tilt
+                self.fp_raw(b, t, vals)        # (e09, B2) the robot's filter
             if rtype == "RAW" and getattr(self, "floor_raw", None) is not None and name in self.floor_raw:
                 self.floor_feed(b, vals)
             if rtype == "RAW" and self.change is not None:
@@ -515,6 +516,79 @@ class Coordinator:
                     b.run_id, b.run_exp = vals[0], "follow"
                     self.log("follow_seen", robot=name, run=vals[0], why="RUNINFO not heard; FOLLOW records are")
                 self.on_follow(b, t, vals)
+
+    # -- (e09, Phase B2) one filter per robot: fed by RAW and the camera fixes; its pose and uncertainty for the edge
+    #    watch, and its position sent to the robot in camera gaps (the planner plans from the robot's own pose)
+    def fp_on(self):
+        import fused_pose as FPm
+        return (getattr(self.args, "pose_source", None) or FPm.POSE_SOURCE) == "ekf"
+
+    def fp_raw(self, b, t, vals):
+        import fused_pose as FPm      # (the filter runs either way; with --pose-source blend it is only logged)
+        cols = self.link.session.headers.get("RAW") or []
+        if not cols:
+            return
+        row = dict(zip(cols, vals))
+        try:
+            v, w = FPm.raw_true(row)
+            still = abs(float(row.get("wl_rpm") or 0)) < FPm.STILL_RPM and abs(float(row.get("wr_rpm") or 0)) < \
+                FPm.STILL_RPM
+            ln = []
+            for k in ("lineL", "lineC", "lineR"):
+                try:
+                    ln.append(float(row.get(k)))
+                except (TypeError, ValueError):
+                    pass
+            fp = b.__dict__.setdefault("fp", FPm.FusedPose(b.name, gyro_heading=getattr(self.args, "gyro_heading",
+                                                                                          None) or None))
+            gz = row.get("gz")
+            ax = row.get("ax")
+            fp.raw(t, v, w, float(gz) if gz not in (None, "") else None, still,
+                   float(ax) if ax not in (None, "") else None, None, tuple(ln) if len(ln) == 3 else None)
+        except (TypeError, ValueError):
+            return
+
+    def fp_fix(self, b, ev):
+        import fused_pose as FPm
+        fp = b.__dict__.setdefault("fp", FPm.FusedPose(b.name, gyro_heading=getattr(self.args, "gyro_heading",
+                                                                                      None) or None))
+        src = str(ev.get("src") or "camera")
+        kind = "tags" if src.startswith("tag_bridge") and not src.endswith(":lock") else src.split(":")[-1]
+        kind = kind if kind in FPm.SRC_SIGMA else "camera"
+        try:
+            fp.fix(float(ev.get("t", now())), float(ev["x"]), float(ev["y"]),
+                   None if ev.get("th") is None else float(ev["th"]), ev.get("sigma"), kind, now=now())
+        except (TypeError, ValueError, KeyError):
+            pass
+
+    def fp_live(self, b):
+        fp = getattr(b, "fp", None)
+        return self.fp_on() and fp is not None and fp.started and fp.last_raw_t is not None and \
+            now() - fp.last_raw_t < 1.0
+
+    GAP_FWD_S = 1.0           # as freeroam_core.GAP_FWD_S (CHOSEN)
+    GAP_FWD_MAX_CM = 8.0
+
+    def gap_forward(self):
+        """(e09, B2) A robot the cameras have not fixed for over a second (the far half of the school table with tags
+        only, a dropout): the filter's position (wheels, raw gyro, learned wheel scale) goes to it as a fix every
+        GAP_FWD_S while the filter's uncertainty is under GAP_FWD_MAX_CM."""
+        t = now()
+        for b in self.bots.values():
+            if b.out or b.offset is None or not self.fp_live(b):
+                continue
+            if t - (getattr(b, "cam_t", None) or -1e9) < 1.0 or t - getattr(b, "gap_fwd_t", -1e9) < self.GAP_FWD_S:
+                continue
+            u = b.fp.unc_cm(t)
+            if u is None or u > self.GAP_FWD_MAX_CM:
+                continue
+            q = b.fp.pose(t)
+            b.gap_fwd_t = t
+            ms = int(round((t - b.offset) * 1000))
+            self.send(b.name, "fix %d %.2f %.2f - %.2f %.2f" % (ms, q[0], q[1], max(1.0, u / 2.0), 5.0))
+            self.n_gap_fwd = getattr(self, "n_gap_fwd", 0) + 1
+            if self.n_gap_fwd % 50 == 1:
+                self.log("gap_forward", robot=b.name, x=round(q[0], 2), y=round(q[1], 2), unc_cm=round(u, 2))
 
     def tilt_feed(self, b, t, vals):
         """(11-05h, protection 2; home 5 Nov: Center stood tilted 3.4 deg, under the 5 deg tilt stop, for 64 min) The
@@ -967,8 +1041,11 @@ class Coordinator:
                 self.handle_obstacle(ob)
                 continue
             b = self.bots.get(ev.get("robot"))
+            if b is not None and str(ev.get("src") or "").endswith(":lock") and self.lock_close(b, ev):
+                continue            # (e09) a lock-on's name is not trusted while another robot is this close to it
             if b is not None:
                 ev = self.observe_fix(b, ev)
+                self.fp_fix(b, ev)
                 b.fix = ev
                 self.cam_seen(b, ev)
                 # for the pause after a turn: (frame time, arrived, x, y, which camera); the camera bridge says
@@ -1003,6 +1080,21 @@ class Coordinator:
                                                                 ev.get("sigma", 0.5), ev.get("sigma_th", 1.5)))
             b.fix, b.fix_sent_t = None, t
             b.fix_sent += 1
+
+    def lock_close(self, b, ev):
+        """(e09, B1 identity) A lock-on fix within tracking_layer.CLOSE_CM of another robot's latest camera spot: the
+        lock may have jumped to the look-alike: not used (logged, at most once a robot every 5 s)."""
+        import tracking_layer as TL
+        x, y = float(ev["x"]), float(ev["y"])
+        for o in self.bots.values():
+            if o is b or o.out or getattr(o, "last_cam", None) is None:
+                continue
+            if math.hypot(o.last_cam[0] - x, o.last_cam[1] - y) < TL.CLOSE_CM:
+                if now() - getattr(b, "lock_close_t", 0.0) > 5.0:
+                    b.lock_close_t = now()
+                    self.log("lock_refused", robot=b.name, near=o.name, x=round(x, 2), y=round(y, 2))
+                return True
+        return False
 
     def observe_fix(self, b, ev):
         """(11-05h, Observe then trust) Every camera fix: the tag's heading corrected by what this run has learned
@@ -1579,8 +1671,15 @@ class Coordinator:
             fresh = t - (getattr(b, "cam_t", None) or -1e9) <= SR.SURE_CAM_AGE_S
             cam = b.last_cam
             dis = math.hypot(b.pose[0] - cam[0], b.pose[1] - cam[1]) if fresh else None
-            need = SR.clearance_cm(SR.CAM_SIGMA_CM + (dis or 0.0), None, trk, stops_here=False)
-            margin = SR.edge_dist(rect, cam[0], cam[1]) - need
+            if self.fp_live(b):
+                # (e09, B2) the filter's position and uncertainty (staleness and blind driving inside it), the own pose
+                # vs camera disagreement still added at once (Phase A's A1)
+                q = b.fp.pose(t)
+                need = SR.clearance_cm(b.fp.unc_cm(t) + (dis or 0.0), None, trk, stops_here=False)
+                margin = SR.edge_dist(rect, q[0], q[1]) - need
+            else:
+                need = SR.clearance_cm(SR.CAM_SIGMA_CM + (dis or 0.0), None, trk, stops_here=False)
+                margin = SR.edge_dist(rect, cam[0], cam[1]) - need
             j = SR.edge_judgement(margin, fresh, dis)
             if j["state"] == getattr(b, "edge_state", None):
                 continue
@@ -1590,6 +1689,10 @@ class Coordinator:
             if j["state"] == "unsure":
                 self.n_unsure = getattr(self, "n_unsure", 0) + 1
                 self.say("%s: unsure near an edge (%s)" % (b.name, j["why"]))
+                if not getattr(self.args, "attended", False):
+                    # (e09, B4: Nick 7 Nov) nobody there: a camera picture of this moment for him to look at later
+                    # (mission_run's frame saver takes it: doe_loop.Tail, event picture_wanted)
+                    self.log("picture_wanted", robot=b.name, why="unsure near an edge (%s)" % j["why"])
                 if getattr(self.args, "attended", False):
                     if getattr(self, "_asks", None) is None:
                         self._asks = SR.Questions(run=os.path.basename(self.outdir.rstrip("/")))
@@ -3915,6 +4018,7 @@ class Coordinator:
                 break
             self.unconfirmed_watch()
             self.edge_watch()
+            self.gap_forward()            # (e09, B2)
             self.rejoin_watch()
             if self.abort:
                 break
@@ -5426,6 +5530,9 @@ def main(argv=None):
                          "under 8 cm (front_stop.py; default %(default)s)")
     ap.add_argument("--floor-margin-cm", type=float, default=FSTOP.FLOOR_MARGIN_CM,
                     help="the floor check: the limit sits this far under the floor's level (default %(default)s)")
+    ap.add_argument("--pose-source", choices=("ekf", "blend"), default=None,
+                    help="(e09, B2) one filter per robot in charge (ekf) or the one-step blend with the filter beside it (blend, the default after e09)")
+    ap.add_argument("--gyro-heading", action="store_true", help="(e09, B3, off by default) heading from the raw gyro")
     ap.add_argument("--attended", action="store_true", help="(e08, A2) a person is with the robots: a robot the run is "
                     "unsure about near an edge is asked about on Mission Control's Start screen (else logged only)")
     ap.add_argument("--edge-tracking", default="lights", choices=["lights", "tags", "none", "motion"],
