@@ -1,0 +1,448 @@
+<title>__TITLE__</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@500;600;700&family=Source+Sans+3:wght@400;600&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: a flight-recorder bench. Moments down the left, the camera clip and the program's map side by side,
+   the log tape underneath, all on one clock. Stacks to one column on a phone. */
+:root {
+  --bg: #eef0f3;
+  --panel: #ffffff;
+  --ink: #1b2129;
+  --muted: #5b6573;
+  --line: #d3d8df;
+  --accent: #c47a00;          /* the edge band's amber */
+  --accent-soft: #f6e6c6;
+  --board: #e9e3d6;
+  --board-edge: #9a8a67;
+  --used: #2e9e48;
+  --refused: #d1352b;
+  --keepout: #d1352b;
+  --hl: #fff2cc;
+  --left: #2f7bd8; --center: #d23c8f; --right: #e08a1a;
+  --f-display: "Barlow Semi Condensed", "Arial Narrow", "Helvetica Neue", Arial, sans-serif;
+  --f-body: "Source Sans 3", "Segoe UI", Helvetica, Arial, sans-serif;
+  --f-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #14181d; --panel: #1c2128; --ink: #e6e9ee; --muted: #9aa4b2; --line: #2e3540;
+    --accent: #f0a830; --accent-soft: #3a2f1a; --board: #2a2722; --board-edge: #8c7b58;
+    --used: #4cc568; --refused: #ff6257; --keepout: #ff6257; --hl: #3b331c;
+    --left: #5b9cf0; --center: #ec62ac; --right: #f2a23f;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #14181d; --panel: #1c2128; --ink: #e6e9ee; --muted: #9aa4b2; --line: #2e3540;
+  --accent: #f0a830; --accent-soft: #3a2f1a; --board: #2a2722; --board-edge: #8c7b58;
+  --used: #4cc568; --refused: #ff6257; --keepout: #ff6257; --hl: #3b331c;
+  --left: #5b9cf0; --center: #ec62ac; --right: #f2a23f;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--ink); font-family: var(--f-body); font-size: 15px; line-height: 1.45;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 18px 40px; margin: 0;
+}
+h1, h2, h3 { font-family: var(--f-display); font-weight: 600; text-wrap: balance; margin: 0; letter-spacing: .01em; }
+h1 { font-size: 1.9rem; }
+h2 { font-size: 1.25rem; }
+.mono { font-family: var(--f-mono); font-variant-numeric: tabular-nums; }
+.wrap { max-width: 1400px; margin: 0 auto; display: grid; gap: 16px; }
+header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 18px; }
+header p { margin: 0; color: var(--muted); max-width: 70ch; }
+.bench { display: grid; grid-template-columns: minmax(240px, 300px) minmax(0, 1fr); gap: 16px; align-items: start; }
+@media (max-width: 900px) { .bench { grid-template-columns: minmax(0, 1fr); } }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 12px; min-width: 0; }
+/* moments list */
+.moments { display: grid; gap: 14px; max-height: 80vh; overflow-y: auto; }
+@media (max-width: 900px) { .moments { max-height: 340px; } }
+.run-label { font-family: var(--f-display); font-size: .82rem; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin-bottom: 4px; }
+.mlist { display: grid; gap: 4px; list-style: none; margin: 0; padding: 0; }
+.mitem { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 2px 8px; padding: 7px 8px; border-radius: 5px; cursor: pointer; border: 1px solid transparent; background: none; text-align: left; color: inherit; font: inherit; width: 100%; }
+.mitem:hover { background: var(--bg); }
+.mitem[aria-current="true"] { border-color: var(--accent); background: var(--accent-soft); }
+.mitem:focus-visible, button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.mitem .clk { font-family: var(--f-mono); font-size: .8rem; color: var(--muted); grid-row: span 2; padding-top: 2px; }
+.mitem .kind { font-family: var(--f-display); font-weight: 600; font-size: .95rem; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.mitem .sum { font-size: .85rem; color: var(--muted); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; flex: none; }
+.tag { font-family: var(--f-mono); font-size: .68rem; padding: 0 5px; border-radius: 3px; border: 1px solid var(--line); color: var(--muted); font-weight: 400; }
+/* stage */
+.stage { display: grid; gap: 12px; min-width: 0; }
+.headline { display: grid; gap: 4px; }
+.headline .meta { font-family: var(--f-mono); font-size: .82rem; color: var(--muted); }
+.headline p { margin: 0; max-width: 90ch; }
+.views { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 12px; }
+@media (max-width: 1100px) { .views { grid-template-columns: minmax(0, 1fr); } }
+figure { margin: 0; display: grid; gap: 6px; min-width: 0; }
+figcaption { font-size: .8rem; color: var(--muted); }
+video, .novideo { width: 100%; max-width: 100%; background: #000; border-radius: 4px; display: block; }
+.novideo { aspect-ratio: 520 / 580; display: grid; place-items: end center; color: #f2f4f7; text-align: center; padding: 20px; font-size: .9rem; background-size: cover; background-position: center; }
+.novideo span { background: rgba(0,0,0,.65); padding: 8px 12px; border-radius: 4px; }
+svg.map { width: 100%; max-width: 100%; height: auto; display: block; background: var(--panel); }
+/* transport */
+.transport { display: grid; gap: 8px; }
+.trow { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+button.ctl { font-family: var(--f-display); font-weight: 600; font-size: .95rem; padding: 5px 11px; border-radius: 4px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); cursor: pointer; min-width: 40px; }
+button.ctl:hover { border-color: var(--accent); }
+button.ctl[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #1b1300; }
+.speeds { display: inline-flex; gap: 4px; align-items: center; }
+.speeds .lbl { font-size: .8rem; color: var(--muted); margin-right: 2px; }
+input[type=range] { width: 100%; accent-color: var(--accent); }
+.clock { font-family: var(--f-mono); font-size: 1rem; font-variant-numeric: tabular-nums; margin-left: auto; }
+.layers { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: .85rem; }
+.layers label { display: inline-flex; align-items: center; gap: 5px; cursor: pointer; }
+/* log tape */
+.log { max-height: 240px; overflow-y: auto; border-top: 1px solid var(--line); font-size: .84rem; }
+.log table { border-collapse: collapse; width: 100%; }
+.log td { padding: 4px 6px; border-bottom: 1px solid var(--line); vertical-align: top; }
+.log td.t { font-family: var(--f-mono); color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.log td.k { font-family: var(--f-display); font-weight: 600; white-space: nowrap; }
+.log tr.past td { color: var(--ink); }
+.log tr.future td { opacity: .45; }
+.log tr.now td { background: var(--hl); opacity: 1; }
+.log-wrap { overflow-x: auto; }
+@media (max-width: 640px) {
+  .log tr { display: grid; grid-template-columns: auto minmax(0, 1fr); border-bottom: 1px solid var(--line); }
+  .log td { border-bottom: 0; }
+  .log td:nth-child(3) { grid-column: 1 / -1; padding-top: 0; }
+}
+.legend { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: .8rem; color: var(--muted); }
+.legend span { display: inline-flex; align-items: center; gap: 5px; }
+.sw { width: 14px; height: 10px; display: inline-block; border-radius: 2px; }
+footer { font-size: .78rem; color: var(--muted); }
+@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>Robot Replay</h1>
+    <p>Moments from real free-roam runs, replayed the way the program saw them: what the overhead camera reported, where each robot believed it was, and what it planned next.</p>
+  </header>
+
+  <div class="bench">
+    <nav class="panel moments" id="moments" aria-label="Moments"></nav>
+
+    <main class="stage">
+      <section class="panel headline" aria-live="polite">
+        <div class="meta" id="hmeta"></div>
+        <h2 id="htitle"></h2>
+        <p id="hexplain"></p>
+      </section>
+
+      <section class="panel transport" aria-label="Playback">
+        <div class="views">
+          <figure>
+            <video id="vid" playsinline muted preload="auto"></video>
+            <div class="novideo" id="novid" hidden><span>No camera video was kept for this moment. The map on the right replays what the program believed.</span></div>
+            <figcaption id="vcap">Overhead camera picture, drawn with the program's own data (camera fixes, each robot's belief, its plan, the edge band, keep-outs). Source: the run's overhead video and its log files.</figcaption>
+          </figure>
+          <figure>
+            <svg class="map" id="map" viewBox="0 0 100 100" role="img" aria-label="The program's map at this instant"></svg>
+            <figcaption>The program's map at this instant, in board centimetres, seen from above. Source: follow.csv (each robot's own pose), camera_track.csv (camera fixes), moves.csv (plans), keepouts.csv.</figcaption>
+          </figure>
+        </div>
+
+        <input type="range" id="scrub" min="0" max="1000" value="0" step="1" aria-label="Position in the clip">
+        <div class="trow">
+          <button class="ctl" id="back" title="One camera picture back" aria-label="One picture back">&#9664;&#9646;</button>
+          <button class="ctl" id="play" aria-label="Play">Play</button>
+          <button class="ctl" id="fwd" title="One camera picture forward" aria-label="One picture forward">&#9646;&#9654;</button>
+          <span class="speeds" role="group" aria-label="Speed against real time">
+            <span class="lbl">Speed vs real life</span>
+            <button class="ctl" data-speed="0.25">0.25&times;</button>
+            <button class="ctl" data-speed="0.5" aria-pressed="true">0.5&times;</button>
+            <button class="ctl" data-speed="1">1&times;</button>
+          </span>
+          <span class="clock" id="clock">--:--:--.-</span>
+        </div>
+        <div class="layers" id="layers" role="group" aria-label="Map layers">
+          <label><input type="checkbox" id="L-band" checked> Edge band</label>
+          <label><input type="checkbox" id="L-ko" checked> Keep-outs</label>
+          <label><input type="checkbox" id="L-own" checked> Robot's own belief</label>
+          <label><input type="checkbox" id="L-sd" checked> Uncertainty</label>
+          <label><input type="checkbox" id="L-fix" checked> Camera fixes</label>
+          <label><input type="checkbox" id="L-plan" checked> Planned moves</label>
+        </div>
+        <div class="legend" id="legend"></div>
+      </section>
+
+      <section class="panel" aria-label="Log">
+        <h3 style="font-size:1.05rem;margin-bottom:6px">Log, in step with the replay</h3>
+        <div class="log log-wrap" id="log"><table><tbody id="logbody"></tbody></table></div>
+        <p style="margin:6px 0 0;font-size:.8rem;color:var(--muted)">Each line is a decision or report the program wrote during the run (events.csv, moves.csv, breaks.csv, reflex.csv); the highlighted line is the newest one at this instant.</p>
+      </section>
+    </main>
+  </div>
+  <footer id="foot"></footer>
+</div>
+
+<script id="replay-data" type="application/json">/*__DATA__*/null</script>
+<script>
+(function () {
+  "use strict";
+  var DATA = JSON.parse(document.getElementById("replay-data").textContent || "null") || { runs: [] };
+  var $ = function (id) { return document.getElementById(id); };
+  var vid = $("vid"), novid = $("novid"), scrub = $("scrub"), svg = $("map");
+  var NS = "http://www.w3.org/2000/svg";
+  var cur = null, speed = 0.5, vclock = { t: 0, playing: false, last: 0 };
+  var KCOL = { Left: "var(--left)", Center: "var(--center)", Right: "var(--right)" };
+
+  function col(name, run) { return KCOL[name] || (run && run.robotsHex && run.robotsHex[name]) || "var(--muted)"; }
+  function hms(t, tz) {
+    var s = ((t + tz * 3600) % 86400 + 86400) % 86400;
+    var p = function (v) { return (v < 10 ? "0" : "") + v; };
+    return p(Math.floor(s / 3600)) + ":" + p(Math.floor(s % 3600 / 60)) + ":" + p(Math.floor(s % 60)) + "." + Math.floor((s % 1) * 10);
+  }
+  function el(tag, attrs, parent) {
+    var e = document.createElementNS(NS, tag);
+    for (var k in attrs) e.setAttribute(k, attrs[k]);
+    if (parent) parent.appendChild(e);
+    return e;
+  }
+  function firstSentence(s) { var m = String(s || "").match(/^.*?[.!?](\s|$)/); return m ? m[0] : s; }
+
+  // the run's time-zone offset: from its own clock strings (moment "time" vs its Unix t)
+  DATA.runs.forEach(function (r) {
+    var m = r.moments[0];
+    r.tz = 0;
+    if (m) {
+      var p = m.time.split(":").map(Number), loc = p[0] * 3600 + p[1] * 60 + p[2];
+      var utc = ((Math.floor(m.t) % 86400) + 86400) % 86400;
+      var d = loc - utc; if (d > 43200) d -= 86400; if (d < -43200) d += 86400;
+      r.tz = Math.round(d / 1800) / 2;
+    }
+  });
+
+  // ---------------------------------------------------------------- moments list
+  var nav = $("moments");
+  DATA.runs.forEach(function (r, ri) {
+    var box = document.createElement("div");
+    var lab = document.createElement("div"); lab.className = "run-label"; lab.textContent = r.label; box.appendChild(lab);
+    var ul = document.createElement("ul"); ul.className = "mlist";
+    r.moments.forEach(function (m, mi) {
+      var li = document.createElement("li");
+      var b = document.createElement("button"); b.className = "mitem"; b.id = "m-" + ri + "-" + mi;
+      b.innerHTML = '<span class="clk"></span><span class="kind"><span class="dot"></span><span class="kl"></span><span class="rb"></span></span><span class="sum"></span>';
+      b.querySelector(".clk").textContent = m.time;
+      b.querySelector(".dot").style.background = col(m.robot, r);
+      b.querySelector(".kl").textContent = m.label;
+      b.querySelector(".rb").textContent = m.robot;
+      b.querySelector(".rb").className = "tag";
+      b.querySelector(".sum").textContent = firstSentence(m.explain);
+      if (!m.clip) { var nv = document.createElement("span"); nv.className = "tag"; nv.textContent = "map only"; b.querySelector(".kind").appendChild(nv); }
+      b.addEventListener("click", function () { select(ri, mi, true); });
+      li.appendChild(b); ul.appendChild(li);
+    });
+    box.appendChild(ul); nav.appendChild(box);
+  });
+
+  // ---------------------------------------------------------------- legend
+  $("legend").innerHTML =
+    '<span><span class="sw" style="background:var(--used);border-radius:50%;width:9px;height:9px"></span>camera fix the robot used</span>' +
+    '<span><b style="color:var(--refused)">&#10005;</b>camera fix refused (or robot lost)</span>' +
+    '<span><span class="sw" style="background:var(--muted);border-radius:50%;width:9px;height:9px"></span>fix, no counter change</span>' +
+    '<span><span class="sw" style="border:2px solid var(--ink);border-radius:50%;width:12px;height:12px"></span>robot\'s own belief, tick = heading</span>' +
+    '<span><span class="sw" style="background:var(--accent-soft);border:1px solid var(--accent)"></span>edge band</span>' +
+    '<span><span class="sw" style="background:var(--keepout);opacity:.5;border-radius:50%;width:10px;height:10px"></span>keep-out</span>';
+
+  // ---------------------------------------------------------------- selection
+  function select(ri, mi, user) {
+    var r = DATA.runs[ri], m = r.moments[mi];
+    cur = { run: r, m: m, d: m.d, ri: ri, mi: mi };
+    document.querySelectorAll(".mitem").forEach(function (b) { b.setAttribute("aria-current", "false"); });
+    var b = $("m-" + ri + "-" + mi); if (b) b.setAttribute("aria-current", "true");
+    $("hmeta").textContent = r.label + "  ·  " + m.time + "  ·  " + m.robot;
+    $("htitle").textContent = m.label;
+    $("hexplain").textContent = m.explain;
+    vclock.playing = false; vclock.t = m.d.t0;
+    if (m.clip) {
+      novid.hidden = true; vid.hidden = false;
+      vid.src = m.clip; if (m.poster) vid.poster = m.poster;
+      vid.playbackRate = speed / m.d.slow;
+      $("vcap").textContent = "Overhead camera picture at half speed, drawn with the program's own data (green dot: camera fix used, red X: refused, coloured ring: the robot's own belief, line: its plan, amber band: too near the edge, red: keep-outs). Source: the run's overhead video (" + (m.timing || "frame-time CSV") + ") and its log files.";
+    } else {
+      vid.removeAttribute("src"); vid.load(); vid.hidden = true; novid.hidden = false;
+      novid.style.backgroundImage = m.poster ? "url('" + m.poster + "')" : "none";
+      $("vcap").textContent = m.poster ? "A still the run saved near this moment (no video kept). Source: the run's pictures folder." : "No camera video was kept for this run (the default keeps only event stills and short event clips).";
+    }
+    buildLog();
+    setPlayLabel(false);
+    render(m.d.t0);
+    if (user && window.matchMedia("(max-width: 900px)").matches) $("htitle").scrollIntoView({ block: "start" });
+  }
+
+  // ---------------------------------------------------------------- clock
+  function now() {
+    if (!cur) return 0;
+    if (cur.m.clip) return cur.d.t0 + (vid.currentTime || 0) * cur.d.slow;
+    return vclock.t;
+  }
+  function span() { return cur ? (cur.d.t1 - cur.d.t0) : 1; }
+  function seekRun(t) {
+    t = Math.max(cur.d.t0, Math.min(cur.d.t1, t));
+    if (cur.m.clip) { vid.currentTime = (t - cur.d.t0) / cur.d.slow; } else { vclock.t = t; }
+    render(t);
+  }
+  function setPlayLabel(p) { $("play").textContent = p ? "Pause" : "Play"; $("play").setAttribute("aria-label", p ? "Pause" : "Play"); }
+  $("play").addEventListener("click", function () {
+    if (!cur) return;
+    if (cur.m.clip) {
+      if (vid.paused) { if (vid.ended || vid.currentTime >= vid.duration - 0.05) vid.currentTime = 0; var p = vid.play(); if (p && p.catch) p.catch(function () {}); setPlayLabel(true); }
+      else { vid.pause(); setPlayLabel(false); }
+    } else {
+      vclock.playing = !vclock.playing; if (vclock.t >= cur.d.t1 - 0.01) vclock.t = cur.d.t0;
+      vclock.last = performance.now(); setPlayLabel(vclock.playing);
+    }
+  });
+  vid.addEventListener("ended", function () { setPlayLabel(false); });
+  vid.addEventListener("pause", function () { setPlayLabel(false); });
+  vid.addEventListener("play", function () { setPlayLabel(true); });
+  vid.addEventListener("seeked", function () { render(now()); });
+  function step(dir) {
+    if (!cur) return;
+    if (cur.m.clip) vid.pause(); else vclock.playing = false;
+    setPlayLabel(false);
+    seekRun(now() + dir * (1 / 11));     // one camera picture (about 11 a second)
+  }
+  $("back").addEventListener("click", function () { step(-1); });
+  $("fwd").addEventListener("click", function () { step(1); });
+  document.querySelectorAll("[data-speed]").forEach(function (b) {
+    b.addEventListener("click", function () {
+      speed = parseFloat(b.getAttribute("data-speed"));
+      document.querySelectorAll("[data-speed]").forEach(function (x) { x.setAttribute("aria-pressed", x === b ? "true" : "false"); });
+      if (cur && cur.m.clip) vid.playbackRate = speed / cur.d.slow;
+    });
+  });
+  scrub.addEventListener("input", function () {
+    if (!cur) return;
+    seekRun(cur.d.t0 + span() * scrub.value / 1000);
+  });
+  document.querySelectorAll("#layers input").forEach(function (i) { i.addEventListener("change", function () { render(now()); }); });
+
+  function tick(ts) {
+    if (cur && !cur.m.clip && vclock.playing) {
+      vclock.t += (ts - vclock.last) / 1000 * speed; vclock.last = ts;
+      if (vclock.t >= cur.d.t1) { vclock.t = cur.d.t1; vclock.playing = false; setPlayLabel(false); }
+    } else { vclock.last = ts; }
+    if (cur && (!vid.paused || vclock.playing)) render(now());
+    requestAnimationFrame(tick);
+  }
+
+  // ---------------------------------------------------------------- map
+  function sampleAt(t) {
+    var s = cur.d.samples, lo = 0, hi = s.length - 1;
+    if (!s.length) return null;
+    while (lo < hi) { var mid = (lo + hi + 1) >> 1; if (s[mid].t <= t + 1e-6) lo = mid; else hi = mid - 1; }
+    return s[lo];
+  }
+  function on(id) { return $(id).checked; }
+  function render(t) {
+    if (!cur) return;
+    var d = cur.d, r = d.rect, W = r[2] - r[0], H = r[3] - r[1], pad = 8;
+    svg.setAttribute("viewBox", (r[0] - pad) + " " + (-r[3] - pad) + " " + (W + 2 * pad) + " " + (H + 2 * pad + 6));
+    while (svg.firstChild) svg.removeChild(svg.firstChild);
+    var g = el("g", { transform: "scale(1,-1)" }, svg);   // board cm, y up
+    el("rect", { x: r[0], y: r[1], width: W, height: H, fill: "var(--board)", stroke: "var(--board-edge)", "stroke-width": 0.6 }, g);
+    if (on("L-band")) {
+      var b = d.band_cm;
+      el("path", { d: "M" + r[0] + " " + r[1] + "h" + W + "v" + H + "h" + (-W) + "Z M" + (r[0] + b) + " " + (r[1] + b) + "v" + (H - 2 * b) + "h" + (W - 2 * b) + "v" + (-(H - 2 * b)) + "Z",
+        fill: "var(--accent)", "fill-opacity": 0.18, "fill-rule": "evenodd", stroke: "none" }, g);
+      el("rect", { x: r[0] + b, y: r[1] + b, width: W - 2 * b, height: H - 2 * b, fill: "none", stroke: "var(--accent)", "stroke-width": 0.5, "stroke-dasharray": "2 1.5" }, g);
+    }
+    // grid every 30.5 cm (one tape sheet)
+    for (var gx = r[0] + 30.5; gx < r[2]; gx += 30.5) el("line", { x1: gx, y1: r[1], x2: gx, y2: r[3], stroke: "var(--line)", "stroke-width": 0.25 }, g);
+    for (var gy = r[1] + 30.5; gy < r[3]; gy += 30.5) el("line", { x1: r[0], y1: gy, x2: r[2], y2: gy, stroke: "var(--line)", "stroke-width": 0.25 }, g);
+    var s = sampleAt(t);
+    if (!s) return;
+    if (on("L-ko")) {
+      d.keepouts.forEach(function (k) {
+        if (k.t <= t && (k.t_off === null || k.t_off === undefined || k.t_off > t))
+          el("circle", { cx: k.x, cy: k.y, r: Math.max(k.r, 1.2), fill: "var(--keepout)", "fill-opacity": 0.35, stroke: "var(--keepout)", "stroke-width": 0.4 }, g);
+      });
+    }
+    Object.keys(s.r).forEach(function (n) {
+      var R = s.r[n], c = col(n, cur.run);
+      if (on("L-plan") && R.move !== null && R.move !== undefined) {
+        d.moves.forEach(function (m) {
+          if (m.robot === n && m.n === R.move && m.path.length > 1) {
+            el("polyline", { points: m.path.map(function (p) { return p[0] + "," + p[1]; }).join(" "), fill: "none", stroke: c, "stroke-width": 0.9,
+              "stroke-dasharray": m.kind === "reverse" ? "2 1.5" : "none", "stroke-linecap": "round" }, g);
+            var e = m.path[m.path.length - 1];
+            el("path", { d: "M" + (e[0] - 1.6) + " " + (e[1] - 1.6) + "l3.2 3.2 M" + (e[0] - 1.6) + " " + (e[1] + 1.6) + "l3.2 -3.2", stroke: c, "stroke-width": 0.8 }, g);
+          }
+        });
+      }
+      if (on("L-fix")) {
+        R.fix.forEach(function (f) {
+          var fresh = f[2] < 0.15, sz = fresh ? 1.6 : 1.0;
+          if (f[3] === "r") el("path", { d: "M" + (f[0] - sz) + " " + (f[1] - sz) + "l" + 2 * sz + " " + 2 * sz + " M" + (f[0] - sz) + " " + (f[1] + sz) + "l" + 2 * sz + " " + (-2 * sz), stroke: "var(--refused)", "stroke-width": 0.6 }, g);
+          else el("circle", { cx: f[0], cy: f[1], r: sz * 0.8, fill: f[3] === "u" ? "var(--used)" : "var(--muted)" }, g);
+        });
+      }
+      if (on("L-own") && R.own) {
+        var x = R.own[0], y = R.own[1], th = R.own[2] * Math.PI / 180, sd = R.own[3];
+        if (on("L-sd") && sd > 0) el("circle", { cx: x, cy: y, r: Math.max(2 * sd, 0.3), fill: c, "fill-opacity": 0.15, stroke: c, "stroke-width": 0.3, "stroke-dasharray": "1 1" }, g);
+        el("rect", { x: x - 4.75, y: y - 4.75, width: 9.5, height: 9.5, fill: "none", stroke: c, "stroke-width": 0.8, transform: "rotate(" + R.own[2] + " " + x + " " + y + ")", "stroke-opacity": R.lost ? 0.5 : 1 }, g);
+        el("line", { x1: x, y1: y, x2: x + 8 * Math.cos(th), y2: y + 8 * Math.sin(th), stroke: c, "stroke-width": 1 }, g);
+      }
+    });
+    // labels (unflipped)
+    Object.keys(s.r).forEach(function (n) {
+      var R = s.r[n];
+      if (!R.own || !on("L-own")) return;
+      var tx = el("text", { x: R.own[0] + 6, y: -(R.own[1] + 6), "font-size": 4, fill: col(n, cur.run), "font-family": "var(--f-display)", "font-weight": 600 }, svg);
+      tx.textContent = n + (R.lost ? " (camera lost)" : "");
+    });
+    var foot = el("text", { x: r[0], y: -r[1] + 10, "font-size": 3.6, fill: "var(--muted)", "font-family": "var(--f-mono)" }, svg);
+    foot.textContent = "board " + W.toFixed(0) + " × " + H.toFixed(0) + " cm · x = 0 left, y = 0 bottom · band " + d.band_cm.toFixed(1) + " cm (" + d.band_src + ")";
+    $("clock").textContent = hms(t, cur.run.tz);
+    scrub.value = Math.round(1000 * (t - d.t0) / span());
+    syncLog(t);
+  }
+
+  // ---------------------------------------------------------------- log tape
+  var rows = [];
+  function buildLog() {
+    var tb = $("logbody"); tb.innerHTML = ""; rows = [];
+    cur.d.log.forEach(function (x) {
+      var tr = document.createElement("tr");
+      tr.innerHTML = '<td class="t"></td><td class="k"></td><td></td>';
+      tr.children[0].textContent = x.clock + "." + Math.floor((x.t % 1) * 10);
+      tr.children[1].innerHTML = '<span class="dot"></span> ';
+      tr.children[1].querySelector(".dot").style.background = col(x.robot, cur.run);
+      tr.children[1].appendChild(document.createTextNode(x.robot + "  " + x.kind));
+      tr.children[2].textContent = x.text;
+      tb.appendChild(tr); rows.push({ t: x.t, tr: tr });
+    });
+    if (!rows.length) tb.innerHTML = '<tr><td>No log lines in this window.</td></tr>';
+  }
+  var lastNow = -1;
+  function syncLog(t) {
+    var k = -1;
+    rows.forEach(function (r, i) { if (r.t <= t + 1e-6) k = i; r.tr.className = r.t <= t + 1e-6 ? "past" : "future"; });
+    if (k >= 0) {
+      rows[k].tr.className = "now";
+      if (k !== lastNow) {
+        var box = $("log"), tr = rows[k].tr;
+        box.scrollTop = Math.max(0, tr.offsetTop - box.clientHeight / 2);
+        lastNow = k;
+      }
+    }
+  }
+
+  // ---------------------------------------------------------------- start
+  var made = DATA.runs.map(function (r) { return r.label + " (" + r.moments.length + " moments, " + (r.mapping || "no video mapping") + ")"; });
+  $("foot").textContent = "Made by tools/analysis/replay_clips.py " + (DATA.version || "") + ". Runs: " + made.join("; ") + ". Explanations come from the log lines; anything the tool worked out or guessed says so.";
+  if (DATA.runs.length && DATA.runs[0].moments.length) {
+    var ri = 0, mi = 0;
+    DATA.runs.forEach(function (r, i) { r.moments.forEach(function (m, j) { if (m.featured) { ri = i; mi = j; } }); });
+    select(ri, mi, false);
+  }
+  requestAnimationFrame(tick);
+})();
+</script>

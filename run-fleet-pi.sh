@@ -352,6 +352,8 @@ case "$WHAT" in
     if rec_running; then tmux send-keys -t fleet:rec C-c; echo "Stopping the recorder ..."; sleep 6; fi
     [ -z "$D" ] && { echo "No free-roam folder found."; exit 1; }
     FR="$(python3 tools/fleet/diskguard.py where "$D")"
+    # (7 Nov) program's-eye replay clips, in the background beside the upload (capped, never stops or delays it); off: MIRLT_REPLAY_CLIPS=0
+    [ "${MIRLT_REPLAY_CLIPS:-1}" != 0 ] && { setsid nohup timeout 50000 nice -n 15 python3 tools/analysis/replay_clips.py auto "$D" --video "$FR" --upload > "$D-replay.log" 2>&1 < /dev/null & }
     python3 tools/pi/upload_session.py --recordings "$OUT" --session "$D" --tag "freeroam-$(basename "$D")" --unique-tag \
       --exclude frames --recording-dir "$FR" || echo "Upload failed: the files stay in $D and $FR (run ./run-fleet-pi.sh freeroam-finish again)" ;;
   freeroam-status)

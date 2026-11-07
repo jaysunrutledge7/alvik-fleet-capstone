@@ -443,6 +443,20 @@ def _main():
     auto_clean(a, sess, rec, tag, rel, tok, sent)
 
 
+def wait_for_replay(sess, say, poll_s=10.0):
+    """(2026-11-07) The after-run replay clips (tools/analysis/replay_clips.py auto) read the videos while
+    <session>-replay/.busy exists: wait for it, up to MIRLT_REPLAY_WAIT_S (default 600 s), before deleting them. A
+    marker older than an hour is a crashed run's and is ignored."""
+    busy = os.path.normpath(sess) + "-replay/.busy"
+    t_end = time.time() + float(os.environ.get("MIRLT_REPLAY_WAIT_S", "600"))
+    said = False
+    while os.path.exists(busy) and time.time() < t_end and time.time() - os.path.getmtime(busy) < 3600:
+        if not said:
+            say("Waiting for the replay clips to finish reading the videos before cleaning up ...")
+            said = True
+        time.sleep(poll_s)
+
+
 def auto_clean(a, sess, rec, tag, rel, tok, sent):
     """(2026-11-05) After the upload: a quick look that GitHub has every file sent, then the big local files go
     (clean_uploaded.free_after_upload). Never fails the upload."""
@@ -452,6 +466,7 @@ def auto_clean(a, sess, rec, tag, rel, tok, sent):
             print("Auto-clean is off (%s): every file stays on the Pi." % (
                 "--keep-local" if a.keep_local else "MIRLT_AUTO_CLEAN / this site's setting"), flush=True)
             return
+        wait_for_replay(sess, lambda m: print(m, flush=True))
         now = {n: int(x.get("size", 0)) for n, x in _assets(rel, tok).items()
                if isinstance(x, dict) and x.get("state", "uploaded") == "uploaded"}
         DG = CU.DG
