@@ -218,7 +218,7 @@ def test_a_robot_pushed_while_parked_and_a_new_object_are_noticed():
 
 
 def test_the_camera_watch_distrusts_a_mirrored_picture():
-    L = TL.TrackingLayer(["A"], ("motion",), identity="predict")
+    L = TL.TrackingLayer(["A"], ("motion",), identity="predict", camera_watch=True)   # the watch is off by default since 7 Nov b
     t, x, y, h = 0.0, 60.0, 30.0, 90.0
     L.seed("A", t, x, y)
     for k in range(400):                 # it drives circles (turning left); the camera mirrors x: turns right

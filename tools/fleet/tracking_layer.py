@@ -47,14 +47,14 @@ import itertools
 import math
 import os
 
-VERSION = "tracking-layer-2026-11-07a"
+VERSION = "tracking-layer-2026-11-07b"   # b: camera watch off by default (Nick 7 Nov: off until its false alarms are understood)
 
 SOURCES_BY_TRACKING = {"lights": ("motion", "lock", "lights"), "tags": ("tags", "motion", "lock"),
                        "none": ()}
 OLD_SOURCES = {"lights": ("motion", "lights"), "tags": ("tags",), "none": ()}     # before e09 (the switch)
 ML_DETECTOR = os.environ.get("MIRLT_ML_DETECTOR", "0") == "1"     # the ML slot: OFF until measured
 IDENTITY = os.environ.get("MIRLT_IDENTITY", "wiggle")              # "wiggle" (e09) | "predict" (before)
-CAMERA_WATCH = os.environ.get("MIRLT_CAMERA_WATCH", "1") == "1"    # the camera watch (turn directions); 0: off
+CAMERA_WATCH = os.environ.get("MIRLT_CAMERA_WATCH", "0") == "1"    # the camera watch (turn directions); OFF by default (Nick 7 Nov, false alarms in 2 of 12 e09 runs); 1: on
 
 GATE_CM = 6.0            # as e02_multitrack.GATE_CM: a sighting this near a prediction can be that robot ...
 GATE_GROW_CMS = 10.0     # ... plus this much per second since it was last seen for sure (e02_multitrack)
