@@ -76,6 +76,13 @@ def guard_cmds(args):
     return out + [c for c in OB.safety_commands(se) if not c.startswith(("set safe_edge", "set edge_bot_cm"))]
 
 
+def roam_controller(args):
+    """(e10, C3) Which controller drives the school's free roam: "freeroam" (the default: the home controller, one
+    pipeline; its Mission Control practice run passed 7 Nov) or "planner" (e07: the planner wanders over each robot's
+    share of the points; the switch). --roam-controller, or MIRLT_SCHOOL_ROAM."""
+    return getattr(args, "roam_controller", None) or os.environ.get("MIRLT_SCHOOL_ROAM", "freeroam")
+
+
 def table_map(size, robots):
     """A blank table: 'WxL' or 'LxW' cm (the longer side along x)."""
     a, b = (float(v) for v in size.lower().split("x"))
@@ -351,6 +358,11 @@ def start_bridge(args, out, mp, cal, scal, stream, side_stream):
         cmd = ["nice", "-n", "5", PY, os.path.join(HERE, "tag_bridge.py"), "--tags", args.tags_json,
                "--cam", "overhead=%s,%s" % (stream, cal), "--out", os.path.join(out, "bridge"), "--wait-calib-s", "90",
                "--robots", args.robots]
+        try:
+            fl_ = FM.load(mp)["floor"]           # (e10, C3) the table: the bridge's motion detector looks inside it
+            cmd += ["--board", "%g,%g,%g,%g" % (fl_["x_min"], fl_["y_min"], fl_["x_max"], fl_["y_max"])]
+        except (OSError, KeyError, ValueError, TypeError):
+            pass
         if scal:
             cmd += ["--cam", "side=%s,%s" % (side_stream, scal)]
         f = open(os.path.join(out, "bridge.txt"), "w")
@@ -1032,6 +1044,38 @@ def run(args):
         rp += ["--alias", "%s=%s" % (k_, v_)]      # (5 Nov) names in the run only (tags.rename_to_slot false)
     if float(getattr(args, "roam_min", 0) or 0) > 0:
         rp += ["--dedupe-points", "off"]           # (e07) a free roam visits its points again and again
+    roam_fr = float(getattr(args, "roam_min", 0) or 0) > 0 and args.tracking_ == "tags" and \
+        roam_controller(args) == "freeroam"
+    if roam_fr:
+        # (e10, C3: one controller at every site) the school's free roam on the free-roam controller (freeroam_core:
+        # reflex, reservations, curves, the filter and the tracking layer with its mid-run identity wiggle, the start's
+        # proof drive, the proven workspace), fed by this run's tag bridge (tags + lock-on). The planner's roam over the
+        # points stays behind --roam-controller planner (the switch)
+        fl = FM.load(mp)["floor"]
+        names_ = sorted((args.tags_ or {}).get("ids", {}).keys())
+        rp = [os.path.join(HERE, "freeroam.py"), "run", "--external-bridge", "--tracking", "tags",
+              "--robots", ",".join(names_), "--board", "%g,%g,%g,%g" % (fl["x_min"], fl["y_min"], fl["x_max"],
+                                                                         fl["y_max"]),
+              "--hours", "%.3f" % (float(args.roam_min) / 60.0), "--site", (args.site_ or {}).get("name") or "school",
+              "--dir", sess]
+        for ip in args.robot:
+            rp += ["--robot", ip]
+        if os.environ.get("MIRLT_ATTENDED") == "1":
+            rp += ["--attended"]
+        if args.dry:
+            # practice: the simulated robots run_plan would start (fleet_sim on 127.0.0.2..), started by freeroam.py;
+            # their pictures come from the tag cameras' simulator as for the other runs
+            mnames = [r_["name"] for r_ in FM.load(mp)["robots"]]
+            rp[rp.index("--robots") + 1] = ",".join(mnames)
+            for k_ in range(len(mnames)):
+                rp += ["--robot", "127.0.0.%d" % (2 + k_)]
+            # rp_shim's simulator (the school's conditions: drops, a robot restarting), as for the other dry runs
+            simc = [PY, os.path.join(HERE, "sweeps", "sim_shim.py"), "--map", mp, "--plan", pp, "--out",
+                    os.path.join(sess, "sim"), "--seed", str(args.seed), "--quiet", "--fix-hz", "0", "--persist"] + \
+                [a_.partition("=")[2] if a_.startswith("--sim-arg=") else a_ for a_ in args.sim_arg]
+            rp += ["--sim-cmd", json.dumps(simc)]
+        say("FREE ROAM on the free-roam controller (e10): the same controller as at home, fed by the tag bridge")
+        fr_len = len(rp)
     for n_, spec_ in sorted((stop_lead_specs(args, out) if not getattr(args, "no_stop_lead", False) else {}).items()):
         rp += ["--stop-lead", "%s=%s" % (n_, spec_)]     # (e07) each robot's stop lead from its last calibration
     rp += list(args.rp_arg)
@@ -1228,6 +1272,22 @@ def run(args):
     say("the robots start now. To stop them at any moment: Ctrl+C")
     code = 1
     # (rp_shim.py stands in for run_plan.py on a dry run and takes run_plan's arguments)
+    if roam_fr:
+        launcher = [PY, rp[0]]             # (e10) freeroam.py takes its own arguments, dry or not
+        # run_plan's arguments added after the hand-over: the simulator's go into its command, --stop-lead is kept,
+        # the rest (facing check, --dry-run ...) are run_plan's own
+        extra, keep, k_ = rp[fr_len:], [], 0
+        while k_ < len(extra):
+            if extra[k_] == "--stop-lead" and k_ + 1 < len(extra):
+                keep += extra[k_:k_ + 2]
+                k_ += 2
+                continue
+            k_ += 1
+        sim_extra = [x.partition("=")[2] for x in extra if str(x).startswith("--sim-arg=")]
+        rp = rp[:fr_len] + keep
+        if "--sim-cmd" in rp and sim_extra:
+            i_ = rp.index("--sim-cmd") + 1
+            rp[i_] = json.dumps(json.loads(rp[i_]) + sim_extra)
     try:
         child = subprocess.Popen(launcher + (rp[1:] if args.dry else rp), cwd=REPO)
     except BaseException:
@@ -1623,6 +1683,9 @@ def main(argv=None):
     ap.add_argument("--roam-min", type=float, default=0.0, help="(e07) free roam at a tag site: each robot wanders "
                     "over its share of the readable points in a random order for about this many minutes (with "
                     "--motion curves; the one-button Free roam at school)")
+    ap.add_argument("--roam-controller", choices=("planner", "freeroam"), default=None,
+                    help="(e10, C3) the school's free roam: the free-roam controller (default: freeroam.py, one "
+                         "pipeline) or the planner over the points (e07, the switch)")
     ap.add_argument("--points-each", type=int, default=3, help="tags, no --program: points per robot")
     ap.add_argument("--dwell-s", type=float, default=3.0, help="tags, no --program: seconds at each point")
     ap.add_argument("--no-mirror", action="store_true",

@@ -48,7 +48,10 @@ def case_runs(case, hours=None):
                 out.append(("b-" + tag, sd, dict(hours=hours or 0.05, edge_physics=True,
                                                   starts={"Center": (3.5, 18.6, 117.0), "Left": (90.0, 80.0, 40.0),
                                                           "Right": (70.0, 50.0, -70.0)},
-                                                  dead_robot=False, pi_freeze=False, ctrl_kw=kw)))
+                                                  dead_robot=False, pi_freeze=False,
+                                                  # (e10) Center stands for a robot hung DURING a run: the start
+                                                  # check (which holds a robot put down at an edge) is off here
+                                                  ctrl_kw=dict(kw, start_edge=False))))
     elif case == "c":
         for sd in range(1, 9):
             for tag, kw, held in (("before", OLD, "out"), ("after", NEW, "heading")):

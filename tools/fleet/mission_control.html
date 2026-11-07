@@ -71,6 +71,10 @@ button.stopall:hover{filter:brightness(1.08)}
 .bigs button:disabled{border-color:var(--border);cursor:default}.bigs button:disabled b{color:var(--muted)}
 .corners{background:#FFFAEB;border:2px solid #F79009;border-radius:14px;padding:18px}
 .corners b{font-size:18px}
+.quiz .q{margin:14px 0 6px;font-weight:600;font-size:15px}.quiz .modes button{min-height:58px}
+.prefs .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:12px 16px;margin-top:10px;align-items:start}.prefs h3{margin:16px 0 6px}
+.prefs .why{font-size:12.5px;color:var(--muted);margin-top:3px;line-height:1.35}
+.prefs label{display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--muted)}.prefs label select,.prefs label input{color:var(--ink)}
 .statusbox{border-left:4px solid var(--accent);padding-left:12px}
 details.adv>summary{font-weight:600;cursor:pointer;color:var(--muted)}
 details.adv .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px;margin-top:12px}
@@ -1000,6 +1004,81 @@ const ADV_CHOICES = {
   experiment: [["next", "The next one in turn"], ["shakedown", "Shakedown (no camera)"], ["e1", "Experiment 1: in order"], ["e2", "Experiment 2: reversed"], ["e3", "Experiment 3: zig-zag"], ["e4", "Experiment 4: shuffled"]]};
 function advSel(k, a) { return `<select data-adv="${k}">${ADV_CHOICES[k].map(([v, t]) => `<option value="${v}" ${String(a[k] ?? "") === v ? "selected" : ""}>${esc(t)}</option>`).join("")}</select>`; }
 function advTick(k, a, t) { return `<label style="flex-direction:row;align-items:center;gap:8px;color:var(--ink)"><input type="checkbox" data-advb="${k}" ${a[k] ? "checked" : ""}> ${esc(t)}</label>`; }
+// ---------------------------------------------------------------- Preferences (e10, Nick 7 Nov)
+// A page of choices, saved per site on the Pi; the essentials up front, everything else under Advanced (every switch
+// from e08, e09 and e10); a short first-time quiz fills it in.
+const PREF_WORDS = {
+  caution: {careful: "Very careful: only where the camera clearly sees the table", normal: "Normal (recommended)", explore: "Explore: robots slowly feel out parts the camera cannot see (their own edge sensors guard them)"},
+  watching: {yes: "Yes: someone is always in the room (a run may ask a question)", no: "No: they run on their own (never asks, never moves a robot it is unsure about outward)", ask: "Ask me each time I press Start"},
+  workspace: {proven: "Only where it is proven table (seen by the camera or felt by a robot)", typed: "The typed board's rectangle (before e10)"},
+  school_roam: {freeroam: "The home free-roam controller (one pipeline, e10)", planner: "The planner over Jay-Sun's points (e07)"},
+  camera_watch_method: {e10: "e10: averaged spots, votes only when clear", e09: "e09: single sightings (false alarms in 2 of 12 runs)"},
+  pose_source: {blend: "The robot's own pose with the camera blended in (default)", ekf: "The filter in charge (the 7 Nov fixes; Nick decides)"},
+  identity: {wiggle: "Wiggle first after a close pass (e09)", predict: "Nearest prediction only (before e09)"},
+  edge_rule: {derived: "Derived from the robot's size, doubt and stop (e08)", fixed: "The fixed numbers before e08"},
+  pose_rule: {widen: "Camera and wheels disagree: doubt widens at once (e08)", wait2s: "Wait 2 s before correcting (before e08)"},
+  keepout_rule: {fade: "An unconfirmed keep-out fades after 15 s (e08)", permanent: "Every keep-out stays for the run"},
+  tilt_rule: {logs: "Tilt stop from the logs: 4 deg (e08)", old: "Tilt stop 5 deg (before e08)"}};
+const PREF_TICKS = [
+  ["discovery", "Proof drive at the start (checks the camera's name, the board's size, the clock, turned tags; fits each robot)", "e10"],
+  ["probe_ahead", "Probe ahead: a robot may slowly prove ground the camera cannot see", "e10"],
+  ["unc_split", "The filter's doubt in two parts (seen: x 2.45; blind: x 8, 95 %)", "e10"],
+  ["shuffle", "Corner shuffle: a robot stuck in a corner turns its way out (corners checked exactly)", "e10"],
+  ["queue_watch", "Queue watch: every piece and the pieces queued behind it re-checked against where the robot really is (7 Nov run 2)", "e10"],
+  ["mark_unc", "A line-sensor stop near an edge counts as the edge unless the camera is sure enough (7 Nov run 2)", "e10"],
+  ["start_edge", "Start check: a robot that starts over or at an edge waits to be moved in (7 Nov run 2)", "e10"],
+  ["camera_watch", "Camera watch: the picture must turn the robots the way their gyros do", "e09"],
+  ["gyro_heading", "Heading from the raw gyro rate (B3)", "e09"],
+  ["old_tracking", "The camera sources before e09 (no lock-on, no layer)", "e09"],
+  ["brick_watch", "Brick watch: a new object on the table is kept out", "e09"],
+  ["lock", "Lock-on beyond the roof tags' reach (school)", "e09"],
+  ["cam_edge_bias", "The camera's 5 cm edge error in the edge clearance", "e08"],
+  ["silent_out", "A robot silent for 2 minutes is out for the run (before e08)", "e08"],
+  ["tilt_recovery", "A tilted robot tries to back off (e08)", "e08"]];
+function prefSel(k, v, choices) { return `<select data-pref="${k}">${choices.map(c => `<option value="${c}" ${String(v) === c ? "selected" : ""}>${esc((PREF_WORDS[k] || {})[c] || c)}</option>`).join("")}</select>`; }
+function prefTick(k, v, t) { return `<label style="flex-direction:row;align-items:center;gap:8px;color:var(--ink)"><input type="checkbox" data-prefb="${k}" ${v ? "checked" : ""}> ${esc(t)}</label>`; }
+function quizCard(P) {
+  const ans = window._quiz || (window._quiz = {});
+  return `<div class="card quiz" id="quiz"><h2 style="margin:0">First time here: five quick questions</h2>
+    <p class="sub">Your answers fill in the preferences below (saved on the Pi for ${esc(P.site)}). You can change any of them later.</p>
+    ${P.quiz.map(q => `<div class="q">${esc(q.q)}</div><div class="modes">${q.choices.map(([id, t]) => `<button data-quiz="${q.id}" data-val="${id}" class="${ans[q.id] === id ? "on" : ""}"><b>${esc(t.split(" (")[0].split(":")[0])}</b><span class="small muted">${esc(t.includes("(") || t.includes(":") ? t.slice(Math.max(t.indexOf("("), t.indexOf(":")) + 1).replace(/\)$/, "").trim() : "")}</span></button>`).join("")}</div>
+      ${q.id === "robots" && ans.robots === "pick" ? `<input id="quizrobots" placeholder="Their names, e.g. Left, Right" value="${esc(ans.robots_names || "")}" style="margin-top:8px;width:320px">` : ""}`).join("")}
+    <div class="row" style="margin-top:16px;gap:10px"><button class="p" id="quizgo" ${P.quiz.every(q => ans[q.id]) ? "" : "disabled"}>Fill in my preferences</button><button class="b" id="quizskip">Skip: use the usual settings</button></div></div>`;
+}
+function prefsCard(P) {
+  const v = P.values;
+  const lenSel = `<select data-prefn="run_min">${[[0, "The usual (home: until the batteries are low, up to 4 h; school: 10 min)"], [10, "About 10 minutes (a demo)"], [30, "About 30 minutes (a lesson)"], [60, "About an hour"], [240, "Up to 4 hours"]].map(([m, t]) => `<option value="${m}" ${+v.run_min === m ? "selected" : ""}>${esc(t)}</option>`).join("")}</select>`;
+  const groups = ["e10", "e09", "e08"].map(g => `<h3>${g === "e10" ? "Start and workspace (e10)" : g === "e09" ? "Tracking (e09)" : "Edge safety (e08)"}</h3><div class="grid">
+    ${PREF_TICKS.filter(t => t[2] === g).map(([k, t]) => prefTick(k, v[k], t)).join("")}
+    ${g === "e10" ? `<label>Where robots may drive${prefSel("workspace", v.workspace, P.choices.workspace)}</label><label>School free roam runs on${prefSel("school_roam", v.school_roam, P.choices.school_roam)}</label><label>Camera watch method${prefSel("camera_watch_method", v.camera_watch_method, P.choices.camera_watch_method)}</label><label>"Unsure near an edge" pictures: at most one per robot every (s)<input data-prefn="picture_every_s" value="${esc(v.picture_every_s)}"></label>` : ""}
+    ${g === "e09" ? `<label>Who keeps each robot's position${prefSel("pose_source", v.pose_source, P.choices.pose_source)}</label><label>Telling two close robots apart${prefSel("identity", v.identity, P.choices.identity)}</label>` : ""}
+    ${g === "e08" ? `<label>Distance from the edges${prefSel("edge_rule", v.edge_rule, P.choices.edge_rule)}</label><label>Camera and wheels disagree${prefSel("pose_rule", v.pose_rule, P.choices.pose_rule)}</label><label>Things felt on the table${prefSel("keepout_rule", v.keepout_rule, P.choices.keepout_rule)}</label><label>Tilt stop${prefSel("tilt_rule", v.tilt_rule, P.choices.tilt_rule)}</label>` : ""}
+    </div>`).join("");
+  return `<div class="card prefs" id="prefs"><div class="between"><h2 style="margin:0">Preferences for ${esc(P.site)}</h2><button class="b" id="quizagain">Take the quiz again</button></div>
+    <p class="sub">Saved on the Pi (${esc(P.file)}). Every run started here uses them.</p>
+    <div class="grid" style="margin-top:12px">
+      <label>How long a run lasts${lenSel}</label>
+      <label>How careful near the edges${prefSel("caution", v.caution, P.choices.caution)}</label>
+      <label>Is someone watching?${prefSel("watching", v.watching, P.choices.watching)}</label>
+      <label>Which robots<input data-prefs="robots" value="${esc(v.robots)}" placeholder="all"><span class="why">"all", or names (Left, Right)</span></label>
+      <label>Site<select id="sitepin2"><option value="">Found by itself (automatic)</option>${(S.start.sites.names || []).map(n => `<option value="${esc(n)}" ${S.start.sites.pinned === n ? "selected" : ""}>Always ${esc(n)}</option>`).join("")}</select></label>
+    </div>
+    <details class="more" style="margin-top:14px" id="prefadv"><summary>Advanced (every switch; the defaults are the build's own)</summary>${groups}</details></div>`;
+}
+function wirePrefs() {
+  document.querySelectorAll("[data-quiz]").forEach(b => b.onclick = () => { window._quiz[b.dataset.quiz] = b.dataset.val; render(); });
+  if ($("quizrobots")) $("quizrobots").onchange = e => { window._quiz.robots_names = e.target.value; };
+  if ($("quizgo")) $("quizgo").onclick = async () => { try { S.start = await api("/api/start/quiz", {answers: window._quiz}); window._quiz = {}; flash("Preferences filled in and saved"); render(); } catch (e) { flash(e.message, true); } };
+  if ($("quizskip")) $("quizskip").onclick = () => savePrefs({quiz_done: true});
+  if ($("quizagain")) $("quizagain").onclick = () => savePrefs({quiz_done: false});
+  document.querySelectorAll("[data-pref]").forEach(e => e.onchange = () => savePrefs({[e.dataset.pref]: e.value}));
+  document.querySelectorAll("[data-prefb]").forEach(e => e.onchange = () => savePrefs({[e.dataset.prefb]: e.checked}));
+  document.querySelectorAll("[data-prefn]").forEach(e => e.onchange = () => savePrefs({[e.dataset.prefn]: +e.value}));
+  document.querySelectorAll("[data-prefs]").forEach(e => e.onchange = () => savePrefs({[e.dataset.prefs]: e.value || "all"}));
+  if ($("sitepin2")) $("sitepin2").onchange = async () => { try { const r = await api("/api/start/site", {pin: $("sitepin2").value}); flash(r.words); } catch (e) { flash(e.message, true); } };
+  const d = $("prefadv"); if (d) { d.open = !!window._prefAdvOpen; d.ontoggle = () => { window._prefAdvOpen = d.open; }; }
+}
+async function savePrefs(d) { try { S.start = await api("/api/start/prefs", d); flash("Saved"); render(); } catch (e) { flash(e.message, true); } }
 function startScreen() {
   const T = S.start; const a = T.advanced || {}; const st = T.status || {}; const going = !!st.running;
   const where = T.where || {};
@@ -1039,8 +1118,10 @@ function startScreen() {
       <label>Place<select id="sitepin"><option value="">Found by itself (automatic)</option>${(T.sites.names || []).map(n => `<option value="${esc(n)}" ${T.sites.pinned === n ? "selected" : ""}>Always use ${esc(n)}</option>`).join("")}</select></label>
       ${advTick("show_all_screens", a, "Show all the older screens (Connect ... Production)")}
     </div></details>`;
-  $("main").innerHTML = `<section class="left" style="flex-basis:100%;max-width:1100px">${mode}${seen}${corners}${stat}${bigs}<div class="err" id="err"></div>${adv}</section>`;
+  const P = T.prefs; const prefs = P ? (P.values.quiz_done ? prefsCard(P) : quizCard(P)) : "";
+  $("main").innerHTML = `<section class="left" style="flex-basis:100%;max-width:1100px">${mode}${seen}${corners}${P && !P.values.quiz_done ? prefs : ""}${stat}${bigs}<div class="err" id="err"></div>${P && P.values.quiz_done ? prefs : ""}${adv}</section>`;
   wireStart();
+  if (P) wirePrefs();
 }
 function placeName(w) { const k = (w || {}).kind; return k === "home" ? "Home: the 4 x 4 ft board" : k === "school" ? "School: the conference table" : k === "new" ? "A new area (" + (w.site || "") + ")" : ((S.site && S.site.title) || "Home"); }
 function wireStart() {
@@ -1049,6 +1130,7 @@ function wireStart() {
     if (!T.practice) {
       if (!confirm(`Start ${b.querySelector("b").textContent} on every robot on the table?`)) return;
       if (T.attended_only) { attended = confirm("At school the robots drive only while Jay-Sun is in the room. Is he here?"); if (!attended) return; }
+      else if (T.prefs && T.prefs.values.watching !== "ask") attended = T.prefs.values.watching === "yes";
       else attended = confirm("Will you stay with the robots? (OK: the run may ask you here about a robot it is not sure about near an edge, and holds that robot until you answer. Cancel: it decides alone and never moves a robot it is unsure about outward.)");
     }
     try { await api("/api/start/run", {kind: k, attended}); flash(T.practice ? "Practice started (the simulator)" : "Started"); watchStart(); await load(); } catch (e) { flash(e.message, true); } });

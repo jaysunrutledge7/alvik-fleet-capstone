@@ -47,7 +47,8 @@ import itertools
 import math
 import os
 
-VERSION = "tracking-layer-2026-11-07b"   # b: camera watch off by default (Nick 7 Nov: off until its false alarms are understood)
+VERSION = "tracking-layer-2026-11-07c"   # c (e10): camera watch rebuilt (averaged checkpoints, noise-aware votes)
+# b: camera watch off by default (Nick 7 Nov: off until its false alarms are understood)
 
 SOURCES_BY_TRACKING = {"lights": ("motion", "lock", "lights"), "tags": ("tags", "motion", "lock"),
                        "none": ()}
@@ -86,6 +87,12 @@ BRICK_S = 2.0            # CHOSEN: an unclaimed sighting standing BRICK_S = a ne
                          # = 0.75 s after the hand leaves; here the fast simulator's sightings, 12 a second)
 BRICK_STILL_CM = 3.0     # as brickwatch.STILL_CM
 BRICK_R_CM = 6.0         # CHOSEN: the keep-out round a confirmed object (a brick's half width + a margin)
+OWN_RESETS = os.environ.get("MIRLT_OWN_RESETS", "1") != "0"   # (e10) 0: own-pose re-sets read as motion (as e09)
+OWN_JUMP_CM = 5.0        # (e10) CHOSEN: an own pose step over this ...
+OWN_MAX_CMS = 30.0       # ... plus 30 cm/s x its time (top speed 12.5 cm/s, x 2.4) is a re-set, not motion
+BRICK_NOT_NEAR_OWN_CM = 12.0   # (e10) CHOSEN: no new object within this of a robot's own pose (a robot's half diagonal +
+                         # its own pose's drift); a brick put down right beside a robot is found once the robot moves on
+DUPLICATE_RATIO = 0.33   # (e10) CHOSEN: a sighting 3 x nearer another robot's prediction (in its gate) is that robot's
 CLUSTER_CM = 3.5         # CHOSEN: sightings of different sources this close are ONE object (a robot's outline, its lights
                          # and its lock), matched as one: one robot's lights can then not be handed to another robot whose
                          # gate has grown (30 Oct: lights matched to the wrong robot twice). DOE: no, under a body's half
@@ -95,6 +102,13 @@ CAM_TURN_DEG = 20.0      # CHOSEN: over three checkpoints its own heading turned
 CAM_CHECK_N = 6          # CHOSEN: the last 6 votes (any robots) ...
 CAM_BAD_N = 4            # ... 4 of them the other way: the picture is not trusted (one robot's slip or swap is not enough)
 CAM_GOOD_N = 4           # CHOSEN: 4 agreeing in a row: trusted again
+CAM_WATCH_METHOD = os.environ.get("MIRLT_CAMERA_WATCH_METHOD", "e10")   # (e10) "e09": the old single-sighting check
+CAM_AVG_S = 0.4          # (e10) CHOSEN: a checkpoint averages this long of sightings (~5 at 12 a second)
+CAM_AVG_MIN = 3          # (e10) CHOSEN: ... at least this many
+CAM_CHECK2_CM = 12.0     # (e10) CHOSEN: checkpoints this far apart (the chord turn's noise falls as 1 / length)
+CAM_WIN_S = 6.0          # (e10) CHOSEN: three checkpoints within this long, or they start again
+CAM_MIN_TURN_DEG = 8.0   # (e10) CHOSEN: an expected chord turn under this is no evidence either way; DOE: yes, on logs,
+                         # with CAM_CHECK2_CM (false alarms per hour vs time to catch a mirrored camera)
 SOURCE_SIGMA = {"tags": 0.6, "motion": 1.0, "lock": 1.2, "lights": 1.5, "ml": 1.5}   # see fused_pose.SRC_SIGMA
 SOURCE_RANK = {"tags": 0, "lock": 1, "motion": 2, "lights": 3, "ml": 4}   # several for one robot: the best one
 
@@ -144,6 +158,7 @@ class TrackingLayer:
         self.lock_seed_fn = lock_seed
         self.wiggle_fn = wiggle
         self.cluster = cluster
+        self.own_resets_on = OWN_RESETS and cluster      # (e10) with the e09 layer only (the old way: as before)
         self.camera_watch = CAMERA_WATCH if camera_watch is None else bool(camera_watch)
         self.cam_ok = True           # the camera watch: False while the picture moves unlike the robots' own wheels
         self.cam_good = 0            # agreeing votes so far: the camera is PROVEN after CAM_GOOD_N (until then a camera
@@ -166,7 +181,22 @@ class TrackingLayer:
         tr = self.T.get(name)
         if tr is None:
             return
-        tr.own.append((t, float(x), float(y), th, bool(still)))
+        x, y = float(x), float(y)
+        if tr.own and self.own_resets_on:
+            # (e10) an own pose that moves faster than any robot drives is a RE-SET of its frame (the controller's
+            # fpose to the camera), not motion: the history is shifted to stay continuous, so the prediction (last
+            # sure spot + own motion since) does not jump. 7 Nov home run, 12:33:47: Left's own pose was set 14 cm
+            # to the camera's, read as a 14 cm drive backwards, and its sightings (the side camera's too) fell outside
+            # its gate for 13 s: the run's only full stop
+            p = tr.own[-1]
+            dt = max(0.0, t - p[0])
+            dx, dy = x - p[1], y - p[2]
+            if math.hypot(dx, dy) > OWN_JUMP_CM + OWN_MAX_CMS * dt:
+                tr.own = [(a, b + dx, c + dy, d, e) for a, b, c, d, e in tr.own]
+                self.counts["own_resets"] = self.counts.get("own_resets", 0) + 1
+                self.log("tracking", dict(t=round(t, 2), robot=name, what="own pose re-set",
+                                          d_cm=round(math.hypot(dx, dy), 1)))
+        tr.own.append((t, x, y, th, bool(still)))
         if len(tr.own) > 400:
             del tr.own[:100]
         if not still:
@@ -342,6 +372,56 @@ class TrackingLayer:
         return out
 
     def _camera_check(self, n, t, d):
+        """(e10, C4) The camera watch, rebuilt after its false alarms (2 of 12 e09 runs). Their cause: each vote compared
+        the turn between two 6 cm chords of SINGLE noisy sightings with the robot's own heading change; for the lock-on's
+        0.8 cm a chord turn's noise is ~19 deg (sqrt(6) x sigma / 6 cm), as large as the turn it was checking (~17 deg
+        on a 20 cm curve), so ~10 % of votes went the wrong way and 4 of 6 now and then did. Now: each checkpoint is the
+        AVERAGE of the last CAM_AVG_S of sightings, checkpoints CAM_CHECK2_CM apart, the robot's own heading taken at
+        the same moments, and a vote only when the expected chord turn (half the own heading change over the three
+        checkpoints, turning one way all along) is over 3 x its noise: agreeing in sign = good; the other way by over
+        2 x its noise = bad; else no vote. MIRLT_CAMERA_WATCH_METHOD=e09: the old check."""
+        if CAM_WATCH_METHOD == "e09":
+            return self._camera_check_e09(n, t, d)
+        tr = self.T[n]
+        if not tr.own or tr.own[-1][3] is None:
+            return self.cam_ok
+        cp = self.cam_ref.setdefault(n, [])
+        if cp and t - cp[-1][0] > CAM_WIN_S:
+            del cp[:]
+        recent = [q for q in tr.cam if t - q[0] <= CAM_AVG_S]
+        if len(recent) < CAM_AVG_MIN:
+            return self.cam_ok
+        ax = sum(q[1] for q in recent) / len(recent)
+        ay = sum(q[2] for q in recent) / len(recent)
+        tc = sum(q[0] for q in recent) / len(recent)
+        if cp and math.hypot(ax - cp[-1][1], ay - cp[-1][2]) < CAM_CHECK2_CM:
+            return self.cam_ok
+        o = self._own_at(tr, tc)
+        if o is None or o[3] is None:
+            return self.cam_ok
+        cp.append((tc, ax, ay, float(o[3]), d.sigma / math.sqrt(len(recent))))
+        del cp[:-3]
+        if len(cp) < 3 or cp[2][0] - cp[0][0] > CAM_WIN_S:
+            return self.cam_ok
+        (_, x0, y0, h0, s0), (_, x1, y1, h1, s1), (_, x2, y2, h2, s2) = cp
+        t01 = ((h1 - h0 + 180.0) % 360.0) - 180.0
+        t12 = ((h2 - h1 + 180.0) % 360.0) - 180.0
+        if t01 * t12 <= 0:
+            return self.cam_ok               # its own heading did not turn one way all along (an S-bend, a stop): no vote
+        expect = (t01 + t12) / 2.0           # a chord turns half as much as the heading over its two chords
+        L = 0.5 * (math.hypot(x1 - x0, y1 - y0) + math.hypot(x2 - x1, y2 - y1))
+        sd = math.degrees(math.sqrt(s0 * s0 + 4.0 * s1 * s1 + s2 * s2) / max(1e-6, L))
+        if abs(expect) < max(CAM_MIN_TURN_DEG, 3.0 * sd):
+            return self.cam_ok
+        a1, a2 = math.atan2(y1 - y0, x1 - x0), math.atan2(y2 - y1, x2 - x1)
+        cam_turn = math.degrees(math.atan2(math.sin(a2 - a1), math.cos(a2 - a1)))
+        if cam_turn * expect > 0:
+            self._cam_vote(t, True, n)
+        elif abs(cam_turn) >= 2.0 * sd:
+            self._cam_vote(t, False, n)
+        return self.cam_ok
+
+    def _camera_check_e09(self, n, t, d):
         """Observe, then trust (the camera itself). The camera's track of a robot must TURN the way the robot's own gyro
         says it turned (a frame-free check: a wrong camera name, a mirrored or swapped calibration turns the other way;
         positions cannot be compared, they are pulled to the camera). Every CAM_CHECK_CM of camera travel a checkpoint;
@@ -381,6 +461,8 @@ class TrackingLayer:
         del self.cam_checks[:-CAM_CHECK_N]
         self.cam_bad_by = (getattr(self, "cam_bad_by", []) + [robot if not ok else None])[-CAM_CHECK_N:]
         self.counts["camera_votes"] = self.counts.get("camera_votes", 0) + 1
+        if not ok:
+            self.counts["camera_votes_bad"] = self.counts.get("camera_votes_bad", 0) + 1
         bad_robots = {r for r in self.cam_bad_by if r is not None}
         if self.cam_ok and self.cam_checks.count(False) >= CAM_BAD_N and \
                 len(bad_robots) >= min(2, len(self.names)):
@@ -431,8 +513,17 @@ class TrackingLayer:
             if best_cost is None or cost < best_cost:
                 best, best_cost = combo, cost
         for n, d in zip(ns, best):
-            if d is not None:
-                res[n] = d
+            if d is None:
+                continue
+            # (e10) a sighting several times nearer ANOTHER robot's prediction, inside that robot's gate, is that robot's
+            # second sighting (its lights beside its outline), not this one's: a robot whose gate grew out of view
+            # (a probe into unseen ground) took a neighbour's lights and lost itself (rehearsal b)
+            dn = math.hypot(d.x - preds[n][0], d.y - preds[n][1])
+            if self.cluster and any(m != n and preds.get(m) is not None and math.hypot(d.x - preds[m][0], d.y - preds[m][1]) <=
+                   min(preds[m][2], DUPLICATE_RATIO * dn) for m in self.names):
+                self.counts["duplicates"] = self.counts.get("duplicates", 0) + 1
+                continue
+            res[n] = d
         # several sources may see the same robot: keep the best-ranked one per robot (already one per robot here)
         return res
 
@@ -667,6 +758,9 @@ class TrackingLayer:
         for d in dets:
             if any(p is not None and math.hypot(d.x - p[0], d.y - p[1]) < 2 * GATE_CM for p in preds.values()):
                 continue
+            if self.own_resets_on and any(tr.own and math.hypot(d.x - tr.own[-1][1], d.y - tr.own[-1][2]) <
+                                          BRICK_NOT_NEAR_OWN_CM for tr in self.T.values()):
+                continue        # (e10) beside where a robot's own wheels put it: that robot, not a new object
             if any(math.hypot(d.x - o["x"], d.y - o["y"]) < BRICK_R_CM for o in self.obstacles):
                 continue
             u = next((u for u in self.unclaimed if math.hypot(d.x - u["x"], d.y - u["y"]) < BRICK_STILL_CM), None)

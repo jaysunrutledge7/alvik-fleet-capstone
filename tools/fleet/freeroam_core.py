@@ -49,7 +49,9 @@ if _HERE not in sys.path:
 import safety_rules as SR   # noqa: E402  (e08 Phase A: the rules shared with run_plan and observe)
 import fused_pose as FP     # noqa: E402  (e09 Phase B: one filter per robot, fed by the tracking layer and RAW)
 
-VERSION = "freeroam-2026-11-07b"     # 11-07b (e09 Phase B): the filter's pose and uncertainty for the planner and the
+VERSION = "freeroam-2026-11-07d"   # 11-07d (e10, the 7 Nov run 2 incident): the queue watch (every tick, off plan or a queued piece breaking the edge rule from where the robot really is: re-aimed or stopped, heading re-set), the surface-mark verdict less the uncertainty, the start check (held at an edge)
+VERSION_C = "freeroam-2026-11-07c"   # 11-07c (e10 Phase C): proven workspace, probe ahead, corner shuffle, empty moves end, pictures 1/min
+VERSION_B = "freeroam-2026-11-07b"     # 11-07b (e09 Phase B): the filter's pose and uncertainty for the planner and the
                                      # edge rule (pose_source "ekf"; "blend" the one-step blend as before), fixes with a
                                      # source and sigma from the tracking layer, the identity wiggle, camera objects and
                                      # parked-robot moves as evidence, a picture asked when unsure near an edge alone,
@@ -104,6 +106,7 @@ FREE_SHARE = 0.10       # chosen: 1 pick in 10 tries the cells in a random order
                         # robots do not chase the same rare long cells at once (they cluster on the long diagonals).
                         # DOE: yes, 0 / 10 / 25 % against coverage evenness and fallbacks per hour
 PAUSE_S = 0.15          # between moves (the robot's own step queue; no visible stop). Not chosen
+EMPTY_MOVE_PAUSE_S = 0.5    # (e10) CHOSEN: after a move with nothing to send, pick again this soon (DOE: no)
 # dead reckoning (lost by the camera)
 LOST_AFTER_S = 0.6      # no camera fix this long = lost (run_plan.BLIND_AFTER_S). Not chosen here
 BLIND_BASE = 2.0        # bubble p95 = 2.0 cm + 0.07 cm per cm driven blind: MEASURED, 29 Oct logs, 22,000 stretches,
@@ -151,6 +154,25 @@ KEEP_GAP = 1.0          # planned bodies' circles keep this much more from a kee
 BACK_CM = (8.0, 6.0, 4.0)   # backing off after the robot's own front stop: the longest of these that fits. Chosen:
                             # 8 cm takes a 2.9 cm obstacle past the turn check (safe_front_cm 7) with room. DOE no
 BACK_V = 5.0            # cm/s: backwards is blind (no rear sensor): slowest menu speed
+CORNER_BACK_CM = (14.0, 10.0, 6.0, 3.0, 2.0, 1.5)   # (e10, C4) the edge trap's reverses: + 2 and 1.5 cm. Near a CORNER,
+                            # facing along neither side, the best inward reverse is short (the e09 hung-robot case with
+                            # the filter in charge: freed 7.1 cm from a side, a 2 cm reverse gains 0.9 cm and reaches the
+                            # 7.7 cm a tight edge turn needs; 3 cm or more gains nothing)
+RECOVER_EXTRA_CM = 6.0      # (e10) CHOSEN: a recovery reverse may go this much past its usual length for room; DOE: no
+PROBE_V = 3.0               # (e10) cm/s: a probe's speed (feel_table's crawl, the warm-up's side-feel speed): not chosen anew
+PROBE_IN_CM = 8.0           # (e10) CHOSEN: a probe's planned end lies this far past the last proven ground; the bottom
+                            # zone sees a drop 9-11 cm ahead of the wheels (feel_table), so it stops before reaching it
+PROBE_MAX_L = 50.0          # (e10) CHOSEN: the longest probe drive (cm)
+PROBE_REACH_CM = 60.0       # (e10) CHOSEN: frontiers looked for within this of the robot
+PROBE_EVERY_S = 8.0         # (e10) CHOSEN: a robot probes again at most this often; DOE: yes, against area proven per
+                            # minute and time lost to probing
+FELT_HALF_W = 4.0           # (e10) the strip a robot's wheels prove (its track 8.9 cm: HALF_TRACK, less 0.45): not chosen
+BOTTOM_REACH_CM = 9.0       # (e10) the bottom zone notices a drop 9-11 cm ahead of the wheels (feel_table): the low end
+LINE_REACH_CM = 4.0         # (e10) the line sensors sit about 3.5-4 cm ahead of the middle (feel_table)
+PICTURE_EVERY_S = 60.0      # (e10) Claude's default (Nick may change): one "unsure near an edge" picture per robot a minute
+SHUFFLE_MARGIN_CM = 1.0     # (e10) CHOSEN: the corner shuffle keeps each body corner this + its uncertainty inside; DOE: yes,
+                            # against hangs per hour in corners (the board's edge bench test)
+INWARD_GAIN_CM = 0.5        # (e10) CHOSEN: such a reverse must end at least this much further in (was 1.0); DOE: no
 EDGE_TURN_MIN = HALF + 1.0  # the edge trap's last resort: a turn on the spot with the middle this far in (corners swing
                             # 6.72 cm: they stay 1 cm inside the edge). Only after reversing found nothing
 
@@ -183,6 +205,32 @@ ARC_FIT_MIN = 15        # (11-05d) the curves' calibration, discovered from the 
 ARC_FIT_CI = 0.03       # ... and the median's 95 % half-width under this. Chosen
 EDGE_AWAY = True        # (11-05d) a curve from a stand near an edge may run along it if it never gets closer (switch)
 REAIM = True            # (11-05d) an overdue curve piece is re-aimed with farc (switch)
+# (e10, the 7 Nov run 2 incident: Right's 55 cm straight ran 25 deg off, the piece queued behind it was planned from
+# the straight's PLANNED end, ran from where the robot really was, and its line-sensor stop 9 cm from the edge by the
+# camera was called a surface mark; Right ended hung over the y = 0 edge) switches, decided automatically (on), the old
+# way behind each (CLAUDE.md "keep features, switch them off"):
+QUEUE_WATCH = os.environ.get("MIRLT_QUEUE_WATCH", "1") != "0"   # (a, c) every tick the running piece is checked
+                        # against the fused position (and the camera's own fix) and its queued pieces against the edge
+                        # rule from where the robot really is and the way it really goes; off plan: re-aimed or stopped
+MARK_UNC = os.environ.get("MIRLT_MARK_UNC", "1") != "0"         # (b) the surface-mark verdict uses the camera's
+                        # edge distance minus the fused pose's uncertainty (near an edge a line trip is an edge)
+START_EDGE = os.environ.get("MIRLT_START_EDGE", "1") != "0"     # (d) a robot that starts over or at an edge holds
+OFFPLAN_CM = 4.0        # (a) off plan: the fused position (or the camera's fix) this far ACROSS the running piece's path
+                        # (SURE_TOL_CM + PLAN_M0: own pose and camera agree within 3 cm, the plan's 1 cm margin).
+                        # 25 deg off is caught after ~10 cm. Chosen; DOE with OFFPLAN_S
+OFFPLAN_S = 0.3         # ... for this long (one camera fix's noise is not enough). Chosen
+COURSE_S = 1.5          # the way it really goes: a straight line through the camera's fixes over this long
+COURSE_MIN_CM = 3.0     # ... when they spread at least this far (else the filter's / its own heading)
+COURSE_ERR_DEG = 10.0   # its own heading this far off the camera's course (for COURSE_ERR_S): the rest of the piece and
+COURSE_ERR_S = 0.5      # the queued ones are checked from where it really is, the way it really goes. Chosen; DOE
+COURSE_RESET_DEG = 15.0 # its own heading this far from the camera's course while off plan: re-set (fpose), stop, re-plan
+FARC_MIN_S = 0.6        # a re-aim (farc) only with this much of the running piece left (else the queued piece may have
+                        # started on the robot by the time the farc arrives: halted instead)
+START_EDGE_CM = HALF + 1.0          # (d) the proof drive (its first move a turn on the spot) needs the middle this far in
+START_CORNER_CM = 1.0               # (d) to start at all, every corner of the body this far inside the board by the camera
+                                    # (its ~1 cm error): a robot over the edge waits; one just inside it starts, and e08's
+                                    # edge-trap rule backs it out (Right 5 Nov, 6.6 cm in, facing out). Chosen; no DOE
+START_CLEAR_CM = START_CORNER_CM + 2.0  # ... and its corners this far in once held (a person moved it in)
 CURVE_SAMPLE_CM = 3.0   # reservation samples along a curve at most this far apart (PLAN_M0 covers half). Not chosen
 
 
@@ -212,7 +260,20 @@ def v_cap(k):
 
 
 def edge_dist(rect, x, y):
+    """Distance from (x, y) to the board's nearest edge. (e10, C2) rect may be a proven_workspace.ProvenWorkspace: then
+    the distance to the nearest ground that is not proven table (the switch: a plain rectangle, as before)."""
+    f = getattr(rect, "edge_dist", None)
+    if f is not None:
+        return f(x, y)
     return min(x - rect[0], rect[2] - x, y - rect[1], rect[3] - y)
+
+
+def edge_dist_v(rect, xs, ys):
+    """edge_dist for numpy arrays of points."""
+    f = getattr(rect, "dist_v", None)
+    if f is not None:
+        return f(xs, ys)
+    return np.minimum(np.minimum(xs - rect[0], rect[2] - xs), np.minimum(ys - rect[1], rect[3] - ys))
 
 
 def turn_s(deg):
@@ -456,12 +517,24 @@ class Controller:
     def __init__(self, names, rect, out, log, seed=1, lost_mode="reckon", battery_floor=BATTERY_FLOOR,
                  park_sleep=True, fw_override=None, drill=0.0, motion="curves", v_min_avoid=None, edge_rule=None,
                  tracking="lights", attended=False, questions=None, silent_out=False, leads=None, pose_rule=None,
-                 keepout_rule=None, tilt_recovery=True, heading_watch=True, pose_source=None, gyro_heading=None):
+                 keepout_rule=None, tilt_recovery=True, heading_watch=True, pose_source=None, gyro_heading=None,
+                 shuffle=True, workspace=None, picture_every_s=None, probe_ahead=False, queue_watch=None,
+                 mark_unc=None, start_edge=None):
         # (e08 Phase A) switches, each with the old behaviour on its other side (CLAUDE.md keep features, switch off):
         #   edge_rule "derived" | "fixed" (EDGE_CC 16 / LOOP_EDGE 9.2 as before); pose_rule "widen" | "wait2s";
         #   keepout_rule "fade" | "permanent"; silent_out False (held, rejoins) | True (out at 120 s as before);
         #   tilt_recovery True (the tries) | False (stands as before); heading_watch True | False
         self.edge_rule = edge_rule or SR.EDGE_RULE
+        self.shuffle = bool(shuffle)        # (e10, C4) the corner trap's last rung (False: stands, as before)
+        # (e10, C2) probing ahead: a robot may drive slowly into ground nobody has proven yet, its own bottom zone and
+        # line sensors guarding it, and prove it (a setting, OFF by default: Nick's "behind a setting")
+        self.probe_ahead = bool(probe_ahead)
+        # (e10, the 7 Nov run 2 incident) the queue watch, the surface-mark verdict with the uncertainty, the start check
+        self.queue_watch_on = QUEUE_WATCH if queue_watch is None else bool(queue_watch)
+        self.mark_unc = MARK_UNC if mark_unc is None else bool(mark_unc)
+        self.start_edge = START_EDGE if start_edge is None else bool(start_edge)
+        # (e10) at most one "unsure near an edge, alone" picture per robot per this many seconds (Claude's default: 60)
+        self.picture_every_s = PICTURE_EVERY_S if picture_every_s is None else float(picture_every_s)
         # (e09, Phase B) pose_source "ekf" (one filter per robot: fused_pose.FusedPose) | "blend" (as before);
         # gyro_heading: B3, the heading from the raw gyro rate with its bias taken at every standstill (OFF by default)
         self.pose_source = pose_source or FP.POSE_SOURCE
@@ -480,7 +553,10 @@ class Controller:
         self.lead_tab = dict(leads or {})   # {robot: {speed: cm}} its stop lead from its calibration (A5)
         self.tilt_recovery = bool(tilt_recovery)
         self.heading_watch = bool(heading_watch)
-        self.rect = tuple(float(v) for v in rect)
+        # (e10, C2) the proven workspace: a ProvenWorkspace (a tuple of its outer limit, with the grid) in place of the
+        # board rectangle; None: the rectangle, as before (the switch)
+        self.ws = workspace
+        self.rect = workspace if workspace is not None else tuple(float(v) for v in rect)
         self.out_fn, self.log = out, log
         self.rng = random.Random(seed)
         self.seed = seed
@@ -695,6 +771,15 @@ class Controller:
             r.controls = [c for c in r.controls if c["kind"] not in ("halt", "hold")]
             return
         st = r.steps.get(sid)
+        if st is not None and st["status"] == "dropped" and state == "started" and self.queue_watch_on and \
+                st.get("t_sent", -1e9) > -1e8:
+            # (e10, run 2 incident a) a queued piece this controller dropped started on the robot anyway (the drop and
+            # the robot's own start crossed): it is not driven blind, it is halted and planned afresh
+            self.counts["dropped_started"] = self.counts.get("dropped_started", 0) + 1
+            self.halt(r, "a dropped piece %d started" % sid)
+            if r.move is not None:
+                self.end_move(r)
+            return
         if st is None or st["status"] == "dropped":
             return                  # a step this controller already dropped (halted, replaced): its report is old news
         if state in ("queued", "dup") and st["status"] == "sent":
@@ -1013,8 +1098,7 @@ class Controller:
         n = len(xs)
         for k in range(n):
             need = self.need_cm(r, speed, False, u0 + max(0.0, float(grow[k])))
-            mar.append(min(xs[k] - self.rect[0], self.rect[2] - xs[k], ys[k] - self.rect[1], self.rect[3] - ys[k])
-                       - need)
+            mar.append(edge_dist(self.rect, xs[k], ys[k]) - need)
         if stops and not loop and n:
             # its stopping distance: the overrun carries on along the move's last direction (the path is extended by
             # it, so an inward move's overrun counts as inward and an outward one's as outward)
@@ -1024,8 +1108,7 @@ class Controller:
             if L > 1e-6:
                 sc = SR.stop_cm(speed, self.lead_tab.get(r.name)) / L
                 ex, ey = xs[-1] + dx * sc, ys[-1] + dy * sc
-                mar.append(min(ex - self.rect[0], self.rect[2] - ex, ey - self.rect[1], self.rect[3] - ey)
-                           - self.need_cm(r, speed, False, u0 + max(0.0, float(grow[-1]))))
+                mar.append(edge_dist(self.rect, ex, ey) - self.need_cm(r, speed, False, u0 + max(0.0, float(grow[-1]))))
         if loop:
             c = tr.loop_c        # the loop disc's rim: where it may coast and brake, any direction: the stop added
             need = self.need_cm(r, speed, True, u0 + max(0.0, float(tr.m[-1] - LOOP_R - (ms[0] if len(ms) else 0))))
@@ -1148,15 +1231,31 @@ class Controller:
             # keep-out (observe.edge_trip_kind, the rule run_plan uses)
             import observe as OB
             cam_e = edge_dist(self.rect, r.cam[1], r.cam[2]) if (r.cam is not None and self.fresh(r)) else None
-            kind = OB.edge_trip_kind(True, False, cam_e, 0.0 if cam_e is not None else None)
+            # (e10, run 2 incident b) the camera's distance less the fused pose's uncertainty: 9.4 cm in with 6 cm of
+            # doubt is not "well inside" (MIRLT_MARK_UNC=0: the camera's distance alone, as before)
+            u_m = self.unc(r) if (self.mark_unc and cam_e is not None) else 0.0
+            kind = OB.edge_trip_kind(True, False, cam_e - u_m if cam_e is not None else None,
+                                     0.0 if cam_e is not None else None)
+            if self.mark_unc and kind == "edge" and cam_e is not None and cam_e > OB.SURFACE_MARK_CAM_CM:
+                self.counts["marks_deferred"] = self.counts.get("marks_deferred", 0) + 1
+                self.event(r, "edge, not a mark", "its line sensors saw dark %.0f cm inside the board by the camera, "
+                           "but the position is only sure to %.0f cm: treated as the edge" % (cam_e, u_m))
             self.log("surface_marks", dict(t=round(self.t, 2), robot=r.name, x=round(f[0], 1), y=round(f[1], 1),
                                            cam_edge_cm=round(cam_e, 1) if cam_e is not None else "", kind=kind,
-                                           info=info))
+                                           info=info, unc_cm=round(u_m, 2)))
             if kind == "surface_mark":
                 self.counts["surface_marks"] = self.counts.get("surface_marks", 0) + 1
                 self.event(r, "surface mark", "its line sensors saw dark %.0f cm inside the board by the camera, the "
                            "bottom zone saw floor: a mark on the surface, logged (nothing mapped)" % cam_e)
                 return
+        if self.ws is not None and src == "edge guard":
+            # (e10, C2) the proven workspace: a drop felt there, never proven again this run
+            reach = BOTTOM_REACH_CM if "bottom" in info else LINE_REACH_CM
+            k = self.ws.drop_at(p[0], p[1], h, reach)
+            if k:
+                self.event(r, "drop felt", "its %s felt a drop %.0f cm ahead at %.1f, %.1f: %d cells of the workspace "
+                           "marked as a drop" % ("bottom zone" if "bottom" in info else "line sensors", reach, p[0],
+                                                 p[1], k))
         if who:
             self.event(r, "felt a robot", "%s stopped it %.1f cm ahead at %.1f, %.1f: that is %s (no keep-out)" % (
                 src, d, f[0], f[1], who[0]))
@@ -1192,7 +1291,7 @@ class Controller:
         """(11-05c) Discover, don't pre-map: a thing felt inside the edge band (closer to a side than a planned body's
         face can be, EDGE_CC - HALF) is that side's real wall or edge: the side moves in to it for the rest of the run
         (never out; at most WALL_MAX_IN, beyond that it is an object, a keep-out only)."""
-        x0, y0, x1, y1 = self.rect
+        x0, y0, x1, y1 = self.rect if self.ws is None else self.ws.board
         sides = [(f[0] - x0, 0), (f[1] - y0, 1), (x1 - f[0], 2), (y1 - f[1], 3)]
         d, k = min(sides)
         if d < WALL_MIN_IN or d > EDGE_CC - HALF or d > WALL_MAX_IN:
@@ -1210,15 +1309,20 @@ class Controller:
                        "moves in" % (src, d, ("x_min", "y_min", "x_max", "y_max")[k]))
             return
         d = min(d, min(q[0] for q in twin))
-        rect = list(self.rect)
+        rect = list(self.rect if self.ws is None else self.ws.board)
         rect[k] = rect[k] + d if k < 2 else rect[k] - d
-        self.rect = tuple(rect)
+        if self.ws is not None:
+            # (e10, C2) the proven workspace: every cell past the felt side is a drop from now on
+            self.ws.cut_side(k, rect[k])
+            self.ws.board = tuple(rect)
+        else:
+            self.rect = tuple(rect)
         self.log("keepouts", dict(x=round(f[0], 1), y=round(f[1], 1), r=0.0, t=round(self.t, 2), robot=r.name, src=src,
                                   edge_cm=round(d, 1), d_cm="", what="wall: the %s side moved in %.1f cm" % (
                                       ("x_min", "y_min", "x_max", "y_max")[k], d)))
         self.event(r, "wall found", "its %s felt the board's %s side %.1f cm inside where the calibration has it: "
                    "board now x %.1f-%.1f, y %.1f-%.1f cm" % (src, ("x_min", "y_min", "x_max", "y_max")[k], d,
-                                                             *[self.rect[i] for i in (0, 2, 1, 3)]))
+                                                             *[rect[i] for i in (0, 2, 1, 3)]))
 
     def clear_keepouts(self):
         """A keep-out a robot's verified camera track drives through was not a fixed thing (a robot the camera did not
@@ -1278,7 +1382,7 @@ class Controller:
             far = TURN_EDGE_CC + (r.bubble if r.lost else 0.0) if self.edge_rule == "fixed" else \
                 self.end_need(r, BACK_V)
             if e1 < (HALF + 1.0 + (r.bubble if r.lost else 0.0) if inward else far) or \
-                    (inward and e1 < e0 + 1.0):
+                    (inward and e1 < e0 + (INWARD_GAIN_CM if Ls == CORNER_BACK_CM else 1.0)):
                 continue
             if not self.keepout_ok(r, tr) or not self.invariant_ok(r, tr):
                 continue
@@ -1296,6 +1400,109 @@ class Controller:
     def can_turn_here(self, r):
         p = self.pos(r)
         return edge_dist(self.rect, *p) >= self.turn_need(r)
+
+    def try_probe(self, r):
+        """(e10, C2, the probe-ahead setting) A robot standing near ground nobody has proven (the camera cannot see it,
+        a dark patch, past the typed board) drives slowly straight into it from proven ground: the planner lets the move
+        through a temporary corridor (PROBE cells) which the robot's own bottom zone and line sensors guard; what its
+        wheels roll over is proven (felt), a drop it feels is marked. Returns a stop-turn move or None."""
+        ws = self.ws
+        if ws is None or not self.probe_ahead or r.lost is not None or getattr(r, "tilted", False) or \
+                self.t - r.__dict__.get("probe_t", -1e9) < PROBE_EVERY_S:
+            return None
+        p, h = self.pos(r), self.heading(r)
+        if p is None or h is None:
+            return None
+        r.probe_t = self.t
+        fr = ws.frontier(p[0], p[1], PROBE_REACH_CM)
+        if not fr:
+            return None
+        turn_ok = self.can_turn_here(r)
+        step = max(1, len(fr) // 16)
+        for d, ux, uy, di, dj in fr[::step][:16]:
+            dx, dy = -float(di), -float(dj)
+            T = (ux + dx * PROBE_IN_CM, uy + dy * PROBE_IN_CM)
+            L = math.dist(p, T)
+            if L < 6.0 or L > PROBE_MAX_L:
+                continue
+            hd = math.degrees(math.atan2(T[1] - p[1], T[0] - p[0]))
+            if abs(wrap180(hd - math.degrees(math.atan2(dy, dx)))) > 35.0:
+                continue                         # it must meet the unknown ground nearly head-on (its sensors look ahead)
+            turn = wrap180(hd - h)
+            if abs(turn) >= 3.0 and not turn_ok:
+                continue
+            # the corridor: from 15 cm before the unknown ground to the probe's end, as wide as the edge rule asks along
+            # a path this long (its doubt grows with the length: PLAN_M_MAX) plus its stop
+            cells = ws.provisional(ux - dx * 15.0, uy - dy * 15.0, T[0], T[1],
+                                   self.end_need(r, PROBE_V) + PLAN_M_MAX + 2.0)
+            tr = self.make(r, turn, L, PROBE_V)
+            ok = self.feasible(r, tr)
+            if not ok:
+                self.counts["probe_refused"] = self.counts.get("probe_refused", 0) + 1
+            if ok:
+                r.probe_cells = cells
+                self.counts["probes"] = self.counts.get("probes", 0) + 1
+                self.fallback(r, 0, "probe", "probes %.0f cm into ground nobody has proven (%.0f, %.0f), at %.0f cm/s"
+                              % (PROBE_IN_CM, T[0], T[1], PROBE_V))
+                return "probe", None, turn, L, PROBE_V, tr
+            ws.clear_provisional(cells)
+        return None
+
+    def probe_over(self, r):
+        """(e10, C2) A probe that is over, by any path (done, an edge felt, halted, lost from view): what its wheels
+        rolled over is proven, the rest of its corridor unknown again, and it comes back the way it went."""
+        pa = r.__dict__.get("probe_active")
+        if pa is None or (r.mode == "move" and r.move is not None and r.move.get("kind") == "probe"):
+            return
+        r.probe_active = None
+        self.felt_mark(r)
+        if self.ws is not None:
+            self.ws.clear_provisional(pa["cells"])
+        r.probe_ret = dict(p0=pa["p0"])
+
+    def probe_return(self, r):
+        """(e10, C2) After a probe: straight back (reversing) along the strip it just proved, towards where it started;
+        the strip is felt table and the start was proven. Only the keep-outs and the others' plans are checked; when
+        another robot's plan holds the far end, a shorter way back (at least to seen ground); tried again while it is
+        still out on unproven ground."""
+        ret = r.__dict__.get("probe_ret")
+        self.counts["probe_return_tries"] = self.counts.get("probe_return_tries", 0) + 1
+        p, h = self.pos(r), self.heading(r)
+        if ret is None or ret.get("p0") is None or p is None or h is None:
+            r.probe_ret = None
+            return None
+        Lf = math.dist(p, ret["p0"])
+        ret["tries"] = ret.get("tries", 0) + 1
+        if Lf < 2.0 or (ret["tries"] > 20 and self.ws is not None and self.ws.state(*p) == 1):
+            r.probe_ret = None                       # back on seen ground: the usual rules from here
+            return None
+        for L in sorted({Lf, 0.75 * Lf, 0.5 * Lf, min(Lf, 20.0)}, reverse=True):
+            tr = Traj.move(self.t + 0.2, p, wrap180(h + 180.0), 0.0, L, BACK_V, m0=self.margin0(r))
+            if not self.keepout_ok(r, tr):
+                continue
+            if any(clearance_profile(tr, o.traj, now=self.t)[-1] < REFLEX_CC for o in self.others(r)):
+                continue
+            r.probe_ret = None if L >= Lf - 0.5 else dict(p0=ret["p0"])
+            self.fallback(r, 0, "probe return", "back %.0f cm along the strip it just proved" % L)
+            return "probe return", None, 0.0, L, BACK_V, tr
+        return None
+
+    def felt_mark(self, r):
+        """(e10, C2) The ground under a robot's wheels since the last mark is table (it did not hang or fall there)."""
+        if self.ws is None or r.mode in ("out", "gone", "start") or getattr(r, "tilted", False):
+            return
+        p = self.pos(r)
+        if p is None:
+            return
+        last = r.__dict__.get("felt_p")
+        r.felt_p = p
+        if last is None or math.dist(last, p) < 1.0 or math.dist(last, p) > 15.0:
+            return
+        if self.ws.proven(*p) and self.ws.proven(*last) and self.ws.state(*p) != 4 and self.ws.state(*last) != 4:
+            return
+        n = self.ws.felt_strip(last[0], last[1], p[0], p[1], FELT_HALF_W, self.unc(r) * 0.5)
+        if n and (r.move or {}).get("kind") == "probe":
+            self.ws.probe_cells += n
 
     def pick(self, r):
         """Menu first; then the fallback ladder. Returns (kind, cell, turn, L, v, traj)."""
@@ -1373,7 +1580,7 @@ class Controller:
         if not turn_ok:
             # (11-05c) the edge trap (5 Nov: Right stood 3 min 7 cm from the edge): reverse away from the edge, else
             # turn to face the board's middle where the corners still clear the edge
-            res = self.back_move(r, Ls=(14.0, 10.0, 6.0, 3.0), inward=True)
+            res = self.back_move(r, Ls=CORNER_BACK_CM, inward=True)
             if res is not None:
                 self.fallback(r, 5, "reverse", why + ": backs away from the edge")
                 return res
@@ -1383,8 +1590,65 @@ class Controller:
                 tr = Traj.move(self.t + 0.2, p, h, d, 0.0, 5.0, m0=self.margin0(r))
                 self.fallback(r, 5, "edge turn", why + ": turns to face the middle (corners stay inside)")
                 return "edge turn", None, d, 0.0, 5.0, tr
+            res = self.corner_shuffle(r, p, h) if self.shuffle else None
+            if res is not None:
+                return res
         self.fallback(r, 6, "stand", "nothing fits and no room to turn on the spot: stands (trophy break)")
         return None
+
+    def corner_shuffle(self, r, p, h):
+        """(e10, C4) The corner trap's last rung. A robot a few cm from two sides, facing along neither, can find no
+        move under the circle rules: a turn on the spot needs its whole half-diagonal circle clear, and every straight
+        move loses room on one side (the e09 hung-robot case with the filter in charge stood for minutes in a corner).
+        Here the body's FOUR CORNERS are checked exactly (the square, not the circle round it) through a small turn and
+        a short slow drive, forward or back, kept SHUFFLE_MARGIN_CM + its uncertainty inside every side; the move must
+        gain room (its middle further from the nearest side, or as far and further from the next one). Not when lost."""
+        if r.lost is not None or p is None or h is None:
+            return None
+        m = SHUFFLE_MARGIN_CM + self.unc(r)
+
+        def cmin(x, y, th):
+            c, s_ = math.cos(math.radians(th)), math.sin(math.radians(th))
+            b = BODY / 2.0
+            return min(edge_dist(self.rect, x + c * a - s_ * q, y + s_ * a + c * q)
+                       for a, q in ((b, b), (-b, b), (-b, -b), (b, -b)))
+
+        def two(x, y):
+            d = sorted((x - self.rect[0], self.rect[2] - x, y - self.rect[1], self.rect[3] - y))
+            return d[0], d[1]
+        e0, s0 = two(*p)
+        # a body already closer than that may only move with every corner never worse than now (0.2 cm noise)
+        m = min(m, cmin(p[0], p[1], h) - 0.2)
+        best = None
+        for dh in (0, 15, -15, 30, -30, 45, -45, 60, -60, 75, -75, 90, -90):
+            n = max(1, int(abs(dh) / 3))
+            if any(cmin(p[0], p[1], h + dh * k / n) < m for k in range(n + 1)):
+                continue
+            h1 = wrap180(h + dh)
+            for sg in (1.0, -1.0):
+                for L in (8.0, 6.0, 4.0, 3.0, 2.0):
+                    ux, uy = sg * math.cos(math.radians(h1)), sg * math.sin(math.radians(h1))
+                    k_ = int(L / 0.5)
+                    if any(cmin(p[0] + ux * L * i / k_, p[1] + uy * L * i / k_, h1) < m for i in range(1, k_ + 1)):
+                        continue
+                    e1, s1 = two(p[0] + ux * L, p[1] + uy * L)
+                    if not (e1 >= e0 + 0.3 or (e1 >= e0 - 0.05 and s1 >= s0 + 1.0)):
+                        continue
+                    score = 10.0 * (e1 - e0) + (s1 - s0) - 0.02 * abs(dh)
+                    if best is None or score > best[0]:
+                        best = (score, dh, sg, L)
+        if best is None:
+            return None
+        _, dh, sg, L = best
+        h1 = wrap180(h + dh)
+        tr = Traj.move(self.t + 0.2, p, h1 if sg > 0 else wrap180(h1 + 180.0), 0.0, L, BACK_V, m0=self.margin0(r))
+        if not self.keepout_ok(r, tr) or any(clearance_profile(tr, o.traj, now=self.t)[-1] < REFLEX_CC
+                                             for o in self.others(r)):
+            return None
+        kind = "shuffle" if sg > 0 else "shuffle back"
+        self.fallback(r, 5, kind, "corner trap: a %+.0f deg turn and %.0f cm %s, its corners kept %.1f cm inside" % (
+            dh, L, "forward" if sg > 0 else "back", m))
+        return kind, None, dh, L, BACK_V, tr
 
     def fallback(self, r, level, kind, why):
         self.counts["fallback"][kind] = self.counts["fallback"].get(kind, 0) + 1
@@ -1590,7 +1854,14 @@ class Controller:
         self.want_picture(r, "moved while parked")
 
     def want_picture(self, r, why):
-        """(e09, B4) The host saves a camera picture of this moment into the session folder."""
+        """(e09, B4) The host saves a camera picture of this moment into the session folder. (e10) At most one a robot
+        each picture_every_s (Claude's default 60 s; e09 took 38-83 in a 9 min run with a parked robot)."""
+        key = r.name if r else "-"
+        last = self.__dict__.setdefault("picture_t", {})
+        if self.picture_every_s > 0 and self.t - last.get(key, -1e9) < self.picture_every_s:
+            self.counts["pictures_skipped"] = self.counts.get("pictures_skipped", 0) + 1
+            return
+        last[key] = self.t
         self.pictures.append(dict(t=round(self.t, 2), robot=r.name if r else "-", why=why))
         self.counts["pictures"] = self.counts.get("pictures", 0) + 1
 
@@ -1648,6 +1919,10 @@ class Controller:
             if not r.stopped_hard:
                 self.trophy_break(r, "tilted and no room to back away: stands until it can back off")
             return
+        if res is None and r.__dict__.get("probe_ret"):
+            res = self.probe_return(r)                 # (e10, C2) back from a probe
+        if res is None:
+            res = self.try_probe(r)                    # (e10, C2) the probe-ahead setting (off by default)
         if res is None:
             res = self.pick(r)
         if res is None:
@@ -1665,7 +1940,7 @@ class Controller:
             self.menu.use(cell, r.name)
         p, h = self.pos(r), self.heading(r)
         h1 = wrap180(h + turn)
-        rev = kind in ("back off", "reverse")
+        rev = kind in ("back off", "reverse", "shuffle back", "probe return")
         mv = dict(kind=kind, cell=cell, turn=turn, L=L, v=v, t0=self.t, p0=p, h0=h, h1=h1, end=tr.end,
                   phase="turn", n=r.n_moves + 1, drive_id=None, turn_id=None, t_drive=None, adj_scale=1.0, rev=rev)
         if abs(turn) >= 3.0:
@@ -1682,10 +1957,29 @@ class Controller:
                 p[0], p[1], ex, ey, h1, v, 1 if rev else 0))
         else:
             mv["phase"] = "turn"
+        if self.empty_move(r, mv, p, kind):
+            return
+        if kind == "probe":
+            r.probe_active = dict(cells=r.__dict__.pop("probe_cells", []), p0=p, t=self.t)
         r.move, r.traj, r.mode = mv, tr, "move"
         r.n_moves += 1
         r.scale = 1.0
         self.pump(r)
+
+    def empty_move(self, r, mv, p, kind):
+        """(e10, C4) An EMPTY move (a turn under 3 deg and no drive: an "edge turn" for a robot that already faces the
+        middle) sends nothing, so it used to wait for the 15 s slow-move timeout and be picked again: the e09 hung-robot
+        case with the filter in charge stood 30 s this way. It ends at once; the robot picks again after a short pause
+        (another robot's path may have moved on by then). True when the move was empty."""
+        if mv["turn_id"] is not None or mv["drive_id"] is not None:
+            return False
+        self.counts["empty_moves"] = self.counts.get("empty_moves", 0) + 1
+        if p is not None:
+            r.traj = Traj.stand(self.t, *p, m=self.margin0(r))
+        r.busy_until = self.t + EMPTY_MOVE_PAUSE_S
+        if not r.stopped_hard:
+            self.trophy_break(r, "%s: already facing that way, nothing to send; picks again" % kind)
+        return True
 
     def step_over(self, r, sid, state, info):
         mv = r.move
@@ -1913,12 +2207,24 @@ class Controller:
         if name.startswith("reverse"):
             if not r.recover.get("back_in"):
                 return None
-            L = self.RECOVER_L
             hr = math.radians(h)
             ux, uy = math.cos(hr), math.sin(hr)
             side = {"reverse_left": 1.0, "reverse_right": -1.0}.get(name, 0.0)
-            ex, ey = p[0] - L * ux - side * SR.ONE_SIDE_CM * uy, p[1] - L * uy + side * SR.ONE_SIDE_CM * ux
+
+            def end_of(L_):
+                return p[0] - L_ * ux - side * SR.ONE_SIDE_CM * uy, p[1] - L_ * uy + side * SR.ONE_SIDE_CM * ux
+            L = self.RECOVER_L
+            ex, ey = end_of(L)
             e0, e1 = edge_dist(self.rect, *p), edge_dist(self.rect, ex, ey)
+            if e1 < EDGE_TURN_MIN + 0.5:
+                # (e10, C4) near a corner the fixed length can leave it just short of turning room (the e09 hung-robot
+                # case: freed 7.1 cm from a side, 7.7 needed, so it stood): up to RECOVER_EXTRA_CM further, the length
+                # that ends furthest in
+                for k in range(1, int(RECOVER_EXTRA_CM / 0.5) + 1):
+                    q = end_of(self.RECOVER_L + 0.5 * k)
+                    eq = edge_dist(self.rect, *q)
+                    if eq > e1 + 0.05:
+                        L, (ex, ey), e1 = self.RECOVER_L + 0.5 * k, q, eq
             # inward only: it ends further in, with its body on the board (not the general room check)
             if e1 < e0 + 1.0 or e1 < HALF + 1.0 + (r.bubble if r.lost else 0.0):
                 return None
@@ -2072,8 +2378,11 @@ class Controller:
             mv = r.move
             # a move that ends further from the edges than it starts (a back-off, a reverse, an escape, its own inward
             # step) is never interrupted; one heading outward is stopped
+            # (e10, run 2 incident a) "ends further in" by where it really goes, not by the plan's end (Right's planned
+            # end was 32 cm in; it was heading for the edge)
+            end_now = self.predicted_end(r) if mv is not None else None
             if r.mode == "move" and mv is not None and not str(mv["kind"]).startswith(("unsure", "recover")) and \
-                    edge_dist(self.rect, *mv["end"]) <= edge_dist(self.rect, *p) + 0.5:
+                    edge_dist(self.rect, *end_now) <= edge_dist(self.rect, *p) + 0.5:
                 self.halt(r, "unsure near an edge")
                 self.end_move(r)
             if self.attended:
@@ -2616,7 +2925,7 @@ class Controller:
             bub = r.bubble if r.lost else 0.0
             xs, ys, ms = tr.x[:-1], tr.y[:-1], tr.m[:-1]
             if len(xs):
-                ed = np.minimum(np.minimum(xs - x0, x1 - xs), np.minimum(ys - y0, y1 - ys)) - (ms - PLAN_M0)
+                ed = edge_dist_v(self.rect, xs, ys) - (ms - PLAN_M0)
                 need = LOOP_EDGE + bub
                 if away or edge_away:
                     need = np.minimum(need, ed[0] - 0.5)
@@ -2743,6 +3052,18 @@ class Controller:
                 return
         co = r.coast if (r.coast and self.t - r.coast["t"] < COAST_S) else None
         lead = 0.3
+        if r.__dict__.get("probe_ret"):
+            res_r = self.probe_return(r)               # (e10, C2) back from a probe
+            if res_r is not None:
+                r.coast = None
+                self.stopturn_move(r, res_r)
+                return
+        if self.probe_ahead:
+            res_p = self.try_probe(r)                  # (e10, C2) the probe-ahead setting (off by default): curve
+            if res_p is not None:                      # robots rarely stand, so it is tried between pieces too
+                r.coast = None
+                self.stopturn_move(r, res_p)
+                return
         if co:
             ex, ey, eh = arc_at(p[0], p[1], h, co["k"], co["v"] * lead)
             x, y, h1, v0 = float(ex), float(ey), float(eh), co["v"]
@@ -2782,6 +3103,210 @@ class Controller:
         r.hold_n = 0
         self.retraj_curve(r)
         self.pump(r)
+
+    # -- (e10, the 7 Nov run 2 incident) the queue watch ---------------------------------------------------------
+    def course(self, r):
+        """The way r really goes: the camera's track over the last COURSE_S against its own pose's track over the same
+        moments (both bend alike on a curve, so the difference is its own heading's error). Returns (deg, err_deg,
+        source): its own heading turned by the error ("camera"), else the filter's heading, else its own (err None)."""
+        if r.lost is None and r.cam is not None and self.fresh(r):
+            h = [q for q in r.cam_hist if q[0] >= self.t - COURSE_S]
+            if len(h) >= 4 and math.dist(h[0][1:], h[-1][1:]) >= COURSE_MIN_CM:
+                a = ((h[0][1] + h[1][1]) / 2, (h[0][2] + h[1][2]) / 2, (h[0][0] + h[1][0]) / 2)
+                b = ((h[-1][1] + h[-2][1]) / 2, (h[-1][2] + h[-2][2]) / 2, (h[-1][0] + h[-2][0]) / 2)
+                oa, ob = self.own_at(r, a[2]), self.own_at(r, b[2])
+                dc = (b[0] - a[0], b[1] - a[1])
+                if oa is not None and ob is not None:
+                    do = (ob[0] - oa[0], ob[1] - oa[1])
+                    if math.hypot(*do) >= 0.6 * math.hypot(*dc) and math.hypot(*dc) >= 0.6 * COURSE_MIN_CM:
+                        err = wrap180(math.degrees(math.atan2(dc[1], dc[0]) - math.atan2(do[1], do[0])))
+                        return wrap180(self.heading(r) + err), err, "camera"
+        if self.ekf_live(r):
+            q = r.fp.pose(self.t)
+            if q is not None:
+                return float(q[2]), None, "filter"
+        return self.heading(r), None, "own"
+
+    def off_track(self, mv, x, y, v_now, t_at):
+        """How far (x, y) is ACROSS the running piece's path, at t_at (cm): a straight's side distance, a curve's
+        distance from its circle (along the path does not count: the firmware ends the piece by its length)."""
+        done = min(mv["L"], max(0.0, (t_at - mv["t_drive"]) * v_now))
+        k = mv["k"]
+        if abs(k) < 1e-4:
+            hr = math.radians(mv["h"])
+            return abs(math.cos(hr) * (y - mv["y"]) - math.sin(hr) * (x - mv["x"]))
+        hr, R = math.radians(mv["h"]), 1.0 / abs(k)
+        sg = 1.0 if k > 0 else -1.0
+        cx, cy = mv["x"] - math.sin(hr) * sg * R, mv["y"] + math.cos(hr) * sg * R
+        ex, ey, _ = arc_at(mv["x"], mv["y"], mv["h"], k, done)
+        return min(abs(math.hypot(x - cx, y - cy) - R) + max(0.0, math.dist((x, y), (float(ex), float(ey))) - 2 * R),
+                   math.dist((x, y), (float(ex), float(ey))))
+
+    def real_segs(self, r, p, c):
+        """The running piece's rest and its queued pieces, chained from where r really is (p) the way it really goes
+        (c): where they would take it (curve_segs chains the queued ones from their PLANNED starts)."""
+        mv = r.move
+        sc = r.scale if r.scale > 0 else 1.0
+        v = mv["v"] * sc
+        done = (self.t - mv["t_drive"]) * max(0.5, v)
+        rem = max(0.0, mv["L"] - done)
+        x, y, h = p[0], p[1], c
+        segs = []
+        for k, L, vv in [(mv["k"], rem, v)] + [(q["k"], q["L"], q["v"] * sc) for q in r.queue]:
+            if L > 0.2:
+                segs.append((x, y, h, k, L, vv))
+                ex, ey, eh = arc_at(x, y, h, k, L)
+                x, y, h = float(ex), float(ey), float(eh)
+        return segs, (r.queue[-1]["side"] if r.queue else mv["side"])
+
+    def queue_watch(self, r):
+        """(e10, run 2 incident a, c) Every tick while a curve piece runs: is r where the piece says (the fused
+        position, and the camera's own fix at its time: ACROSS the path, OFFPLAN_CM for OFFPLAN_S)? Do the piece's rest
+        and the pieces queued behind it keep the edge rule from where it really is, the way it really goes? If not,
+        the queued pieces are dropped and the piece re-aimed from the fused position (farc), or, with its own heading
+        off the camera's course or too little of the piece left, it is stopped (its heading re-set first) and the next
+        piece planned from where it stands. A long straight is checked all along against the camera this way."""
+        mv = r.move
+        if not self.queue_watch_on or mv is None or not mv.get("curve") or mv.get("t_drive") is None or \
+                mv["phase"] != "drive" or r.lost is not None or r.silent or r.mode != "move":
+            return
+        if str(mv["kind"]).startswith(("probe", "recover", "unsure", "shuffle")):
+            return
+        p = self.pos(r)
+        if p is None:
+            return
+        v_now = max(0.5, mv["v"] * (r.scale if r.scale > 0 else 1.0))
+        d = self.off_track(mv, p[0], p[1], v_now, self.t)
+        if r.cam is not None and self.fresh(r) and r.cam[0] >= mv["t_drive"]:
+            d = max(d, self.off_track(mv, r.cam[1], r.cam[2], v_now, r.cam[0]))
+        why = None
+        if d > OFFPLAN_CM:
+            mv.setdefault("qw_off_t", self.t)
+            if self.t - mv["qw_off_t"] >= OFFPLAN_S:
+                why = "off its piece by %.1f cm (the fused position)" % d
+        else:
+            mv.pop("qw_off_t", None)
+        c, err, src = self.course(r)
+        # its own heading off the camera's course by COURSE_ERR_DEG for COURSE_ERR_S: the rest of the piece and the
+        # queued ones are checked from where it really is, the way it really goes
+        if err is not None and abs(err) >= COURSE_ERR_DEG:
+            mv.setdefault("qw_err_t", self.t)
+        else:
+            mv.pop("qw_err_t", None)
+        if why is None and mv.get("qw_err_t") is not None and self.t - mv["qw_err_t"] >= COURSE_ERR_S:
+            segs, side = self.real_segs(r, p, c)
+            if segs:
+                tr = curve_traj(self.t, segs, side, m0=self.margin0(r))
+                n_ref = self.counts.get("edge_refused", 0)
+                ok = self.edge_ok(r, tr, getattr(tr, "v", None), away=True, stops=False)
+                self.counts["edge_refused"] = n_ref
+                if not ok:
+                    why = "its piece%s from where it really is (going %.0f deg) would break the edge rule" % (
+                        " and the %d queued" % len(r.queue) if r.queue else "", c)
+        if why is None:
+            return
+        if self.t - mv.get("qw_t", -1e9) < 1.0:
+            return
+        mv["qw_t"] = self.t
+        self.counts["queue_watch"] = self.counts.get("queue_watch", 0) + 1
+        nq = len(r.queue)
+        for q in r.queue:
+            st = r.steps.get(q["drive_id"])
+            if st and st["status"] in ("queued_local", "sent", "acked", "started"):
+                st["status"] = "dropped"
+        r.queue = []
+        own_h = self.heading(r)
+        herr = abs(err) if err is not None else 0.0
+        left_s = (mv["L"] - (self.t - mv["t_drive"]) * v_now) / v_now
+        self.log("pose", dict(t=round(self.t, 2), robot=r.name, what="queue watch: " + why, d_cm=round(d, 2),
+                              unc_cm=round(self.unc(r), 2)))
+        if herr > COURSE_RESET_DEG:
+            # its own heading is wrong (the piece runs in its own frame): set it from the camera's course, stop, and
+            # plan the next piece from where it stands
+            self.counts["queue_heading_resets"] = self.counts.get("queue_heading_resets", 0) + 1
+            self.out(r, "fpose %.2f %.2f %.2f 1.0 3.0" % (p[0], p[1], c))
+            self.event(r, "off plan", "%s; %d queued dropped; its own heading %.0f deg, the camera sees it go %.0f: "
+                       "heading re-set, stopped, re-planned from where it is" % (why, nq, own_h, c))
+            self.halt(r, "off plan: heading re-set")
+            self.end_move(r)
+            return
+        res = self.pick_curve(r, p[0], p[1], c, self.t) if left_s > FARC_MIN_S else None
+        if res is None:
+            self.event(r, "off plan", "%s; %d queued dropped: stopped, re-planned from where it is" % (why, nq))
+            self.halt(r, "off plan")
+            self.end_move(r)
+            return
+        kind, cell, k, L, v, side, _ = res
+        self.counts["reaimed"] = self.counts.get("reaimed", 0) + 1
+        self.event(r, "off plan", "%s; %d queued dropped: re-aimed from the fused position (farc, no stop)" % (why, nq))
+        self.control(r, "farc %.5f %.1f" % (k, L), "farc")
+        ex, ey, eh = arc_at(p[0], p[1], c, k, L)
+        mv.update(k=k, L=L, x=p[0], y=p[1], h=c, end=(float(ex), float(ey)), h1=float(eh), side=side, t_drive=self.t,
+                  kind=mv["kind"] + "+offplan")
+        mv.pop("qw_off_t", None)
+        if cell is not None:
+            self.cmenu.use(cell, r.name)
+        self.retraj_curve(r)
+
+    def predicted_end(self, r):
+        """(e10) Where the running piece really ends: its rest from the fused position the way it really goes."""
+        mv, p = r.move, self.pos(r)
+        if mv is None or p is None or not self.queue_watch_on or not mv.get("curve") or mv.get("t_drive") is None:
+            return mv["end"] if mv is not None else p
+        c, err, _ = self.course(r)
+        if err is None:
+            c = self.heading(r)
+        segs, _ = self.real_segs(r, p, c)
+        if not segs:
+            return p
+        x, y, h, k, L, _ = segs[0]
+        ex, ey, _ = arc_at(x, y, h, k, L)
+        return float(ex), float(ey)
+
+    def start_check(self, r):
+        """(e10, run 2 incident d) Before its first move: a robot whose middle is not START_EDGE_CM inside the board by
+        the camera (over the edge, or too near it to turn) is held with a plain message, checked again every 2 s,
+        and starts once it is START_CLEAR_CM in (a person moved it). True: it may start."""
+        if not self.start_edge or r.__dict__.get("start_ok"):
+            return True
+        if r.cam is None or not self.fresh(r):
+            p = self.pos(r)
+            if p is None:
+                return False
+        else:
+            p = (r.cam[1], r.cam[2])
+        e = edge_dist(self.rect, *p)
+        h = r.cam[3] if (r.cam is not None and r.cam[3] is not None) else (self.heading(r) if r.own is not None else None)
+        if h is None:
+            ec = e - HALF                    # heading unknown: the body's circle
+        else:
+            hr = math.radians(h)
+            ec = min(edge_dist(self.rect, p[0] + a * math.cos(hr) - b * math.sin(hr),
+                               p[1] + a * math.sin(hr) + b * math.cos(hr))
+                     for a in (-BODY / 2, BODY / 2) for b in (-BODY / 2, BODY / 2))
+        held = r.__dict__.get("start_held")
+        if ec >= (START_CLEAR_CM if held else START_CORNER_CM):
+            r.start_ok = True
+            if held:
+                self.event(r, "start check", "now %.0f cm inside the board's edge: it starts" % e)
+                self.close_break(r)
+            return True
+        if not held:
+            r.start_held = self.t
+            self.counts["start_held"] = self.counts.get("start_held", 0) + 1
+            where = "its middle is over the edge" if e < 0 else ("part of its body is over the edge" if ec < 0 else
+                                                                 "it is right at the edge")
+            msg = ("%s starts at the board's edge: %s (the camera puts its middle %.1f cm from the edge). It will not "
+                   "move. Please move it a hand's width (10 cm) onto the board; it starts by itself once it is there." % (
+                       r.name, where, e))
+            self.event(r, "start check", msg)
+            self.trophy_break(r, "starts at the edge: held until moved in")
+            if self.attended:
+                self.ask(r, msg, ("I moved it in", ))
+            else:
+                self.want_picture(r, "starts at the edge")
+        r.busy_until = self.t + 2.0
+        return False
 
     def plan_next(self, r):
         """While a piece runs: the next one from its planned end, queued on the robot so they run into each other."""
@@ -3060,7 +3585,7 @@ class Controller:
         kind, cell, turn, L, v, tr = res
         p, h = self.pos(r), self.heading(r)
         h1 = wrap180(h + turn)
-        rev = kind in ("back off", "reverse")
+        rev = kind in ("back off", "reverse", "shuffle back", "probe return")
         mv = dict(kind=kind, cell=None, turn=turn, L=L, v=v, t0=self.t, p0=p, h0=h, h1=h1, end=tr.end,
                   phase="turn", n=r.n_moves + 1, drive_id=None, turn_id=None, t_drive=None, adj_scale=1.0, rev=rev)
         if abs(turn) >= 3.0:
@@ -3068,6 +3593,10 @@ class Controller:
         if L > 0:
             mv["drive_id"] = self.send_step(r, "fs %%d D %.2f %.2f %.2f %.2f %.2f %.2f %d -" % (
                 p[0], p[1], tr.end[0], tr.end[1], h1, v, 1 if rev else 0))
+        if self.empty_move(r, mv, p, kind):
+            return
+        if kind == "probe":
+            r.probe_active = dict(cells=r.__dict__.pop("probe_cells", []), p0=p, t=self.t)
         r.move, r.traj, r.mode, r.queue = mv, tr, "move", []
         r.n_moves += 1
         self.why_zero(r, "%s (stop-turn rung: no curve fits from there)" % kind)
@@ -3154,7 +3683,7 @@ class Controller:
         p = self.pos(r)
         if p is None:
             return None
-        x0, y0, x1, y1 = self.rect
+        x0, y0, x1, y1 = self.rect if self.ws is None else self.ws.board
         k = PARK_EDGE_CC if self.edge_rule == "fixed" else self.end_need(r, 5.0) + 3.0
         cands = []
         for i in range(48):
@@ -3270,11 +3799,25 @@ class Controller:
                 if r.mode not in ("gone",):
                     self.pump(r)
                 continue
+            if r.__dict__.get("probe_active") is not None:
+                self.probe_over(r)                     # (e10, C2) every tick: the return before any other move
             if half:
                 self.edge_watch(r)                     # (e08, A2) sure / unsure near an edge
-            if r.mode == "idle" and t >= r.busy_until and r.__dict__.get("unsure") and not r.silent and \
+                self.felt_mark(r)                      # (e10, C2) the proven workspace grows under its wheels
+            if r.mode == "idle" and t >= r.busy_until and r.__dict__.get("probe_ret") and not r.silent and \
+                    self.pos(r) is not None and not getattr(r, "tilted", False):
+                res_r = self.probe_return(r)           # (e10, C2) back from a probe first, lost or not (the camera
+                if res_r is not None:                  # may not see there: it retraces its own path)
+                    r.coast = None
+                    self.stopturn_move(r, res_r)
+                else:
+                    r.busy_until = t + 0.5
+            elif r.mode == "idle" and t >= r.busy_until and r.__dict__.get("unsure") and not r.silent and \
                     self.pos(r) is not None and not getattr(r, "tilted", False):
                 self.unsure_step(r)
+            elif r.mode == "idle" and t >= r.busy_until and self.pos(r) is not None and not r.silent and \
+                    not self.start_check(r):
+                pass                                   # (e10, run 2 incident d) started over or at an edge: held
             elif r.mode == "idle" and t >= r.busy_until and self.pos(r) is not None and not r.silent and r.curve and \
                     not r.lost_hold and not (r.battery is not None and r.battery <= self.floor) and \
                     not (r.lost is not None and r.bubble > 2 * BUBBLE_CAP):
@@ -3287,6 +3830,8 @@ class Controller:
                     self.go_park(r, "battery %d %% (floor %d %%)" % (r.battery, self.floor))
                 elif not r.lost_hold:
                     self.start_move(r)
+            if r.curve and r.mode == "move" and r.move is not None and r.move.get("curve") and not r.silent:
+                self.queue_watch(r)                    # (e10, run 2 incident a, c) every tick: still on plan?
             if r.curve and r.mode == "move" and r.move is not None and r.move.get("curve") and not r.queue and \
                     not r.silent:
                 self.plan_next(r)                      # (11-05d) the next piece queued while this one runs
@@ -3343,7 +3888,8 @@ class Controller:
                 if p and r.bubble > 2 * BUBBLE_CAP:
                     self.ease_stop(r, "bubble %.1f cm" % r.bubble)
             elif p and (r.bubble > BUBBLE_CAP or edge_dist(self.rect, *p) - r.bubble < TURN_EDGE_CC) and \
-                    r.move["kind"] != "wiggle":
+                    r.move["kind"] not in ("wiggle", "probe", "probe return"):
+                # (e10) a probe goes out of the camera's view on purpose, and its return retraces the strip it proved
                 self.ease_stop(r, "bubble %.1f cm" % r.bubble)
         # stuck: driving, wheels on, no camera travel
         mv = r.move

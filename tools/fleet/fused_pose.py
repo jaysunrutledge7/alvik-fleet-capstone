@@ -43,7 +43,7 @@ import numpy as np   # noqa: E402
 
 from ekf import EKF, Noise   # noqa: E402
 
-VERSION = "fused-pose-2026-11-07a"
+VERSION = "fused-pose-2026-11-07c"   # c (e10): late RAW rows used, 95 % uncertainty (K 8)
 D2R = math.pi / 180.0
 
 POSE_SOURCE = os.environ.get("MIRLT_POSE_SOURCE", "blend")    # "ekf": the filter in the loop (e09) | "blend": the one-step
@@ -54,10 +54,14 @@ POSE_SOURCE = os.environ.get("MIRLT_POSE_SOURCE", "blend")    # "ekf": the filte
 GYRO_HEADING = os.environ.get("MIRLT_GYRO_HEADING", "0") == "1"   # B3: OFF by default (Nick, 7 Nov)
 
 # ---------------------------------------------------------------------------------------------- numbers, and whence
-K_SIGMA = 6.0           # MEASURED for a CHOSEN 90 % coverage: the uncertainty handed to the edge rule = K_SIGMA x the
-                        # filter's 1-sigma position error. On the 5 Nov run's first 90 min (1,377 camera gaps cut out,
-                        # tools/analysis/fused_replay.py) the filter's own sigma was ~4x too small; 6 x sigma held the
-                        # real error 88-91 % of the time for gaps of 10-40 s (8 x for 95 %). DOE: the coverage target
+K_SIGMA = 8.0           # MEASURED for a CHOSEN 95 % coverage (Nick, 7 Nov: 95 %, not e09's 90 %): the uncertainty handed
+                        # to the edge rule = K_SIGMA x the filter's 1-sigma position error. On the 5 Nov run's first
+                        # 90 min (1,377 camera gaps cut out, tools/analysis/fused_replay.py) 8 x sigma held the real
+                        # error 96.1 / 95.6 / 95.0 % of the time for gaps of 10 / 20 / 40 s (6 x: 87-91 %); 5 s gaps
+                        # 87.9 % (there the camera's own ~1 cm noise, the reference, dominates). DOE: the coverage target
+K_TRACK = 2.45          # (e10) the 2-D 95 % factor (chi-square, 2 dof) for the camera-limited part: not chosen
+SPLIT_UNC = os.environ.get("MIRLT_UNC_SPLIT", "1") != "0"   # (e10) 0: e09's single K_SIGMA x sigma
+LATE_RAW_S = 0.5        # (e10) CHOSEN: a RAW row this late is still applied now (WiFi 5-40 ms + the picture's ~0.15 s)
 UNC_FLOOR_CM = 1.0      # never below the old camera sigma (PLAN_M0 / safety_rules.CAM_SIGMA_CM): not chosen anew
 GYRO_REL = 0.014        # MEASURED: heading error per degree turned (logs DOE, 25 Oct: 0.014, not the chosen 0.005)
 GYRO_BASE_DPS = 0.3     # the filter's gyro noise (fusion default; the raw rate's standing sd 0.02-0.04 deg/s here)
@@ -151,6 +155,8 @@ class FusedPose:
         self.gh = GyroHeading()
         self.learn = learn
         self.k_sigma = k_sigma
+        self.split_unc = SPLIT_UNC   # (e10) False: e09's single factor (the switch)
+        self.p_fix = None
         self.src_d2 = {}                 # source -> deque of d2 (agreeing fixes)
         self.trust = {}                  # source -> variance factor learned
         self.n_fix = {}
@@ -180,6 +186,7 @@ class FusedPose:
             self.k.s[5] = self.gh.bias * D2R * (self.gsign or 1.0)
         self.gh.set(th_deg)
         self.hist.clear()
+        self.p_fix = None
         self._keep()
 
     def reset(self, t, x, y, th_deg=None, sxy=1.0, sth_deg=None):
@@ -192,6 +199,7 @@ class FusedPose:
         if th_deg is not None:
             self.gh.set(th_deg)
         self.hist.clear()
+        self.p_fix = None
         self._keep()
 
     SCALE_LIM = (0.85, 1.15)   # CHOSEN: the learned wheel scales are held inside this (real: 0.98-1.08 on 5 Nov);
@@ -238,9 +246,20 @@ class FusedPose:
                     self.gsign = 1.0 if self._gagree > 0 else -1.0
         self.last_raw_t = t
         k = self.k
-        if k is None or t <= k.t - 1e-6:
+        if k is None:
             return
-        k.predict(t)
+        if t <= k.t - 1e-6:
+            # (e10, C4: the hung-robot case) a LATE row: the camera's fixes move the filter's clock to "now", so a RAW
+            # row stamped a few tens of ms earlier arrived "in the past" and was thrown away, the standing robot's
+            # zero-speed readings with it: the speed's doubt then grew without bound and a standing robot near an edge
+            # read 5-20 cm of position doubt, so no move fitted (e09 rehearsal e(b), the filter in charge). Its
+            # readings still hold now: applied at the filter's time, without a predict; too old ones are dropped
+            if k.t - t > LATE_RAW_S:
+                self.n_late_dropped = getattr(self, "n_late_dropped", 0) + 1
+                return
+            self.n_late_used = getattr(self, "n_late_used", 0) + 1
+        else:
+            k.predict(t)
         if still:
             k.zupt()
             if gz_dps is not None and self.gsign is not None:
@@ -397,6 +416,9 @@ class FusedPose:
         # 1 s late on a clock 0.7 s ahead made the speed states run away in the fast simulator before this)
         k._update(np.array([zx, zy]), k.s[:2].copy(), H, np.eye(2) * (sg * sg + 0.5 * grow) * r_scale,
                   freeze=(3, 4, 5))
+        # (e10) the camera-limited doubt right after this fix (before any disagreement is added on top): unc_cm
+        # multiplies only what grows beyond it
+        self.p_fix = (float(k.P[0, 0]), float(k.P[1, 1]))
         if widen is not None:
             rest = 0.5 * float(widen @ widen) * (1.0 - 1.0 / r_scale)     # what the stretched fix did not pull in
             k.P[0, 0] = min(1e4, k.P[0, 0] + rest)
@@ -459,10 +481,18 @@ class FusedPose:
     def unc_cm(self, t=None):
         """The uncertainty the edge rule and the planner use (cm): K_SIGMA x the 1-sigma position error, never under the
         camera's 1 cm. Staleness, blind driving and disagreements are all inside the covariance."""
-        s = self.sigma_xy(t)
-        if s is None:
+        _, P = self.state(t)
+        if P is None:
             return None
-        return max(UNC_FLOOR_CM, self.k_sigma * s)
+        if not self.split_unc or self.p_fix is None:
+            return max(UNC_FLOOR_CM, self.k_sigma * math.sqrt(max(P[0, 0], P[1, 1])))
+        # (e10, C4) two parts. The doubt the camera's last fix left (the filter's own posterior: right while the camera
+        # sees the robot) x K_TRACK, and the doubt grown SINCE that fix (blind driving, staleness, disagreements) x
+        # K_SIGMA, the factor measured on real camera gaps. One factor for both (e09) gave a robot the camera sees 12
+        # times a second 3-5 cm of doubt against the blend's 1-2, and near an edge nothing fitted (rehearsal e(b))
+        f = max(self.p_fix[0], self.p_fix[1])
+        g = max(0.0, max(P[0, 0] - self.p_fix[0], P[1, 1] - self.p_fix[1]))
+        return max(UNC_FLOOR_CM, K_TRACK * math.sqrt(max(0.0, f)) + self.k_sigma * math.sqrt(g))
 
     def heading_sd_deg(self, t=None):
         _, P = self.state(t)

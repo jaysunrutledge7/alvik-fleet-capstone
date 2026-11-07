@@ -91,6 +91,8 @@ LOW_CM = 13.0           # chosen: a distance-sensor zone reading under this is "
                         # (logs only); docs/doe-backlog.md
 CLIP_S = 5.0            # Nick's figure: full-rate clip 5 s either side of a stop / hold / FAIL. DOE note: from the
                         # first night's clips, how far back each stop's cause is visible; docs/doe-backlog.md
+PART_WRITE = os.environ.get("MIRLT_PART_WRITE", "thread")   # (e10) "thread": a 5 min part is written by its own thread,
+                        # streamed with pauses (the reader never stops); "inline": as before (the switch)
 PART_S = 300.0          # chosen: tracking-rate frames are cut into 5 min .avi parts (one bad file loses little).
                         # No DOE: a file size
 SIDE_HZ = 9.0           # the side camera's tracked rate measured today (8-9 a second); overhead: LD.Eye.OVERHEAD_HZ
@@ -148,25 +150,60 @@ class CamFrames(threading.Thread):
             self.active = on
 
     def _flush(self):
-        """Writes the current part (lock held)."""
+        """Writes the current part (lock held). (e10) By default the part is handed to a writer thread and written
+        streamed with pauses, so this reader goes straight back to the stream (PART_WRITE "inline": as before)."""
         if not self.part:
             self.part, self.part_t0 = [], None
             return
-        stamp = time.strftime("%H%M%S", time.localtime(self.part[0][0]))
-        slug = "".join(ch if ch.isalnum() else "-" for ch in self.label)[:50]
+        part, label = self.part, self.label
+        self.part, self.part_t0 = [], None
+        if PART_WRITE == "inline":
+            self._write_part(part, label, stream=False)
+            return
+        import queue as _q
+        if getattr(self, "wq", None) is None:
+            self.wq = _q.Queue()
+            self.writer_t = threading.Thread(target=self._writer, daemon=True, name="parts-" + self.cam)
+            self.writer_t.start()
+        self.wq.put((part, label))
+
+    def _writer(self):
+        while True:
+            item = self.wq.get()
+            if item is None:
+                return
+            try:
+                self._write_part(*item, stream=True)
+            finally:
+                self.wq.task_done()
+
+    def _write_part(self, part, label, stream=True):
+        stamp = time.strftime("%H%M%S", time.localtime(part[0][0]))
+        slug = "".join(ch if ch.isalnum() else "-" for ch in label)[:50]
         base = os.path.join(self.dir, "track", "%s_%s" % (stamp, slug))
-        size = self.FS.jpeg_size(self.part[0][1]) or (640, 480)
+        size = self.FS.jpeg_size(part[0][1]) or (640, 480)
+        t0 = time.time()
         try:
-            self.FS.write_mjpeg_avi(base + ".avi", [q[1] for q in self.part], self.rate, size[0], size[1])
+            if stream:
+                self.FS.write_mjpeg_avi_stream(base + ".avi", [q[1] for q in part], self.rate, size[0], size[1])
+            else:
+                self.FS.write_mjpeg_avi(base + ".avi", [q[1] for q in part], self.rate, size[0], size[1])
             with open(base + ".csv", "w", newline="") as f:
                 w = csv.writer(f)
                 w.writerow(["i", "t", "pi_frame"])
-                for i, q in enumerate(self.part):
+                for i, q in enumerate(part):
                     w.writerow([i, "%.3f" % q[0], q[2]])
-            self.mb += sum(len(q[1]) for q in self.part) / 1e6
+            self.mb += sum(len(q[1]) for q in part) / 1e6
+            self.part_write_s = getattr(self, "part_write_s", []) + [round(time.time() - t0, 2)]
         except OSError as e:
             say("  (frame saving, %s: %s)" % (self.cam, e))
-        self.part, self.part_t0 = [], None
+
+    def drain_parts(self, timeout=30.0):
+        """Waits (at most timeout s) for the parts handed to the writer thread."""
+        q = getattr(self, "wq", None)
+        end = time.time() + timeout
+        while q is not None and q.unfinished_tasks and time.time() < end:
+            time.sleep(0.05)
 
     def run(self):
         k = 0
@@ -226,6 +263,7 @@ class CamFrames(threading.Thread):
         with self.lock:
             self._flush()
             self.active = False
+        self.drain_parts()                 # (e10) the writer thread's parts are on the drive before the run ends
         try:
             self.src.close()
         except Exception:

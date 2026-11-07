@@ -226,7 +226,7 @@ def ref_expected(models, site_fit_path, cfg=None):
 
 class Bridge:
     def __init__(self, tags, cams, send, out, observe=False, robots=None, say=None, ref_expected=None, ref_cfg=None,
-                 roofs=None, lock=True):
+                 roofs=None, lock=True, motion=False, board=None):
         """tags: load_tags(); cams: {name: CameraModel}; send(msg). roofs: {tag id: roof dict} (roof_cal.roofs_for_bridge;
         None or {}: every robot flat at tags.height_cm, as before)."""
         self.tags = tags
@@ -247,7 +247,8 @@ class Bridge:
         self.sent_t = {}
         self.unconfirmed = {}      # robot -> TagPose (a jump waiting for a second read)
         self.lock = threading.Lock()
-        self.counts = {n: dict(reads=0, fixes=0, refused_size=0, refused_jump=0, both=0, lock=0, **{c: 0 for c in cams})
+        self.counts = {n: dict(reads=0, fixes=0, refused_size=0, refused_jump=0, both=0, lock=0, motion=0,
+                               **{c: 0 for c in cams})
                        for n in self.ids.values()}
         # (e09, Phase B1) the lock-on, seeded by each robot's tag read while it stands still: where the tags stop
         # reading (beyond about x 100 cm of the school table) the robot is still followed, by its own look
@@ -255,6 +256,26 @@ class Bridge:
         self.lockbank = {c: LB.LockBank(m, float(tags.get("height_cm", 6.0)) - 1.0, enabled=bool(lock))
                          for c, m in cams.items()}
         self.lock_sent = {}
+        # (e10, C3) the motion detector at school too (e02_multitrack with the robots' own poses as its prediction:
+        # cam_bridge's tracker), on the overhead camera: re-seated on its robot by every tag read; where neither the
+        # tag nor the lock-on gives a fix, its sure sightings go out as src tag_bridge:motion. Off: --no-motion /
+        # MIRLT_TAG_MOTION=0. Never stops the tags' fixes (errors are logged)
+        self.motion = None
+        self.motion_cam = None
+        self.motion_sent = {}
+        if motion and board is not None:
+            try:
+                import cam_bridge as CB
+                cname = "overhead" if "overhead" in cams else next(iter(cams))
+                T = CB.make_tracker_class()
+                b = tuple(float(v) for v in board)
+                self.motion = T(cams[cname], board_center=((b[0] + b[2]) / 2.0, (b[1] + b[3]) / 2.0), board_rect=b,
+                                margin_cm=6.0, lights=False)
+                self.motion_cam = cname
+                self.motion_added = set()
+            except Exception as e:      # noqa: BLE001
+                self.motion = None
+                self.event("motion_error", why="the motion detector could not start: %s" % e)
         self.frames = {c: 0 for c in cams}
         self.ms = {c: [] for c in cams}
         self.spread = []
@@ -309,6 +330,40 @@ class Bridge:
             else:
                 st[n] = 0.0
             self.own[n] = new
+            if self.motion is not None:
+                try:
+                    self.motion.own_pose(n, new[0], new[1], new[2], new[3])
+                except Exception:   # noqa: BLE001
+                    pass
+
+    def motion_step(self, cam_name, grey, t, read, out):
+        """(e10, C3) The motion detector's picture: robots read by their tag re-seat its track there (or start it);
+        robots neither the tag nor the lock-on gave a fix just now get its sure sighting as a fix."""
+        if self.motion is None or cam_name != self.motion_cam:
+            return
+        here = {n: (p.x, p.y, p.heading) for n, p, u in out if u == "yes"}
+        for n, (x, y, h) in here.items():
+            st = self.motion.state(n)
+            if n not in self.motion_added or st is None or math.hypot(st["x"] - x, st["y"] - y) > 3.0:
+                self.motion.add(n, x, y, heading=h, t=t)
+                self.motion_added.add(n)
+        self.motion.push(grey, t)
+        if self.observe:
+            return
+        for n in self.motion_added:
+            if n in read:
+                continue
+            st = self.motion.state(n)
+            if st is None or st["status"] != "seen" or abs((st.get("t_seen") or 0.0) - t) > 0.05:
+                continue
+            if t - self.sent_t.get(n, 0.0) < 0.5 or t - self.lock_sent.get(n, 0.0) < 0.5 or \
+                    t - self.motion_sent.get(n, 0.0) < 1.0 / FIX_HZ * 0.9:
+                continue                 # a tag or a lock-on fix is fresher
+            self.motion_sent[n] = t
+            self.counts[n]["motion"] = self.counts[n].get("motion", 0) + 1
+            self.send({"type": "fix", "robot": n, "t": round(t, 4), "x": round(st["x"], 2), "y": round(st["y"], 2),
+                       "th": None, "sigma": 1.0, "sigma_th": 9.0, "src": "tag_bridge:motion"})
+            self.track_w.writerow(["%.4f" % t, n, "%.2f" % st["x"], "%.2f" % st["y"], "motion", "", "", cam_name])
 
     def predict(self, cam_name, t):
         cam = self.cams[cam_name]
@@ -434,6 +489,10 @@ class Bridge:
             self.lock_step(cam_name, grey, t, {n for n, _, u in out if u == "yes"}, out)
         except Exception as e:      # noqa: BLE001  (the lock-on never stops the tags' fixes)
             self.event("lock_error", cam=cam_name, why=str(e))
+        try:
+            self.motion_step(cam_name, grey, t, {n for n, _, u in out if u == "yes"}, out)
+        except Exception as e:      # noqa: BLE001  (the motion detector never stops the tags' fixes)
+            self.event("motion_error", cam=cam_name, why=str(e))
         return out
 
     LOCK_STILL_S = 0.4      # CHOSEN: its own pose has not moved this long: standing still, its look can be taken
@@ -608,6 +667,9 @@ def main(argv=None):
     ap.add_argument("--wait-calib-s", type=float, default=20.0)
     ap.add_argument("--no-ref-watch", action="store_true", help="do not watch the reference tags (a bumped camera)")
     ap.add_argument("--no-lock", action="store_true", help="(e09) no lock-on: tags only, as before e09")
+    ap.add_argument("--no-motion", action="store_true", help="(e10) no motion detector (tags and lock-on only, as e09)")
+    ap.add_argument("--board", default="", help="(e10) x0,y0,x1,y1 cm: the table (the motion detector's area; without "
+                    "it the motion detector stays off)")
     ap.add_argument("--ref-fit", default="", help="the setup's site_fit.json (default: beside the first camera model)")
     a = ap.parse_args(argv)
     tags = load_tags(a.tags, a.site)
@@ -654,7 +716,9 @@ def main(argv=None):
     for w in rwords:
         print("Roof: " + w, flush=True)
     br = Bridge(tags, models, send, out, observe=a.observe, robots=robots, ref_expected=rexp, roofs=roofs,
-                lock=not a.no_lock)
+                lock=not a.no_lock and os.environ.get("MIRLT_TAG_LOCK", "1") != "0",   # (e10) Mission Control preferences
+                motion=not a.no_motion and os.environ.get("MIRLT_TAG_MOTION", "1") != "0",
+                board=[float(v) for v in a.board.split(",")] if a.board else None)
     print("Tag bridge: %s tags (%s cm, %s cm up) on %s; cameras %s; fixes to %s%s. Logs: %s" % (
         tags.get("family"), tags.get("tag_cm"), tags.get("height_cm"),
         ", ".join("%s=%d" % kv for kv in tags["ids"].items()), ", ".join(models), a.to,

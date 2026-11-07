@@ -130,8 +130,8 @@ class CameraSources:
                             truth[id(d)] = None
                         merged.update((a.name, b.name))
         for b in alive:
-            if s.cam_gap(b.name, t):
-                continue                     # (rehearsal c) the camera does not see this robot now
+            if s.cam_gap(b.name, t) or not s.in_cover(b.x, b.y):
+                continue                     # (rehearsal c) the camera does not see this robot now; (e10) out of view
             mv, turn, linger = moving[b.name]
             dark = _in(sc.get("dark"), b.x, b.y)
             busy = _in(sc.get("busy"), b.x, b.y)
@@ -169,7 +169,7 @@ class CameraSources:
         if "lock" in self.layer.sources:
             for name, lk in list(self.locks.items()):
                 body = s.bots.get(lk["body"])
-                if body is not None and s.cam_gap(body.name, t):
+                if body is not None and (s.cam_gap(body.name, t) or not s.in_cover(body.x, body.y)):
                     continue
                 if body is None or body.dead:
                     self.locks.pop(name)
@@ -197,6 +197,13 @@ class CameraSources:
                 d = TL.Det("motion", t, bx + self.rng.gauss(0, 0.5), by + self.rng.gauss(0, 0.5))
                 dets.append(d)
                 truth[id(d)] = "brick"
+        if s.cam_fault or s.cam_correct is not None or s.tag_yaw:
+            # (e10) every sighting through the camera's calibration (its fault, the discovery's correction); a roof
+            # tag's heading through its turn on the robot and the corrections
+            for d in dets:
+                d.x, d.y = s.cam_map(d.x, d.y)
+                if d.src == "tags":
+                    d.th = s.cam_heading(d.th, d.name)
         if fault == "mirror" and t >= sc.get("fault_t", 0.0):
             W = s.board[0] + s.board[2]
             for d in dets:

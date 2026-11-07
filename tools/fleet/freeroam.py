@@ -48,7 +48,11 @@ for p in (HERE, TOOLS):
 import freeroam_core as FC   # noqa: E402
 
 PY = sys.executable
-VERSION = "freeroam-runner-2026-11-07b"   # 11-07b (e09 Phase B): the tracking layer on the bridge's fixes, RAW to each
+VERSION = "freeroam-runner-2026-11-07d"   # 11-07d: a robot at an edge makes no proof drive (the run 2 incident d)
+VERSION_C = "freeroam-runner-2026-11-07c"   # 11-07c (e10 Phase C): the start's proof drive (start_discovery.py), the proven
+                                          # workspace (proven_workspace.py, saved per site), --no-discovery,
+                                          # --typed-board, --probe-ahead, --tracking tags (school free roam)
+                                          # 11-07b (e09 Phase B): the tracking layer on the bridge's fixes, RAW to each
                                           # robot's filter, pictures (B4), the brick watch on, --pose-source,
                                           # --gyro-heading, --old-tracking, --no-brick-watch
                                           # 11-07a (e08 Phase A): --edge-rule, --pose-rule, --keepout-rule,
@@ -150,18 +154,28 @@ class Runner:
                                   silent_out=a.silent_out, tilt_recovery=not a.no_tilt_recovery,
                                   attended=a.attended, questions=asks, leads=stop_leads(a, names),
                                   pose_source=getattr(a, "pose_source", None),
-                                  gyro_heading=getattr(a, "gyro_heading", False) or None)
+                                  gyro_heading=getattr(a, "gyro_heading", False) or None,
+                                  workspace=self.make_workspace(rect),
+                                  probe_ahead=getattr(a, "probe_ahead", False) and not getattr(a, "careful", False),
+                                  shuffle=not getattr(a, "no_shuffle", False),
+                                  picture_every_s=getattr(a, "picture_every_s", None),
+                                  tracking=getattr(a, "tracking", "lights") or "lights")
         # (e09, Phase B1) the ONE tracking layer: the bridge's fixes (outlines, lights, lock-on) are named again here
         # against the robots' own poses, with the close-pass guard (wiggle first), the camera watch, the parked watch
         import tracking_layer as TL
         old = bool(getattr(a, "old_tracking", False))
-        self.layer = TL.TrackingLayer(names, TL.sources_for("lights", old=old),
+        self.layer = TL.TrackingLayer(names, TL.sources_for(getattr(a, "tracking", "lights") or "lights", old=old),
                                       identity="predict" if old else None, parked_watch=not old,
                                       brick_watch=False, cluster=not old, camera_watch=not old,
                                       log=lambda kind, row: self.tables(kind, row),
                                       wiggle=None if old else (lambda n, why: self.ctrl.identity_wiggle(
                                           self.ctrl.R[n], why)))
         self.ctrl.fix_fn = self.fix_to_robot
+        self.disc_drv = None                 # (e10, C1) the start's proof drive while it runs
+        self.cam_fix = None                  # (e10) the calibration the discovery chose (None: as configured)
+        self.cam_mirror = False
+        self.tag_yaw = {}
+        self.camera_off = False
         self.held = dict(getattr(a, "_held", None) or {})
         self.ctrl.arc_save_on = not a.no_arc_save
         self.offsets = {n: [] for n in names}
@@ -176,6 +190,100 @@ class Runner:
         self.frames, self.guard = frames, guard
         self.t0 = None
         self.joined = set()
+
+    # -- (e10) the proven workspace and the start's discovery ------------------------------------------------------
+    def make_workspace(self, rect, camera=True):
+        """(e10, C2) The planner's workspace: what the camera's setup shows of the board (its outline, the whole of it at
+        home: the home camera sees the board) plus what earlier runs at this site felt (saved per site, used again only
+        on the same outline). --typed-board: the plain rectangle, as before e10."""
+        if getattr(self.a, "typed_board", False):
+            return None
+        import proven_workspace as PW
+        ws = PW.ProvenWorkspace(rect)
+        if camera:
+            ws.see(rect)
+        p = PW.site_path(self.a.conf_dir, self.a.site)
+        if not getattr(self.a, "careful", False):
+            ws.events.append(("saved", ws.merge_saved(p)))
+        self.ws_path = p
+        return ws
+
+    def discover(self, live):
+        """(e10, C1) The proof drive on every robot that joined (start_discovery.py), then what it found is used: the
+        camera's calibration (or none), the board's size, the clock, turned tags, robots not seen, each robot's wheel and
+        gyro fit (pooled on the Pi, saved on the robot by corr save once sure). Said in plain words and written to
+        discovery.json."""
+        import start_discovery as D
+        c = self.ctrl
+        say("Discovery: each robot makes a short proof drive on its spot (a turn, 12 cm, a quarter turn, 12 cm), "
+            "slowly, its edge sensors on ...")
+        first = {n: c.R[n].next_id for n in live}
+        # (e10, run 2 incident d) a robot over or at an edge does not make the proof drive (the controller's start
+        # check then holds it with a plain message)
+        self.disc_drv = D.ProofDriver(live, self.send, t0=self.AC.now(), first_id=max(first.values()) if first else 1,
+                                      board=tuple(self.rect) if c.start_edge else None, edge_cm=FC.START_EDGE_CM)
+        end = time.time() + D.TIMEOUT_S + 5
+        while time.time() < end and not self.disc_drv.done():
+            self.drain()
+            self.fixes()
+            self.disc_drv.tick(self.AC.now())
+            time.sleep(0.02)
+        data = self.disc_drv.data()
+        self.disc_drv = None
+        for n, d in data.items():
+            c.R[n].next_id = max(c.R[n].next_id, d["last_id"] + 1)          # the robot takes only higher ids
+        res = D.analyse(data, tuple(self.rect), {"mirrored": D.mirror_x(self.rect)})
+        for line in res["say"]:
+            say("  " + line)
+        c.event(None, "discovery", " ".join(res["say"]))
+        if res["camera"] in ("missing", "wrong", "unproven"):
+            self.camera_off = True
+            if c.ws is not None:
+                ws = self.make_workspace(self.rect, camera=False)
+                c.ws, c.rect = ws, ws
+        else:
+            if res["calibration"] != "as configured" or res.get("k_used", 1.0) != 1.0:
+                self.cam_fix = res["fix"]
+                self.cam_mirror = res["calibration"] == "mirrored"
+            if res.get("k_used", 1.0) != 1.0:
+                self.rect = tuple(res["board_found"])
+                if c.ws is not None:
+                    ws = self.make_workspace(self.rect)
+                    c.ws, c.rect = ws, ws
+                else:
+                    c.rect = self.rect
+            self.tag_yaw.update(res["tag_yaw"])
+            if res.get("clock_s") is not None and abs(res["clock_s"]) >= D.SKEW_MIN_S:
+                c.clock = float(res["clock_s"])
+                c.clock_ests = [c.clock] * 5
+                c.clock_seen = c.clock
+            for n, rb in res["robots"].items():
+                self.send(n, "fpose %.2f %.2f %.2f 1.00 2.00" % (rb["x"], rb["y"], rb["heading"]))
+        for n in res["unseen"]:
+            if c.R[n].mode not in ("gone", "out"):
+                c.R[n].mode, c.R[n].out_why = "gone", "not seen by the camera at the start"
+        for n, fit in res["fits"].items():
+            pooled = D.pool_fit(self.a.conf_dir, n, fit)
+            for cmd in D.corr_commands(pooled, getattr(self, "corr_now", {}).get(n)):
+                if not self.a.dry:
+                    self.send(n, cmd)
+                c.event(c.R[n], "calibration saved", "%s (pooled over %d runs, the robot keeps it at power-off)" % (
+                    cmd, pooled.get("wheel", pooled.get("gyro", {})).get("runs", 0)))
+        with open(os.path.join(self.dir, "discovery.json"), "w") as f:
+            json.dump({k: v for k, v in res.items() if k != "fix"}, f, indent=1, default=str)
+        self.pump(0.5)
+        return res
+
+    def save_workspace(self):
+        ws = self.ctrl.ws
+        if ws is None or not getattr(self, "ws_path", None):
+            return
+        try:
+            ws.save(self.ws_path)
+            with open(os.path.join(self.dir, "workspace.json"), "w") as f:
+                json.dump(ws.summary(), f, indent=1, default=str)
+        except OSError as e:
+            say("(the workspace could not be saved: %s)" % e)
 
     # -- out ---------------------------------------------------------------------------------------------------
     def send(self, name, text):
@@ -234,6 +342,9 @@ class Runner:
             try:
                 if rtype == "STEP" and len(vals) >= 9:
                     self.offset(name, t, int(float(vals[3])))
+                    if self.disc_drv is not None:            # (e10) the start's proof drive
+                        self.disc_drv.on_step(name, int(vals[1]), vals[2], ",".join(vals[8:]))
+                        continue
                     c.on_step(name, int(vals[1]), vals[2], ",".join(vals[8:]))
                 elif rtype == "FOLLOW" and len(vals) >= 10:
                     ms = int(float(vals[1]))
@@ -241,6 +352,9 @@ class Runner:
                     if vals[3] != "nopose":
                         c.on_follow(name, t, vals[3], float(vals[7]), float(vals[8]), float(vals[9]), int(vals[2]),
                                     int(vals[5]), int(vals[6]))
+                        if self.disc_drv is not None:        # (e10) the start's proof drive
+                            self.disc_drv.on_follow(name, t, float(vals[7]), float(vals[8]), float(vals[9]), vals[3],
+                                                    int(vals[5]), int(vals[6]))
                         if self.pose_sock is not None:
                             off = self.offset(name, t, ms)
                             msg = {"type": "pose", "robot": name, "t": round(ms / 1000.0 + off, 4),
@@ -379,6 +493,22 @@ class Runner:
                 cx, cy = ev["center"][:2]
                 c.on_obstacle(dict(x=float(cx), y=float(cy), r=float(ev.get("radius") or 6.0),
                                    src="camera: new object (brick watch)"))
+        # (e10, C1) the camera as the start's discovery found it: none at all, or through the calibration it chose; a
+        # turned roof tag's heading corrected; during the proof drive every named fix also goes to the discovery
+        if self.camera_off:
+            evs = [e for e in evs if e.get("type") != "fix"]
+        for ev in evs:
+            if ev.get("type") != "fix":
+                continue
+            if self.cam_fix is not None:
+                ev["x"], ev["y"] = self.cam_fix(float(ev["x"]), float(ev["y"]))
+                if self.cam_mirror and ev.get("th") is not None:
+                    ev["th"] = 180.0 - float(ev["th"])
+            if ev.get("th") is not None and ev.get("robot") in self.tag_yaw:
+                ev["th"] = (float(ev["th"]) + self.tag_yaw[ev["robot"]] + 180.0) % 360.0 - 180.0
+            if self.disc_drv is not None and ev.get("robot") in c.R:
+                self.disc_drv.on_sighting(ev["robot"], float(ev["t"]) - c.clock, float(ev["x"]), float(ev["y"]),
+                                          ev.get("th"), str(ev.get("src") or "camera"))
         # (e09, B1) one picture's fixes through the tracking layer (one batch per picture time)
         batch = {}
         for ev in evs:
@@ -513,21 +643,43 @@ class Runner:
                 c.R[n].mode, c.R[n].out_why = "gone", "did not start following"
         live = [n for n in live if c.R[n].mode != "gone"]
         say("Waiting for the camera and each robot's own pose ...")
-        end = time.time() + 25
+        # (e10) a bridge handed over by another runner (the school's tag bridge) may still be fitting its cameras
+        end = time.time() + (90 if getattr(self.a, "external_bridge", False) else 25)
+        told = {}
         while time.time() < end:
             self.pump(0.3)
+            if getattr(self.a, "external_bridge", False):
+                # (e10, C3) a robot handed over with no pose of its own yet (the school's runner tells each robot
+                # where it is from its roof tag): told from its first tag fix, which carries the heading too
+                for n in live:
+                    r = c.R[n]
+                    if r.own is None and r.cam is not None and r.cam[3] is not None and \
+                            time.time() - told.get(n, 0.0) > 2.0:
+                        told[n] = time.time()
+                        self.send(n, "fpose %.2f %.2f %.2f 1.0 3.0" % (r.cam[1], r.cam[2], r.cam[3]))
             if all(c.R[n].cam is not None and c.R[n].own is not None for n in live):
                 break
+        if not getattr(self.a, "no_discovery", False):
+            import start_discovery as D
+            posed = [n for n in live if c.R[n].own is not None and c.R[n].cam is not None]
+            if D.ENABLED and posed:
+                self.discover(posed)     # (e10, C1)
+            elif D.ENABLED:
+                say("Discovery skipped: no robot has a camera fix and its own pose yet.")
         for n in live:
             r = c.R[n]
-            if r.cam is None or r.own is None:
+            if r.mode == "gone":
+                say("  %s: %s: out of the run." % (n, r.out_why))
+                continue
+            if (r.cam is None and not self.camera_off) or r.own is None:
                 say("  %s: %s: out of the run." % (n, "no camera fix" if r.cam is None else "no own pose"))
                 r.mode, r.out_why = "gone", "not seen at the start"
                 continue
             c.t = self.AC.now()
             c.begin(n, held=self.held.get(n))
             self.joined.add(n)
-            say("  %s joins at %.1f, %.1f (facing %.0f deg)" % (n, r.cam[1], r.cam[2], r.own[3]))
+            q = r.cam if r.cam is not None else (None, r.own[1], r.own[2])
+            say("  %s joins at %.1f, %.1f (facing %.0f deg)" % (n, q[1], q[2], r.own[3]))
         if not self.joined:
             raise SystemExit("No robot could join.")
 
@@ -890,6 +1042,31 @@ def main(argv=None):
                          "camera watch, no parked watch")
     ap.add_argument("--no-brick-watch", action="store_true",
                     help="(e09) the camera's \"what changed\" watch off (on by default since e09)")
+    ap.add_argument("--no-discovery", action="store_true",
+                    help="(e10, the switch) no proof drive at the start: the camera and the typed board as configured")
+    ap.add_argument("--typed-board", action="store_true",
+                    help="(e10, the switch) plan on the typed board's rectangle, not the proven workspace")
+    ap.add_argument("--probe-ahead", action="store_true",
+                    help="(e10, a setting, off by default) robots may drive slowly into ground nobody has proven yet, "
+                         "their own edge sensors guarding them, and prove it")
+    ap.add_argument("--tracking", choices=("lights", "tags"), default="lights",
+                    help="(e10, C3) the site's camera sources: lights (home) or roof tags (school, with motion and "
+                         "lock-on); the same controller either way")
+    ap.add_argument("--no-shuffle", action="store_true", help="(e10, the switch) no corner shuffle: a robot in a corner "
+                    "trap stands, as before")
+    ap.add_argument("--picture-every-s", type=float, default=None,
+                    help="(e10) at most one 'unsure near an edge' picture per robot per this many s (default 60)")
+    ap.add_argument("--careful", action="store_true", help="(e10, preferences: very careful) only ground the camera "
+                    "sees this run: no felt ground from earlier runs, no probing")
+    ap.add_argument("--site", default="home", help="(e10) the site's name: the workspace is saved per site")
+    ap.add_argument("--external-bridge", action="store_true",
+                    help="(e10, C3) robots (--robot IP, --robots names) and a camera bridge already set up by another "
+                         "runner (mission_run at a roof-tag site): no ladder start, the bridge's fixes on --fix-port")
+    ap.add_argument("--board", default="", help="(e10) x0,y0,x1,y1 cm: the board's outline (--external-bridge)")
+    ap.add_argument("--sim-cmd", default="", help="(e10, practice) --external-bridge: start these simulated robots "
+                    "(a JSON list: the fleet_sim command run_plan would use)")
+    ap.add_argument("--conf-dir", default=os.path.expanduser("~/.config/mirlt"),
+                    help="(e10) where the per-site workspace and the per-robot calibration are kept on the Pi")
     ap.add_argument("--no-tilt-recovery", action="store_true",
                     help="(e08, A3: the old way) a tilted robot with no room to back away stands")
     ap.add_argument("--stop-lead", action="append", default=[], metavar="NAME=SPEED:CM,...",
@@ -962,7 +1139,7 @@ def main(argv=None):
     why = "stopped before the roam"
     code = 0
     cpu = None
-    if not a.dry and not a.attended:
+    if not a.dry and not a.attended and not getattr(a, "sim_cmd", ""):     # (e10) --sim-cmd: simulated robots
         try:
             import sites as SI
             st_ = SI.load(None)
@@ -978,7 +1155,8 @@ def main(argv=None):
     run_info = dict(version=VERSION, core=FC.VERSION, motion=a.motion, seed=a.seed, hours=a.hours, battery_floor=a.battery_floor,
                     rules=dict(safety_rules=SR.VERSION, edge=a.edge_rule or SR.EDGE_RULE, pose=a.pose_rule or SR.POSE_RULE,
                                keepouts=a.keepout_rule or SR.KEEPOUT_RULE, silent_out=a.silent_out,
-                               tilt_recovery=not a.no_tilt_recovery, tilt=SR.tilt_limits(), attended=a.attended),
+                               tilt_recovery=not a.no_tilt_recovery, tilt=SR.tilt_limits(), attended=a.attended,
+                               queue_watch=FC.QUEUE_WATCH, mark_unc=FC.MARK_UNC, start_edge=FC.START_EDGE),
                     tracking=dict(layer=__import__("tracking_layer").VERSION, filter=__import__("fused_pose").VERSION,
                                   pose_source=a.pose_source or __import__("fused_pose").POSE_SOURCE,
                                   gyro_heading=bool(a.gyro_heading), old_tracking=bool(a.old_tracking),
@@ -997,6 +1175,21 @@ def main(argv=None):
             run_info["sim_gaps"] = gaps
             rect = HOME_BOARD
             pose_to = None
+        elif getattr(a, "external_bridge", False):
+            # (e10, C3: one controller at every site) the robots and a camera bridge already set up by another runner
+            # (mission_run at a roof-tag site: robots found by their wiggle, the feel-out, the tag bridge with its
+            # lock-on sending to --fix-port and reading poses on 5011): this free-roam controller drives them
+            ips = list(a.robot)
+            br, frames, guard = None, None, None
+            if a.sim_cmd:
+                # (practice) the simulated robots, as run_plan would start them (mission_run's dry school free roam)
+                loopback_up()
+                br = subprocess.Popen(json.loads(a.sim_cmd), cwd=REPO, stdout=open(os.path.join(outdir, "sim_stdout.txt"),
+                                                                                  "w"), stderr=subprocess.STDOUT)
+                time.sleep(1.5)
+                a.dry = True
+            rect = tuple(float(v) for v in a.board.split(",")) if a.board else HOME_BOARD
+            pose_to = ("127.0.0.1", 5011)
         else:
             names, ips, br, frames, guard, rect = real_start(a, outdir)
             pose_to = ("127.0.0.1", 5011)
@@ -1026,6 +1219,7 @@ def main(argv=None):
                 pass
         if runner is not None:
             runner.write_state(why)
+            runner.save_workspace()            # (e10, C2) the proven workspace, kept for this site
             runner.close()
         if br is not None:
             try:

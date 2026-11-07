@@ -161,7 +161,8 @@ class Sim:
                  cam_delay=None, cam_clock=0.0, wall_in=0.0, trap=False, fw=None, starts=None, motion="curves",
                  fws=None, v_min=None, edge_physics=False, own_off=(), silent=(), held=None, cam_misplace=(),
                  phantoms=0.0, ctrl_kw=None, own_start=None, board=None, camera="names", scene=None, layer_kw=None,
-                 sensors=False, pushes=(), bricks=(), cam_gaps=()):
+                 sensors=False, pushes=(), bricks=(), cam_gaps=(), discover=False, workspace=False, cam_fault=None,
+                 tag_yaw=None, cover=None, bottom_zone=False, saved_ws=None, hdg_fault=None):
         # (e09, Phase B) board: another table (the school's); camera "names" (the camera names every fix, as before) or
         # "detections" (fastsim_sources: tags / motion / lock-on / lights sightings with no names except tags and
         # locks, through the ONE tracking layer: names CAN swap); scene: dark / glare patches, tag read limit, two
@@ -169,6 +170,28 @@ class Sim:
         # front and line sensors (the filter's inputs); pushes: (name, t, dx, dy) a parked robot pushed; bricks:
         # (t, x, y) an object put on the table
         self.board = tuple(board) if board else BOARD
+        # (e10, Phase C) the guesses the start must discover: cam_fault {scale: k (the board's size typed k x too big:
+        # the camera's floor calibration then reads k x every distance), mirror: True (a wrong camera name: the picture
+        # mirrored left to right), shift: (dx, dy), rot_deg}; tag_yaw {robot: deg} a roof tag turned on its robot; cover
+        # [rects] what the camera can see (none elsewhere); bottom_zone: the look-ahead edge sensor (safe_edge 3: a drop
+        # 9-11 cm ahead stops a forward drive); discover: the proof drive at the start (start_discovery.py); workspace: the
+        # proven workspace (proven_workspace.py) for the planner; saved_ws: a saved workspace file
+        self._scene0 = dict(scene or {})
+        self.cam_fault = dict(cam_fault or {})
+        self.cam_correct = None              # set by the discovery: the calibration it found
+        self.tag_yaw = dict(tag_yaw or {})
+        self.tag_yaw_fix = {}
+        self.cover = [tuple(r) for r in cover] if cover else None
+        self.bottom_zone = bool(bottom_zone)
+        # (e10, the 7 Nov run 2 incident) hdg_fault {deg: 25, near_cm: 14, every_s: 60}: a long straight (35 cm or more)
+        # starts with the robot's own heading `deg` off the truth, the way that takes it towards the nearest edge (only
+        # when it would end within near_cm of one), and the firmware does not steer back by its position (Right's 55 cm
+        # straight ended 23.6 cm off); the error stays until the robot is told its heading (fpose) or 30 s pass
+        self.hdg_fault = dict(hdg_fault) if hdg_fault else None
+        k_ = float(self.cam_fault.get("scale", 1.0))
+        self.believed = tuple(self.board[i] if i < 2 else self.board[i - 2] + (self.board[i] - self.board[i - 2]) * k_
+                              for i in range(4))
+        self.typed = tuple(self.believed)    # the board as typed (the camera's calibration was made with it)
         self.rng = random.Random(seed * 7919 + 13)
         self.seed, self.hours = seed, hours
         self.t = 0.0
@@ -206,8 +229,15 @@ class Sim:
             b = self.bots[n]
             b.x, b.y, b.th = st
             b.ox, b.oy, b.oth = st
-        self.ctrl = FC.Controller(names, self.board, self.ctrl_out, self.ctrl_log, seed=seed, lost_mode=lost_mode,
-                                  drill=drill, motion=motion, v_min_avoid=v_min, **(ctrl_kw or {}))
+        self.ws = None
+        self.discover_on = bool(discover)
+        self.saved_ws = saved_ws
+        if workspace:
+            self.ws = self.make_ws(self.believed)
+        self.ctrl = FC.Controller(names, self.believed, self.ctrl_out, self.ctrl_log, seed=seed, lost_mode=lost_mode,
+                                  drill=drill, motion=motion, v_min_avoid=v_min, workspace=self.ws, **(ctrl_kw or {}))
+        self.disc = None
+        self.visits = {}                     # (e10) where each robot's true middle went: 5 cm cells -> seconds
         # (e08) rehearsal injections
         self.edge_physics = edge_physics
         self.own_off = list(own_off)            # (name, t, dx, dy, dur)
@@ -268,6 +298,74 @@ class Sim:
         self.stats["edge_min_body"] = float("inf")
         self.stats["edge_min_centre"] = float("inf")
 
+    # -- (e10) the camera's calibration, coverage, and the proven workspace ---------------------------------------
+    def cam_map(self, x, y):
+        """A true position as the camera reports it: through the fault (a wrong calibration), then the discovery's
+        correction (the calibration it chose)."""
+        f = self.cam_fault
+        if f:
+            k = float(f.get("scale", 1.0))
+            x, y = self.board[0] + (x - self.board[0]) * k, self.board[1] + (y - self.board[1]) * k
+            if f.get("rot_deg"):
+                cx, cy = (self.typed[0] + self.typed[2]) / 2, (self.typed[1] + self.typed[3]) / 2
+                a = math.radians(f["rot_deg"])
+                x, y = cx + (x - cx) * math.cos(a) - (y - cy) * math.sin(a), cy + (x - cx) * math.sin(a) + (y - cy) * \
+                    math.cos(a)
+            if f.get("mirror"):
+                x = self.typed[0] + self.typed[2] - x
+            sx, sy = f.get("shift", (0.0, 0.0))
+            x, y = x + sx, y + sy
+        if self.cam_correct is not None:
+            x, y = self.cam_correct(x, y)
+        return x, y
+
+    def cam_heading(self, th, name=None):
+        """A heading as the camera reports it (a roof tag): the tag's turn on its robot, the fault's mirror, then the
+        corrections."""
+        if th is None:
+            return None
+        th = th + self.tag_yaw.get(name, 0.0)
+        f = self.cam_fault
+        if f.get("rot_deg"):
+            th += f["rot_deg"]
+        if f.get("mirror"):
+            th = 180.0 - th
+        if self.cam_correct is not None and getattr(self, "cam_correct_mirror", False):
+            th = 180.0 - th
+        th += self.tag_yaw_fix.get(name, 0.0)
+        return wrap180(th)
+
+    def in_cover(self, x, y):
+        return self.cover is None or any(r[0] <= x <= r[2] and r[1] <= y <= r[3] for r in self.cover)
+
+    def blind_rects(self):
+        sc = self._scene0 or {}
+        return list(sc.get("dark") or ()) + list(getattr(self, "extra_dark", ()))
+
+    def make_ws(self, board):
+        """The proven workspace at the start: what the camera sees of the board outline (its coverage, not a dark
+        patch), plus each robot's own footprint (it stands there: felt)."""
+        import proven_workspace as PW
+        ws = PW.ProvenWorkspace(board)
+        dd = getattr(self, "disc", None)
+        cam_ok = not (dd is not None and dd.get("camera") in ("missing", "wrong", "unproven"))
+        sc = getattr(self, "_scene0", None) or {}
+        if cam_ok and not (sc.get("fault") == "none" and not sc.get("fault_t")):
+            ws.see(board, self.cover, self.blind_rects())
+        for b in self.bots.values() if hasattr(self, "bots") else ():
+            ws.felt_strip(b.ox, b.oy, b.ox + 0.01, b.oy, 6.0)
+        if self.saved_ws:
+            ws.events.append(("saved", ws.merge_saved(self.saved_ws)))
+        return ws
+
+    def visit(self):
+        if int(self.t * 2) == int((self.t - DT) * 2):
+            return
+        for b in self.bots.values():
+            if not b.dead:
+                k = (int(b.x // 5), int(b.y // 5))
+                self.visits[k] = self.visits.get(k, 0.0) + 0.5
+
     # -- logs ---------------------------------------------------------------------------------------------------
     def longest_still(self):
         return _longest(self.__dict__.get("mot_rows", []))
@@ -317,6 +415,13 @@ class Sim:
         self.upn.send(self.t, self.ctrl_in, b.name, kind, args)
 
     def ctrl_in(self, name, kind, args):
+        drv = getattr(self, "_disc_drv", None)
+        if drv is not None:                     # (e10) the start's proof drive: its messages go to the discovery
+            if kind == "step":
+                drv.on_step(name, *args[:2], *(args[2:3] or ("",)))
+            elif kind == "follow":
+                drv.on_follow(name, self.t, args[1], args[2], args[3], args[0], args[5], args[6])
+            return
         c = self.ctrl
         c.on_heard(name, self.t)
         if kind == "step":
@@ -351,6 +456,9 @@ class Sim:
             pass
         elif verb == "fpose":
             b.ox, b.oy, b.oth = float(parts[1]), float(parts[2]), float(parts[3])
+            if getattr(b, "hdg_off", None) is not None:
+                b.hdg_off = None                    # (e10) told its heading: the injected error is over
+                self.stats["hdg_fault_cured"] = self.stats.get("hdg_fault_cured", 0) + 1
             b.hist = []                     # pose.h set(): the history is cleared
         elif verb == "farc":
             if not b.arc:
@@ -490,6 +598,7 @@ class Sim:
             if b.cur["type"] == "R":
                 c = b.cur
                 c["s"], c["prev"] = 0.0, None
+                self.inject_heading(b, c)
                 if not rolling:
                     b.v = 0.0
                     if abs(wrap180(c["h"] - b.oth)) > 30:
@@ -643,6 +752,20 @@ class Sim:
                 b.q, b.cur, b.state, b.coast = [], None, "idle", None
         elif not any(over) and getattr(b, "hung", False):
             b.hung = False
+        # (e10) the look-ahead bottom zone (safe_edge 3; feel_table: notices a drop 9-11 cm ahead of the wheels): a
+        # forward drive that would bring that spot over the edge stops (--bottom-zone; CHOSEN 9.5-10.5 cm here)
+        if self.bottom_zone and b.cur is not None and b.cur["type"] in ("D", "R") and not b.cur.get("rev") and \
+                not getattr(b, "hung", False):
+            c, sn = math.cos(math.radians(b.th)), math.sin(math.radians(b.th))
+            reach = 9.5 + b.rng.random()
+            if FC.edge_dist(self.board, b.x + reach * c, b.y + reach * sn) < 0.0:
+                self.stats["bottom_trips"] = self.stats.get("bottom_trips", 0) + 1
+                b.v = 0.0
+                b.report(self, b.cur["id"], "failed", "plywood edge at %.1f %.1f %.1f bottom" % (b.ox, b.oy, b.oth))
+                for q in b.q:
+                    b.report(self, q["id"], "dropped", "an earlier step failed")
+                b.q, b.cur, b.state, b.coast = [], None, "idle", None
+                return
         # the line sensors (safe_edge 3): a forward drive whose nose passes the edge stops
         if b.cur is not None and b.cur["type"] in ("D", "R") and not b.cur.get("rev") and not getattr(b, "hung", False):
             c, sn = math.cos(math.radians(b.th)), math.sin(math.radians(b.th))
@@ -688,6 +811,12 @@ class Sim:
         """Own pose and truth moved by a forward speed v and turn rate w (deg/s) for DT (wheel and gyro errors)."""
         b.oth = wrap180(b.oth + w * DT)
         b.th = wrap180(b.th + w * DT * (1 + b.gyro_err))
+        hf = getattr(b, "hdg_off", None)
+        if hf is not None:
+            if self.t > hf[1]:
+                b.hdg_off = None
+            else:
+                b.oth = wrap180(b.th + hf[0])       # (e10) its own heading stays off (the camera's fixes do not cure it)
         d = v * DT
         b.ox += d * math.cos(math.radians(b.oth))
         b.oy += d * math.sin(math.radians(b.oth))
@@ -710,6 +839,31 @@ class Sim:
         right = self.front_cm(b, lat_max=4.0)
         b.th = th0
         return 1 if left >= right else -1
+
+    def inject_heading(self, b, c):
+        """(e10) hdg_fault: Right's 7 Nov straight, reproduced (see __init__)."""
+        hf = self.hdg_fault
+        if not hf or abs(c["k"]) > 0.003 or c["L"] < 35.0 or b.dead:
+            return
+        if self.t < getattr(self, "hdg_next", 0.0) or getattr(b, "hdg_off", None) is not None:
+            return
+        deg = float(hf.get("deg", 25.0))
+        best = None
+        for off in (deg, -deg):
+            th = math.radians(c["h"] - off)
+            ex, ey = b.x + c["L"] * math.cos(th), b.y + c["L"] * math.sin(th)
+            e = FC.edge_dist(self.board, ex, ey)
+            if best is None or e < best[0]:
+                best = (e, off)
+        if best[0] > float(hf.get("near_cm", 14.0)):
+            return
+        self.hdg_next = self.t + float(hf.get("every_s", 60.0))
+        c["hdg_off"] = best[1]
+        b.hdg_off = (best[1], self.t + 30.0)
+        b.oth = wrap180(b.th + best[1])
+        self.stats["hdg_faults"] = self.stats.get("hdg_faults", 0) + 1
+        self.hdg_log = getattr(self, "hdg_log", [])
+        self.hdg_log.append(dict(t=round(self.t, 1), robot=b.name, off=best[1], end_edge_cm=round(best[0], 1)))
 
     def curve_step(self, b, s):
         """pose.h driveCurve (2026-11-05c): a piece of constant curvature on the own pose; no slowing at the end; the
@@ -737,6 +891,8 @@ class Sim:
             s["s"] = (b.ox - s["x0"]) * ux + (b.oy - s["y0"]) * uy
             cross = ux * (b.oy - s["y0"]) - uy * (b.ox - s["x0"])
             href, lean = s["h"], max(-20.0, min(20.0, -3.0 * cross))
+            if s.get("hdg_off") is not None:
+                lean = 0.0                          # (e10) as Right's straight: no steering back by position
             ff = 0.0
         else:
             sg, R = (1.0 if k > 0 else -1.0), 1.0 / abs(k)
@@ -803,21 +959,27 @@ class Sim:
         return any(a <= t < b for a, b in self.gaps[n])
 
     def camera(self):
+        if getattr(self, "camera_off", False):
+            return                              # (e10) the discovery found no camera it can trust: none at all
         if self.src is not None:            # (e09) sightings through the one tracking layer
             self.src.frame()
             return
         for n, b in self.bots.items():
             if self.t >= self.next_fix[n]:
                 self.next_fix[n] = self.t + 1 / 12.0
-                if self.cam_gap(n, self.t):
+                if self.cam_gap(n, self.t) or not self.in_cover(b.x, b.y):
                     continue
                 lat = self.rng.uniform(0.12, 0.2) if self.cam_delay is None else \
                     max(0.05, self.cam_delay + self.rng.uniform(-0.1, 0.1))
                 fx, fy = b.x + self.rng.gauss(0, 0.5), b.y + self.rng.gauss(0, 0.5)
+                if self.cam_fault or self.cam_correct is not None:
+                    fx, fy = self.cam_map(fx, fy)          # (e10) through the camera's calibration (and its fault)
                 for nm, t0, t1, dx, dy in self.misplace:     # (e08) the camera puts it off for a while
                     if nm == n and t0 <= self.t < t1:
                         fx, fy = fx + dx, fy + dy
                 fth = b.th + self.rng.gauss(0, 2.0) if (b.state == "drive" and self.rng.random() < 0.3) else None
+                if fth is not None and (self.cam_fault or self.cam_correct is not None):
+                    fth = self.cam_heading(fth, None)
                 self.cam_q.append((self.t + lat, n, self.t, fx, fy, fth))
         due = [e for e in self.cam_q if e[0] <= self.t]
         if due:
@@ -978,19 +1140,109 @@ class Sim:
                 self.stats["gap_windows"].append(v)
             self.win_min, self.win_t = {}, self.t
 
+    def discover(self):
+        """(e10, C1) The start's proof drive in this world (start_discovery.ProofDriver over the same robots, network and
+        camera), then what the analysis found is applied as the Pi would: the camera's calibration (or none), the
+        board's size, the clock, turned tags, each robot's wheel / gyro fit (corr save), robots not seen kept parked,
+        the proven workspace re-made, each robot's own pose set from the corrected camera (fpose)."""
+        import start_discovery as D
+        c = self.ctrl
+        tags = (self._scene0 or {}).get("tracking") == "tags"
+        drv = D.ProofDriver(self.names, lambda n, txt: self.down.send(self.t, self.robot_cmd, n, txt), t0=self.t,
+                            board=self.believed if c.start_edge else None, edge_cm=FC.START_EDGE_CM)
+        self._disc_drv = drv
+        q, next_pic = [], self.t
+        sc = self._scene0 or {}
+        none = sc.get("fault") == "none" and not sc.get("fault_t")
+        dark = self.blind_rects()
+        while not drv.done() and self.t < 90.0:
+            self.t += DT
+            for b in self.bots.values():
+                self.bot_step(b)
+            self.follow_records()
+            if self.t >= next_pic and not none:
+                next_pic = self.t + 1.0 / 12.0
+                for n, b in self.bots.items():
+                    if b.dead or not self.in_cover(b.x, b.y):
+                        continue
+                    if any(r[0] <= b.x <= r[2] and r[1] <= b.y <= r[3] for r in dark) and self.rng.random() < 0.7:
+                        continue
+                    sg = 0.4 if tags else 0.7
+                    x, y = self.cam_map(b.x + self.rng.gauss(0, sg), b.y + self.rng.gauss(0, sg))
+                    th = self.cam_heading(b.th + self.rng.gauss(0, 1.0), n) if tags else None
+                    q.append((self.t + self.rng.uniform(0.12, 0.2), n, self.t + self.cam_clock, x, y, th))
+            due = [e for e in q if e[0] <= self.t]
+            if due:
+                q = [e for e in q if e[0] > self.t]
+                for _, n, ts, x, y, th in due:
+                    drv.on_sighting(n, ts, x, y, th, "tags" if tags else "camera")
+            for _, fn, args in self.down.due(self.t):
+                fn(*args)
+            for _, fn, args in self.upn.due(self.t):
+                fn(*args)
+            drv.tick(self.t)
+            self.truth()
+            self.visit()
+        self._disc_drv = None
+        for n, dd in drv.data().items():
+            c.R[n].next_id = max(c.R[n].next_id, dd["last_id"] + 1)     # the robot takes only higher ids
+        cands = {"mirrored": D.mirror_x(self.believed)}
+        res = D.analyse(drv.data(), self.believed, cands)
+        self.disc = res
+        self.disc_t = round(self.t, 1)
+        c.event(None, "discovery", " ".join(res["say"]))
+        if res["camera"] in ("missing", "wrong", "unproven"):
+            self.camera_off = True               # the run narrows: no camera fixes at all
+        else:
+            self.cam_correct = res["fix"]
+            self.cam_correct_mirror = res["calibration"] == "mirrored"
+            if res.get("k_used", 1.0) != 1.0:
+                self.believed = tuple(res["board_found"])
+            for n, yo in res["tag_yaw"].items():
+                self.tag_yaw_fix[n] = yo
+            if res.get("clock_s") is not None and abs(res["clock_s"]) >= D.SKEW_MIN_S:
+                c.clock = float(res["clock_s"])
+                c.clock_ests = [c.clock] * 5
+                c.clock_seen = c.clock
+            for n, rb in res["robots"].items():
+                b = self.bots[n]
+                b.ox, b.oy, b.oth = rb["x"], rb["y"], rb["heading"]       # fpose from the corrected camera
+                b.hist = []
+            for n, f in res["fits"].items():
+                b = self.bots[n]
+                w, g = f.get("wheel"), f.get("gyro")
+                if w and abs(w - 1.0) > 2 * f["wheel_se"] and abs(w - 1.0) <= D.CAL_MAX_DEV:
+                    b.wheel_err = (1.0 + b.wheel_err) / w - 1.0               # corr: its wheel_scale x the fit
+                if g and abs(g - 1.0) > 2 * f["gyro_se"] and abs(g - 1.0) <= D.CAL_MAX_DEV:
+                    b.gyro_err = (1.0 + b.gyro_err) / g - 1.0
+        self.unseen = [n for n in res["unseen"]]
+        if self.ws is not None:
+            self.ws = self.make_ws(self.believed)
+            c.ws, c.rect = self.ws, self.ws
+        else:
+            c.rect = tuple(self.believed)
+        return res
+
     def run(self):
         c = self.ctrl
         T = self.hours * 3600.0
+        if self.discover_on:
+            self.discover()
+        t0 = self.t                              # (e10) after the proof drive, if there was one
+        realcam = bool(self.cam_fault) or self.cam_correct is not None
         for n, b in self.bots.items():
             c.on_fw(n, b.fw)
-            c.on_battery(n, 100, 0.0)
-            c.on_follow(n, 0.0, "idle", b.ox, b.oy, b.oth, 0)
-            c.on_fix(n, 0.0 + self.cam_clock, b.x, b.y, b.th, arrival=0.0 + (self.cam_delay or 0.15))
-            c.on_heard(n, 0.0)
-        c.tick(0.0)
-        if self.src is not None:
+            c.on_battery(n, 100, t0)
+            c.on_follow(n, t0, "idle", b.ox, b.oy, b.oth, 0)
+            fx, fy = self.cam_map(b.x, b.y) if realcam else (b.x, b.y)
+            if not getattr(self, "camera_off", False):
+                c.on_fix(n, t0 + self.cam_clock, fx, fy, b.th, arrival=t0 + (self.cam_delay or 0.15))
+            c.on_heard(n, t0)
+        c.tick(t0)
+        if self.src is not None and not getattr(self, "camera_off", False):
             for n, b in self.bots.items():
-                self.src.layer.seed(n, 0.0, b.x, b.y, "start")      # where the start found it (lights / tags)
+                fx, fy = self.cam_map(b.x, b.y) if realcam else (b.x, b.y)
+                self.src.layer.seed(n, t0, fx, fy, "start")      # where the start found it (lights / tags)
         if hasattr(c, "fix_fn"):
             # (e09) the filter's position to the robot in camera gaps (the runner's fix command, its own time)
             c.fix_fn = lambda n, t, x, y: self.down.send(self.t, self.fuse, n, x, y, None, self.t)
@@ -1015,6 +1267,10 @@ class Sim:
                 c.begin(n, held=k)
             else:
                 c.begin(n)
+        for n in getattr(self, "unseen", ()):   # (e10) the start's discovery did not see it: it stays parked, named
+            r_ = c.R[n]
+            r_.mode, r_.out_why = "out", "not seen by the camera at the start (out of its view)"
+            r_.traj = FC.Traj.stand(self.t, self.bots[n].ox, self.bots[n].oy, m=FC.PLAN_M0 + 1.0)
         for b in self.bots.values():           # (e08) a robot placed hung at the start (rehearsal b)
             if self.edge_physics and any(FC.edge_dist(self.board, *w) < 0.0 for w in self.wheels(b)):
                 b.hung = True
@@ -1066,6 +1322,7 @@ class Sim:
                 if self.t >= self.frozen_until:
                     c.tick(self.t)
             self.truth()
+            self.visit()
             if c.all_out():
                 break
         for f in getattr(self, "files", []):
@@ -1136,7 +1393,31 @@ class Sim:
                     keepouts_end=len(c.keepouts),
                     held_end={n: (r.held or {}).get("kind") for n, r in c.R.items() if getattr(r, "held", None)},
                     moving_pct={n: v["moving_pct"] for n, v in speed["robot"].items()},
-                    phase_b=self.phase_b())
+                    phase_b=self.phase_b(), phase_c=self.phase_c(),
+                    # (e10) the 7 Nov run 2 incident's measures
+                    incident=dict({k: c.counts.get(k, 0) for k in ("queue_watch", "reaimed", "queue_heading_resets",
+                                                                    "marks_deferred", "start_held", "dropped_started",
+                                                                    "surface_marks", "off_plan")},
+                                  hdg_faults=st.get("hdg_faults", 0), hdg_fault_cured=st.get("hdg_fault_cured", 0),
+                                  bottom_trips=st.get("bottom_trips", 0), log=getattr(self, "hdg_log", [])[:20]))
+
+    def phase_c(self):
+        """(e10) the Phase C measures: what the start's discovery found, the proven workspace, where the robots went."""
+        d = self.disc
+        out = dict(discovery=None if d is None else {k: v for k, v in d.items() if k != "fix"},
+                   disc_s=getattr(self, "disc_t", None), workspace=self.ws.summary() if self.ws is not None else None,
+                   counts={k: self.ctrl.counts.get(k) for k in ("probes", "empty_moves", "pictures_skipped",
+                                                                "pictures")},
+                   fallbacks=dict(self.ctrl.counts.get("fallback", {})), bottom_trips=self.stats.get("bottom_trips", 0),
+                   visits={"%d,%d" % k: round(v, 1) for k, v in self.visits.items()},
+                   board=list(self.board), believed=list(self.believed),
+                   wheel_err={n: round(b.wheel_err, 4) for n, b in self.bots.items()},
+                   gyro_err={n: round(b.gyro_err, 4) for n, b in self.bots.items()})
+        if self.cover:
+            tot = sum(v for v in self.visits.values())
+            outside = sum(v for (i, j), v in self.visits.items() if not self.in_cover(i * 5 + 2.5, j * 5 + 2.5))
+            out["unseen_visit_pct"] = round(100.0 * outside / max(1e-6, tot), 1)
+        return out
 
     def phase_b(self):
         """(e09) the Phase B measures: tracking (% of pictures each robot had a fix, on the far side too; wrong fixes and

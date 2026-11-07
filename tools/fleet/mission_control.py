@@ -1372,6 +1372,14 @@ class Handler(BaseHTTPRequestHandler):
                     import safety_rules as SR_
                     SR_.write_answer(str(d.get("id") or ""), str(d.get("choice") or ""))
                     return self._send(200, clean(S.start.state()))
+                if path == "/api/start/prefs":
+                    # (e10, C5) the preferences page: saved per site on the Pi
+                    S.start.set_prefs(d)
+                    return self._send(200, clean(S.start.state()))
+                if path == "/api/start/quiz":
+                    # (e10, C5) the first-time quiz's answers fill the preferences page in
+                    S.start.quiz(d.get("answers") or {})
+                    return self._send(200, clean(S.start.state()))
                 if path == "/api/start/advanced":
                     S.start.set_advanced(d)
                     import sites as SI_

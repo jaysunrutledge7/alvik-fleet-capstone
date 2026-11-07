@@ -311,6 +311,8 @@ case "$WHAT" in
     else echo "No DOE loop running."; fi ;;
   freeroam)
     HRS=4; FULL=0; LOST=""; RULEENV=""
+    # (e10) probe: robots may slowly prove ground the camera cannot see (off by default); no-discovery: no proof drive at
+    # the start; typed-board: plan on the typed board, not the proven workspace; careful: only ground seen this run.
     # (e09) filter: the filter in charge of the poses (off by default); old-tracking: the tracking before e09 (no
     # lock-on, names by prediction); gyro-heading:
     # B3 on; no-brick-watch: the camera's "what changed" watch off.
@@ -318,7 +320,7 @@ case "$WHAT" in
     # a parked robot stays awake (the default since 11-05h).
     # (e08) attended: a person stays with the robots (the run may ask about a robot near an edge); old-rules: every rule
     # before e08 (fixed edges, 2 s pose rule, permanent keep-outs, out when silent / no heading, no tilt recovery, 5 deg)
-    for x in "$@"; do case "$x" in full-video) FULL=1 ;; hold) LOST="$LOST --lost-mode hold" ;; stopturn) LOST="$LOST --motion stopturn" ;; curves) LOST="$LOST --motion curves" ;; attended|--attended) LOST="$LOST --attended" ;; old-rules) LOST="$LOST --edge-rule fixed --pose-rule wait2s --keepout-rule permanent --silent-out --heading-out --no-tilt-recovery"; RULEENV="MIRLT_TILT_RULE=old MIRLT_EDGE_RULE=fixed" ;; old-tracking) LOST="$LOST --old-tracking --pose-source blend" ;; filter) LOST="$LOST --pose-source ekf" ;; gyro-heading) LOST="$LOST --gyro-heading" ;; sleep-parked) LOST="$LOST --sleep-parked" ;; no-brick-watch) LOST="$LOST --no-brick-watch" ;; [0-9]*) HRS="$x" ;; esac; done
+    for x in "$@"; do case "$x" in full-video) FULL=1 ;; hold) LOST="$LOST --lost-mode hold" ;; stopturn) LOST="$LOST --motion stopturn" ;; curves) LOST="$LOST --motion curves" ;; attended|--attended) LOST="$LOST --attended" ;; old-rules) LOST="$LOST --edge-rule fixed --pose-rule wait2s --keepout-rule permanent --silent-out --heading-out --no-tilt-recovery"; RULEENV="MIRLT_TILT_RULE=old MIRLT_EDGE_RULE=fixed" ;; old-tracking) LOST="$LOST --old-tracking --pose-source blend" ;; filter) LOST="$LOST --pose-source ekf" ;; gyro-heading) LOST="$LOST --gyro-heading" ;; sleep-parked) LOST="$LOST --sleep-parked" ;; no-brick-watch) LOST="$LOST --no-brick-watch" ;; probe) LOST="$LOST --probe-ahead" ;; no-discovery) LOST="$LOST --no-discovery" ;; typed-board) LOST="$LOST --typed-board" ;; careful) LOST="$LOST --careful" ;; [0-9]*) HRS="$x" ;; esac; done
     if tmux has-session -t freeroam 2>/dev/null; then
       echo "A free roam is already running (tmux session freeroam). Its progress: ./run-fleet-pi.sh freeroam-status"
       echo "Stop it first if you want a new one: ./run-fleet-pi.sh freeroam-stop"; exit 1

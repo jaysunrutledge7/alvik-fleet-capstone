@@ -54,6 +54,144 @@ ADV_DEFAULTS = {
 }
 
 
+# (e10, C5; Nick 7 Nov: "preferences take the form of a page of choices, with a short first-time quiz that fills it in")
+# Saved per site on the Pi (<conf dir>/prefs/<site>.json). The essentials up front; everything else under Advanced,
+# every switch from e08, e09 and e10 among them. Each switch's default is the build's default; "the switch" in a report
+# is the other side. They reach the runs as the environment variables the modules read (PREF_ENV) and as freeroam.py's
+# flags (prefs_args).
+PREFS_DEFAULTS = {
+    "quiz_done": False,
+    # essentials
+    "run_min": 0.0,                # 0: the site's usual (home: until the batteries are low, at most 4 h; school: 10 min)
+    "caution": "normal",           # careful | normal | explore (explore: the probe-ahead setting on)
+    "watching": "ask",             # yes (attended: a run may ask) | no (decides alone) | ask (asked at each start)
+    "robots": "all",               # all, or names (home free roam)
+    # advanced: e10
+    "discovery": True,             # the start's proof drive (MIRLT_DISCOVERY)
+    "workspace": "proven",         # proven | typed (the typed board's rectangle, as before e10)
+    "probe_ahead": False,          # robots may slowly prove ground the camera cannot see
+    "unc_split": True,             # the filter's doubt: tracked part x 2.45 + blind part x 8 (False: e09's 6 x sigma)
+    "shuffle": True,               # the corner trap's last rung
+    "picture_every_s": 60.0,       # at most one "unsure near an edge" picture per robot per this many seconds
+    "school_roam": "freeroam",     # freeroam (e10: the home controller at school, one pipeline) | planner (e07, the switch)
+    "camera_watch_method": "e10",  # e10 (averaged, noise-aware) | e09
+    "queue_watch": True,           # (7 Nov run 2) every piece and its queued pieces re-checked against the fused position
+    "mark_unc": True,              # (7 Nov run 2) a line trip near an edge is the edge unless the camera is sure enough
+    "start_edge": True,            # (7 Nov run 2) a robot that starts over or at an edge is held with a message
+    # advanced: e09
+    "pose_source": "blend",        # blend | ekf (the filter in charge)
+    "camera_watch": False,         # the camera watch (Nick 7 Nov: off until its false alarms are understood)
+    "identity": "wiggle",          # wiggle (e09) | predict
+    "gyro_heading": False,         # B3
+    "old_tracking": False,         # the sources before e09
+    "brick_watch": True,
+    "lock": True,                  # the tag bridge's lock-on (school)
+    # advanced: e08
+    "edge_rule": "derived",        # derived | fixed
+    "pose_rule": "widen",          # widen | wait2s
+    "keepout_rule": "fade",        # fade | permanent
+    "tilt_rule": "logs",           # logs | old (5 deg)
+    "cam_edge_bias": True,         # the camera's 5 cm edge error in the clearance
+    "silent_out": False,           # a silent robot out for the run (before e08)
+    "tilt_recovery": True,
+}
+PREF_CHOICES = {
+    "caution": ("careful", "normal", "explore"), "watching": ("yes", "no", "ask"), "workspace": ("proven", "typed"),
+    "school_roam": ("planner", "freeroam"), "camera_watch_method": ("e10", "e09"), "pose_source": ("blend", "ekf"),
+    "identity": ("wiggle", "predict"), "edge_rule": ("derived", "fixed"), "pose_rule": ("widen", "wait2s"),
+    "keepout_rule": ("fade", "permanent"), "tilt_rule": ("logs", "old")}
+PREF_ENV = {           # preference -> (environment variable, value when True / the string itself)
+    "discovery": ("MIRLT_DISCOVERY", "1", "0"), "unc_split": ("MIRLT_UNC_SPLIT", "1", "0"),
+    "camera_watch": ("MIRLT_CAMERA_WATCH", "1", "0"), "gyro_heading": ("MIRLT_GYRO_HEADING", "1", "0"),
+    "cam_edge_bias": ("MIRLT_CAM_EDGE_BIAS", "on", "off"), "pose_source": ("MIRLT_POSE_SOURCE",),
+    "identity": ("MIRLT_IDENTITY",), "edge_rule": ("MIRLT_EDGE_RULE",), "pose_rule": ("MIRLT_POSE_RULE",),
+    "keepout_rule": ("MIRLT_KEEPOUT_RULE",), "tilt_rule": ("MIRLT_TILT_RULE",),
+    "camera_watch_method": ("MIRLT_CAMERA_WATCH_METHOD",), "school_roam": ("MIRLT_SCHOOL_ROAM",),
+    "lock": ("MIRLT_TAG_LOCK", "1", "0"), "queue_watch": ("MIRLT_QUEUE_WATCH", "1", "0"),
+    "mark_unc": ("MIRLT_MARK_UNC", "1", "0"), "start_edge": ("MIRLT_START_EDGE", "1", "0")}
+QUIZ = [
+    dict(id="where", q="Where are the robots today?",
+         choices=[("auto", "Let it work it out (it looks at the table and the camera)"), ("home", "At home, on the 4 x 4 ft board"),
+                  ("school", "At school, on the conference table")]),
+    dict(id="length", q="How long should a run last?",
+         choices=[("10", "A short demo (about 10 minutes)"), ("30", "A lesson (about 30 minutes)"),
+                  ("0", "As long as the batteries last (home: up to 4 hours)")]),
+    dict(id="watching", q="Will someone stay in the room with the robots?",
+         choices=[("yes", "Yes, someone is always there"), ("ask", "Sometimes: ask me each time"),
+                  ("no", "No, they run on their own")]),
+    dict(id="caution", q="Near the table's edges, how careful should they be?",
+         choices=[("careful", "Very careful: only where the camera clearly sees the table"),
+                  ("normal", "Normal (recommended)"),
+                  ("explore", "Let them slowly feel out parts the camera cannot see, with their own edge sensors")]),
+    dict(id="robots", q="Which robots should drive?",
+         choices=[("all", "Every robot that is switched on and on the table"), ("pick", "Only the ones I name")]),
+]
+
+
+def prefs_path(conf_dir, site):
+    return os.path.join(os.path.expanduser(conf_dir or "~/.config/mirlt"), "prefs", "%s.json" % (site or "home"))
+
+
+def prefs_env(p):
+    """The environment variables a run reads, from the preferences."""
+    out = {}
+    for k, spec in PREF_ENV.items():
+        v = p.get(k, PREFS_DEFAULTS.get(k))
+        if len(spec) == 3:
+            out[spec[0]] = spec[1] if v else spec[2]
+        else:
+            out[spec[0]] = str(v)
+    return out
+
+
+def prefs_args(p, with_robots=True):
+    """freeroam.py's flags from the preferences (the ones with no environment variable)."""
+    a = []
+    if not p.get("discovery", True):
+        a.append("--no-discovery")
+    if p.get("workspace") == "typed":
+        a.append("--typed-board")
+    if p.get("probe_ahead") or p.get("caution") == "explore":
+        a.append("--probe-ahead")
+    if p.get("old_tracking"):
+        a.append("--old-tracking")
+    if not p.get("brick_watch", True):
+        a.append("--no-brick-watch")
+    if p.get("silent_out"):
+        a.append("--silent-out")
+    if not p.get("tilt_recovery", True):
+        a.append("--no-tilt-recovery")
+    if not p.get("shuffle", True):
+        a.append("--no-shuffle")
+    if float(p.get("picture_every_s", 60.0)) != 60.0:
+        a += ["--picture-every-s", "%g" % float(p["picture_every_s"])]
+    if p.get("caution") == "careful":
+        a.append("--careful")
+    r = str(p.get("robots") or "all").strip()
+    if with_robots and r and r != "all":
+        a += ["--robots", ",".join(x.strip() for x in r.replace(";", ",").split(",") if x.strip())]
+    return a
+
+
+def quiz_to_prefs(answers, prefs=None):
+    """The first-time quiz's answers (question id -> choice id) into the preferences page (the rest left as it is)."""
+    p = dict(PREFS_DEFAULTS if prefs is None else prefs)
+    a = dict(answers or {})
+    if a.get("length") is not None:
+        p["run_min"] = float(a["length"])
+    if a.get("watching") in PREF_CHOICES["watching"]:
+        p["watching"] = a["watching"]
+    if a.get("caution") in PREF_CHOICES["caution"]:
+        p["caution"] = a["caution"]
+        p["probe_ahead"] = a["caution"] == "explore"
+    if a.get("robots") == "all":
+        p["robots"] = "all"
+    elif a.get("robots_names"):
+        p["robots"] = str(a["robots_names"])
+    p["quiz_done"] = True
+    return p
+
+
 def _alive(p):
     return p is not None and p.poll() is None
 
@@ -110,6 +248,56 @@ class Starter:
         except (OSError, ValueError):
             pass
         self.sleep_log = []
+        self.load_prefs()
+
+    # -- (e10, C5) preferences, saved per site on the Pi ------------------------------------------------------------
+    def conf_dir(self):
+        return (self.S.site or {}).get("conf_dir") or os.environ.get("MIRLT_CONF_DIR", "~/.config/mirlt")
+
+    def site_name(self):
+        return (self.where or {}).get("site") or (self.S.site or {}).get("name") or "home"
+
+    def load_prefs(self):
+        self.prefs = dict(PREFS_DEFAULTS)
+        self.prefs_file = prefs_path(self.conf_dir(), self.site_name())
+        try:
+            with open(self.prefs_file) as f:
+                self.prefs.update({k: v for k, v in json.load(f).items() if k in PREFS_DEFAULTS})
+        except (OSError, ValueError):
+            pass
+        return self.prefs
+
+    def save_prefs(self):
+        os.makedirs(os.path.dirname(self.prefs_file), exist_ok=True)
+        with open(self.prefs_file + ".tmp", "w") as f:
+            json.dump(self.prefs, f, indent=1)
+        os.replace(self.prefs_file + ".tmp", self.prefs_file)
+
+    def set_prefs(self, d):
+        for k, v in (d or {}).items():
+            if k not in PREFS_DEFAULTS:
+                raise ValueError("no such preference: %s" % k)
+            t = type(PREFS_DEFAULTS[k])
+            v = (str(v).lower() in ("1", "true", "on", "yes")) if t is bool else t(v)
+            if k in PREF_CHOICES and v not in PREF_CHOICES[k]:
+                raise ValueError("%s: one of %s" % (k, ", ".join(PREF_CHOICES[k])))
+            self.prefs[k] = v
+        if "caution" in (d or {}):
+            self.prefs["probe_ahead"] = self.prefs["caution"] == "explore"
+        self.save_prefs()
+        return self.prefs
+
+    def quiz(self, answers):
+        self.prefs = quiz_to_prefs(answers, self.prefs)
+        self.save_prefs()
+        if (answers or {}).get("length") is not None and float(answers["length"]) > 0:
+            self.adv["roam_min"] = float(answers["length"])        # the school's free roam minutes too
+        return self.prefs
+
+    def prefs_state(self):
+        return {"values": dict(self.prefs), "defaults": dict(PREFS_DEFAULTS), "choices": {k: list(v) for k, v in
+                                                                                   PREF_CHOICES.items()},
+                "quiz": QUIZ, "file": self.prefs_file, "site": self.site_name()}
 
     # -- settings -------------------------------------------------------------------------------------------------
     def set_advanced(self, d):
@@ -313,8 +501,11 @@ class Starter:
             self.S.stop_asked = False
             self.active, self.active_practice = kind, pr
             self.started_t = time.time()
+            if self.prefs.get("watching") in ("yes", "no"):
+                attended = self.prefs["watching"] == "yes" or bool(attended and (self.S.site or {}).get("attended_only"))
             self.attended = bool(attended)          # (e08, A2) a person is there: runs may ask questions
             os.environ["MIRLT_ATTENDED"] = "1" if attended and not pr else "0"   # mission_run -> run_plan --attended
+            os.environ.update(prefs_env(self.prefs))     # (e10, C5) the preferences reach every run this page starts
             if self.tags():
                 r = self.start_tags(kind, pr)
             else:
@@ -370,7 +561,8 @@ class Starter:
         d = {"kind": kind, "conn": conn, "dry": pr, "sim_robots": n, "extra": extra}
         if kind == "freeroam":
             d["kind"] = "roam"
-            d["roam_min"] = PRACTICE_ROAM_MIN if pr else float(self.adv.get("roam_min") or ROAM_MIN)
+            d["roam_min"] = PRACTICE_ROAM_MIN if pr else float(self.prefs.get("run_min") or self.adv.get("roam_min") or
+                                                               ROAM_MIN)
         elif kind == "experiment":
             d["experiment"] = self.next_experiment()
             d["allow_half_table"] = bool(self.adv.get("allow_half_table"))
@@ -385,18 +577,22 @@ class Starter:
         if kind == "calibrate":
             cmd = ["bash", "-c", "bash '%s' L0 && bash '%s' L1" % (sh, sh)]
         else:
-            hrs = "%.2f" % ((PRACTICE_ROAM_MIN / 60.0) if pr else HOME_ROAM_H)
+            run_min = float(self.prefs.get("run_min") or 0.0)
+            hrs = "%.2f" % ((PRACTICE_ROAM_MIN / 60.0) if pr else (run_min / 60.0 if run_min > 0 else HOME_ROAM_H))
             if pr:
                 n = max(1, min(3, int(self.adv.get("practice_robots") or 2)))
                 cmd = [sys.executable, os.path.join(HERE, "freeroam.py"), "run", "--dry", "--hours", hrs,
                        "--robots", ",".join(["Left", "Center", "Right"][:n]),
                        "--sim-minutes", "%.1f" % PRACTICE_ROAM_MIN, "--motion", "curves", "--dir", folder] + \
-                    (["--attended"] if getattr(self, "attended", False) else [])
+                    (["--attended"] if getattr(self, "attended", False) else []) + \
+                    prefs_args(self.prefs, with_robots=False)
                 import calib_job as CJ
                 if CJ._ns_ok():
                     cmd = ["unshare", "-rn"] + cmd
             else:
-                cmd = ["bash", sh, "freeroam-run", hrs] + (["--attended"] if getattr(self, "attended", False) else [])
+                cmd = ["bash", sh, "freeroam-run", hrs] + (["--attended"] if getattr(self, "attended", False) else []) + \
+                    prefs_args(self.prefs)
+        env.update(prefs_env(self.prefs))
         self.job = ProcJob(kind, cmd, folder, env=env, practice=pr)
         return {"started": kind, "folder": folder}
 
@@ -534,6 +730,7 @@ class Starter:
                 "mode_words": "PRACTICE: the simulator (no real camera here)" if pr else "ROBOTS: the real robots",
                 "robots": {"n": n, "names": names, "words": rw}, "area": self.area_words(), "map": self.map_words(),
                 "buttons": self.buttons(), "status": self.status(), "advanced": dict(self.adv),
+                "prefs": self.prefs_state(),
                 "attended_only": bool((self.S.site or {}).get("attended_only")),
                 "typed": self.typed_values(), "sites": self.site_choices(),
                 "corners_needed": self.corners_needed()}

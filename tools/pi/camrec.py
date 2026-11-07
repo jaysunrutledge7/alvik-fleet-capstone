@@ -96,6 +96,50 @@ class Latest:
             return self.jpeg
 
 
+REC_WRITE = os.environ.get("MIRLT_REC_WRITE", "thread")   # (e10) "thread": the video file is written by its own thread
+                                                           # (a slow drive never holds up /live); "inline": as before
+REC_QUEUE = 90              # (e10) CHOSEN: frames that may wait for the drive (3 s at 30 fps); beyond that the RECORDING
+                            # drops a frame (counted in meta.json frame_check.rec_dropped), never the live picture
+
+
+class AsyncRecorder:
+    """(e10) The video file and its frames.csv rows, written by their own thread from a bounded queue. The 5 Nov 4 h
+    run lost every robot's camera for ~4.4 s every 5 minutes (full-video mode): the recording's write waited for a drive
+    that the free roam's 5-minute part was being written to, and this loop, which also feeds /live (port 8000), waited
+    with it (inferred from the timing and the code). Now a slow drive costs recorded frames, never live pictures."""
+
+    def __init__(self, writer, fcsv, lock, maxq=REC_QUEUE):
+        import queue as _q
+        self.writer, self.fcsv, self.lock = writer, fcsv, lock
+        self.q = _q.Queue(maxsize=maxq)
+        self.dropped = 0
+        self.written = 0
+        self.t = threading.Thread(target=self._run, daemon=True, name="recorder-writer")
+        self.t.start()
+
+    def put(self, frame, row):
+        import queue as _q
+        try:
+            self.q.put_nowait((frame, row))
+        except _q.Full:
+            self.dropped += 1
+
+    def _run(self):
+        while True:
+            item = self.q.get()
+            if item is None:
+                return
+            frame, row = item
+            self.writer.write(frame)
+            with self.lock:
+                self.fcsv.writerow(row)
+            self.written += 1
+
+    def close(self, timeout=30.0):
+        self.q.put(None)
+        self.t.join(timeout)
+
+
 class LiveFrames:
     """Every frame for /live (tools/live/track_live.py on the laptop): the
     newest picture with its frame number and t_wall. Costs nothing while no
@@ -993,17 +1037,23 @@ class CamRec:
                 cam_ms = float(cam_ms)
             except (TypeError, ValueError):
                 cam_ms = -1.0
+            if recording and REC_WRITE != "inline" and getattr(self, "arec", None) is None:
+                self.arec = AsyncRecorder(self.writer, self.fcsv, self.lock)
             if recording and getattr(self, "rec_stop_req", False):
                 # the card is almost full (watch_disk): the video so far is closed cleanly, and the live picture
                 # carries on so the laptop's runner can keep measuring runs (Nick, 2026-10-23: storage is the
                 # bottleneck; get as much data as possible)
                 recording = False
+                if getattr(self, "arec", None) is not None:
+                    self.arec.close()
                 self.writer.release()
                 with self.lock:
                     self.ff.flush()
                 self.stopped = self.stopped or "disk almost full (recording stopped, live picture on)"
                 self.log(f"! {self.tag}recording stopped and saved (card almost full); the live picture carries on.")
-            if recording:
+            if recording and getattr(self, "arec", None) is not None:
+                self.arec.put(frame, [self.n, f"{t_wall:.4f}", f"{t_mono:.4f}", f"{cam_ms:.1f}"])
+            elif recording:
                 self.writer.write(frame)
                 with self.lock:
                     self.fcsv.writerow([self.n, f"{t_wall:.4f}", f"{t_mono:.4f}", f"{cam_ms:.1f}"])
@@ -1099,6 +1149,7 @@ class CamRec:
                     missed_pct=round(100.0 * self.missed / max(1, self.n + self.missed), 2),
                     low_rate_windows=self.low_windows,
                     brightness=[[round(t, 1), m] for t, m in self.bright[-400:]],
+                    rec_dropped=getattr(getattr(self, "arec", None), "dropped", 0),
                     ok=(measured is None or measured >= 0.9 * exp) and self.missed <= 0.01 * max(1, self.n))
 
     def close(self, t0):
@@ -1121,6 +1172,8 @@ class CamRec:
         except Exception:
             pass
         if self.writer is not None:
+            if getattr(self, "arec", None) is not None:
+                self.arec.close()            # (e10) every queued frame onto the drive first
             self.writer.release()
             with self.lock:
                 self.ff.close()

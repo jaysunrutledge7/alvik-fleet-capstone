@@ -76,6 +76,61 @@ def write_mjpeg_avi(path, jpegs, fps, width, height):
     os.replace(tmp, path)
 
 
+def write_mjpeg_avi_stream(path, jpegs, fps, width, height, pause_every_mb=4.0, pause_s=0.01, sleep=None):
+    """write_mjpeg_avi's file, written chunk by chunk (no whole-file copy in memory) with a short pause every
+    pause_every_mb, so a 5-minute part (3,600 pictures, 150-200 MB) never arrives at the drive as one burst. (e10: the
+    5 Nov 4 h run lost every robot's camera for ~4.4 s every 5 minutes, in step with the part being written; a burst
+    on the drive the recorder writes its full video to can hold up the recorder's loop, which also feeds /live.)"""
+    import time as _t
+    sleep = sleep or _t.sleep
+    fps = max(1.0, float(fps))
+    n = len(jpegs)
+    us = int(round(1e6 / fps))
+    maxb = max((len(j) for j in jpegs), default=0)
+
+    def chunk_hdr(cid, size):
+        return cid + struct.pack("<I", size)
+
+    avih = struct.pack("<IIIIIIIIIIIIII", us, int(maxb * fps), 0, 0x10, n, 0, 1, maxb + 8, width, height, 0, 0, 0, 0)
+    rate, scale = int(round(fps * 1000)), 1000
+    strh = struct.pack("<4s4sIHHIIIIIIIIhhhh", b"vids", b"MJPG", 0, 0, 0, 0, scale, rate, 0, n, maxb + 8, 0xFFFFFFFF, 0,
+                       0, 0, width, height)
+    strf = struct.pack("<IiiHH4sIiiII", 40, width, height, 1, 24, b"MJPG", width * height * 3, 0, 0, 0, 0)
+
+    def chunk(cid, data):
+        return chunk_hdr(cid, len(data)) + data + (b"\0" if len(data) % 2 else b"")
+
+    def lst(kind, data):
+        return b"LIST" + struct.pack("<I", len(data) + 4) + kind + data
+
+    hdrl = lst(b"hdrl", chunk(b"avih", avih) + lst(b"strl", chunk(b"strh", strh) + chunk(b"strf", strf)))
+    sizes = [8 + len(j) + (len(j) % 2) for j in jpegs]
+    movi_len = 4 + sum(sizes)                          # 'movi' + chunks
+    idx1_len = 16 * n
+    body_len = 4 + len(hdrl) + 8 + movi_len + 8 + idx1_len
+    tmp = path + ".part"
+    since = 0
+    with open(tmp, "wb") as f:
+        f.write(b"RIFF" + struct.pack("<I", body_len) + b"AVI " + hdrl)
+        f.write(b"LIST" + struct.pack("<I", movi_len) + b"movi")
+        idx = []
+        off = 4
+        for j, sz in zip(jpegs, sizes):
+            f.write(chunk_hdr(b"00dc", len(j)))
+            f.write(j)
+            if len(j) % 2:
+                f.write(b"\0")
+            idx.append(struct.pack("<4sIII", b"00dc", 0x10, off, len(j)))
+            off += sz
+            since += sz
+            if pause_every_mb and since >= pause_every_mb * 1e6:
+                f.flush()
+                since = 0
+                sleep(pause_s)
+        f.write(b"idx1" + struct.pack("<I", idx1_len) + b"".join(idx))
+    os.replace(tmp, path)
+
+
 def jpeg_size(jpeg):
     """(width, height) from a JPEG's SOF marker, or None."""
     i = 2
