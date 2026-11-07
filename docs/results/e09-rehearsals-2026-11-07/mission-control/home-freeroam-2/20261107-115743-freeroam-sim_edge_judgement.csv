@@ -1,0 +1,9 @@
+t,robot,state,why,margin_cm,need_cm,unc_cm,disagree_cm,cam_fresh,x,y
+1794070675.53,Left,clear,27.9 cm clear of the edge clearance,27.91,13.55,1.83,0.83,1,42.7,41.5
+1794070675.53,Center,clear,19.9 cm clear of the edge clearance,19.87,13.62,1.9,0.9,1,77.9,88.4
+1794070720.01,Left,sure_near,near an edge; camera fresh and own pose within 1.0 cm,-0.71,18.92,7.2,0.97,1,104.0,97.7
+1794070720.54,Left,clear,5.5 cm clear of the edge clearance,5.51,13.65,1.93,0.76,1,103.1,100.1
+1794070795.0,Left,sure_near,near an edge; camera fresh and own pose within 0.9 cm,-0.9,21.24,9.52,0.89,1,101.9,72.8
+1794070795.51,Left,clear,9.3 cm clear of the edge clearance,9.3,14.02,2.3,0.92,1,98.9,78.2
+1794070848.55,Left,sure_near,near an edge; camera fresh and own pose within 2.1 cm,-0.39,18.26,6.54,2.06,1,104.4,36.3
+1794070849.05,Left,clear,1.5 cm clear of the edge clearance,1.5,14.46,2.74,1.42,1,106.3,41.4

@@ -1,0 +1,10 @@
+t,clock,kind,robot,text,still,clip,pi_frame
+1794070510.163,11:55:10,hold,Bravo,halted,stills/115510_hold-Bravo.jpg,clips/115510_hold-Bravo.avi,1147
+1794070510.163,11:55:10,other,Bravo,halted,stills/115510_other-Bravo.jpg,clips/115510_hold-Bravo.avi,1147
+1794070586.491,11:56:26,hold,Alpha,halted,stills/115626_hold-Alpha.jpg,clips/115626_hold-Alpha.avi,2062
+1794070587.532,11:56:27,hold,Alpha,halted,stills/115627_hold-Alpha.jpg,clips/115626_hold-Alpha.avi,2074
+1794070587.532,11:56:27,other,Alpha,halted,stills/115627_other-Alpha.jpg,clips/115626_hold-Alpha.avi,2074
+1794070588.110,11:56:28,hold,Bravo,held,stills/115628_hold-Bravo.jpg,clips/115626_hold-Alpha.avi,2081
+1794070596.450,11:56:36,hold,Alpha,halted,stills/115636_hold-Alpha.jpg,clips/115636_hold-Alpha.avi,2181
+1794070596.450,11:56:36,other,Alpha,halted,stills/115636_other-Alpha.jpg,clips/115636_hold-Alpha.avi,2181
+1794070596.969,11:56:36,hold,Bravo,held,stills/115636_hold-Bravo.jpg,clips/115636_hold-Alpha.avi,2187

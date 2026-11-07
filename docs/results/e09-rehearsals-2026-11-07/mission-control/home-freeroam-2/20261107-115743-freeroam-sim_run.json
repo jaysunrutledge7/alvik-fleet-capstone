@@ -1,0 +1,62 @@
+{
+ "version": "freeroam-runner-2026-11-07b",
+ "core": "freeroam-2026-11-07b",
+ "motion": "curves",
+ "seed": 70663,
+ "hours": 0.05,
+ "battery_floor": 10,
+ "rules": {
+  "safety_rules": "2026-11-07a",
+  "edge": "derived",
+  "pose": "widen",
+  "keepouts": "fade",
+  "silent_out": false,
+  "tilt_recovery": true,
+  "tilt": {
+   "tilt_stop_deg": 4.0,
+   "tilt_ms": 300.0,
+   "stand_tilt_deg": 2.5,
+   "stand_tilt_s": 2.0
+  },
+  "attended": false
+ },
+ "tracking": {
+  "layer": "tracking-layer-2026-11-07a",
+  "filter": "fused-pose-2026-11-07a",
+  "pose_source": "ekf",
+  "gyro_heading": false,
+  "old_tracking": false,
+  "brick_watch": true
+ },
+ "lost_mode": "reckon",
+ "dry": true,
+ "reflex_drill": 0.0,
+ "started": "2026-11-07T11:57:43",
+ "argv": [
+  "run",
+  "--dry",
+  "--hours",
+  "0.05",
+  "--robots",
+  "Left,Center",
+  "--sim-minutes",
+  "3.0",
+  "--motion",
+  "curves",
+  "--dir",
+  "/tmp/claude-0/-home-claude/fff6dc9c-5876-54f9-92a7-a08483d3d5c7/scratchpad/e09/mc/home-freeroam-2/mc/runs/20261107-115743-freeroam-sim"
+ ],
+ "sim_gaps": [],
+ "robots": [
+  "Left",
+  "Center"
+ ],
+ "rect": [
+  0.0,
+  0.0,
+  122.24,
+  121.92
+ ],
+ "ended": "the time cap (0.1 h)",
+ "finished": "2026-11-07T12:00:57"
+}

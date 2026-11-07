@@ -1,0 +1,8 @@
+t,robot,kind,text
+1794070671.84,Left,safety armed,"safe_edge 3, edge_bot_cm 11, tilt_stop_deg 4, tilt_ms 300, safe_lift 1"
+1794070671.84,Center,safety armed,"safe_edge 3, edge_bot_cm 11, tilt_stop_deg 4, tilt_ms 300, safe_lift 1"
+1794070671.84,Left,firmware,2026-11-05d (fspd/fsteer/watchdog)
+1794070671.84,Center,firmware,2026-11-05d (fspd/fsteer/watchdog)
+1794070675.17,Left,motion,curves (continuous: firmware 2026-11-05d)
+1794070675.17,Center,motion,curves (continuous: firmware 2026-11-05d)
+1794070855.22,-,end,the time cap (0.1 h)

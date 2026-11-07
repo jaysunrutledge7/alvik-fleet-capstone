@@ -1,0 +1,134 @@
+{
+ "version": "freeroam-runner-2026-11-07b",
+ "core": "freeroam-2026-11-07b",
+ "t0": 1794070675.1711106,
+ "now": 1794070855.2185743,
+ "ended": "the time cap (0.1 h)",
+ "seed": 70663,
+ "robots": {
+  "Left": {
+   "mode": "move",
+   "out": null,
+   "battery": 6,
+   "moves": 55,
+   "fw": "2026-11-05d",
+   "lost": false
+  },
+  "Center": {
+   "mode": "move",
+   "out": null,
+   "battery": 6,
+   "moves": 54,
+   "fw": "2026-11-05d",
+   "lost": false
+  }
+ },
+ "counts": {
+  "fallback": {
+   "off-menu curve": 1,
+   "escape curve": 1,
+   "loop": 2
+  },
+  "reflex": {},
+  "breaks": 0,
+  "contacts": 0,
+  "front_stops": 0,
+  "keepouts": 0,
+  "backoffs": 0,
+  "cam_refused": 0,
+  "dodges": 0,
+  "pieces": 109,
+  "loops": 2,
+  "zeros": {
+   "the start": 2
+  },
+  "edge_refused": 2564,
+  "judgements": {
+   "clear": 5,
+   "sure_near": 3
+  },
+  "ekf_disagree": 50,
+  "heading": {
+   "heading_ok": 4
+  }
+ },
+ "tracking": {
+  "version": "tracking-layer-2026-11-07a",
+  "sources": [
+   "motion",
+   "lock",
+   "lights"
+  ],
+  "identity": "wiggle",
+  "counts": {
+   "frames": 2271,
+   "fixes": 4542,
+   "contested": 0,
+   "merged": 0,
+   "close_passes": 0,
+   "kept": 0,
+   "swapped": 0,
+   "wiggles": 0,
+   "wiggle_kept": 0,
+   "wiggle_swapped": 0,
+   "wiggle_none": 0,
+   "parked_moved": 0,
+   "bricks": 0,
+   "seeds": 0,
+   "tag_jumps": 0,
+   "refused_close": 0,
+   "lock_used": 0,
+   "lock_checked": 0,
+   "camera_votes": 248
+  },
+  "by_source": {
+   "motion": 4542
+  },
+  "per_robot": {
+   "Left": {
+    "motion": 2271
+   },
+   "Center": {
+    "motion": 2271
+   }
+  }
+ },
+ "filters": {
+  "Left": {
+   "version": "fused-pose-2026-11-07a",
+   "fixes": {
+    "motion": 2192
+   },
+   "disagreements": 30,
+   "trust": {
+    "motion": 1.01
+   },
+   "gyro_sign": null,
+   "gyro_bias_dps": null,
+   "bias_updates": 0,
+   "bumps": 0,
+   "drops": 9,
+   "wheel_scale": 1.0044,
+   "turn_scale": 0.9984,
+   "gyro_heading": false
+  },
+  "Center": {
+   "version": "fused-pose-2026-11-07a",
+   "fixes": {
+    "motion": 2194
+   },
+   "disagreements": 20,
+   "trust": {
+    "motion": 1.01
+   },
+   "gyro_sign": null,
+   "gyro_bias_dps": null,
+   "bias_updates": 0,
+   "bumps": 0,
+   "drops": 10,
+   "wheel_scale": 1.0039,
+   "turn_scale": 1.0192,
+   "gyro_heading": false
+  }
+ }
+}

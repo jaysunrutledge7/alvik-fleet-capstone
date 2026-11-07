@@ -1,0 +1,98 @@
+{
+ "a": {
+  "e08": {
+   "n": 4,
+   "edge_worst": 9.64,
+   "edge_med": 10.23,
+   "moving": 97.0,
+   "contacts": 0,
+   "falls": 0,
+   "recovered": 0,
+   "rejoined": 0,
+   "hung_s": 0
+  },
+  "e09": {
+   "n": 4,
+   "edge_worst": 10.32,
+   "edge_med": 10.61,
+   "moving": 95.9,
+   "contacts": 0,
+   "falls": 0,
+   "recovered": 0,
+   "rejoined": 0,
+   "hung_s": 0
+  }
+ },
+ "b": {
+  "e08": {
+   "n": 4,
+   "edge_worst": -2.89,
+   "edge_med": -2.89,
+   "moving": 86.3,
+   "contacts": 0,
+   "falls": 0,
+   "recovered": 4,
+   "rejoined": 0,
+   "hung_s": 23.8
+  },
+  "e09": {
+   "n": 4,
+   "edge_worst": -2.89,
+   "edge_med": -2.89,
+   "moving": 39.6,
+   "contacts": 0,
+   "falls": 0,
+   "recovered": 4,
+   "rejoined": 0,
+   "hung_s": 47.4
+  }
+ },
+ "c": {
+  "e08": {
+   "n": 4,
+   "edge_worst": 9.19,
+   "edge_med": 9.95,
+   "moving": 94.0,
+   "contacts": 0,
+   "falls": 0,
+   "recovered": 0,
+   "rejoined": 4,
+   "hung_s": 0
+  },
+  "e09": {
+   "n": 4,
+   "edge_worst": 11.33,
+   "edge_med": 11.58,
+   "moving": 91.4,
+   "contacts": 0,
+   "falls": 0,
+   "recovered": 0,
+   "rejoined": 4,
+   "hung_s": 0
+  }
+ },
+ "d": {
+  "e08": {
+   "n": 4,
+   "edge_worst": 9.84,
+   "edge_med": 10.06,
+   "moving": 64.0,
+   "contacts": 0,
+   "falls": 0,
+   "recovered": 0,
+   "rejoined": 4,
+   "hung_s": 0
+  },
+  "e09": {
+   "n": 4,
+   "edge_worst": 9.94,
+   "edge_med": 10.85,
+   "moving": 63.5,
+   "contacts": 0,
+   "falls": 0,
+   "recovered": 0,
+   "rejoined": 4,
+   "hung_s": 0
+  }
+ }
+}

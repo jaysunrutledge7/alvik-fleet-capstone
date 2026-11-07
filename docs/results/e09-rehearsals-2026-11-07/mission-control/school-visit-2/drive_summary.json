@@ -1,0 +1,30 @@
+{
+ "name": "school-visit-2",
+ "room": "school",
+ "kind": "visit",
+ "start_error": null,
+ "ended_s": 297.7,
+ "status": {
+  "running": false,
+  "kind": "visit",
+  "title": "Visit points",
+  "practice": true,
+  "lines": [
+   "  Alpha 7/7  Bravo 14/28",
+   "POINT point P10 (Bravo): \u00b11.4 cm, one camera (overhead)",
+   "Bravo: after its turn the camera did not agree within 1.5 cm in 3 s (one camera (overhead), 2.5 cm apart): driving on, as before the pause",
+   "  Alpha 7/7  Bravo 18/28",
+   "POINT point P02 (Bravo): \u00b11.4 cm, one camera (overhead)",
+   "Bravo: after its turn the camera did not agree within 1.5 cm in 3 s (one camera (overhead), 2.2 cm apart): driving on, as before the pause",
+   "  Alpha 7/7  Bravo 21/28",
+   "all robots done"
+  ],
+  "elapsed_s": 298.0,
+  "points": 20,
+  "questions": [],
+  "words": "Visit points ended.",
+  "folder": "/tmp/claude-0/-home-claude/fff6dc9c-5876-54f9-92a7-a08483d3d5c7/scratchpad/e09/mc/school-visit-2/mc/runs/20261107-115244-visit-sim-cameras"
+ },
+ "where": "This looks like the school conference table (its reference tags 20, 21, 23, 24, 25 are on the table and the table measures 396 x 167 cm, its size).",
+ "folder": "/tmp/claude-0/-home-claude/fff6dc9c-5876-54f9-92a7-a08483d3d5c7/scratchpad/e09/mc/school-visit-2/mc/runs/20261107-115244-visit-sim-cameras"
+}

@@ -1,0 +1,40 @@
+{
+ "centre_min": 15.2,
+ "body_min": 9.8,
+ "centres_apart_min": 24.3,
+ "moving": {
+  "Left": 94.0,
+  "Center": 94.0
+ },
+ "breaks": 0,
+ "ekf_disagree": 50,
+ "tracking": {
+  "frames": 2271,
+  "fixes": 4542,
+  "contested": 0,
+  "merged": 0,
+  "close_passes": 0,
+  "kept": 0,
+  "swapped": 0,
+  "wiggles": 0,
+  "wiggle_kept": 0,
+  "wiggle_swapped": 0,
+  "wiggle_none": 0,
+  "parked_moved": 0,
+  "bricks": 0,
+  "seeds": 0,
+  "tag_jumps": 0,
+  "refused_close": 0,
+  "lock_used": 0,
+  "lock_checked": 0,
+  "camera_votes": 248
+ },
+ "filters": {
+  "Left": {
+   "motion": 2192
+  },
+  "Center": {
+   "motion": 2194
+  }
+ }
+}
