@@ -135,7 +135,7 @@ does not apply):
 
 ## What's next
 
-1. Thursday's daytime test, with the new code: [session plan](../session-plans/2026-10-29.md) (updated: lamp advice,
+1. Thursday's daytime test, with the new code: [session plan](../archive/2026-10-29.md) (updated: lamp advice,
    new normal lines, placement).
 2. Check on the board before Monday: each robot's front faces its start direction before Run (the start check cannot
    see it); Center's WiFi (-72 dBm, the others -62 to -64), since Center is the spare.

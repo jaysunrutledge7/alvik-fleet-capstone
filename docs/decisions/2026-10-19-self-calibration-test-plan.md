@@ -1,5 +1,8 @@
 # Decision: rebuild the test plan around self-calibration (Oct 19, 2026)
 
+> **Superseded in part (7 Nov 2026).** Self-calibration is still the core. The setup choices below are replaced: one dock with one attachment at the robot's back, calibrated by backing in (25 Oct), not two docks with posts and nose switches; setup by corners only (30 Oct); then "discover, don't pre-map" and "observe, then trust" (5 Nov, [CLAUDE.md](../../CLAUDE.md)), so landmarks are found by the robots and camera, not clicked. Details: [2026-11-07 audit, rules slice O10](../audits/2026-11-07/B-rules.md).
+
+
 Chosen by Nick from the "Test Plan Decisions" panel.
 
 1. **Old test list:** B. Self-calibration is the core; the questions of T2-T7 (sensor

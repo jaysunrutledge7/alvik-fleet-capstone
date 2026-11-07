@@ -35,7 +35,7 @@ simulator and the tests.
    firmware change.
 5. **`./run-fleet-pi.sh jay-bundle`**: our raw files for Jay-Sun, never anything from RFID.
 6. **Keep-going fixes**: a point is listed once, and the both-held loop is capped.
-7. **Runbook**: [school-experiments.md](../how-to/school-experiments.md).
+7. **Runbook**: [school-experiments.md](../archive/school-experiments.md).
 
 Every new behaviour has a switch back to the old one.
 
@@ -193,7 +193,7 @@ With 60 s parts, the 675 s stress run's mission_run levelled off at 0.86 GB (sam
 
 ## What's next
 
-1. Tonight, follow [school-experiments.md](../how-to/school-experiments.md): shakedown, then E1-E4, then
+1. Tonight, follow [school-experiments.md](../archive/school-experiments.md): shakedown, then E1-E4, then
    `./run-fleet-pi.sh jay-bundle` after each run.
 2. After the session, run `school_rfid.py` on each run with and without `--no-wiggle`, and compare the two offsets
    (the summary says whether they agree). That is the first real test of the wiggle.
@@ -233,7 +233,7 @@ With 60 s parts, the 675 s stress run's mission_run levelled off at 0.86 GB (sam
 | 4 Raw odometry | `run/odometry_raw.csv`: per robot, dead reckoning rebuilt offline from the RAW rows the firmware already logs (50 a second: the motor board's wheel odometry x/y/th, IMU yaw, wl/wr wheel angles, gz). It follows pose.h's tick() step for step and is anchored **once** at the robot's first own pose; no camera fix is ever applied. **No firmware change.** The raw values used are also written as columns | same | same |
 | 5 Raw bundle | `./run-fleet-pi.sh jay-bundle [folder]` (default: the newest school run): a zip in the run's folder with our logs, the two new CSVs, the summary, the site file, the points and a README of the columns. It never includes anything with "rfid" in its path, and logs/ is git-ignored | `run_exports.bundle` | - |
 | 6 Duplicated points | Only the newest hand-over of a point counts, and a point already in a running robot's list (or already done) is never put in again. Both robots held for the **3rd time**, or again more than **180 s** after the first time, ends the run with the points not done listed | `run_plan.py` | `--dedupe-points off`; `--all-held-max 0`, `--all-held-max-s 0` |
-| 7 Runbook | [school-experiments.md](../how-to/school-experiments.md): shakedown, experiments 1-4, export; linked from morning-nov03 B7 | | |
+| 7 Runbook | [school-experiments.md](../archive/school-experiments.md): shakedown, experiments 1-4, export; linked from morning-nov03 B7 | | |
 
 ## Appendix C: commands
 

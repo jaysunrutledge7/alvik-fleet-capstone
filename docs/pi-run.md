@@ -1,5 +1,7 @@
 # Running a session from the Pi (Nick, 2026-10-24)
 
+> **Superseded in part (7 Nov 2026).** The E02 runner (`run-e02-pi.sh`, `run-e02.bat`) is now the legacy "parts bin": kept working, out of the way, and no longer the way to run a session. Current paths: [mission-control-start.md](how-to/mission-control-start.md) (Mission Control's Start screen, school and new sites) and [home-free-roam.md](how-to/home-free-roam.md) (home). The USB drive, GitHub token, start page and camera-name sections below still apply. Sections about the E02 runner are marked **Legacy**. Why: [7 Nov full audit](audits/2026-11-07-full-audit.md).
+
 The laptop way (`run-e02.bat`) still works exactly as before. This is the other choice: the Raspberry Pi runs
 everything (camera recorder and runner), so the laptop can be closed and Nick can leave the house. At the end the
 Pi uploads the logs and the video to a GitHub release by itself.
@@ -123,6 +125,9 @@ the overhead's number to the tracker too (before, it always opened `/dev/video0`
 
 ## Each session
 
+> **Legacy (7 Nov 2026):** this section is the E02 runner, now the "parts bin". Current paths: [mission-control-start.md](how-to/mission-control-start.md) and [home-free-roam.md](how-to/home-free-roam.md).
+
+
 Robots on their parking spots, turned on, the camera aimed as usual. The easy way: the start page (above). The
 terminal way, unchanged: on the Pi (RealVNC, or SSH), in a terminal:
 ```
@@ -154,6 +159,9 @@ uploaded or not.
 
 ## What is different on the Pi
 
+> **Legacy (7 Nov 2026):** this section is the E02 runner, now the "parts bin". Current paths: [mission-control-start.md](how-to/mission-control-start.md) and [home-free-roam.md](how-to/home-free-roam.md).
+
+
 - The runner reads the camera on the Pi itself (no WiFi in between), so pictures arrive sooner.
 - The Pi does all the picture work. The laptop handled 18-21 of the camera's 25 pictures a second with three
   robots; the Pi's tracker alone handles about 25 a second on 30 s of footage, but with the recorder and the runner
@@ -163,6 +171,9 @@ uploaded or not.
   them on the WiFi so they answer the Pi.
 
 ## When the session holds for you (the virtual border, a lost robot)
+
+> **Legacy (7 Nov 2026):** this section is the E02 runner, now the "parts bin". Current paths: [mission-control-start.md](how-to/mission-control-start.md) and [home-free-roam.md](how-to/home-free-roam.md).
+
 
 Every session (Pi or laptop), from 2026-10-24:
 - **The virtual border.** A robot the camera sees within 15 cm of an open edge, moving towards it, stops every

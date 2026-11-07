@@ -24,8 +24,9 @@ Nothing new to type. Steps 1-10 below are the same; what the software now checks
 - **If a robot tips or meets an edge** it stops, that spot is kept out for the rest of the run, and it backs away
   only if the camera shows room behind it (`SAFETY: ... backing straight away 10 cm (never forward)`). If there is no
   safe way back it stands still and the run says so. Then take it back to a sticker by hand.
-- **Robots stay awake at the end** (they used to be put to sleep, and waking restarts them). Mission Control puts them
-  to sleep after **30 minutes** with no run.
+- **Robots go to sleep as soon as a run ends** (Nick, 6 Nov); the next run wakes them. The old 30-minute timer is
+  kept as a switch (Mission Control, Advanced), off. (As of the 7 Nov audit, the terminal way, `./run-fleet-pi.sh
+  calib`, still leaves them awake at the end; the Start screen sleeps them.)
 - **The calibration's distance** now also corrects a small fixed overrun at the end of every leg (about 3-5 mm); the
   card's report shows `Stop overrun`.
 - **Any camera name.** One camera plugged in is used as the overhead camera, whatever its name.

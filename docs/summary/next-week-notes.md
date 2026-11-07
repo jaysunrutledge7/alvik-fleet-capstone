@@ -1,5 +1,8 @@
 # Notes for next week's summary (started 2026-10-24)
 
+> **Archived (7 Nov 2026).** Notes for the week of 24 Oct, kept for the record and as a source in [simulation-register.md](../results/simulation-register.md). Not a current to-do list: open questions are in [open-questions.md](../open-questions.md); one-night runbooks are in [docs/archive](../archive/README.md).
+
+
 Gathered as the week goes; the summary is written from these. Failures go in only with their plan.
 
 ## Themes Nick wants carried through

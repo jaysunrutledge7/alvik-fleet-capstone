@@ -583,7 +583,7 @@ simulated 4 h); "Run" rows need the first real free roam's logs (motion.csv, ref
 
 | Number (where) | Value now | Experiment that would set it | Needs | Status |
 |---|---|---|---|---|
-| Edge margin for a move's end spot (EDGE_CC) | 16 cm centre to edge (corner 9.3 cm in), CHOSEN | yes: 14 / 16 / 20 cm against edge-guard trips, menu coverage of the long cells and fallbacks per hour | Sim then Run | open |
+| Edge margin for a move's end spot (EDGE_CC) | 16 cm centre to edge (corner 9.3 cm in), CHOSEN | yes: 14 / 16 / 20 cm against edge-guard trips, menu coverage of the long cells and fallbacks per hour | Sim then Run | derive (Nick 7 Nov: one edge rule; this sweep becomes its check) |
 | Planned gap between the bodies' circles (PLAN_GAP) | 4 cm (17.4 cm centre to centre + margins), CHOSEN | yes: 3 / 4 / 6 cm against fallbacks per hour, reflex events per hour and the closest approach | Sim then Run | open |
 | Reflex gap (REFLEX_GAP) and look-ahead (REFLEX_H_S) | 2.5 cm, 2 s, CHOSEN (Nick: "~1-2 s") | yes: gap 1.5 / 2.5 / 4 cm x horizon 1.5 / 2 / 3 s against reflex events, full stops and the closest approach | Sim | open |
 | Hard-stop limit (HARD_CC, HARD_T_S) | circles 0.5 cm apart within 1.2 s, CHOSEN | not a DOE: a safety floor (the squares can first touch at 13.44 cm) | - | ruled out |
@@ -595,6 +595,56 @@ simulated 4 h); "Run" rows need the first real free roam's logs (motion.csv, ref
 | Dead-reckoning bubble, turns (BLIND_TURN_FRAC) and its cap (BUBBLE_CAP) | 3 % of degrees turned; 8 cm, CHOSEN (the 2.0 + 0.07 per cm part is measured) | yes: lost.csv jumps against the bubble from the first runs (how many fall outside), and 6 / 8 / 12 cm cap against find-me wiggles per hour | Run | open |
 | Robots' front stop while roaming (FOLLOW_LOOK_CM) | 8 cm (roam.py's), CHOSEN | yes: 6 / 8 / 10 cm against front stops per hour (step.csv obstacle) and closest approaches | Run | open |
 | Watchdog (follow_wd_ms in the roam) | 1.5 s, CHOSEN (15 camera fixes) | not a DOE: a safety timeout | - | ruled out |
+
+## Curves (2026-11-05 evening, built; docs/build-reports/e05-nov05-curves.md)
+
+Added 2026-11-07 from the e05-e07 reports' sweeps (audit B-rules N14). **Derive** in the Status column = Nick decided
+on 7 Nov that this number is derived (from the robots' own data or logs), not set by a DOE; the experiment column then
+says what the derivation needs. All in tools/fleet/freeroam_core.py unless named.
+
+| Number (where) | Value now | Experiment that would set it | Needs | Status |
+|---|---|---|---|---|
+| Curve radii on the menu (K_BINS) | 12 / 25 / 50 cm both ways, and straight, CHOSEN | yes, in the simulator: coarser / finer radii against coverage evenness, fallbacks per hour and speed-zero moments | Sim | open |
+| Curve lengths and speeds (ARC_LEN_BINS, ARC_SPEED_BINS) | 10-20 / 20-35 / 35-55 cm; 5 / 7.5 / 10 / 12 cm/s, CHOSEN (speeds: the DOE loop's) | yes, in the simulator, with K_BINS above | Sim | open |
+| Loop-away circle (LOOP_R) and curve edge room (LOOP_EDGE) | 10 cm; half the body + 2.5 cm, CHOSEN | yes: LOOP_R 8 / 10 / 14 cm against speed-zero moments and closest approaches (e05 sweep 1); LOOP_EDGE goes with the one edge rule below | Sim | open (LOOP_R); derive (LOOP_EDGE, Nick 7 Nov) |
+| Reflex bends (AVOID_K) | radius 30 / 15 / 10 cm both ways, CHOSEN | yes: with the reflex gap row (home free roam) against reflex events and closest approaches | Sim | open |
+| Minimum avoiding speed (V_MIN_AVOID) | 5 cm/s, from 4 seeds (2 / 3 / 5 compared) | yes: 4 / 5 / 6 / 7 cm/s with more seeds (about 20 minutes of simulator; open question 95) | Sim | open |
+| Curves' calibration from the run (ARC_FIT_MIN, ARC_FIT_CI) | 15 pieces, median +-0.03, CHOSEN | not a DOE first: check on the first real curves run how many robots reach it and whether the saved values move the end error | Run | check |
+| Firmware arc details (arc_coast_ms, arc_dodge_r, arc_dodge_cms, arc_dodge_stop_cm, arc_vmin) | 800 ms, 6 cm, 4 cm/s, 4 cm, 2 cm/s, CHOSEN | yes, on the board: the coast against the WiFi lag (from zeros.csv "coast ran out"), the dodge with a box at 3 cm and in front of an R piece (e05 sweep 1) | Logs then Board | open |
+| Calibration recovery (calib_run RECOVER_STEP_CM, RECOVER_MAX_CM, RECOVER_BUBBLE_CAP) | 5 cm, 40 cm, 8 cm, CHOSEN | yes: recoveries near the outlet plates and beside a parked robot in the school simulator, against holds and the closest approach to an edge | Sim | open |
+
+## Multi-robot runs that observe, then trust (2026-11-05, built; docs/build-reports/e06-nov05-multirobot-observe.md)
+
+All in tools/fleet/observe.py unless named.
+
+| Number (where) | Value now | Experiment that would set it | Needs | Status |
+|---|---|---|---|---|
+| Own pose vs camera disagreement (POSE_AGREE_CM, POSE_AGREE_S) | 5 cm for 2 s, CHOSEN | yes: 3 / 5 / 8 cm and 0.5 / 1 / 2 s against false re-seeds and positions found wrong too late, from the 5-6 Nov home logs (the 6 Nov edge case planned from a pose 4.6 cm wrong) | Logs | open |
+| Standing tilt (STAND_TILT_DEG, STAND_TILT_S) and rolling jolt (freeroam_core ACCEL_JOLT_G) | 2.5 deg for 2 s; 0.03 g, CHOSEN | not a DOE: re-pick from the real logs (5 Nov 4 h home run: Center at 3.4-4.1 deg for 64 min; 6-7 Nov home runs), unless that risks false starts | Logs | derive (Nick 7 Nov) |
+| Back-off after a tilt or drop trip (BACK_OFF_CM) | 10 cm straight back, CHOSEN | yes: 6 / 10 / 14 cm against a robot coming back level and repeat trips at the same spot | Bench or Board | open |
+| Trip keep-out (TRIP_KEEPOUT_R_CM) | 5 cm disc 5 cm ahead, kept for the run, CHOSEN | not a DOE for its lifetime: Nick 7 Nov, unconfirmed keep-outs fade and confirmed ones stay; its size: 3 / 5 / 8 cm against repeat trips | Sim then Logs | open (size); lifetime decided |
+| Edge margin of the possible-locations circle (EDGE_MARGIN_CM) | 1 cm inside every side, CHOSEN | not a DOE: part of the one derived edge rule (half diagonal + the robot's position uncertainty + a measured stop distance, per robot and surface) | Logs | derive (Nick 7 Nov) |
+| Evidence weights for a move's outcome (move_outcome) | wheels 1, accelerometer 1.5, gyro 1.5, front 2, line 0.5, camera 3, CHOSEN | not a DOE: learned per sensor from disagreement history (the e02_trust method; audit B-rules N8) | Logs | open |
+| Failed-action memory (FailMemory) | 5 cm / 25 % / 3 within 8 cm, CHOSEN | yes: against repeated failed actions and actions refused for nothing, from the free roam logs | Logs | open |
+| Heading nudge length (NUDGE_CM) | 6 cm, CHOSEN | yes: 3 / 6 / 10 cm against heading found right first time and room needed (a boxed-in robot gets no nudge) | Sim then Board | open |
+| Tag read size (TAG_PX_MIN) | 14 px, CHOSEN from two observations at school | yes: printed tags of known size at several distances on the real C920e, read rate against pixel size | Board (school) | open |
+| Readable cell (READ_OK, CELL_CM) | read rate 0.6; 20 cm cells, CHOSEN | yes: 0.5 / 0.6 / 0.8 and 10 / 20 / 40 cm against points refused and blind legs, from the school runs' camera_track.csv | Logs | open |
+| Idle sleep timer (IDLE_SLEEP_MIN) | 30 min, now a switch, off (Nick 6 Nov: sleep right after a run) | not a DOE: a policy, kept as a switch | - | ruled out |
+
+## Mission Control a newcomer can run (2026-11-06, built; docs/build-reports/e07-nov06-mission-control.md)
+
+| Number (where) | Value now | Experiment that would set it | Needs | Status |
+|---|---|---|---|---|
+| Edge grey-level read width (tagcore EDGE_PROFILE_CELLS) | 0.6 tag cells, CHOSEN | yes: real printed tags of known size, read-size ratio against cell size and place on the school table (decides MIN_CELL_PX_TILES too) | Board (school) | open |
+| Site detection weights (site_detect) | tiles 6, table 5, camera names 3, camera count 1.5, computer name 1, last site 0.5; CLEAR 2, ENOUGH 3; TABLE_TOL 6 %, CHOSEN | not a DOE: an order of trust; more real rooms would test it (run on both Pis, cameras plugged and unplugged) | Board (both Pis) | check |
+| A new area's points (site_detect GRID_CM, GRID_EDGE_CM) and its runs' edge room | 30 cm apart, 30 cm in; edge room 17 cm, CHOSEN | grid spacing: yes, drop trips, nudges done and points per minute in the simulator; the edge room goes with the one derived edge rule | Sim | open (grid); derive (edge room, Nick 7 Nov) |
+| One-button school free roam (start_job ROAM_MIN) | 10 min, CHOSEN (a lesson's demo) | not a DOE: a time (open question 101) | - | ruled out |
+| Unconfirmed obstacle expiry (front_stop UNCONFIRMED_S) | 15 s (Nick 29 Oct, "about 15 s") | yes: 5 / 15 / 30 s against phantom keep-outs piling up and real obstacles hit again, in the free roam fast simulator with injected false stops over 4 h; Nick 7 Nov: free roam's unconfirmed keep-outs fade too | Sim | open |
+
+**The edge distances, all marked derive (Nick, 7 Nov):** missions 17 cm, free roam EDGE_CC 16, school points 13, DOE
+loop and ladder 25, calibration room 12 / 21, the 6 cm virtual border, EDGE_MARGIN_CM 1 and LOOP_EDGE above. One
+derived rule replaces them; the old numbers stay as switches. The home free roam EDGE_CC row's sweep becomes the
+check of the derived rule.
 
 ## Already set by data
 

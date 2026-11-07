@@ -1,7 +1,7 @@
 # alvik-fleet-capstone
 
-ISE 401 capstone (SWARM project): making a fleet of Arduino Alvik robots on the
-8×8 tape-grid testbed smarter and faster.
+ISE 401 capstone (SWARM project, MIRLT): a fleet of Arduino Alvik robots that sets itself up and drives
+accurately on a table it has never seen.
 
 This builds on Andrew Muszynski's work. His repositories are the reference
 implementation:
@@ -12,12 +12,11 @@ implementation:
 | [Alvik-Factory](https://github.com/Andrew-Muszynski/Alvik-Factory) | Earlier ROS 2 / micro-ROS line-following AGV |
 | [SwarmSLAM](https://github.com/Andrew-Muszynski/SwarmSLAM) | Earlier overhead-camera swarm with a Flask server |
 
-Andrew's code is not copied here. It will only be added with his permission, since
-his repos carry no license.
+Andrew has said anything in his repos may be used here.
 
 ## Time tracking
-Every task expected to run over 10 minutes: estimate + questions to Nick first, and a row in `TIME.md` in the
-tower-defense-rpg repo (beside its `USAGE.md`), the one time record for all of Nick's projects.
+Every task expected to run over 10 minutes: estimate + questions to Nick first, and a row in
+[docs/time-tracker.md](docs/time-tracker.md) when it ends.
 
 ## On the Pi: one address
 
@@ -30,52 +29,40 @@ runs the new code only once restarted: `sudo systemctl restart mirlt-launcher`. 
 
 ## Goal
 
-How much does adding sensors improve an Alvik's locational accuracy? A series
-of weekly experiments (E1-E8) measures the robot on odometry alone, the
-overhead AprilTag camera, and the two combined, against the proposal target of
-under 5 cm. The running record is
-[docs/experiments/INDEX.md](docs/experiments/INDEX.md).
+Plug and play: put robots on an unknown table and point a camera at it, and the system calibrates itself (robots,
+camera, table), fuses every signal it has (camera, wheels, gyro, accelerometer, front and line sensors), and degrades
+gracefully when a source is lost instead of stopping. The aim is a publishable result and a live demo in December.
 
-Earlier candidate areas, from the onboarding review:
+Two sites today:
+- **Home**: 4 x 4 ft plywood with a drop on every side; robots tracked by their lights (no markers); corners clicked
+  for now.
+- **School** (with Jay-Sun): the conference table; roof AprilTags on the robots, printed corner tiles, one camera for
+  now.
 
-1. Drive through straight grid nodes instead of stopping at each one
-2. Faster, confirmed in-place turns
-3. Multi-agent path finding in place of delay-only conflict avoidance
-4. One planning model fitted to measured travel times
-5. Depot throughput (single entry/exit edge)
+**Mission Control** (Start screen) runs Calibrate, Free roam, Visit points and Experiment routes for any number of
+robots, and finds by itself which site it is at: [docs/how-to/mission-control-start.md](docs/how-to/mission-control-start.md).
+Home free roam: [docs/how-to/home-free-roam.md](docs/how-to/home-free-roam.md).
+
+**The plan** (Nick, 7 Nov): one pipeline for every site, built in phases: one tracking layer for every camera source,
+the fused estimate in the loop, one controller, discovery at start, and edge safety from one derived rule. The old
+E02 runner stays working as a "parts bin". Accuracy is graded by the camera only for now. Why and what got left
+behind: [docs/audits/2026-11-07-full-audit.md](docs/audits/2026-11-07-full-audit.md).
 
 ## Layout
 
 ```
-firmware/
-  sensor_explorer/   print every sensor reading over USB
-  home_lab/          WiFi-logged experiments: sensor stream, turn test,
-                     lap timer, grid test, demo routes, straight-line test,
-                     survey drive (camera self-calibration), step follower (fleet plans)
-tools/
-  alvik_console.py   laptop console: saves robot logs to CSV, sends commands
-  summarize.py       tables and stats from saved sessions
-  make_run_order.py  shuffled run order + tape measurement sheet per experiment
-  tape_results.py    tape measurements -> errors, stats, chart for a record
-  check_session.py   after a session: sensor log, clocks and video line up?
-  preflight.py       before a session: packages, detector weights, robot firmware and battery, Pi recorder
-  heading_check.py   tape start headings vs the camera's start-nudge headings (T0/T1 heading precision)
-  accuracy_checks.py every data-derived accuracy check on T0/T1 in one table; measured camera noise for the fusion
-  run_sheet.py       guided experiment runs: commands, run ids, tape entry with checks
-  commtest.py        WiFi delay, jitter and delivery per robot (experiment E3)
-  pi/camrec.py       overhead camera recorder for the Raspberry Pi
-  calibrate_floor.py floor calibration (floor cm <-> image px) without printed markers:
-                     clicks, robot placements, or the runs themselves (survey)
-  fleet/             multi-robot planner (map.json -> plan.json) and run_plan.py, which runs a plan on the robots
-  sim/               simulated sessions (E1, survey) and simulated robots for run_plan.py --dry-run
-  site/              site setup: robots + camera + clicks learn where every board and open edge is,
-                     tape audit, locked map; change check ("landmark B may have moved")
-docs/
-  home-experiments.md  how to run the home experiments
-  experiments/         one record per experiment (E0-E8), index, template
+firmware/home_lab/     the robots' firmware (driving, curves, safety layers, sleep, settings)
+firmware/sensor_explorer/  print every sensor reading over USB
+tools/fleet/           Mission Control, the planner and run_plan, free roam, calibration, site files (sites/)
+tools/pi/              on the Pi: start page (launcher), camera recorder, camera names, uploads, robot sleep
+tools/experiment/      the E02 runner and its parts (the "parts bin")
+tools/sim/, tools/fusion/, tools/analysis/, ...   simulators, fusion, analyses (most have a README)
+hardware/              printed parts (dock, attachments, reference tiles) and the print sheet
+run-fleet-pi.sh        start any fleet run on the Pi
+docs/how-to/           current runbooks       docs/build-reports/   one report per build
+docs/audits/           full audits            docs/archive/         one-night runbooks and the 2 Nov demo plans
+docs/open-questions.md   questions for Nick   docs/doe-backlog.md   chosen numbers waiting for a DOE
 ```
-
-Start with [docs/home-experiments.md](docs/home-experiments.md).
 
 ## Secrets
 

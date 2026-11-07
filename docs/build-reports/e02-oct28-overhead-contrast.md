@@ -108,7 +108,7 @@ spot by under 0.1 cm, so it does not explain any error seen here, and no pose co
 
 ## What's next
 
-1. Thursday daytime test: [docs/session-plans/2026-10-29.md](../session-plans/2026-10-29.md) (lighting check, then a
+1. Thursday daytime test: [docs/session-plans/2026-10-29.md](../archive/2026-10-29.md) (lighting check, then a
    1 h DOE loop, with pass marks from these replays).
 2. Remaining start-spot bias: the first crawl still reads 0.4-3.6 cm long, mostly on the overhead. Next step: have
    L0 nudge each robot 3 cm and back, so its start floor is seen before anything is measured.

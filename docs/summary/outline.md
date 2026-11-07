@@ -37,6 +37,8 @@ on that (2.3 cm; no significant difference).
 **Made hard on purpose: versatility.** The table from hard-on-purpose.md, cut to the 6 strongest rows (camera
 quality, no survey, no typed-in calibration, no markers, identical robots, robots put down anywhere), and the closing
 argument (minimal labour, infrastructure and know-how; better data of any type raises the system's confidence).
+(7 Nov: "no markers" holds at home only; at school the robots wear roof AprilTags and the corners are printed
+tiles, and home corners are clicked for now. See the per-site note in hard-on-purpose.md.)
 
 **What's next** (aim to accomplish):
 - run a whole session on the Raspberry Pi alone (a Pi 4, about 5-7 pictures a second: stop-and-go driving and

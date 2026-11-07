@@ -24,7 +24,7 @@ Every source in the body was opened. The links are in Appendix A.
   detection; cheap swarm testbeds; using a robot to calibrate a fixed camera.
 - **Possibly new, and the paper's core:** joint, target-free calibration where *nothing* starts calibrated (the
   camera's intrinsics and pose, every robot's wheel and gyro scale, the arena's boundaries), done online by a
-  fleet of commodity robots with no markers. Rekleitis & Dudek needed a checkerboard on the robot. Chakravarty &
+  fleet of commodity robots with no markers (true at the home site; at school the robots wear roof AprilTags). Rekleitis & Dudek needed a checkerboard on the robot. Chakravarty &
   Jarvis needed a laser-localised robot on a prior map, and reached half-metre accuracy. MIRLT's explore agreed
   with the corner clicks to 2.9 cm median on real data (2026-10-23), within 1.1 cm of the true camera in the
   simulator.
@@ -40,6 +40,8 @@ Every source in the body was opened. The links are in Appendix A.
 calibrate each other from the robots' own driving, with no target, map or measuring tape. The result is
 equivalent to a conventional target-based calibration, both in the camera's floor error and in the robots'
 navigation error.
+
+> **Per site (7 Nov 2026).** "Markerless" holds only at home (robots tracked by their lights). School uses roof AprilTags on the robots and printed corner tiles; home corners are clicked for now. Any abstract must state the claim for the home site, or say which site.
 
 | Evidence | Have | Still needed |
 |---|---|---|
@@ -145,7 +147,7 @@ RSS workshop paper for claim 2 when calls appear.
 | Title, abstract | "Robots as their own calibration target: joint target-free calibration of an overhead camera and a low-cost robot fleet" | none | |
 | I. Introduction | The problem (markers, targets and hand calibration cost labour); what is known at the start (flat floor, the robots' own size and sensor positions, a camera somewhere above); contributions (claim 1, claim 2 if in, open code) | Fig 1: the board, the robots and the camera's view, with the unknowns marked | Existing footage (2026-10-23) |
 | II. Related work | Section 1 of this plan, condensed | Table I: method vs needs a target / a reference sensor / calibrates the camera / calibrates the robots / detects faults / cost | This plan |
-| III. System | Robots, camera, Pi, firmware protocol, markerless tracker (detector + lock-on), recovery ladder, virtual border | Fig 2: architecture; Table II: hardware and cost | Repo docs |
+| III. System | Robots, camera, Pi, firmware protocol, markerless tracker at home (detector + lock-on; roof AprilTags at school), recovery ladder, virtual border | Fig 2: architecture; Table II: hardware and cost | Repo docs |
 | IV. Method | A. Explore joint fit (pinhole + k1, per-robot s and g, sum of log s = 0, size check, touch edges). B. Per-run refit from straight stretches (with the 3 cm jump cut). C. Trust: shared vs own terms; the flag rule | Fig 3: one explore session (rays, stops, fitted edges) | Session 2026-10-24 stage 3, or a new explore |
 | V-A. Exp 1: camera accuracy | Explore vs conventional, at the tape marks | Fig 4: error at each mark, both methods, per camera pose; Table III: RMS, worst, TOST | **Planned** (week 3) |
 | V-B. Exp 2: navigation accuracy | U / C / C-conv / KC, mixed model | Fig 5: every run's end error by condition (dots + median: the existing chart style); Table IV: model estimates | 2026-10-23 S1 and 2026-10-24 Pi stages (pilot); **planned** sessions (weeks 3-4) |

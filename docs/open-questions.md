@@ -3,95 +3,41 @@
 Kept up to date by Claude (Nick, 2026-10-27 07:45: "Keep track of unanswered questions and I'll return to them later").
 Answered ones move to the bottom with the answer and date.
 
+Re-synced 7 Nov 2026 after the [full audit](audits/2026-11-07-full-audit.md): answered questions closed with
+where they were answered, the Monday (2 Nov) demo questions moved to a closed section at the end, and the open
+questions from build reports e03-e07 added (numbers 88 on).
+
 ## Open
 
-### School demo (Monday)
-18. Should the inward rescue also apply to the other back-out ("try again on its own" step)? Same weakness.
-25. Ladder L4: with robots parked where they were left, the square is usually 42 cm instead of 62. A fair test for
-    Monday?
-32. Does the moved side camera see the whole board? A robot outside its picture can't be helped while the overhead
-    is washed out (fix: move it further back, or a third camera).
-33. Should a robot seen only by its lights be allowed to move? (Now: kept out at L0, the safe choice.)
-34. The taped-marks test (T1) to settle which camera carries the ~5 cm constant offset?
-35. Robots' white lights staying on while the ladder watches: OK?
-36. 15:26-15:27: how did you wake the robots (the wake script on the Pi?), and could it still have been running when
-    the ladder started at 15:27? (For 20 s the planner heard no robot at all.)
-37. Should the ladder redo L0 and L1 automatically whenever a robot has restarted (about 4 min)?
-38. Light search: use the side camera alone, or both cameras taking the stronger signal?
-39. Leave turn-around points out of the 3 cm gate? (Right would pass L3; it changes what Phase 0 measures.)
-40. Did the room light change between 15:04 and 15:20? (The side picture brightened from 39 to 58 with its exposure locked.)
-42. Should the cameras find the dock's position themselves? Options: keep as built (bump check only, dock position by
-    tape); glue a 4 x 4 piece of 20-25 mm squares on the plywood just behind the dock (Claude's pick: no dock
-    reprint); or deepen the dock's back to about 9.5 cm (dock grows 16 -> 22 cm).
-43. Card and paper thickness for the dock pocket (assumed 0.45 mm card, 0.10 mm paper): measure 10 sheets of each
-    with a ruler?
-45. Safety net: go to 6.5 cm for Monday after a 10 min board check (5 Chickens, 2 circles), and should Chicken's "never
-    under" move with it or stay at 8? (safety-gap-doe.md; 5 cm needs the board DOE)
-46. Left's distance sensor: its centre-right zone reads under 12 cm in about a third of its readings (others 0-5 %) and
-    caused all three of Left's phantom stops. Look at its window? Until then, ignore that zone on Left? (ladder report)
-    29 Oct: it reads the plywood floor ahead (every robot's does, at 11-18 cm), Left's nearest; superseded by 59.
-47. Lane 1's lane-end turn comes 2.3-3.0 cm from the x = 0 edge in a few runs (median 4.6): add a short straight run-in
-    before lane 1, or move lane 1 1-2 cm in?
-
-48. A robot whose turn check is HELD every round (one camera's evidence, or a misread heading) never drives. Hold
-    forever (as now), or set it aside after 3 holds in a row? The dry run shows why it matters: a robot whose turns
-    are really 12 % off (36 deg over 4 turns) is held every round, never parked. (e02-oct28-overhead-contrast)
-49. Thursday's daytime DOE loop: normal mode (it tests the new holds and re-checks), or keep-going (nothing set aside)?
-    The plan uses normal mode.
-50. Let L0 nudge each robot 3 cm forward and back before measuring, so its start floor is seen? It removes the last
-    0.4-3.6 cm of first-crawl error, but L0 then moves robots.
-51. Turn check crawl 15 cm instead of 10 (headings misread by up to 14 deg on 10 cm)? Needs 5 cm more room per robot.
-52. Should L0 STOP when the lighting check says both cameras are washed out, or only warn (as now)?
-53. The find step's frames are now kept (about 25 s a loop on the USB drive): OK?
-54. A robot near an edge (or another robot) is now driven back to open space by the DOE loop on its own, slowly
-    (5 cm/s), on a planned path the cameras watch, in normal and keep-going mode alike. OK in normal mode too, or
-    keep-going only? (e02-oct28-keep-going-run)
-55. ANSWERED 2026-10-29 (Nick 07:3x: build a facing check): every Monday / Mission Control start and every DOE find
-    step measures which way each robot faces from its own two lights (they sit across the robot, left and right);
-    over 15 deg off its start heading nothing moves, in plain words (docs/build-reports/e02-oct29-facing-check.md).
-    Needs firmware 2026-10-29a flashed to tell front from back every time.
-56. After a calibration that run_plan itself runs (a robot that restarted), the camera bridge has no start heading
-    and the run fails to start; the second start works. Build a proper fix after Monday (the bridge vouches for a robot
-    back on its start spot), or now?
-57. Center's WiFi read -71 to -72 dBm all evening (Left and Right -62 to -64), and it lost one answer. Worth moving
-    the router, or checking Center, since it is the spare?
-58. Night sessions: is there a light setting that gives the overhead 18+ grey levels (the ceiling light only, the lamp
-    off)? Under the table lamp tonight it was 16.
-
-59. Monday, Left's phantom stops (about 1 a drive in today's 3 h loop, all on its centre-right zone reading the floor
-    at about 11 cm; 5 "no plan" ends): set Left's stop limit to 10 cm (`set follow_look_cm 10`, Left only; today's
-    replay: 0 phantom stops; real obstacles seen 2 cm later), ignore its centre-right zone (firmware change), or leave
-    it? Claude's pick: 10 cm on Left after a 10 min board check with a brick. (e02-oct29-daytime-sessions)
-60. The camera bridge refuses to start a robot that only the side camera sees (its spot is ~3 cm off, the "moved" rule
-    is 3 cm): 5 start-ups failed today on the overhead's blind strip (x = 30-45 cm, daylight). Allow more for side-only
-    sightings (e.g. 5 cm), after a logs replay, before Monday?
-62. Was the morning sun on the Pi at 07:43 (that loop ran 5 C hotter than the 09:22 one, 19 min at 80 C+)?
-63. Right has not driven since 28 Oct night (kept out today: 27 cm from the edge). Give it the next session's drives,
-    since it is Monday's robot?
-64. The overhead camera loses robots on a strip at x = 30-45 cm of the home board in daylight (sun patch or glare?):
-    blinds closed for the next daytime session, or does it matter only at home (Monday is at school)?
-65. Facing check: a robot 15-45 deg off its start heading stops the start now. Give it one small turn on the spot
-    before the run instead (it moves, but saves walking to the table)? (e02-oct29-facing-check)
-66. Center's lights read 24 deg off its 10 cm crawl in loops 0-2 on 28 Oct (both cameras agreed with each other). A
-    still photo of Center from above with a ruler along its side would say which is right. (e02-oct29-facing-check)
-67. The facing check takes 6-8 s for two robots (planned 4-5). OK before Monday's run? (e02-oct29-facing-check)
-
-69. Where did the side camera's 13-24 grey levels come from on 29 Oct? The five DOE releases only have 21-45 at L0.
-    (e02-oct29-rules-audit)
-71. Should the camera bridge count a robot as moved off its start only when it has been told to move, not by a 3 cm
-    camera distance (5 start-ups refused on 29 Oct with the side camera alone)? (e02-oct29-rules-audit)
-73. Lower your DOE-loop room rules from 25 cm (edge) / 30 cm (robots) to 20 / 25 cm, now that robots are driven to
-    open space and calibrate in 12 / 21 cm? (e02-oct29-rules-audit)
-74. Is Center in Monday's run? Its centre-left zone gives phantom stops in 41 % of its drives too. (e02-oct29-rules-audit)
-75. Should the lighting check sample where the robots will drive (the x = 30-45 strip), not only where they stand?
-    (e02-oct29-rules-audit)
-76. The floor check can take a robot under its ceiling on its own (Left to 9.1 cm in one 27 Oct drive). Accept limits
-    under Left's 10 cm, or make 10 a floor too? (e02-oct29-false-stops)
-77. A robot heard again came back into Monday's program in only 1 of 6 simulator tries; otherwise it stays a
-    fixed obstacle. Re-plan the rest of the program for both robots together (a planner change, 1-2 h): before Monday
-    or after? (e02-oct29-false-stops)
-78. A second stop at the same place confirms an obstacle (your rule). Count it only when the robot was already moving
-    at one of the two stops (false stops happen while standing after a turn)? (e02-oct29-false-stops)
+### From the 5-6 Nov builds (e04-e07), still unanswered
+88. Phase A from the defaults: a value that is not pinned down goes back to the robot's own (saved) value. Keep that,
+    or keep the default, so an uncalibrated robot stays uncalibrated in that value? (e04-nov05-baseline-pins-ota Q1)
+89. Copy the pins (WiFi names and tag ids only) into the site file (`tags.pins`) once known, so they survive a new Pi?
+    (e04-nov05-baseline-pins-ota Q5)
+90. Free roam: parked robots go to sleep at 10 % so they do not drain further (switch off and on to wake them). Keep
+    that, or leave them awake? (e04-nov05-home-free-roam Q2)
+91. "Moving" counts turns on the spot. Which number is the trophy for the report: any motion, or driving?
+    (e04-nov05-home-free-roam Q4)
+92. Yielding priority Left > Center > Right in free roam: fine, or rotate it? (e04-nov05-home-free-roam Q5)
+93. The find-me wiggle is +-20 deg on the spot: fine to watch, or something more visible? (e04-nov05-home-free-roam Q6)
+94. Curves' calibration learned during the run (saved when a robot parks) instead of a separate arc phase: fine, or a
+    short arc phase at the start too (about 1 minute per robot)? (e05-nov05-curves Q2)
+95. Minimum avoiding speed 5 cm/s (from 4 seeds): accept, or run the finer DOE first (about 20 minutes of simulator)?
+    (e05-nov05-curves Q3)
+96. Old robots in a curves run turn on the spot as before: say so on the screen only (as now), or also blink?
+    (e05-nov05-curves Q4)
+97. The dodge curves left or right by the front sensor's more open side: fine? (e05-nov05-curves Q5)
+98. Home has no points, so Visit points and Experiment routes are grey at home. Give home a grid of points from its
+    measured board (30 cm apart, 30 cm in), as a new area gets? (e07-nov06-mission-control Q2)
+99. Experiment routes with a robot count other than two cut the table into that many runs along its length (Claude's
+    design, not Jay-Sun's). Nick: no preference; ask Jay-Sun before using 1 or 3 robots for his data.
+    (e07-nov06-mission-control Q3; audit D-chat section 3 item 7)
+100. One-button Experiment routes cycles e1 to e4 (the shakedown, which needs the robots placed by hand, is under
+     Advanced). OK? (e07-nov06-mission-control Q6; asked again 7 Nov)
+101. School free roam runs about 10 minutes per press (Advanced changes it). A different default?
+     (e07-nov06-mission-control Q7; asked again 7 Nov)
+102. The Start screen opens in practice (the simulator) whenever the Pi's camera does not answer, with a blue bar
+     saying so. Or refuse to run and say "camera not answering"? (e07-nov06-mission-control Q8; asked again 7 Nov)
 
 ### Robots and sessions
 8. What stands just beyond the home board's x = 0 edge at about y = 30-60? (Your 07:45 "yes" to this one was read as
@@ -106,7 +52,6 @@ Answered ones move to the bottom with the answer and date.
     show its date on the live page?
 12. Is a speed-sweep test (4 / 7 / 10 / 13 cm/s) worth board time? It separates camera timing from wheel slip.
 13. Should creep steps change? 12 of 23 stalled (faster creep, or end on the front sensor instead of the wheel count).
-
 79. The light spacing (7.08 cm, from 28 Oct's pictures of the plywood) is the setup's ruler: a 2 % error in it is a 2 %
     error in the table's size (2.7 cm on 137). One ruler measurement across a lit robot's two lights, from straight
     above, would replace it. Can you measure it (centre to centre, mm)? (e02-oct29-corners-only-setup)
@@ -118,20 +63,58 @@ Answered ones move to the bottom with the answer and date.
 82. A numbering that goes round clockwise (1 -> 2 along the audience side, 4 on the wrong end) is refused with words
     ("swap 2 and 4") rather than renumbered: the robots would turn the wrong way in a mirrored frame. Refuse (as built),
     or quietly swap 2 and 4 and say so? (same report)
-83. The robots' own virtual border, sent from each DOE drive's map, stays on after the drive at 19.5 cm from the edge
-    (the planner's floor is the board less 13.5 cm, plus 6). Crawls, turn checks and "making room" work 20-25 cm from
-    the edge, so they now steer round it. Keep it there, or send DOE drives the border from the board itself (6 cm in,
-    as Monday's map)? (e02-oct30-overnight)
-84. A turn check is allowed 25 cm from an edge; with the border at 19.5 cm one of its four crawls must back. Raise the
-    turn check's room to 30 cm (the same as the new park spot A)? (same report)
 85. Under the lamp the overhead saw the robots at 11 grey levels from the board (fine from 30) and lost Right more than
     half the time. Can the lamp be moved, dimmed or diffused for night sessions, or the board darkened? (same report)
-86. The robots ran firmware 2026-10-28a last night, so the facing check (2026-10-29a) could not tell front from back.
-    Flash 2026-10-29a before the next session? (same report)
 87. Right drove 27 deg off its own heading in drive 7 (21:40) after a 176 deg turn on the spot; its 90 deg turns were
     fine. A taped check of one long turn on Right? (same report)
 
 ## Answered
+
+- 2026-11-07 (Nick's answers to the full audit, [2026-11-07-full-audit.md](audits/2026-11-07-full-audit.md)):
+  - One pipeline, built in phases (one tracking layer, the fused estimate in the loop, one controller, discovery at
+    start), rather than patching each pipeline again. This also answers e07 Q1 (free roam at any site, not only on
+    home's lights chain).
+  - The old E02 runner becomes a "parts bin": kept working, out of the way, not the documented path.
+  - One derived edge rule in place of the separate fixed edge distances (old numbers kept as switches).
+  - Unconfirmed keep-outs fade; confirmed ones stay.
+  - Silent or failed robots hold and rejoin; no robot sits out the rest of a run.
+  - Keep going by default everywhere (stop kept as a switch).
+  - Tilt limits re-picked from logs (this answers e06 Q3; the e07 report had recorded "left alone").
+  - Grading by camera only for now; no tape reference yet.
+  - Clean up the docs now (this re-sync is part of it).
+  - e07 Q4 (school table length typed): 7 Nov, operate only inside the proven workspace, or send a robot ahead with
+    cliff detection and odometry to map unseen areas (audit D-chat, Nov 7 Q4).
+- 2026-11-06 (Nick's answers to e06, built in [e07-nov06-mission-control.md](build-reports/e07-nov06-mission-control.md)
+  section 3):
+  - e06 Q1: cameras win over typed values, with the disagreement logged; typed values under Advanced.
+  - e06 Q2 (and e05 Q1): a lost robot's recovery path is reserved in the other robots' plans.
+  - e06 Q4: missions use each robot's stop lead.
+  - e06 Q5: extra robots are named Charlie, Delta, Echo in the run.
+  - e06 Q6: surface marks are logged, nothing else.
+  - e06 Q7 (and e07 Q5): robots sleep as soon as a run ends; the 30-minute timer kept as a switch, off.
+- 2026-11-05 (built in [e04-nov05-baseline-pins-ota.md](build-reports/e04-nov05-baseline-pins-ota.md) and e06):
+  - e03 Q1: keep the `corr save` fallback, switched off; runs refuse firmware older than 2026-11-05a.
+  - e03 Q2: pin robot, slot and roof tag once a wiggle has found them; later wiggles are a quick check.
+  - e03 Q3: no renaming on the robot at school; slot names live in the run only.
+  - e03 Q4: a robot's first calibration starts from the defaults (1 / 1 / 0); later ones from the saved values.
+  - e03 Q5: overtaken: Jay-Sun flashes by cable; flashing over WiFi through the Pi is built (e04).
+  - e03 Q6: the second robot's spot is P01.
+  - e04 baseline Q2 and Q3: one run for however many robots are on the table, found by the wiggle (Nick 20:28, e06).
+  - e04 baseline Q4: park spots P09 / P01 / P06 (Nick 21:38, audit B-rules section 5).
+  - e04 free roam Q1 and Q3: overtaken by events (the 4 h home run ran on 5 Nov; firmware is now 2026-11-05d).
+- 2026-11-07 re-sync, older questions closed:
+  - 83. The robots' own virtual border, sent from each DOE drive's map, stays on after the drive at 19.5 cm from the edge
+      (the planner's floor is the board less 13.5 cm, plus 6). Crawls, turn checks and "making room" work 20-25 cm from
+      the edge, so they now steer round it. Keep it there, or send DOE drives the border from the board itself (6 cm in,
+      as Monday's map)? (e02-oct30-overnight)
+      **Answered:** 7 Nov audit: one derived edge rule replaces the fixed edge distances.
+  - 84. A turn check is allowed 25 cm from an edge; with the border at 19.5 cm one of its four crawls must back. Raise the
+      turn check's room to 30 cm (the same as the new park spot A)? (same report)
+      **Answered:** 7 Nov audit: one derived edge rule replaces the fixed edge distances.
+  - 86. The robots ran firmware 2026-10-28a last night, so the facing check (2026-10-29a) could not tell front from back.
+      Flash 2026-10-29a before the next session? (same report)
+      **Answered:** Overtaken: robots are on firmware 2026-11-05d, and runs refuse anything older than 2026-11-05a (e04, e06).
+  - Monday-section questions answered since: Q34; Q48; Q49; Q52; Q54; Q59; Q65; Q71; Q73; Q77; Q78 (each marked in the closed section below).
 - 2026-10-29 20:20-20:27 (Nick: "the user does nothing but select corners"; built in
   docs/build-reports/e02-oct29-corners-only-setup.md):
   - Mission Control's queued items "Corner numbering decided automatically" (the user selects 1-4), "Lens height and
@@ -204,3 +187,103 @@ Answered ones move to the bottom with the answer and date.
 - 2026-10-27 00:08: re-plans send the first safe plan at once; Chicken 15 / 8 cm; nothing locked in the operator
   view; scope all of it, engine first.
 - 2026-10-26 23:15: no music on Monday.
+
+## Closed: the Monday (2 Nov) school demo
+
+The demo did not happen; school now runs Jay-Sun's robots with roof tags. Kept for the record. A question answered
+since is marked with its answer; the rest were not answered: reopen any that still matter.
+
+18. Should the inward rescue also apply to the other back-out ("try again on its own" step)? Same weakness.
+25. Ladder L4: with robots parked where they were left, the square is usually 42 cm instead of 62. A fair test for
+    Monday?
+32. Does the moved side camera see the whole board? A robot outside its picture can't be helped while the overhead
+    is washed out (fix: move it further back, or a third camera).
+33. Should a robot seen only by its lights be allowed to move? (Now: kept out at L0, the safe choice.)
+34. The taped-marks test (T1) to settle which camera carries the ~5 cm constant offset?
+    **Answered:** 7 Nov audit: grading by camera only for now; no tape reference yet.
+35. Robots' white lights staying on while the ladder watches: OK?
+36. 15:26-15:27: how did you wake the robots (the wake script on the Pi?), and could it still have been running when
+    the ladder started at 15:27? (For 20 s the planner heard no robot at all.)
+37. Should the ladder redo L0 and L1 automatically whenever a robot has restarted (about 4 min)?
+38. Light search: use the side camera alone, or both cameras taking the stronger signal?
+39. Leave turn-around points out of the 3 cm gate? (Right would pass L3; it changes what Phase 0 measures.)
+40. Did the room light change between 15:04 and 15:20? (The side picture brightened from 39 to 58 with its exposure locked.)
+42. Should the cameras find the dock's position themselves? Options: keep as built (bump check only, dock position by
+    tape); glue a 4 x 4 piece of 20-25 mm squares on the plywood just behind the dock (Claude's pick: no dock
+    reprint); or deepen the dock's back to about 9.5 cm (dock grows 16 -> 22 cm).
+43. Card and paper thickness for the dock pocket (assumed 0.45 mm card, 0.10 mm paper): measure 10 sheets of each
+    with a ruler?
+45. Safety net: go to 6.5 cm for Monday after a 10 min board check (5 Chickens, 2 circles), and should Chicken's "never
+    under" move with it or stay at 8? (safety-gap-doe.md; 5 cm needs the board DOE)
+46. Left's distance sensor: its centre-right zone reads under 12 cm in about a third of its readings (others 0-5 %) and
+    caused all three of Left's phantom stops. Look at its window? Until then, ignore that zone on Left? (ladder report)
+    29 Oct: it reads the plywood floor ahead (every robot's does, at 11-18 cm), Left's nearest; superseded by 59.
+47. Lane 1's lane-end turn comes 2.3-3.0 cm from the x = 0 edge in a few runs (median 4.6): add a short straight run-in
+    before lane 1, or move lane 1 1-2 cm in?
+48. A robot whose turn check is HELD every round (one camera's evidence, or a misread heading) never drives. Hold
+    forever (as now), or set it aside after 3 holds in a row? The dry run shows why it matters: a robot whose turns
+    are really 12 % off (36 deg over 4 turns) is held every round, never parked. (e02-oct28-overhead-contrast)
+    **Answered:** 7 Nov audit: a robot that fails is held and rejoins; none is set aside for the run.
+49. Thursday's daytime DOE loop: normal mode (it tests the new holds and re-checks), or keep-going (nothing set aside)?
+    The plan uses normal mode.
+    **Answered:** 7 Nov audit: keep going by default everywhere (normal mode kept as a switch).
+50. Let L0 nudge each robot 3 cm forward and back before measuring, so its start floor is seen? It removes the last
+    0.4-3.6 cm of first-crawl error, but L0 then moves robots.
+51. Turn check crawl 15 cm instead of 10 (headings misread by up to 14 deg on 10 cm)? Needs 5 cm more room per robot.
+52. Should L0 STOP when the lighting check says both cameras are washed out, or only warn (as now)?
+    **Answered:** 30 Oct: no stops, warn and log instead; 7 Nov audit: keep going by default everywhere.
+53. The find step's frames are now kept (about 25 s a loop on the USB drive): OK?
+54. A robot near an edge (or another robot) is now driven back to open space by the DOE loop on its own, slowly
+    (5 cm/s), on a planned path the cameras watch, in normal and keep-going mode alike. OK in normal mode too, or
+    keep-going only? (e02-oct28-keep-going-run)
+    **Answered:** 7 Nov audit: keep going by default everywhere.
+55. ANSWERED 2026-10-29 (Nick 07:3x: build a facing check): every Monday / Mission Control start and every DOE find
+    step measures which way each robot faces from its own two lights (they sit across the robot, left and right);
+    over 15 deg off its start heading nothing moves, in plain words (docs/build-reports/e02-oct29-facing-check.md).
+    Needs firmware 2026-10-29a flashed to tell front from back every time.
+56. After a calibration that run_plan itself runs (a robot that restarted), the camera bridge has no start heading
+    and the run fails to start; the second start works. Build a proper fix after Monday (the bridge vouches for a robot
+    back on its start spot), or now?
+57. Center's WiFi read -71 to -72 dBm all evening (Left and Right -62 to -64), and it lost one answer. Worth moving
+    the router, or checking Center, since it is the spare?
+58. Night sessions: is there a light setting that gives the overhead 18+ grey levels (the ceiling light only, the lamp
+    off)? Under the table lamp tonight it was 16.
+59. Monday, Left's phantom stops (about 1 a drive in today's 3 h loop, all on its centre-right zone reading the floor
+    at about 11 cm; 5 "no plan" ends): set Left's stop limit to 10 cm (`set follow_look_cm 10`, Left only; today's
+    replay: 0 phantom stops; real obstacles seen 2 cm later), ignore its centre-right zone (firmware change), or leave
+    it? Claude's pick: 10 cm on Left after a 10 min board check with a brick. (e02-oct29-daytime-sessions)
+    **Answered:** 29 Oct 20:06: Left's stop limit never under 9 cm (see the Answered list below, false-stops report Q1).
+60. The camera bridge refuses to start a robot that only the side camera sees (its spot is ~3 cm off, the "moved" rule
+    is 3 cm): 5 start-ups failed today on the overhead's blind strip (x = 30-45 cm, daylight). Allow more for side-only
+    sightings (e.g. 5 cm), after a logs replay, before Monday?
+62. Was the morning sun on the Pi at 07:43 (that loop ran 5 C hotter than the 09:22 one, 19 min at 80 C+)?
+63. Right has not driven since 28 Oct night (kept out today: 27 cm from the edge). Give it the next session's drives,
+    since it is Monday's robot?
+64. The overhead camera loses robots on a strip at x = 30-45 cm of the home board in daylight (sun patch or glare?):
+    blinds closed for the next daytime session, or does it matter only at home (Monday is at school)?
+65. Facing check: a robot 15-45 deg off its start heading stops the start now. Give it one small turn on the spot
+    before the run instead (it moves, but saves walking to the table)? (e02-oct29-facing-check)
+    **Answered:** 30 Oct: straighten / auto start corrects the heading instead of refusing (run_plan, see the 7 Nov audit B-rules O6).
+66. Center's lights read 24 deg off its 10 cm crawl in loops 0-2 on 28 Oct (both cameras agreed with each other). A
+    still photo of Center from above with a ruler along its side would say which is right. (e02-oct29-facing-check)
+67. The facing check takes 6-8 s for two robots (planned 4-5). OK before Monday's run? (e02-oct29-facing-check)
+69. Where did the side camera's 13-24 grey levels come from on 29 Oct? The five DOE releases only have 21-45 at L0.
+    (e02-oct29-rules-audit)
+71. Should the camera bridge count a robot as moved off its start only when it has been told to move, not by a 3 cm
+    camera distance (5 start-ups refused on 29 Oct with the side camera alone)? (e02-oct29-rules-audit)
+    **Answered:** Built after the 29 Oct rules audit: the bridge counts a robot as moved by its own motion (audit B-rules, baseline).
+73. Lower your DOE-loop room rules from 25 cm (edge) / 30 cm (robots) to 20 / 25 cm, now that robots are driven to
+    open space and calibrate in 12 / 21 cm? (e02-oct29-rules-audit)
+    **Answered:** 7 Nov audit: one derived edge rule replaces the fixed edge distances (old numbers kept as switches).
+74. Is Center in Monday's run? Its centre-left zone gives phantom stops in 41 % of its drives too. (e02-oct29-rules-audit)
+75. Should the lighting check sample where the robots will drive (the x = 30-45 strip), not only where they stand?
+    (e02-oct29-rules-audit)
+76. The floor check can take a robot under its ceiling on its own (Left to 9.1 cm in one 27 Oct drive). Accept limits
+    under Left's 10 cm, or make 10 a floor too? (e02-oct29-false-stops)
+77. A robot heard again came back into Monday's program in only 1 of 6 simulator tries; otherwise it stays a
+    fixed obstacle. Re-plan the rest of the program for both robots together (a planner change, 1-2 h): before Monday
+    or after? (e02-oct29-false-stops)
+    **Answered:** 7 Nov audit: silent or failed robots hold and rejoin.
+78. A second stop at the same place confirms an obstacle (your rule). Count it only when the robot was already moving
+    at one of the two stops (false stops happen while standing after a turn)? (e02-oct29-false-stops)
+    **Answered:** 29 Oct 20:06: yes, see the Answered list below (false-stops report Q3).

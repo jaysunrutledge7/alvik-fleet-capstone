@@ -1,5 +1,8 @@
 # Experiment index
 
+> **Frozen 18 Oct 2026.** Nothing has been logged here since the 19 Oct decision made self-calibration the core. Results since then are in the [build reports](../build-reports/) and [docs/results](../results/); the state of the whole project is in the [7 Nov full audit](../audits/2026-11-07-full-audit.md).
+
+
 The running record of every experiment. Each row links to its full record.
 Units: cm and degrees throughout. Ground truth: tape measure (see E0), and
 from E4 on the overhead camera once it agrees with the tape.
