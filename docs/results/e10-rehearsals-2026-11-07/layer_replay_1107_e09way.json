@@ -1,0 +1,30 @@
+{
+ "layer": "tracking-layer-2026-11-07c",
+ "own_resets": false,
+ "gaps": [
+  {
+   "robot": "Left",
+   "t": 1794072827.28,
+   "gap_s": 13.2
+  }
+ ],
+ "counts": {
+  "frames": 8651,
+  "fixes": 25860,
+  "bricks": 1
+ },
+ "fixes": {
+  "Center": 8647,
+  "Left": 8577,
+  "Right": 8636
+ },
+ "events": [
+  {
+   "t": 1794072829.93,
+   "robot": "-",
+   "what": "new object",
+   "x": 69.3,
+   "y": 24.0
+  }
+ ]
+}

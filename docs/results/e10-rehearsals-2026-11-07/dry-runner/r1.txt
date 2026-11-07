@@ -1,0 +1,33 @@
+bash: line 1: ip: command not found
+Free roam: ../diag/dryrun/r1 (seed 76467, battery floor 10 %, lost: reckon)
+Waiting for the robots: Left, Center, Right ...
+  Left: safety layers on and read back (tilt stop 4 deg, edge guard 3)
+[    0.0] Left    safety armed: safe_edge 3, edge_bot_cm 11, tilt_stop_deg 4, tilt_ms 300, safe_lift 1
+  Center: safety layers on and read back (tilt stop 4 deg, edge guard 3)
+[    0.0] Center  safety armed: safe_edge 3, edge_bot_cm 11, tilt_stop_deg 4, tilt_ms 300, safe_lift 1
+  Right: safety layers on and read back (tilt stop 4 deg, edge guard 3)
+[    0.0] Right   safety armed: safe_edge 3, edge_bot_cm 11, tilt_stop_deg 4, tilt_ms 300, safe_lift 1
+  Left: firmware 2026-11-05d, battery 99%: speed and steer changes while driving, watchdog on; motion: CURVES (never stops on purpose)
+[    0.0] Left    firmware: 2026-11-05d (fspd/fsteer/watchdog)
+  Center: firmware 2026-11-05d, battery 99%: speed and steer changes while driving, watchdog on; motion: CURVES (never stops on purpose)
+[    0.0] Center  firmware: 2026-11-05d (fspd/fsteer/watchdog)
+  Right: firmware 2026-11-05d, battery 99%: speed and steer changes while driving, watchdog on; motion: CURVES (never stops on purpose)
+[    0.0] Right   firmware: 2026-11-05d (fspd/fsteer/watchdog)
+Waiting for the camera and each robot's own pose ...
+Discovery: each robot makes a short proof drive on its spot (a turn, 12 cm, a quarter turn, 12 cm), slowly, its edge sensors on ...
+  Camera, board and clock check out against the robots' own movement.
+[    0.0] -       discovery: Camera, board and clock check out against the robots' own movement.
+[    0.0] Left    motion: curves (continuous: firmware 2026-11-05d)
+  Left joins at 28.7, 32.0 (facing -105 deg)
+[    0.0] Center  motion: curves (continuous: firmware 2026-11-05d)
+  Center joins at 55.2, 71.2 (facing -73 deg)
+[    0.0] Right   motion: curves (continuous: firmware 2026-11-05d)
+  Right joins at 68.7, 45.5 (facing -163 deg)
+Free roam: Center, Left, Right, until each is at 10 % or 0.0 h. Ctrl+C (or ./run-fleet-pi.sh freeroam-stop) stops every robot.
+Board assumed: x 0 to 122 cm, y 0 to 122 cm (122 x 122 cm, from the simulator's board). Edge rule: derived (e08): a robot's middle stays half its diagonal (6.7 cm) + its position uncertainty now + the camera's edge error (5 cm) from every edge along the whole path, plus its stopping distance where it stops: about 12.7 cm along a path and 15.1 cm where a move ends when the camera and the robot agree, more when they do not. Walls or objects inside it are found during the run: a front stop felt twice, or an edge-guard or tilt stop, becomes a keep-out; one felt once fades after 15 s (events: keep-out; keepouts.csv).
+[   60.0] Left move 99% 22 moves; Center move 99% 19 moves; Right move 99% 15 moves
+
+The run ends: the time cap (0.0 h).
+[  108.0] -       end: the time cap (0.0 h)
+Report: ../diag/dryrun/r1/report.md
+Free roam folder: ../diag/dryrun/r1

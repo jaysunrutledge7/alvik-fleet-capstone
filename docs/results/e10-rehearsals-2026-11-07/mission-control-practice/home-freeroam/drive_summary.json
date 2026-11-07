@@ -1,0 +1,30 @@
+{
+ "name": "home-freeroam",
+ "room": "home",
+ "kind": "freeroam",
+ "start_error": null,
+ "ended_s": 210.2,
+ "status": {
+  "running": false,
+  "kind": "freeroam",
+  "title": "Free roam",
+  "practice": true,
+  "lines": [
+   "Free roam: Center, Left, until each is at 10 % or 0.1 h. Ctrl+C (or ./run-fleet-pi.sh freeroam-stop) stops every robot.",
+   "Board assumed: x 0 to 122 cm, y 0 to 122 cm (122 x 122 cm, from the simulator's board). Edge rule: derived (e08): a robot's middle stays half its diagonal (6.7 cm) + its position uncertainty now + the camera's edge error (5 cm) from every edge along the whole path, plus its stopping distance where it stops: about 12.7 cm along a path and 15.1 cm where a move ends when the camera and the robot agree, more when they do not. Walls or objects inside it are found during the run: a front stop felt twice, or an edge-guard or tilt stop, becomes a keep-out; one felt once fades after 15 s (events: keep-out; keepouts.csv).",
+   "[   60.0] Left move 22% 17 moves; Center move 36% 20 moves",
+   "[  120.0] Left move 2% 36 moves; Center move 6% 36 moves",
+   "The run ends: the time cap (0.1 h).",
+   "[  180.0] -       end: the time cap (0.1 h)",
+   "Report: /tmp/claude-0/-home-claude/fff6dc9c-5876-54f9-92a7-a08483d3d5c7/scratchpad/diag/mcreh/home-freeroam/mc/runs/20261107-135028-freeroam-sim/report.md",
+   "Free roam folder: /tmp/claude-0/-home-claude/fff6dc9c-5876-54f9-92a7-a08483d3d5c7/scratchpad/diag/mcreh/home-freeroam/mc/runs/20261107-135028-freeroam-sim"
+  ],
+  "elapsed_s": 210.0,
+  "points": null,
+  "questions": [],
+  "words": "Free roam ended.",
+  "folder": "/tmp/claude-0/-home-claude/fff6dc9c-5876-54f9-92a7-a08483d3d5c7/scratchpad/diag/mcreh/home-freeroam/mc/runs/20261107-135028-freeroam-sim"
+ },
+ "where": "This looks like home (the 4 x 4 ft board) (the table measures 122 x 122 cm, its size and its cameras USB 2.0 Camera and EMEET SmartCam C950 plugged in).",
+ "folder": "/tmp/claude-0/-home-claude/fff6dc9c-5876-54f9-92a7-a08483d3d5c7/scratchpad/diag/mcreh/home-freeroam/mc/runs/20261107-135028-freeroam-sim"
+}

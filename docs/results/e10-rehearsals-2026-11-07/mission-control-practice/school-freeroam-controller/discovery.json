@@ -1,0 +1,71 @@
+{
+ "version": "start-discovery-2026-11-07a",
+ "robots": {
+  "Alpha": {
+   "x": 13.02,
+   "y": 31.45,
+   "heading": -135.9,
+   "cam_turn": 89.1,
+   "own_turn": 89.1,
+   "tag_off": -0.0
+  },
+  "Bravo": {
+   "x": 132.48,
+   "y": 82.03,
+   "heading": -135.4,
+   "cam_turn": 89.3,
+   "own_turn": 89.1,
+   "tag_off": -0.0
+  }
+ },
+ "seen": [
+  "Alpha",
+  "Bravo"
+ ],
+ "unseen": [],
+ "camera": "ok",
+ "calibration": "as configured",
+ "scale": 0.9918,
+ "board": [
+  0.0,
+  0.0,
+  396.2,
+  167.6
+ ],
+ "board_found": [
+  0.0,
+  0.0,
+  396.2,
+  167.6
+ ],
+ "say": [
+  "The camera's time stamps are +0.70 s from the Pi's clock (from when the robots started to move): read with that shift from the start."
+ ],
+ "tag_yaw": {},
+ "clock_s": 0.697,
+ "fits": {
+  "Alpha": {
+   "wheel": 0.9918,
+   "wheel_se": 0.0239,
+   "gyro": 1.0005,
+   "gyro_se": 0.0368
+  },
+  "Bravo": {
+   "wheel": 0.9889,
+   "wheel_se": 0.0239,
+   "gyro": 1.0028,
+   "gyro_se": 0.0368
+  }
+ },
+ "tried": [
+  [
+   "as configured",
+   {
+    "hand_ok": true,
+    "scale": 0.992
+   }
+  ]
+ ],
+ "scale_se": 0.01,
+ "k_used": 1.0
+}

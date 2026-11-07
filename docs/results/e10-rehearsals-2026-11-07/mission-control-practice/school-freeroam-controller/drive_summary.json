@@ -1,0 +1,30 @@
+{
+ "name": "school-roam",
+ "room": "school",
+ "kind": "freeroam",
+ "start_error": null,
+ "ended_s": 265.1,
+ "status": {
+  "running": false,
+  "kind": "freeroam",
+  "title": "Free roam",
+  "practice": true,
+  "lines": [
+   "Report: /tmp/claude-0/-home-claude/fff6dc9c-5876-54f9-92a7-a08483d3d5c7/scratchpad/diag/mcreh3/school-roam/mc/runs/20261107-142707-roam-sim-cameras/run/report.md",
+   "Free roam folder: /tmp/claude-0/-home-claude/fff6dc9c-5876-54f9-92a7-a08483d3d5c7/scratchpad/diag/mcreh3/school-roam/mc/runs/20261107-142707-roam-sim-cameras/run",
+   "14:31:31 SYNC MARK end: 2026-11-07T14:31:31.482-05:00 (Pi clock: Not known whether this computer's clock is set by the internet (no timedatectl or chronyc).)",
+   "14:31:31 camera track: /tmp/claude-0/-home-claude/fff6dc9c-5876-54f9-92a7-a08483d3d5c7/scratchpad/diag/mcreh3/school-roam/mc/runs/20261107-142707-roam-sim-cameras/run/camera_track.csv (Alpha 2216, Bravo 2180)",
+   "14:31:31 wheel+gyro odometry, no camera corrections: /tmp/claude-0/-home-claude/fff6dc9c-5876-54f9-92a7-a08483d3d5c7/scratchpad/diag/mcreh3/school-roam/mc/runs/20261107-142707-roam-sim-cameras/run/odometry_raw.csv (Alpha 3588, Bravo 9772)",
+   "14:31:31 pose timeline: /tmp/claude-0/-home-claude/fff6dc9c-5876-54f9-92a7-a08483d3d5c7/scratchpad/diag/mcreh3/school-roam/mc/runs/20261107-142707-roam-sim-cameras/pose_timeline.csv (Alpha, robot's own pose 692, Bravo, robot's own pose 1869, Alpha, camera tag 1146, Bravo, camera tag 1128)",
+   "14:31:31 refit started in the background (its own process, a few minutes; the run is over and nothing waits for it): /tmp/claude-0/-home-claude/fff6dc9c-5876-54f9-92a7-a08483d3d5c7/scratchpad/diag/mcreh3/school-roam/mc/runs/20261107-142707-roam-sim-cameras/tagcal_refit",
+   "14:31:31 result: None; saved in /tmp/claude-0/-home-claude/fff6dc9c-5876-54f9-92a7-a08483d3d5c7/scratchpad/diag/mcreh3/school-roam/mc/runs/20261107-142707-roam-sim-cameras"
+  ],
+  "elapsed_s": 265.0,
+  "points": null,
+  "questions": [],
+  "words": "Free roam ended.",
+  "folder": "/tmp/claude-0/-home-claude/fff6dc9c-5876-54f9-92a7-a08483d3d5c7/scratchpad/diag/mcreh3/school-roam/mc/runs/20261107-142707-roam-sim-cameras"
+ },
+ "where": "This looks like the school conference table (its reference tags 20, 21, 23, 24, 25 are on the table and the table measures 396 x 167 cm, its size).",
+ "folder": "/tmp/claude-0/-home-claude/fff6dc9c-5876-54f9-92a7-a08483d3d5c7/scratchpad/diag/mcreh3/school-roam/mc/runs/20261107-142707-roam-sim-cameras"
+}

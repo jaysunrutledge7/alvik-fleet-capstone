@@ -1,0 +1,84 @@
+14:27:08 CAMERAS: the site's camera 2 is switched off (cameras.side.use false): camera 1 alone; the table is shared over what it reads
+14:27:08 Frames go to /tmp/claude-0/-home-claude/fff6dc9c-5876-54f9-92a7-a08483d3d5c7/scratchpad/diag/mcreh3/school-roam/mc/runs/20261107-142707-roam-sim-cameras/frames ON THE PI'S CARD (no USB drive found under /media/<user>): they stop under 2 GB free. The Pi's card: 3.2 GB free (the run ends cleanly under 1 GB).
+14:27:08 NOTE: sticker P16 is missing on the table: its point is still visited by its typed coordinates (nothing here needs to see the sticker)
+14:27:12 AUTO: the camera sees 2 roof tags on the table: waiting for 2 robots to answer
+14:27:14 Found: Bravo at 127.0.0.3, Alpha at 127.0.0.2
+14:27:15   Alpha restarted since its last compass check (woken from sleep): the compass check now (a few degrees of wiggle, no spin, no roll; about 10 s)
+14:27:25   Alpha: compass check done
+14:27:26   Bravo: safety layers on and read back: safe_edge 2, edge_bot_cm 11, tilt_stop_deg 4, tilt_ms 300, safe_lift 1
+14:27:27   Alpha: safety layers on and read back: safe_edge 2, edge_bot_cm 11, tilt_stop_deg 4, tilt_ms 300, safe_lift 1
+14:27:34   tag 0: turned +2 deg with Bravo's wiggle, +3 deg from where it started after it
+14:27:34   tag 1: turned +88 deg with Bravo's wiggle, +1 deg from where it started after it
+14:27:34   Bravo: bound by the wiggle (no pin yet)
+14:27:41   tag 0: turned +90 deg with Alpha's wiggle, +1 deg from where it started after it
+14:27:41   tag 1: turned +3 deg with Alpha's wiggle, +3 deg from where it started after it
+14:27:41   Alpha: bound by the wiggle (no pin yet)
+14:27:46 HEADING CHECK Bravo: moved 5.9 cm at 95 deg from the tag's heading: tag heading offset +90 deg  <- the tag is turned on the robot; every camera heading of tag 1 corrected (observed, not typed)
+14:27:49 HEADING CHECK Alpha: moved 6.1 cm at -177 deg from the tag's heading: tag heading offset -180 deg  <- the tag is turned on the robot; every camera heading of tag 0 corrected (observed, not typed)
+14:27:49 Slots (pinned, then nearest home): Bravo -> Alpha, Alpha -> Bravo
+14:27:49 Not renamed on the robots (tags.rename_to_slot false): in this run Bravo is Alpha, Alpha is Bravo
+14:27:49 Bound: Alpha = tag 1, Bravo = tag 0
+14:27:50 ROBOTS FOUND: 2 (Alpha,Bravo)
+14:27:50 TAG HEADINGS (observed by the nudge): Alpha +90 deg, Bravo -180 deg
+14:27:50 TAGS from the wiggle (simulator): Alpha = tag 1, Bravo = tag 0
+14:27:50 TABLE SHARING: table shared between 2 robots over the readable area (20 of 40 points; Alpha 10, Bravo 10)
+14:27:50 SKIPPED (20 points): P04: the camera does not read tags there: read rate 10 % (camera model: a tag needs 14 px to read); P19: the camera does not read tags there: read rate 10 % (camera model: a tag needs 14 px to read); P22: the camera does not read tags there: read rate 10 % (camera model: a tag needs 14 px to read); P23: the camera does not read tags there: read rate 10 % (camera model: a tag needs 14 px to read); P24: the camera does not read tags there: read rate 10 % (camera model: a tag needs 14 px to read); P25: the camera does not read tags there: read rate 10 % (camera model: a tag needs 14 px to read); P26: the camera does not read tags there: read rate 10 % (camera model: a tag needs 14 px to read); P27: the camera does not read tags there: read rate 10 % (camera model: a tag needs 14 px to read); P29: the camera does not read tags there: read rate 10 % (camera model: a tag needs 14 px to read); P30: the camera does not read tags there: read rate 10 % (camera model: a tag needs 14 px to read); P31: the camera does not read tags there: read rate 10 % (camera model: a tag needs 14 px to read); P32: the camera does not read tags there: read rate 10 % (camera model: a tag needs 14 px to read); P33: the camera does not read tags there: read rate 10 % (camera model: a tag needs 14 px to read); P34: the camera does not read tags there: read rate 10 % (camera model: a tag needs 14 px to read); P35: the camera does not read tags there: read rate 10 % (camera model: a tag needs 14 px to read); P36: the camera does not read tags there: read rate 10 % (camera model: a tag needs 14 px to read); P37: the camera does not read tags there: read rate 10 % (camera model: a tag needs 14 px to read); P38: the camera does not read tags there: read rate 10 % (camera model: a tag needs 14 px to read); P39: the camera does not read tags there: read rate 10 % (camera model: a tag needs 14 px to read); P40: the camera does not read tags there: read rate 10 % (camera model: a tag needs 14 px to read)
+14:27:50 READABLE AREA (# reads, . not; x along the table, y up):
+....................
+###########.........
+###########.........
+###########.........
+###########.........
+###########.........
+##########..........
+##########..........
+....................
+14:27:50 P09: (17, 57.5) in used instead of the sheet's (17, 37.5) in (confirmed by Jay-Sun 3 Nov (spreadsheet correct))
+14:27:50 P10: (33, 37.5) in used instead of the sheet's (33, 27.5) in (confirmed by Jay-Sun 3 Nov (spreadsheet correct))
+14:27:50 speeds pinned for this site: drive 10 cm/s, turn 60 deg/s, final approach 5 cm/s
+14:27:50 motion: curves at the corners where there is room (--motion stopturn: stop and turn at every corner)
+14:27:52 mission production on a 396 x 168 cm table, robots Alpha, Bravo: planned in 1.8 s, done in 131 s, closest 32.8 cm
+14:27:52 on a problem: KEEP GOING (said once, logged, worked round; a lost robot's points go to the robots still running)
+14:27:52 FREE ROAM on the free-roam controller (e10): the same controller as at home, fed by the tag bridge
+14:27:52 tag bridge starting (each robot found by its roof tag, wherever it is)
+14:27:52 frames: .avi parts of 60 s (the site's frames_part_s)
+14:27:57 the robots start now. To stop them at any moment: Ctrl+C
+14:27:57 SYNC MARK start: 2026-11-07T14:27:57.743-05:00 (Pi clock: Not known whether this computer's clock is set by the internet (no timedatectl or chronyc).)
+Free roam: /tmp/claude-0/-home-claude/fff6dc9c-5876-54f9-92a7-a08483d3d5c7/scratchpad/diag/mcreh3/school-roam/mc/runs/20261107-142707-roam-sim-cameras/run (seed 79678, battery floor 10 %, lost: reckon)
+Waiting for the robots: Alpha, Bravo ...
+  Alpha: safety layers on and read back (tilt stop 4 deg, edge guard 2)
+[    0.0] Alpha   safety armed: safe_edge 2, edge_bot_cm 11, tilt_stop_deg 4, tilt_ms 300, safe_lift 1
+  Bravo: safety layers on and read back (tilt stop 4 deg, edge guard 2)
+[    0.0] Bravo   safety armed: safe_edge 2, edge_bot_cm 11, tilt_stop_deg 4, tilt_ms 300, safe_lift 1
+  Alpha: firmware 2026-11-05d, battery 96%: speed and steer changes while driving, watchdog on; motion: CURVES (never stops on purpose)
+[    0.0] Alpha   firmware: 2026-11-05d (fspd/fsteer/watchdog)
+  Bravo: firmware 2026-11-05d, battery 91%: speed and steer changes while driving, watchdog on; motion: CURVES (never stops on purpose)
+[    0.0] Bravo   firmware: 2026-11-05d (fspd/fsteer/watchdog)
+Waiting for the camera and each robot's own pose ...
+Discovery: each robot makes a short proof drive on its spot (a turn, 12 cm, a quarter turn, 12 cm), slowly, its edge sensors on ...
+  The camera's time stamps are +0.70 s from the Pi's clock (from when the robots started to move): read with that shift from the start.
+[    0.0] -       discovery: The camera's time stamps are +0.70 s from the Pi's clock (from when the robots started to move): read with that shift from the start.
+[    0.0] Alpha   motion: curves (continuous: firmware 2026-11-05d)
+  Alpha joins at 13.0, 31.4 (facing -136 deg)
+[    0.0] Bravo   motion: curves (continuous: firmware 2026-11-05d)
+  Bravo joins at 132.5, 82.0 (facing -135 deg)
+Free roam: Alpha, Bravo, until each is at 10 % or 0.1 h. Ctrl+C (or ./run-fleet-pi.sh freeroam-stop) stops every robot.
+Board assumed: x 0 to 396 cm, y 0 to 168 cm (396 x 168 cm, from the simulator's board). Edge rule: derived (e08): a robot's middle stays half its diagonal (6.7 cm) + its position uncertainty now + the camera's edge error (5 cm) from every edge along the whole path, plus its stopping distance where it stops: about 12.7 cm along a path and 15.1 cm where a move ends when the camera and the robot agree, more when they do not. Walls or objects inside it are found during the run: a front stop felt twice, or an edge-guard or tilt stop, becomes a keep-out; one felt once fades after 15 s (events: keep-out; keepouts.csv).
+[   60.0] Alpha move 95% 15 moves; Bravo move 91% 17 moves
+[   60.7] Alpha   stuck: drive commanded, the camera saw it move 0.8 cm in 3 s: new move
+[   82.6] Alpha   slow move: move 16 took 22 s (estimate 2): ended (menu, scale 1.00, own curve)
+[  109.6] Alpha   slow move: move 18 took 27 s (estimate 4): ended (free, scale 1.00, own curve)
+[  120.0] Alpha move 95% 21 moves; Bravo move 91% 33 moves
+[  132.5] Alpha   slow move: move 20 took 23 s (estimate 3): ended (free, scale 1.00, own curve)
+[  164.4] Alpha   slow move: move 22 took 32 s (estimate 6): ended (menu, scale 1.00, own curve)
+
+The run ends: the time cap (0.1 h).
+[  180.0] -       end: the time cap (0.1 h)
+Report: /tmp/claude-0/-home-claude/fff6dc9c-5876-54f9-92a7-a08483d3d5c7/scratchpad/diag/mcreh3/school-roam/mc/runs/20261107-142707-roam-sim-cameras/run/report.md
+Free roam folder: /tmp/claude-0/-home-claude/fff6dc9c-5876-54f9-92a7-a08483d3d5c7/scratchpad/diag/mcreh3/school-roam/mc/runs/20261107-142707-roam-sim-cameras/run
+14:31:31 SYNC MARK end: 2026-11-07T14:31:31.482-05:00 (Pi clock: Not known whether this computer's clock is set by the internet (no timedatectl or chronyc).)
+14:31:31 camera track: /tmp/claude-0/-home-claude/fff6dc9c-5876-54f9-92a7-a08483d3d5c7/scratchpad/diag/mcreh3/school-roam/mc/runs/20261107-142707-roam-sim-cameras/run/camera_track.csv (Alpha 2216, Bravo 2180)
+14:31:31 wheel+gyro odometry, no camera corrections: /tmp/claude-0/-home-claude/fff6dc9c-5876-54f9-92a7-a08483d3d5c7/scratchpad/diag/mcreh3/school-roam/mc/runs/20261107-142707-roam-sim-cameras/run/odometry_raw.csv (Alpha 3588, Bravo 9772)
+14:31:31 pose timeline: /tmp/claude-0/-home-claude/fff6dc9c-5876-54f9-92a7-a08483d3d5c7/scratchpad/diag/mcreh3/school-roam/mc/runs/20261107-142707-roam-sim-cameras/pose_timeline.csv (Alpha, robot's own pose 692, Bravo, robot's own pose 1869, Alpha, camera tag 1146, Bravo, camera tag 1128)
+14:31:31 refit started in the background (its own process, a few minutes; the run is over and nothing waits for it): /tmp/claude-0/-home-claude/fff6dc9c-5876-54f9-92a7-a08483d3d5c7/scratchpad/diag/mcreh3/school-roam/mc/runs/20261107-142707-roam-sim-cameras/tagcal_refit
+14:31:31 result: None; saved in /tmp/claude-0/-home-claude/fff6dc9c-5876-54f9-92a7-a08483d3d5c7/scratchpad/diag/mcreh3/school-roam/mc/runs/20261107-142707-roam-sim-cameras

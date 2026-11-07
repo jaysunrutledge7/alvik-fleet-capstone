@@ -1,0 +1,118 @@
+{
+ "frames": {
+  "overhead": 2216
+ },
+ "robots": {
+  "Alpha": {
+   "reads": 2216,
+   "fixes": 1146,
+   "refused_size": 0,
+   "refused_jump": 0,
+   "both": 0,
+   "lock": 0,
+   "motion": 0,
+   "overhead": 2216
+  },
+  "Bravo": {
+   "reads": 2180,
+   "fixes": 1128,
+   "refused_size": 0,
+   "refused_jump": 0,
+   "both": 0,
+   "lock": 0,
+   "motion": 16,
+   "overhead": 2180
+  }
+ },
+ "ms_per_picture": {
+  "overhead": {
+   "median": 22.59,
+   "p95": 47.59
+  }
+ },
+ "cams_apart_cm": null,
+ "windows": {
+  "overhead": 4430
+ },
+ "full_searches": {
+  "overhead": 9
+ },
+ "tags": {
+  "family": "tag25h9",
+  "tag_cm": 8.0,
+  "roof_cm": 9.5,
+  "height_cm": 6.19,
+  "_note_height_cm": "11-05h: every robot's FIRST GUESS (Jay-Sun's platform is the same on every robot: 2 7/16 in), so a robot not named in heights_cm (AL-1DC0 got Alpha's by name; a third robot got the 6.0 placeholder) starts from it. Measure fits each roof tag's height by its tag id where two cameras see it (roof_cal); the binding carries it to whichever robot wears that tag.",
+  "spares": [
+   2,
+   3,
+   4,
+   5
+  ],
+  "heights_cm": {
+   "Alpha": 6.19,
+   "Bravo": 6.19
+  },
+  "_note_heights": "Jay-Sun 3 Nov: roof AprilTag 2 7/16 in (6.19 cm) above the table, on a level platform centred over the axle. Typed because one camera over the whole table cannot measure it.",
+  "binding": "wiggle",
+  "slot_by": "position",
+  "rename_to_slot": false,
+  "_note_binding": "5 Nov 2026 (Nick): wiggle-first naming before every run with roof tags (wiggle_bind.py; mission_run, Mission Control runs, experiments, the calibration run). binding: wiggle (default) or fixed (ids above, the old way, kept). slot_by: position (each robot gets the slot whose home is nearest where the camera sees it; a robot listed in robots[] with \"wifi\": \"AL-xxxx\" is pinned to that slot) or name (a robot already called Alpha keeps Alpha). rename_to_slot: the robot is renamed with `name <slot>` (kept on the robot) so the run knows it by its slot.",
+  "pin": true,
+  "pins": {
+   "AL-1DC0": {
+    "tag": 2
+   },
+   "AL-EB54": {
+    "tag": 3
+   },
+   "AL-E7DC": {
+    "tag": 4
+   }
+  },
+  "_note_pins_2026_11_05": "Jay-Sun 5 Nov: Alvik 3 = AL-1DC0 tag 2, Alvik 4 = AL-EB54 tag 3, Alvik 5 = AL-E7DC tag 4; Alpha (Alvik 1, tag 0) and Bravo (Alvik 2, tag 1) flashed Monday and carry RFID; tag 5 spare. Typed pins are a first guess only: every run's check wiggle confirms the tag that really turns (observe, then trust).",
+  "unclaimed": "refuse",
+  "_note_pins": "5 Nov 2026 11:00 (Nick): rename_to_slot false at school: robots keep their own names (AL-xxxx); the slot (Alpha / Bravo) lives in the run only (run_plan --alias). Set true to rename on the robot as before (kept). pin true: once a wiggle has found which roof tag is on which robot (by its WiFi name AL-xxxx), the Pi keeps it in its site folder (robot_pins.json, with the slot it was given); later runs only check that the pinned tag turns (a 45 deg check wiggle) and re-bind, said loudly, a robot with no pin or a failed check. pins: typed pins, e.g. {\"AL-1DC0\": {\"tag\": 2, \"slot\": \"Alpha\"}} (ids and names only), under what the Pi has found. unclaimed: refuse (a roof tag on the table that no robot of the run turned stops the run before it starts) or ignore.",
+  "ids_typed": {
+   "Alpha": 0,
+   "Bravo": 1
+  },
+  "yaw_off": {
+   "1": 90.0,
+   "0": -180.0
+  }
+ },
+ "roofs": {
+  "Bravo": {
+   "height_cm": 6.19
+  },
+  "Alpha": {
+   "height_cm": 6.19
+  }
+ },
+ "ref_watch": {
+  "overhead": {
+   "moved": false,
+   "last_median_px": 0.11,
+   "tags": [
+    "20",
+    "23",
+    "24",
+    "25"
+   ]
+  }
+ },
+ "lock": {
+  "overhead": {
+   "enabled": true,
+   "locked": [
+    "Alpha"
+   ],
+   "seeds": 6,
+   "refused_seeds": 0,
+   "steps": 1,
+   "found": 0,
+   "lost": 1
+  }
+ }
+}

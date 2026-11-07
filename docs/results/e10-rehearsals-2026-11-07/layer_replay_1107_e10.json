@@ -1,0 +1,41 @@
+{
+ "layer": "tracking-layer-2026-11-07c",
+ "own_resets": true,
+ "gaps": [],
+ "counts": {
+  "frames": 8651,
+  "fixes": 25929,
+  "own_resets": 4
+ },
+ "fixes": {
+  "Center": 8647,
+  "Left": 8646,
+  "Right": 8636
+ },
+ "events": [
+  {
+   "t": 1794072796.08,
+   "robot": "Left",
+   "what": "own pose re-set",
+   "d_cm": 12.3
+  },
+  {
+   "t": 1794072796.52,
+   "robot": "Left",
+   "what": "own pose re-set",
+   "d_cm": 11.1
+  },
+  {
+   "t": 1794072818.09,
+   "robot": "Left",
+   "what": "own pose re-set",
+   "d_cm": 13.2
+  },
+  {
+   "t": 1794072827.37,
+   "robot": "Left",
+   "what": "own pose re-set",
+   "d_cm": 15.1
+  }
+ ]
+}

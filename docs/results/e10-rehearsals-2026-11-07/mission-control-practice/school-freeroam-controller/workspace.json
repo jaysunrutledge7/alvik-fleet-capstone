@@ -1,0 +1,23 @@
+{
+ "version": "proven-workspace-2026-11-07a",
+ "board": [
+  0.0,
+  0.0,
+  396.2,
+  167.6
+ ],
+ "cell_cm": 2.5,
+ "seen_cm2": 66162,
+ "felt_cm2": 0,
+ "drop_cm2": 0,
+ "proven_cm2": 66162,
+ "board_proven_pct": 100.0,
+ "outside_board_proven_cm2": 0,
+ "probe_cells": 0,
+ "events": [
+  [
+   "saved",
+   "the saved workspace added 0 felt cells and 0 drop cells"
+  ]
+ ]
+}
