@@ -16,6 +16,14 @@ What it models (each switchable, all on by default; numbers below, all CHOSEN to
   battery    100 % at the start, 24 %/h moving, 6 %/h standing (the 2 Nov low-battery run: about 14 %/h idle with the
              lights on; CHOSEN, the real curve is one of the run's outputs)
 Truth it measures: the gap between the two square bodies (exact polygon distance) every step; contact = overlap.
+(e08, Phase A rehearsals) options: --edge-physics (a wheel over the board's edge HANGS the robot, tilted 6.5 deg, as
+Center on 6 Nov: the firmware's tilt stop ends the step, a straight reverse spins its wheels without moving it, a reverse
+or pivot that works the wheel still on the board frees it; the line sensors stop a forward drive whose nose passes the
+edge; a middle past the edge is a fall) - a CHOSEN model of one real hang, flagged in the e08 report; --own-off
+NAME@T:DX,DY,DUR (its own pose off the truth for DUR s, the camera's fixes refused meanwhile: the 6 Nov run 1 case);
+--silent NAME@T:DUR (deaf and mute, then back); --held NAME=KIND with --cam-misplace NAME@T0:T1:DX,DY (the camera puts
+it DX,DY off for a while: Right on 6 Nov); --phantoms N (false front stops per robot-hour, nothing there); rule
+switches --edge-rule / --pose-rule / --keepout-rule / --silent-out / --no-tilt-recovery (the controller's).
 (11-05c, after the first real run) options: --cam-delay (the fixes' delay, the real Pi ~0.45 s; 1.0 s rehearsed) and
 --cam-clock (the camera's stamps on a clock this far ahead); --wall-in (a real wall this far inside the believed board's
 x_min edge: bodies stop at it, the front sensor sees it); --trap (Right starts 7 cm from an edge facing out); --fw
@@ -46,6 +54,7 @@ BOARD = (0.0, 0.0, 122.24, 121.92)
 PACKET_LOSS = 0.03
 TURN_MAX_DPS = 92.0
 V_TOP = 12.5
+HUNG_TILT = 6.5     # (e08 model) a robot hung with a wheel over the edge reads this tilt (6 Nov: 6.1 deg stop, 4.5 standing)
 
 
 def wrap180(a):
@@ -150,7 +159,8 @@ class Sim:
     def __init__(self, seed, hours, new_fw=True, dead_robot=True, pi_freeze=True, dropouts=True, loss=PACKET_LOSS,
                  lost_mode="reckon", out_dir=None, names=("Left", "Center", "Right"), lat_max=0.04, drill=0.0,
                  cam_delay=None, cam_clock=0.0, wall_in=0.0, trap=False, fw=None, starts=None, motion="curves",
-                 fws=None, v_min=None):
+                 fws=None, v_min=None, edge_physics=False, own_off=(), silent=(), held=None, cam_misplace=(),
+                 phantoms=0.0, ctrl_kw=None, own_start=None):
         self.rng = random.Random(seed * 7919 + 13)
         self.seed, self.hours = seed, hours
         self.t = 0.0
@@ -163,7 +173,7 @@ class Sim:
         # start spots: 30 cm in, 40 apart, random headings (as the ladder's dry board)
         while True:
             pts = [(self.rng.uniform(30, 92), self.rng.uniform(30, 92)) for _ in names]
-            if all(math.dist(pts[i], pts[j]) >= 40 for i in range(3) for j in range(i + 1, 3)):
+            if all(math.dist(pts[i], pts[j]) >= 40 for i in range(len(pts)) for j in range(i + 1, len(pts))):
                 break
         if fw:
             new_fw = fw >= FC.FRESH_FW
@@ -188,7 +198,20 @@ class Sim:
             b.x, b.y, b.th = st
             b.ox, b.oy, b.oth = st
         self.ctrl = FC.Controller(names, BOARD, self.ctrl_out, self.ctrl_log, seed=seed, lost_mode=lost_mode,
-                                  drill=drill, motion=motion, v_min_avoid=v_min)
+                                  drill=drill, motion=motion, v_min_avoid=v_min, **(ctrl_kw or {}))
+        # (e08) rehearsal injections
+        self.edge_physics = edge_physics
+        self.own_off = list(own_off)            # (name, t, dx, dy, dur)
+        self.silent_inj = list(silent)          # (name, t, dur)
+        self.held0 = dict(held or {})
+        self.misplace = list(cam_misplace)      # (name, t0, t1, dx, dy)
+        self.phantoms = float(phantoms)
+        self.tilt_lim = {n: 5.0 for n in names}
+        for n, st in (own_start or {}).items():  # its own pose starts off the truth (a mis-placed start)
+            b = self.bots[n]
+            b.ox, b.oy, b.oth = st
+        self.next_raw = {n: 0.0 for n in names}
+
         # (11-05d) truth: each robot's true speed every step; speed-zero moments (under 0.3 cm/s for 0.1 s or more)
         self.speed = {n: dict(moving_s=0.0, alive_s=0.0, zero_s=0.0, zero_run=0.0, zeros=0, why={}) for n in names}
         self.n_moving = [0.0, 0.0, 0.0, 0.0]     # seconds with 0, 1, 2, 3 robots moving (robots still in the roam)
@@ -212,6 +235,10 @@ class Sim:
         self.win_min = {}
         self.win_t = 0.0
         self.in_contact = set()
+        for k in ("hangs", "falls", "edge_trips", "phantom_stops", "hung_s"):
+            self.stats[k] = 0
+        self.stats["edge_min_body"] = float("inf")
+        self.stats["edge_min_centre"] = float("inf")
 
     # -- logs ---------------------------------------------------------------------------------------------------
     def longest_still(self):
@@ -233,7 +260,8 @@ class Sim:
                 pr[2] += 1
         self.rows.setdefault(table, 0)
         self.rows[table] += 1
-        if table in ("reflex", "fallbacks", "lost", "breaks", "events", "moves") or self.out_dir:
+        if table in ("reflex", "fallbacks", "lost", "breaks", "events", "moves", "recovery", "held", "edge_judgement",
+                     "pose", "keepouts") or self.out_dir:
             self.keep(table, row)
 
     def keep(self, table, row):
@@ -256,7 +284,7 @@ class Sim:
         self.down.send(self.t, self.robot_cmd, name, text)
 
     def up(self, b, kind, *args):
-        if b.dead:
+        if b.dead or getattr(b, "mute", False):
             return
         self.upn.send(self.t, self.ctrl_in, b.name, kind, args)
 
@@ -272,6 +300,8 @@ class Sim:
             c.on_battery(name, args[1], self.t)
         elif kind == "fspd":
             c.on_fspd(name)
+        elif kind == "raw":
+            c.on_raw(name, self.t, args[0], args[1], args[2])
 
     def robot_cmd(self, name, text):
         b = self.bots[name]
@@ -280,6 +310,11 @@ class Sim:
         b.last_rx = self.t
         parts = text.split()
         verb = parts[0]
+        if getattr(b, "mute", False):
+            return
+        if verb == "set" and len(parts) >= 3 and parts[1] == "tilt_stop_deg":
+            self.tilt_lim[name] = float(parts[2])
+            return
         if verb == "status":
             self.up(b, "status", b.fw, int(b.battery))
         elif verb == "fix":
@@ -368,6 +403,8 @@ class Sim:
             if fwd > 0 and abs(lat) < lat_max:
                 best = min(best, fwd - 9.5)
         x0, y0, x1, y1 = self.walls
+        if self.edge_physics and self.walls == BOARD:
+            return best                 # (e08) the board's edges are open drops: nothing there for the front sensor
         for l in (-4.0, 0.0, 4.0):
             px, py = b.x + 4.75 * c - l * sn, b.y + 4.75 * sn + l * c
             for dist in ((px - x0) / -c if c < -1e-6 else 999, (x1 - px) / c if c > 1e-6 else 999,
@@ -403,6 +440,16 @@ class Sim:
             if b.new_fw and self.t - b.last_rx > FC.WD_MS / 1000.0:
                 return
             rolling = b.coast is not None and b.q[0]["type"] == "R"
+            nx = b.q[0]
+            if getattr(b, "hung", False) and HUNG_TILT > self.tilt_lim[b.name] and not (nx["type"] == "D" and
+                                                                                   nx.get("rev")):
+                # firmware 2026-11-05d follow.h: tilted: only a straight backward drive starts
+                b.q.pop(0)
+                b.report(self, nx["id"], "failed", "tilted %.1f deg: only a backward drive is allowed" % HUNG_TILT)
+                for q in b.q:
+                    b.report(self, q["id"], "dropped", "an earlier step failed")
+                b.q, b.state = [], "idle"
+                return
             b.cur = b.q.pop(0)
             if not rolling:
                 b.scale = 1.0
@@ -448,6 +495,7 @@ class Sim:
             if abs(err) <= 1.5:
                 if s["type"] == "T":
                     b.th = wrap180(b.th + s.get("err", 0.0))
+                    self.edge_check(b)
                     b.report(self, s["id"], "done")
                     b.cur, b.state = None, "idle"
                 else:
@@ -461,6 +509,7 @@ class Sim:
                 d = err
             b.oth = wrap180(b.oth + d)
             b.th = wrap180(b.th + d * (1 + b.gyro_err))
+            self.edge_check(b)
             return
         # drive: on the own pose, as the firmware's driveLine
         if b.steer is not None:
@@ -474,6 +523,26 @@ class Sim:
             b.v = 0.0
             b.report(self, s["id"], "done")
             b.cur, b.state = None, "idle"
+            return
+        if getattr(b, "hung", False):
+            # (e08 model) hung with a wheel over the edge: the wheels turn (its own pose counts them) but the body
+            # stays, unless the reverse line works the wheel still on the board (its end offset towards that side)
+            frees = s.get("rev") and self.frees(b, s)
+            if not frees:
+                sg_ = -1.0 if s.get("rev") else 1.0
+                b.v = min(s["v"], b.v + 20.0 * DT + 0.5)
+                b.ox += sg_ * b.v * DT * math.cos(math.radians(b.oth))
+                b.oy += sg_ * b.v * DT * math.sin(math.radians(b.oth))
+                return
+        # (e08) false front stops (nothing there): --phantoms per robot-hour while driving forward
+        if not s.get("rev") and self.phantoms > 0 and b.v > 0.5 and \
+                b.rng.random() < self.phantoms * DT / 3600.0 / 0.4:
+            b.v = 0.0
+            b.report(self, s["id"], "failed", "obstacle 5.0 cm ahead; zones 5.0 5.0 5.0 5.0 5.0")
+            for q in b.q:
+                b.report(self, q["id"], "dropped", "an earlier step failed")
+            b.q, b.cur, b.state = [], None, "idle"
+            self.stats["phantom_stops"] += 1
             return
         # front sensor: another body (or a real wall) in the path within follow_look_cm (8) of the front face
         if not s.get("rev"):
@@ -505,6 +574,64 @@ class Sim:
             self.stats["wall_hits"] += 1
             nx = x0 + 4.75
         b.x, b.y = nx, ny
+        self.edge_check(b)
+
+    # -- (e08) the edge physics (a CHOSEN model of the 6 Nov hang) ----------------------------------------------------
+    def wheels(self, b):
+        c, sn = math.cos(math.radians(b.th)), math.sin(math.radians(b.th))
+        return [(b.x - sn * FC.HALF_TRACK * k, b.y + c * FC.HALF_TRACK * k) for k in (1, -1)]   # left, right
+
+    def frees(self, b, s):
+        """A reverse that works the wheel still on the board frees a hung robot: its line's end lies towards that
+        wheel's side (the steering drives that wheel harder), or the robot is no longer over (a pivot freed it)."""
+        on = [w for w in self.wheels(b) if FC.edge_dist(BOARD, *w) > 0.0]
+        if len(on) != 1:
+            return True
+        c, sn = math.cos(math.radians(b.th)), math.sin(math.radians(b.th))
+        side = -sn * (s["x1"] - b.x) + c * (s["y1"] - b.y)          # + = towards its left
+        left_on = FC.edge_dist(BOARD, *self.wheels(b)[0]) > 0.0
+        return (side > 0.8 and left_on) or (side < -0.8 and not left_on)
+
+    def edge_check(self, b):
+        if not self.edge_physics or b.dead:
+            return
+        if FC.edge_dist(BOARD, b.x, b.y) < 0.0:
+            self.stats["falls"] += 1
+            b.dead, b.v, b.state = True, 0.0, "idle"
+            self.ctrl.event(self.ctrl.R[b.name], "fell (sim)", "its middle went over the edge")
+            return
+        over = [FC.edge_dist(BOARD, *w) < 0.0 for w in self.wheels(b)]
+        if any(over) and not getattr(b, "hung", False):
+            b.hung = True
+            self.stats["hangs"] += 1
+            b.v = 0.0
+            if b.cur is not None and not (b.cur["type"] == "D" and b.cur.get("rev")) and \
+                    HUNG_TILT > self.tilt_lim[b.name]:
+                b.report(self, b.cur["id"], "failed", "tilted %.1f deg" % HUNG_TILT)
+                for q in b.q:
+                    b.report(self, q["id"], "dropped", "an earlier step failed")
+                b.q, b.cur, b.state, b.coast = [], None, "idle", None
+        elif not any(over) and getattr(b, "hung", False):
+            b.hung = False
+        # the line sensors (safe_edge 3): a forward drive whose nose passes the edge stops
+        if b.cur is not None and b.cur["type"] in ("D", "R") and not b.cur.get("rev") and not getattr(b, "hung", False):
+            c, sn = math.cos(math.radians(b.th)), math.sin(math.radians(b.th))
+            if FC.edge_dist(BOARD, b.x + 4.0 * c, b.y + 4.0 * sn) < -0.5:
+                self.stats["edge_trips"] += 1
+                b.v = 0.0
+                b.report(self, b.cur["id"], "failed", "plywood edge at %.1f %.1f %.1f line" % (b.ox, b.oy, b.oth))
+                for q in b.q:
+                    b.report(self, q["id"], "dropped", "an earlier step failed")
+                b.q, b.cur, b.state, b.coast = [], None, "idle", None
+
+    def raw(self):
+        """RAW rows to the controller (roll / pitch / speed), 10 a second: hung = 6.5 deg."""
+        for n, b in self.bots.items():
+            if b.dead or getattr(b, "mute", False) or self.t < self.next_raw[n]:
+                continue
+            self.next_raw[n] = self.t + 0.1
+            tilt = HUNG_TILT if getattr(b, "hung", False) else 0.0
+            self.up(b, "raw", tilt + b.rng.gauss(0, 0.15), b.rng.gauss(0, 0.15), b.v)
 
     # -- (11-05d) firmware 2026-11-05c curves ---------------------------------------------------------------------------
     def move_truth(self, b, v, w):
@@ -520,7 +647,10 @@ class Sim:
         if self.walls != BOARD and nx < x0 + 4.75:
             self.stats["wall_hits"] += 1
             nx = x0 + 4.75
+        if getattr(b, "hung", False):
+            return                       # (e08 model) hung: the wheels turn, the body stays
         b.x, b.y = nx, ny
+        self.edge_check(b)
 
     def open_side(self, b):
         th0 = b.th
@@ -578,6 +708,9 @@ class Sim:
                 self.coast_step(b)                 # rolls on in the same step (the firmware does not pause)
             return
         fc = self.front_cm(b)
+        if self.phantoms > 0 and b.v > 0.5 and b.rng.random() < self.phantoms * DT / 3600.0 / 0.9:
+            fc = 5.0                               # (e08) a false front reading (nothing there): the dodge path
+            self.stats["phantom_stops"] += 1
         if fc < 8.0 and b.v > 0.5 and b.scale <= 0:
             b.v = 0.0
             b.report(self, s["id"], "failed", "obstacle %.1f cm ahead" % fc)
@@ -628,6 +761,9 @@ class Sim:
                 lat = self.rng.uniform(0.12, 0.2) if self.cam_delay is None else \
                     max(0.05, self.cam_delay + self.rng.uniform(-0.1, 0.1))
                 fx, fy = b.x + self.rng.gauss(0, 0.5), b.y + self.rng.gauss(0, 0.5)
+                for nm, t0, t1, dx, dy in self.misplace:     # (e08) the camera puts it off for a while
+                    if nm == n and t0 <= self.t < t1:
+                        fx, fy = fx + dx, fy + dy
                 fth = b.th + self.rng.gauss(0, 2.0) if (b.state == "drive" and self.rng.random() < 0.3) else None
                 self.cam_q.append((self.t + lat, n, self.t, fx, fy, fth))
         due = [e for e in self.cam_q if e[0] <= self.t]
@@ -643,9 +779,11 @@ class Sim:
 
     def fuse(self, n, fx, fy, fth, tf=None):
         b = self.bots[n]
-        if b.dead:
+        if b.dead or getattr(b, "mute", False):
             return
-        b.last_rx = self.t
+        b.last_rx = self.t                  # any packet keeps its watchdog quiet (follow.h), a refused fix too
+        if any(nm == n and t0 <= self.t < t0 + dur for nm, t0, dx, dy, dur in self.own_off):
+            return                          # (e08) its fixes refused while its own pose is off
         hx, hy = b.ox, b.oy
         if tf is not None:                  # the firmware weighs a fix against its own pose at the fix's time
             if self.t - tf > 1.0:           # params.h fix_max_age_ms 1000: older fixes are not used
@@ -714,6 +852,16 @@ class Sim:
             a = bs[i]
             e = FC.edge_dist(BOARD, a.x, a.y) - FC.HALF
             self.stats["edge_min"] = min(self.stats["edge_min"], e + FC.HALF - FC.BODY / 2 * 1.0)
+            if not a.dead:
+                ec = FC.edge_dist(BOARD, a.x, a.y)
+                eb = min(FC.edge_dist(BOARD, *q) for q in corners(a.x, a.y, a.th))
+                if ec < self.stats["edge_min_centre"]:
+                    self.stats["edge_min_centre"] = ec
+                if eb < self.stats["edge_min_body"]:
+                    self.stats["edge_min_body"] = eb
+                    self.stats["edge_min_at"] = dict(t=round(self.t, 1), robot=a.name, x=round(a.x, 1), y=round(a.y, 1))
+                if getattr(a, "hung", False):
+                    self.stats["hung_s"] += DT
             if FC.edge_dist(BOARD, a.x, a.y) < FC.BODY / 2:
                 self.stats["off_board"] += 1
             for j in range(i + 1, len(bs)):
@@ -754,8 +902,25 @@ class Sim:
             c.on_fix(n, 0.0 + self.cam_clock, b.x, b.y, b.th, arrival=0.0 + (self.cam_delay or 0.15))
             c.on_heard(n, 0.0)
         c.tick(0.0)
+        if self.edge_physics:
+            # (e08) each robot's level, taken standing on the board before the run (the firmware's compass check)
+            for n in self.names:
+                for k_ in range(30):
+                    c.on_raw(n, -1.0 + 0.02 * k_, 0.0, 0.0, 0.0)
         for n in self.names:
-            c.begin(n)
+            k = self.held0.get(n)
+            if k == "out":                      # (e08 "before") the old way: a failed heading crawl kept it out
+                c.begin(n)
+                c.R[n].mode, c.R[n].out_why = "out", "no heading (the old way)"
+                c.R[n].traj = FC.Traj.stand(0.0, self.bots[n].x, self.bots[n].y, m=FC.PLAN_M0 + 1.0)
+            elif k:
+                c.begin(n, held=k)
+            else:
+                c.begin(n)
+        for b in self.bots.values():           # (e08) a robot placed hung at the start (rehearsal b)
+            if self.edge_physics and any(FC.edge_dist(BOARD, *w) < 0.0 for w in self.wheels(b)):
+                b.hung = True
+                self.stats["hangs"] += 1
         next_tick = 0.0
         while self.t < T:
             self.t += DT
@@ -768,8 +933,25 @@ class Sim:
                 b.dead, b.v, b.state = True, 0.0, "idle"
                 c.event(c.R[b.name], "dead (sim)", "stops answering where it is")
                 self.dead_at = None
+            for (nm, t0, dx, dy, dur) in self.own_off:      # (e08) its own pose jumps off the truth
+                if t0 <= self.t < t0 + DT:
+                    b = self.bots[nm]
+                    if dx is None:          # "in": dy cm towards the board's middle (it believes it is further in)
+                        mx, my = (BOARD[0] + BOARD[2]) / 2 - b.x, (BOARD[1] + BOARD[3]) / 2 - b.y
+                        L_ = math.hypot(mx, my) or 1.0
+                        dx, dy = dy * mx / L_, dy * my / L_
+                    b.ox, b.oy = b.ox + dx, b.oy + dy
+                    b.hist = [(a, x + dx, y + dy) for a, x, y in b.hist]
+                    c.event(c.R[nm], "own pose off (sim)", "%.1f, %.1f cm for %.0f s, fixes refused" % (dx, dy, dur))
+            for (nm, t0, dur) in self.silent_inj:           # (e08) deaf and mute, then back
+                b = self.bots[nm]
+                was = getattr(b, "mute", False)
+                b.mute = t0 <= self.t < t0 + dur
+                if b.mute != was:
+                    c.event(c.R[nm], "silent (sim)" if b.mute else "back (sim)", "%.0f s" % dur)
             for b in self.bots.values():
                 self.bot_step(b)
+            self.raw()
             self.camera()
             self.follow_records()
             for _, fn, args in self.down.due(self.t):
@@ -837,7 +1019,20 @@ class Sim:
                     break_why=Counter_sum({e["why"].split(":")[0]: 1} for e in kept.get("breaks", [])),
                     reflex_outcomes={k: sum(1 for e in refl if e["outcome"] == k) for k in set(e["outcome"] for e in refl)},
                     menu_cells_used=sum(1 for v in c.menu.n.values() if v), menu_min=min(c.menu.n.values()),
-                    menu_max=max(c.menu.n.values()), motion=mot)
+                    menu_max=max(c.menu.n.values()), motion=mot,
+                    # (e08) the Phase A rehearsals' measures
+                    edge_min_body_cm=round(st["edge_min_body"], 2), edge_min_centre_cm=round(st["edge_min_centre"], 2),
+                    edge_min_at=st.get("edge_min_at"), hangs=st["hangs"], falls=st["falls"], hung_s=round(st["hung_s"], 1),
+                    edge_trips=st["edge_trips"], phantom_stops=st["phantom_stops"],
+                    phase_a={k: c.counts.get(k) for k in ("edge_refused", "pose_doubts", "reseeds", "off_plan",
+                                                           "judgements", "unsure_inward", "unsure_holds", "questions",
+                                                           "recover_tries", "recovered", "recover_holds", "held",
+                                                           "rejoined", "keepouts_faded", "keepouts", "tilt_trips",
+                                                           "tilt_hazards", "border_fires", "surface_marks", "heading",
+                                                           "leads_used")},
+                    keepouts_end=len(c.keepouts),
+                    held_end={n: (r.held or {}).get("kind") for n, r in c.R.items() if getattr(r, "held", None)},
+                    moving_pct={n: v["moving_pct"] for n, v in speed["robot"].items()})
 
 
 def _longest(rows):
@@ -956,7 +1151,39 @@ def main(argv=None):
                     help="(11-05d) motion style (curves need firmware 2026-11-05c: --fw 2026-11-05c)")
     ap.add_argument("--fw-mix", default="", help="each robot's firmware, e.g. Left=2026-11-05c,Right=2026-10-28a")
     ap.add_argument("--v-min", type=float, default=None, help="curves: the slowest an avoiding robot goes (cm/s)")
+    # (e08 Phase A)
+    ap.add_argument("--edge-physics", action="store_true", help="a wheel over the edge hangs the robot (chosen model)")
+    ap.add_argument("--own-off", action="append", default=[], metavar="NAME@T:DX,DY,DUR")
+    ap.add_argument("--silent", action="append", default=[], metavar="NAME@T:DUR")
+    ap.add_argument("--held", action="append", default=[], metavar="NAME=KIND")
+    ap.add_argument("--cam-misplace", action="append", default=[], metavar="NAME@T0:T1:DX,DY")
+    ap.add_argument("--phantoms", type=float, default=0.0, help="false front stops per robot-hour")
+    ap.add_argument("--edge-rule", default=None, choices=("derived", "fixed"))
+    ap.add_argument("--pose-rule", default=None, choices=("widen", "wait2s"))
+    ap.add_argument("--keepout-rule", default=None, choices=("fade", "permanent"))
+    ap.add_argument("--silent-out", action="store_true")
+    ap.add_argument("--no-tilt-recovery", action="store_true")
+    ap.add_argument("--attended", action="store_true")
     a = ap.parse_args(argv)
+
+    def at(spec):
+        n, rest = spec.split("@", 1)
+        return n, rest
+    own_off = []
+    for x in a.own_off:
+        n, rest = at(x)
+        t, v = rest.split(":")
+        q = v.split(",")
+        own_off.append((n, float(t), None if q[0] == "in" else float(q[0]), float(q[1]), float(q[2])))
+    silent = [(at(x)[0], float(at(x)[1].split(":")[0]), float(at(x)[1].split(":")[1])) for x in a.silent]
+    misplace = []
+    for x in a.cam_misplace:
+        n, rest = at(x)
+        t0, t1, v = rest.split(":")
+        dx, dy = (float(q) for q in v.split(","))
+        misplace.append((n, float(t0), float(t1), dx, dy))
+    ckw = dict(edge_rule=a.edge_rule, pose_rule=a.pose_rule, keepout_rule=a.keepout_rule, silent_out=a.silent_out,
+               tilt_recovery=not a.no_tilt_recovery, attended=a.attended)
     lo, _, hi = a.seeds.partition("-")
     seeds = range(int(lo), int(hi or lo) + 1)
     res = []
@@ -970,7 +1197,9 @@ def main(argv=None):
                 dropouts=not a.no_dropouts, loss=a.loss, lost_mode=a.lost_mode, out_dir=od,
                 lat_max=a.lat_max_ms / 1000.0, drill=a.drill, cam_delay=a.cam_delay, cam_clock=a.cam_clock,
                 wall_in=a.wall_in, trap=a.trap, fw=a.fw, motion=a.motion, v_min=a.v_min,
-                fws=dict(x.split("=") for x in a.fw_mix.split(",") if x))
+                fws=dict(x.split("=") for x in a.fw_mix.split(",") if x), edge_physics=a.edge_physics,
+                own_off=own_off, silent=silent, held=dict(x.split("=") for x in a.held), cam_misplace=misplace,
+                phantoms=a.phantoms, ctrl_kw=ckw)
         r = s.run()
         r["wall_s"] = round(time.time() - t0, 1)
         r.update(drill=a.drill, old_fw=a.old_fw, loss=a.loss, lat_max_ms=a.lat_max_ms, lost_mode=a.lost_mode,

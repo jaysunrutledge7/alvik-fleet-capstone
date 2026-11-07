@@ -67,7 +67,10 @@ def test_xlsx_and_csv_readers_agree(tmp_path):
 
 
 def test_edge_room_13_reaches_every_sticker_home_stays_17(school):
-    assert PR.site_edge_cm(school) == 13.0 and PR.site_edge_cm(SI.load("home")) == 17.0
+    # (e08, A2) the one derived rule: roof tags (school) 6.72 + 1.7 + 2.4 = 10.8; lights (home) + 5 = 15.8. Fixed: 13 / 17
+    import safety_rules as SR
+    assert PR.site_edge_cm(school) == (13.0 if SR.EDGE_RULE == "fixed" else 10.8)
+    assert PR.site_edge_cm(SI.load("home")) == (17.0 if SR.EDGE_RULE == "fixed" else 15.8)
     m, words, prog, orders = PR.site_production(school)
     assert not [w for w in words if "open edge" in w]           # no sticker moved in from an edge at 13 cm
     pts, _, _ = SP.points_cm(school)

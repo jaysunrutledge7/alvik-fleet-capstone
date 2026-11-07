@@ -34,7 +34,8 @@
 #     ./run-fleet-pi.sh ladder-status      what has passed, where each robot is
 # The DOE loop (unattended, tools/fleet/doe_loop.py): L0 + L1, then turn checks and straight out-and-backs at 5-13 cm/s
 # one robot at a time until every robot is out or 4 h; runs in tmux (session doe), so SSH can be closed:
-#     ./run-fleet-pi.sh doe [hours] [full-video] [keep-going] [low-battery]   start it (full-video: the recorder keeps
+#     ./run-fleet-pi.sh doe [hours] [full-video] [park] [low-battery]   (e08: keep-going is the default; park = old way)
+#     (before e08:) ./run-fleet-pi.sh doe [hours] [full-video] [keep-going] [low-battery]   start it (full-video: the recorder keeps
 #                                          its whole video too; keep-going: no robot is set aside by a turn check, crawl,
 #                                          line check or one camera's evidence, only for safety: "would have parked" is
 #                                          logged; low-battery: robots drive down to 5 % instead of 25 %, the loop's check
@@ -245,8 +246,8 @@ case "$WHAT" in
   turncheck)
     ladder turncheck "${1:-Center}" ;;
   doe)
-    HRS=4; FULL=0; KEEP=""; MINB=25
-    for x in "$@"; do case "$x" in full-video) FULL=1 ;; keep-going) KEEP="keep-going" ;; low-battery) MINB=5 ;; [0-9]*) HRS="$x" ;; esac; done
+    HRS=4; FULL=0; KEEP="keep-going"; MINB=25     # (e08, Nick 7 Nov Q7) keep going is the default; "park" = the old way
+    for x in "$@"; do case "$x" in full-video) FULL=1 ;; keep-going) KEEP="keep-going" ;; park|no-keep-going) KEEP="park" ;; low-battery) MINB=5 ;; [0-9]*) HRS="$x" ;; esac; done
     if tmux has-session -t doe 2>/dev/null; then
       echo "A DOE loop is already running (tmux session doe). Watch it: tmux capture-pane -p -t doe | tail -40"
       echo "Stop it first if you want a new one: ./run-fleet-pi.sh doe-stop"; exit 1
@@ -258,7 +259,7 @@ case "$WHAT" in
     tmux new-session -d -s doe -x 200 -y 50 "cd '$REPO' && export MIRLT_MIN_BATTERY=$MINB && FLEET_DRY=$DRY DOE_DRY_ARGS='${DOE_DRY_ARGS:-}' ./run-fleet-pi.sh doe-run $HRS $KEEP; FLEET_DRY=$DRY ./run-fleet-pi.sh doe-finish; read -r -p 'DOE loop finished. Press Enter.'"
     # the loop's whole screen (run_plan's lines too) to a file; doe-finish moves it into the DOE folder (screen.txt)
     tmux pipe-pane -t doe "cat >> '$REPO/logs/doe-screen.txt'" 2>/dev/null || true
-    echo "DOE loop started in tmux session 'doe' (time cap $HRS h; robots set aside under $MINB% battery; full video: $([ $FULL = 1 ] && echo yes || echo no); keep-going: $([ -n "$KEEP" ] && echo "yes, no robot is set aside except for safety" || echo no))."
+    echo "DOE loop started in tmux session 'doe' (time cap $HRS h; robots set aside under $MINB% battery; full video: $([ $FULL = 1 ] && echo yes || echo no); keep-going: $([ "$KEEP" = keep-going ] && echo "yes, no robot is set aside except for safety" || echo "no (park)"))."
     [ "$MINB" -lt 25 ] && echo "LOW-BATTERY RUN: the robots drive down to $MINB%. Charge them straight after it."
     echo "You can close this window: it keeps running on the Pi."
     echo "Watch it:        tmux capture-pane -p -t doe | tail -40"
@@ -268,11 +269,11 @@ case "$WHAT" in
     echo "Stop it:         ./run-fleet-pi.sh doe-stop" ;;
   doe-run)          # (inside the tmux session doe)
     if [ "$DRY" = 1 ]; then
-      KG=""; [ "${2:-}" = keep-going ] && KG="--keep-going"
+      KG="--keep-going"; [ "${2:-}" = park ] && KG="--no-keep-going"
       python3 tools/fleet/doe_loop.py run --hours "${1:-4}" --dry $KG ${DOE_DRY_ARGS:-}
     else
       PIN=""; if [ "$(nproc)" -ge 4 ] && command -v taskset >/dev/null; then PIN="taskset -c 2,3"; fi
-      KG=""; [ "${2:-}" = keep-going ] && KG="--keep-going"
+      KG="--keep-going"; [ "${2:-}" = park ] && KG="--no-keep-going"
       $PIN python3 tools/fleet/doe_loop.py run --hours "${1:-4}" $KG $IPS --stream 127.0.0.1:8000 --calib "$CALIB" $SIDE_ARG
     fi ;;
   doe-finish)       # (inside the tmux session doe, after the loop): recorder stopped, logs + frames uploaded
@@ -309,8 +310,10 @@ case "$WHAT" in
       tmux send-keys -t doe C-c; echo "Sent Ctrl+C to the DOE loop: every robot stops; it then uploads (watch: tmux capture-pane -p -t doe | tail -20)."
     else echo "No DOE loop running."; fi ;;
   freeroam)
-    HRS=4; FULL=0; LOST=""
-    for x in "$@"; do case "$x" in full-video) FULL=1 ;; hold) LOST="$LOST --lost-mode hold" ;; stopturn) LOST="$LOST --motion stopturn" ;; curves) LOST="$LOST --motion curves" ;; [0-9]*) HRS="$x" ;; esac; done
+    HRS=4; FULL=0; LOST=""; RULEENV=""
+    # (e08) attended: a person stays with the robots (the run may ask about a robot near an edge); old-rules: every rule
+    # before e08 (fixed edges, 2 s pose rule, permanent keep-outs, out when silent / no heading, no tilt recovery, 5 deg)
+    for x in "$@"; do case "$x" in full-video) FULL=1 ;; hold) LOST="$LOST --lost-mode hold" ;; stopturn) LOST="$LOST --motion stopturn" ;; curves) LOST="$LOST --motion curves" ;; attended|--attended) LOST="$LOST --attended" ;; old-rules) LOST="$LOST --edge-rule fixed --pose-rule wait2s --keepout-rule permanent --silent-out --heading-out --no-tilt-recovery"; RULEENV="MIRLT_TILT_RULE=old MIRLT_EDGE_RULE=fixed" ;; [0-9]*) HRS="$x" ;; esac; done
     if tmux has-session -t freeroam 2>/dev/null; then
       echo "A free roam is already running (tmux session freeroam). Its progress: ./run-fleet-pi.sh freeroam-status"
       echo "Stop it first if you want a new one: ./run-fleet-pi.sh freeroam-stop"; exit 1
@@ -320,7 +323,7 @@ case "$WHAT" in
     done
     python3 tools/fleet/diskguard.py preflight || exit 1
     [ "$DRY" = 1 ] || { [ "$FULL" = 1 ] || REC_EXTRA="--no-record"; start_recorder; }
-    tmux new-session -d -s freeroam -x 200 -y 50 "cd '$REPO' && FLEET_DRY=$DRY ./run-fleet-pi.sh freeroam-run $HRS $LOST; FLEET_DRY=$DRY ./run-fleet-pi.sh freeroam-finish; read -r -p 'Free roam finished. Press Enter.'"
+    tmux new-session -d -s freeroam -x 200 -y 50 "cd '$REPO' && $RULEENV FLEET_DRY=$DRY ./run-fleet-pi.sh freeroam-run $HRS $LOST; FLEET_DRY=$DRY ./run-fleet-pi.sh freeroam-finish; read -r -p 'Free roam finished. Press Enter.'"
     tmux pipe-pane -t freeroam "cat >> '$REPO/logs/freeroam-screen.txt'" 2>/dev/null || true
     echo "Free roam started in tmux session 'freeroam' (time cap $HRS h; each robot parks at 10 % battery)."
     echo "You can close this window and switch Tailscale: it keeps running on the Pi."
@@ -357,6 +360,11 @@ case "$WHAT" in
       tmux send-keys -t freeroam C-c; echo "Sent Ctrl+C to the free roam: every robot stops; it then makes its report and uploads (./run-fleet-pi.sh freeroam-status)."
     else echo "No free roam running."; fi ;;
   monday|practice)
+    # (e08, A10) the 2 Nov Monday demo's machinery is switched off by default (kept, not deleted): MIRLT_MONDAY_DEMO=1
+    if [ "${MIRLT_MONDAY_DEMO:-0}" != 1 ]; then
+      echo "Monday's demo mission (2 Nov) is switched off (e08). To run it anyway: MIRLT_MONDAY_DEMO=1 ./run-fleet-pi.sh $WHAT $*"
+      exit 1
+    fi
     TABLE="61x122"; ROB="Left,Right"; EXTRA=""; TS="monday"; PROG=""
     if [ "$WHAT" = practice ]; then
       # one block of Monday's mission alone (session plan 2026-10-28): mow | circle | chicken | dance
@@ -479,7 +487,11 @@ case "$WHAT" in
     if [ "${1:-}" = dry ]; then python3 tools/fleet/calib_run.py --dry "${@:2}"
     else
       tmux has-session -t calib 2>/dev/null && { echo "A calibration run is already running: tmux attach -t calib (leave: Ctrl+B, then D)"; exit 0; }
-      tmux new-session -d -s calib "cd '$REPO' && python3 tools/fleet/calib_run.py $IPS $*; read -r -p 'Calibration run ended. Press Enter.'"
+      # (e08, A10, Nick 6 Nov) the robots sleep as soon as the run ends (as from the Start screen); `calib awake`
+      # keeps the old way (awake; Mission Control's idle sleeper puts them to sleep after 30 minutes with no run)
+      SLP="--sleep-at-end"; ARGS=""
+      for x in "$@"; do case "$x" in awake) SLP="" ;; *) ARGS="$ARGS $x" ;; esac; done
+      tmux new-session -d -s calib "cd '$REPO' && python3 tools/fleet/calib_run.py $IPS $SLP $ARGS; read -r -p 'Calibration run ended. Press Enter.'"
       echo "Calibration run started in tmux session calib. See it: tmux attach -t calib (leave: Ctrl+B, then D)"
     fi ;;
   calib-upload)    # (2026-11-04) the newest calibration run's folder (or the one given) as a release of its own

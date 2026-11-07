@@ -44,7 +44,9 @@ HOME_FACE_DEG = 90.0     # homes face +y (across the table, away from corner 1's
 DWELL_S = 3.0            # each production point: the robot stands this long (the external recorder gets still reads to
                          # compare). Claude's addition, not asked for: 0 turns it off. DOE note: 0 / 3 / 10 s against
                          # the RFID position's spread at a still robot
-EDGE_IN_CM = 17.0        # a point closer than this to an open edge (the robot's centre) is moved in to it: Nick's
+import safety_rules as SR   # noqa: E402
+EDGE_IN_CM = SR.edge_room_cm("missions")   # (e08, A2) the one derived rule (15.8 cm lights; fixed: 17). Before: 17.0
+                         # a point closer than this to an open edge (the robot's centre) is moved in to it: Nick's
                          # edge room "everywhere in the mission" (missions.SETTINGS edge_room_cm, 28 Oct 21:27: the
                          # body's nearest corner 10 cm from an open edge by plan, turns included). No DOE: Nick's rule
 
@@ -198,6 +200,11 @@ def program(orders, dwell_s=DWELL_S, home=True, name="production", at_home=None)
 def site_edge_cm(site):
     """The site's edge room for the points: "edge_in_cm" (school: 13), else EDGE_IN_CM (home: 17, as before)."""
     v = (site or {}).get("edge_in_cm")
+    if SR.EDGE_RULE != "fixed" and site:
+        # (e08, A2) the one derived rule for this site's tracking (roof tags: no camera edge bias): school 10.8 cm. The
+        # site's typed edge_in_cm is the fixed rule's (MIRLT_EDGE_RULE=fixed)
+        tr = site.get("run_tracking") or site.get("tracking") or "lights"
+        return SR.edge_room_cm("school" if tr == "tags" else "missions", tracking=tr)
     return EDGE_IN_CM if v is None else float(v)
 
 

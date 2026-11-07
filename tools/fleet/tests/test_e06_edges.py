@@ -135,6 +135,9 @@ def test_tilt_never_forward_and_back_off_needs_evidence():
     r.mode = "idle"
     c.start_move(r)
     if r.move is not None:
-        assert r.move["kind"] in ("back off", "reverse")       # never a forward move
+        # (e08, A3) the recovery tries: a reverse inward (the camera and its own pose agree backing goes inward) or a
+        # short pivot; never a forward drive
+        assert r.move["kind"] in ("back off", "reverse") or (str(r.move["kind"]).startswith("recover:") and
+                                                              (r.move["rev"] or r.move["L"] == 0))
     else:
         assert events(rows, "trophy break")                    # stands, said

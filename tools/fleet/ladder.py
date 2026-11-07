@@ -66,7 +66,9 @@ import calib_room as CR  # noqa: E402   (calibration room, roll caps, keep-or-ca
 PY = sys.executable
 
 # ---------------------------------------------------------------------------------------------- chosen numbers
-EDGE_REFUSE_CM = 25.0   # Nick (2026-10-27): the turn check refuses a robot the camera puts within 25 cm of an edge;
+EDGE_REFUSE_CM = CR.SR.edge_room_cm("ladder")   # (e08, A2) the one derived rule: 6.72 + 1.7 + 2.4 + 5 + the
+                        # 2.7 cm blind error of a 10 cm crawl = 18.5 cm (MIRLT_EDGE_RULE=fixed: 25, as below). Before:
+                        # 25.0 Nick (2026-10-27): the turn check refuses a robot the camera puts within 25 cm of an edge;
                         # used for every step: a robot nearer than this is never moved today. No DOE: a safety rule
 CALIB_EDGE_CM = CR.ROOM_EDGE_CM   # 12 cm (was 30): calibration room is spin room only (2026-10-29, Nick: "calibrate
 CALIB_GAP_CM = CR.ROOM_ROBOT_CM   # with less space"); 21 cm (was 35) to another robot's middle. The roll is capped

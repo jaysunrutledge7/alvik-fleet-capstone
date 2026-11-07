@@ -37,11 +37,21 @@ start, counted apart). Every moment a robot's speed reaches zero is logged with 
 stops".
 """
 import math
+import os
 import random
+import sys
 
 import numpy as np
 
-VERSION = "freeroam-2026-11-05d"     # 11-05d: continuous curves (motion style "curves", firmware 2026-11-05c)
+_HERE = os.path.dirname(os.path.abspath(__file__))
+if _HERE not in sys.path:
+    sys.path.insert(0, _HERE)
+import safety_rules as SR   # noqa: E402  (e08 Phase A: the rules shared with run_plan and observe)
+
+VERSION = "freeroam-2026-11-07a"     # 11-07a (e08 Phase A): fused position (A1), the derived edge rule on every swept
+                                     # path with a sure / unsure judgement (A2), tilt recovery tries (A3), heading watch,
+                                     # stop lead, surface marks (A5), fading keep-outs (A6), held robots rejoin (A7)
+                                     # 11-05d: continuous curves (motion style "curves", firmware 2026-11-05c)
 
 # ------------------------------------------------------------------------------------------------- body and board
 HALF = 6.72             # the 9.5 cm square's half diagonal: a circle round the body however it turns. Not chosen
@@ -102,12 +112,17 @@ LOST_HOLD_S = 1.5       # lost_mode "hold" (the old roam.py rule): halt a mover 
 # robots
 STUCK_S = 3.0           # driving with no camera travel (< 1 cm) for this long = stuck. Chosen; DOE no
 SILENT_S = 6.0          # nothing heard for this long: "silent", kept as an obstacle where the camera sees it
-OUT_SILENT_S = 120.0    # silent this long: out for the rest of the run
+OUT_SILENT_S = 120.0    # silent this long: out for the rest of the run (before e08; now behind silent_out=True: A7 holds
+                        # it as an obstacle and rejoins it when the camera and its own pose agree again)
 RESEND_S = 0.3          # a step or control not acknowledged is sent again after this (run_plan --resend-s 0.3)
 HEARTBEAT_S = 0.5       # something goes to every robot at least this often (its watchdog: follow_wd_ms 1500)
 WD_MS = 1500            # the robots' watchdog. Chosen: 15 camera fixes; DOE no (a safety timeout)
 STATUS_S = 20.0         # battery asked this often
-BATTERY_FLOOR = 10      # Nick: each robot drives down to 10 %
+try:                    # (e08, A11) one source of truth: engine_checks.battery_floor("freeroam") = safety_rules' 10 %
+    import engine_checks as _EC
+    BATTERY_FLOOR = _EC.battery_floor(run_type="freeroam")     # Nick: each robot drives down to 10 %
+except Exception:  # noqa: BLE001
+    BATTERY_FLOOR = 10
 PARK_EDGE_CC = EDGE_CC + 3.0   # a parked robot's spot: near an edge, out of the way
 FRESH_FW = "2026-11-05b"       # fspd / fsteer / follow_wd_ms
 # (11-05c, the first real run, 5 Nov 14:35) camera timing, discovered keep-outs, backing off, the edge trap
@@ -239,6 +254,7 @@ class Traj:
         rows.append((t1, INF, p0[0] + ux * L, p0[1] + uy * L, m, slack0 + SLACK_FRAC * (t1 - t0)))
         tr = Traj(rows)
         tr.t_end, tr.end, tr.h_end = t1, (p0[0] + ux * L, p0[1] + uy * L), h1
+        tr.v = v
         return tr
 
 
@@ -274,6 +290,7 @@ def curve_traj(t0, segs, side, m0=PLAN_M0, bubble_grow=0.0, slack0=SLACK0_S, tai
     tr = Traj(rows)
     tr.t_end, tr.end, tr.h_end, tr.side = t, (end[0], end[1]), end[2], side
     tr.loop_c = loop_centre(end[0], end[1], end[2], side) if tail else None
+    tr.v = segs[-1][5] if segs else None
     return tr
 
 
@@ -428,7 +445,23 @@ class Robot:
 # ------------------------------------------------------------------------------------------------ the controller
 class Controller:
     def __init__(self, names, rect, out, log, seed=1, lost_mode="reckon", battery_floor=BATTERY_FLOOR,
-                 park_sleep=True, fw_override=None, drill=0.0, motion="curves", v_min_avoid=None):
+                 park_sleep=True, fw_override=None, drill=0.0, motion="curves", v_min_avoid=None, edge_rule=None,
+                 tracking="lights", attended=False, questions=None, silent_out=False, leads=None, pose_rule=None,
+                 keepout_rule=None, tilt_recovery=True, heading_watch=True):
+        # (e08 Phase A) switches, each with the old behaviour on its other side (CLAUDE.md keep features, switch off):
+        #   edge_rule "derived" | "fixed" (EDGE_CC 16 / LOOP_EDGE 9.2 as before); pose_rule "widen" | "wait2s";
+        #   keepout_rule "fade" | "permanent"; silent_out False (held, rejoins) | True (out at 120 s as before);
+        #   tilt_recovery True (the tries) | False (stands as before); heading_watch True | False
+        self.edge_rule = edge_rule or SR.EDGE_RULE
+        self.pose_rule = pose_rule or SR.POSE_RULE
+        self.keepout_rule = keepout_rule or SR.KEEPOUT_RULE
+        self.tracking = tracking
+        self.attended = bool(attended)
+        self.asks = questions            # safety_rules.Questions (attended runs) or None: said and logged only
+        self.silent_out = bool(silent_out)
+        self.lead_tab = dict(leads or {})   # {robot: {speed: cm}} its stop lead from its calibration (A5)
+        self.tilt_recovery = bool(tilt_recovery)
+        self.heading_watch = bool(heading_watch)
         self.rect = tuple(float(v) for v in rect)
         self.out_fn, self.log = out, log
         self.rng = random.Random(seed)
@@ -577,10 +610,15 @@ class Controller:
             r.arc_pts.append((x, y))
         if oa is not None:
             r.cam_off = (x - oa[0], y - oa[1])
-            self.pose_agree(r, (oa[0], oa[1]), (x, y), th)
+            if self.pose_rule == "wait2s":
+                self.pose_agree(r, (oa[0], oa[1]), (x, y), th)      # the rule before e08 (kept behind the switch)
+            else:
+                self.pose_fuse(r, (oa[0], oa[1]), (x, y), th)
         r.cam_hist.append((t, x, y))
         if len(r.cam_hist) > 80:
             del r.cam_hist[:20]
+        if oa is not None and r.lost is None:
+            self.heading_check(r, x, y)            # (e08, A5) its own heading against the camera's motion
 
     def on_follow(self, name, t, state, x, y, th, cur=0, last_done=None, last_failed=None):
         r = self.R.get(name)
@@ -896,9 +934,86 @@ class Controller:
         import observe as OB
         age = (self.t - (r.cam_arr if r.cam_arr is not None else r.cam[0])) if (r.cam is not None and r.lost is None) \
             else 0.0
-        return OB.uncertainty_cm(PLAN_M0, r.bubble if r.lost else 0.0, age, 10.0, 0.0)
+        u = OB.uncertainty_cm(PLAN_M0, r.bubble if r.lost else 0.0, age, 10.0, 0.0)
+        pf = r.__dict__.get("pfuse")
+        # (e08, A1) its own pose vs the camera: the disagreement widens the uncertainty AT ONCE (no 2 s wait)
+        return u + (pf.unc_extra() if (pf is not None and r.lost is None) else 0.0)
 
-    def invariant_ok(self, r, tr):
+    # -- (e08, A2) the derived edge rule on the whole swept path ----------------------------------------------------
+    def need_cm(self, r, speed=None, stops_here=False, unc=None):
+        """The derived edge clearance for r now (safety_rules.clearance_cm): half diagonal + its uncertainty + its stop
+        distance where it stops + the camera's edge bias for this tracking."""
+        return SR.clearance_cm(self.unc(r) if unc is None else unc, speed, self.tracking, stops_here,
+                               self.lead_tab.get(r.name))
+
+    def edge_ok(self, r, tr, speed=None, away=False, stops=True):
+        """(e08, A2) Every sample of the move (turns on the spot: the body circle covers any heading; a curve's loop disc:
+        its rim) keeps the derived clearance from every edge, the uncertainty growing with the plan's own execution
+        margin (and the bubble when lost); the stop distance at its end (stops=False: a curve piece runs on into its
+        loop disc, which is checked with the stop distance on its rim). A robot already inside the clearance (or away)
+        may only take a move whose margin never gets worse and ends better. Fixed rule: the old checks."""
+        if self.edge_rule == "fixed":
+            if not self.invariant_ok(r, tr):
+                return False
+            if not getattr(tr, "loop_c", None) is not None and edge_dist(self.rect, *tr.end) < EDGE_CC + (
+                    r.bubble if r.lost else 0.0):
+                return False
+            return True
+        u0 = self.unc(r)
+        p = self.pos(r)
+        loop = getattr(tr, "loop_c", None) is not None
+        xs, ys, ms = (tr.x[:-1], tr.y[:-1], tr.m[:-1]) if loop else (tr.x, tr.y, tr.m)
+        grow = ms - (ms[0] if len(ms) else PLAN_M0)
+        mar = []
+        if p is not None:
+            mar.append(edge_dist(self.rect, *p) - self.need_cm(r, None, False, u0))
+        n = len(xs)
+        for k in range(n):
+            need = self.need_cm(r, speed, False, u0 + max(0.0, float(grow[k])))
+            mar.append(min(xs[k] - self.rect[0], self.rect[2] - xs[k], ys[k] - self.rect[1], self.rect[3] - ys[k])
+                       - need)
+        if stops and not loop and n:
+            # its stopping distance: the overrun carries on along the move's last direction (the path is extended by
+            # it, so an inward move's overrun counts as inward and an outward one's as outward)
+            px, py = (xs[-2], ys[-2]) if n >= 2 else (p if p is not None else (xs[-1], ys[-1]))
+            dx, dy = xs[-1] - px, ys[-1] - py
+            L = math.hypot(dx, dy)
+            if L > 1e-6:
+                sc = SR.stop_cm(speed, self.lead_tab.get(r.name)) / L
+                ex, ey = xs[-1] + dx * sc, ys[-1] + dy * sc
+                mar.append(min(ex - self.rect[0], self.rect[2] - ex, ey - self.rect[1], self.rect[3] - ey)
+                           - self.need_cm(r, speed, False, u0 + max(0.0, float(grow[-1]))))
+        if loop:
+            c = tr.loop_c        # the loop disc's rim: where it may coast and brake, any direction: the stop added
+            need = self.need_cm(r, speed, True, u0 + max(0.0, float(tr.m[-1] - LOOP_R - (ms[0] if len(ms) else 0))))
+            mar.append(edge_dist(self.rect, *c) - LOOP_R - need)
+        m0 = mar[0]
+        if not away and m0 >= 0:
+            ok = min(mar) >= 0
+        else:
+            # the shrink rule (observe.path_ok's, with the derived clearance): never worse, and ends better
+            ok = all(m >= min(0.0, m0) - 0.5 for m in mar) and (mar[-1] >= 0 or mar[-1] > m0 + 0.5)
+        if not ok:
+            self.counts["edge_refused"] = self.counts.get("edge_refused", 0) + 1
+            return False
+        # the keep-outs and the possible-locations circle (observe.path_ok) stay as they were
+        if not self.invariant_ok(r, tr, edge=False):
+            return False
+        return True
+
+    def turn_need(self, r):
+        """A turn on the spot: its corners sweep the body circle: the derived clearance without a stop (fixed: 9.2)."""
+        if self.edge_rule == "fixed":
+            return TURN_EDGE_CC + (r.bubble if r.lost else 0.0)
+        return self.need_cm(r, None, False)
+
+    def end_need(self, r, speed=None):
+        """Where a move ends (a park spot, the reflex's new end): the derived clearance with the stop (fixed: 16)."""
+        if self.edge_rule == "fixed":
+            return EDGE_CC + (r.bubble if r.lost else 0.0)
+        return self.need_cm(r, speed, True)
+
+    def invariant_ok(self, r, tr, edge=True):
         """(11-05h, Nick 21:14, hard invariant) The possible-locations circle (half diagonal + its uncertainty, grown
         per cm when lost) never overlaps the board's edge (every side a drop, home too) or a keep-out anywhere along
         the move's samples, the turn's sweep included; a robot already overlapping may only shrink it."""
@@ -908,7 +1023,8 @@ class Controller:
         if p is not None:
             pts = [tuple(p)] + pts
         kos = [(q["x"], q["y"], q["r"]) for q in self.keepouts if q.get("owner") != r.name]
-        ok, why = OB.path_ok(pts, self.unc(r), self.rect, kos, BLIND_PER_CM if r.lost is not None else 0.0)
+        rect = self.rect if edge else (-1e6, -1e6, 1e6, 1e6)      # (e08) the edges: edge_ok's derived rule
+        ok, why = OB.path_ok(pts, self.unc(r), rect, kos, BLIND_PER_CM if r.lost is not None else 0.0)
         if not ok:
             self.counts["invariant_refused"] = self.counts.get("invariant_refused", 0) + 1
         return ok
@@ -916,11 +1032,19 @@ class Controller:
     def feasible(self, r, tr, edge_extra=0.0, gap_relax=0.0, ignore=(), away=False):
         """away: a robot that already stands too close may still take a move that never brings it closer (each
         sample at least its start's clearance - 0.5 cm) and ends clear (the escape and yield rungs)."""
-        if not self.invariant_ok(r, tr):
-            return False
-        e = tr.end
-        if edge_dist(self.rect, e[0], e[1]) < EDGE_CC + edge_extra + (r.bubble if r.lost else 0.0):
-            return False
+        if self.edge_rule == "fixed":
+            if not self.invariant_ok(r, tr):
+                return False
+            e = tr.end
+            if edge_dist(self.rect, e[0], e[1]) < EDGE_CC + edge_extra + (r.bubble if r.lost else 0.0):
+                return False
+        else:
+            spd = getattr(tr, "v", None)
+            if not self.edge_ok(r, tr, spd, away=away):
+                return False
+            e = tr.end
+            if edge_extra and edge_dist(self.rect, e[0], e[1]) < self.end_need(r) + edge_extra:
+                return False
         if not self.keepout_ok(r, tr):
             return False
         for o in self.others(r):
@@ -973,21 +1097,53 @@ class Controller:
         who = [o.name for o in self.R.values() if o is not r and self.pos(o) is not None and
                math.dist(self.pos(o), f) < HALF + 3.0]
         src = "edge guard" if "edge" in info and not m else "front sensor"
+        if "tilted" in info:
+            src = "tilt"
+        if src == "edge guard" and " line" in info:
+            # (e08, A5; Nick 6 Nov: surface marks logged, nothing else) a line-sensor trip the bottom zone does not
+            # confirm, with the camera putting the robot well inside the board, is a mark on the surface: logged, no
+            # keep-out (observe.edge_trip_kind, the rule run_plan uses)
+            import observe as OB
+            cam_e = edge_dist(self.rect, r.cam[1], r.cam[2]) if (r.cam is not None and self.fresh(r)) else None
+            kind = OB.edge_trip_kind(True, False, cam_e, 0.0 if cam_e is not None else None)
+            self.log("surface_marks", dict(t=round(self.t, 2), robot=r.name, x=round(f[0], 1), y=round(f[1], 1),
+                                           cam_edge_cm=round(cam_e, 1) if cam_e is not None else "", kind=kind,
+                                           info=info))
+            if kind == "surface_mark":
+                self.counts["surface_marks"] = self.counts.get("surface_marks", 0) + 1
+                self.event(r, "surface mark", "its line sensors saw dark %.0f cm inside the board by the camera, the "
+                           "bottom zone saw floor: a mark on the surface, logged (nothing mapped)" % cam_e)
+                return
         if who:
             self.event(r, "felt a robot", "%s stopped it %.1f cm ahead at %.1f, %.1f: that is %s (no keep-out)" % (
                 src, d, f[0], f[1], who[0]))
             return
         self.wall_check(r, f, src, h)
+        # (e08, A6, one rule with run_plan: safety_rules.keepout_confirmed) a second felt point near an earlier one
+        # (still on the map or faded) confirms it; a real drop, edge or tilt is confirmed at once; a single sensor-only
+        # stop is unconfirmed and fades after safety_rules.UNCONFIRMED_S
+        hist = self.__dict__.setdefault("felt_hist", [])
+        before = any(math.dist((hx, hy), f) < SR.CONFIRM_NEAR_CM for hx, hy in hist)
+        hist.append((f[0], f[1]))
+        del hist[:-400]
+        conf = SR.keepout_confirmed(src, felt_before=before)
         for q in self.keepouts:
-            if math.dist((q["x"], q["y"]), f) < 1.0:
-                return
+            if math.dist((q["x"], q["y"]), f) < 1.0 or (conf and not q.get("confirmed", True) and
+                                                        math.dist((q["x"], q["y"]), f) < SR.CONFIRM_NEAR_CM):
+                if conf and not q.get("confirmed", True):
+                    q["confirmed"] = True
+                    self.log("keepouts", dict(q, what="confirmed (felt again)"))
+                if math.dist((q["x"], q["y"]), f) < 1.0:
+                    return
         q = dict(x=round(f[0], 1), y=round(f[1], 1), r=KEEP_R, t=round(self.t, 2), robot=r.name, src=src,
-                 edge_cm=round(edge_dist(self.rect, *f), 1), d_cm=d)
+                 edge_cm=round(edge_dist(self.rect, *f), 1), d_cm=d, confirmed=conf)
         self.keepouts.append(q)
         self.counts["keepouts"] += 1
         self.log("keepouts", dict(q, what="found"))
-        self.event(r, "keep-out", "%s felt something %.1f cm ahead at %.1f, %.1f (%.1f cm inside the board's edge): "
-                   "kept out of for the rest of the run" % (src, d, f[0], f[1], q["edge_cm"]))
+        self.event(r, "keep-out", "%s felt something %.1f cm ahead at %.1f, %.1f (%.1f cm inside the board's edge): %s"
+                   % (src, d, f[0], f[1], q["edge_cm"], "kept out of for the rest of the run (confirmed)" if conf or
+                      self.keepout_rule == "permanent" else "unconfirmed: fades in %.0f s unless felt again"
+                      % SR.UNCONFIRMED_S))
 
     def wall_check(self, r, f, src, h=None):
         """(11-05c) Discover, don't pre-map: a thing felt inside the edge band (closer to a side than a planned body's
@@ -1024,6 +1180,12 @@ class Controller:
     def clear_keepouts(self):
         """A keep-out a robot's verified camera track drives through was not a fixed thing (a robot the camera did not
         see then, a hand): dropped."""
+        for q in list(self.keepouts):
+            # (e08, A6) unconfirmed (one sensor-only stop) keep-outs fade after safety_rules.UNCONFIRMED_S
+            if not SR.keepout_alive(q, self.t, self.keepout_rule):
+                self.keepouts.remove(q)
+                self.counts["keepouts_faded"] = self.counts.get("keepouts_faded", 0) + 1
+                self.log("keepouts", dict(q, what="faded (unconfirmed for %.0f s)" % SR.UNCONFIRMED_S))
         for r in self.R.values():
             if r.lost is not None or not self.fresh(r) or r.mode in ("out", "gone"):
                 continue
@@ -1068,12 +1230,17 @@ class Controller:
                 continue
             tr = Traj.move(self.t + 0.2, p, wrap180(h + 180.0), 0.0, L, BACK_V, m0=self.margin0(r))
             e1 = edge_dist(self.rect, *tr.end)
-            # backwards is blind: away from the edges by the turn margin, or (inward) at least further in than now
-            if e1 < (HALF + 1.0 if inward else TURN_EDGE_CC) + (r.bubble if r.lost else 0.0) or \
+            # backwards is blind: away from the edges by the turn margin, or (inward) at least further in than now.
+            # (e08, A2) not inward: the derived clearance with its stop where it ends
+            far = TURN_EDGE_CC + (r.bubble if r.lost else 0.0) if self.edge_rule == "fixed" else \
+                self.end_need(r, BACK_V)
+            if e1 < (HALF + 1.0 + (r.bubble if r.lost else 0.0) if inward else far) or \
                     (inward and e1 < e0 + 1.0):
                 continue
             if not self.keepout_ok(r, tr) or not self.invariant_ok(r, tr):
                 continue
+            if self.edge_rule != "fixed" and not self.edge_ok(r, tr, BACK_V, away=inward):
+                continue                     # (e08, A2) blind backing: the derived rule on its whole path too
             if all(clearance_profile(tr, o.traj, now=self.t)[-1] >= REFLEX_CC for o in self.others(r)):
                 return ("back off" if not inward else "reverse"), None, 0.0, L, BACK_V, tr
         return None
@@ -1085,7 +1252,7 @@ class Controller:
 
     def can_turn_here(self, r):
         p = self.pos(r)
-        return edge_dist(self.rect, *p) >= TURN_EDGE_CC + (r.bubble if r.lost else 0.0)
+        return edge_dist(self.rect, *p) >= self.turn_need(r)
 
     def pick(self, r):
         """Menu first; then the fallback ladder. Returns (kind, cell, turn, L, v, traj)."""
@@ -1201,6 +1368,33 @@ class Controller:
         r.cam_off = (0.0, 0.0)
         r.busy_until = max(r.busy_until, self.t + 1.0)
 
+    def pose_fuse(self, r, own, cam, th):
+        """(e08, A1; 6 Nov run 1: Center's move 46 was planned 1.9 s after its own pose and the camera disagreed by 4.6
+        cm, under the 2 s rule, and swung its front over the edge) Own pose vs camera, both at the picture's time: the
+        disagreement widens its position uncertainty AT ONCE (unc(), so every plan and the edge rule see it), the next
+        piece is planned from the fused position (plan_next), and when two fixes in a row agree with each other over
+        POSE_AGREE_CM the robot's pose is re-seeded from the camera without stopping it. Logged (pose.csv)."""
+        pf = r.__dict__.setdefault("pfuse", SR.PoseFuse(self.pose_rule))
+        before = pf.disagree_cm
+        ev = pf.feed(self.t, own, cam, 0.0)
+        d = pf.disagree_cm
+        if d > SR.SURE_TOL_CM and before <= SR.SURE_TOL_CM:
+            self.counts["pose_doubts"] = self.counts.get("pose_doubts", 0) + 1
+            self.log("pose", dict(t=round(self.t, 2), robot=r.name, what="doubt", d_cm=round(d, 2),
+                                  unc_cm=round(self.unc(r), 2)))
+        if not ev:
+            return
+        self.counts["reseeds"] = self.counts.get("reseeds", 0) + 1
+        h = th if th is not None else self.heading(r)
+        q = self.projected(r, self.t, cam[0], cam[1], h) or (cam[0], cam[1], h)
+        self.event(r, "pose re-seeded", "its own pose was %.1f cm from the camera's: uncertainty "
+                   "widened at once; still off after %.0f s: pose set from the camera without stopping (observed)" % (
+                       ev["d_cm"], ev["for_s"]))
+        self.log("pose", dict(t=round(self.t, 2), robot=r.name, what="reseed", d_cm=ev["d_cm"],
+                              unc_cm=round(self.unc(r), 2)))
+        self.out(r, "fpose %.2f %.2f %.2f %.2f %.2f" % (q[0], q[1], q[2] if q[2] is not None else h, 1.0, 3.0))
+        r.cam_off = (0.0, 0.0)
+
     def on_raw_evidence(self, name, t, ax, front_cm, line_c):
         """(11-05h, 3') The robot's own sensors during a move, for the move's outcome: the accelerometer's jolts and
         vibration (ax), the front range (dC_cm), the middle line sensor."""
@@ -1224,6 +1418,9 @@ class Controller:
         import observe as OB
         w = r.__dict__.setdefault("twatch", OB.TiltWatch())
         ev = w.feed(t, roll, pitch, v_cms)
+        if getattr(r, "tilted", False) and w.level is not None and w.last <= w.lim and r.move is None and \
+                r.__dict__.get("recover") is not None and r.recover.get("i", 0) > 0:
+            self.recovered(r, "its tilt back to %.1f deg" % w.last)        # (e08, A3)
         if not ev:
             return
         self.counts["tilt_hazards"] = self.counts.get("tilt_hazards", 0) + 1
@@ -1231,6 +1428,12 @@ class Controller:
             self.halt(r, "standing tilt")
             self.end_move(r)
         self.tilt_trip(r, "standing tilt %.1f deg for %.1f s (a wheel over an edge?)" % (ev["dev_deg"], ev["for_s"]))
+
+    def border_fire(self, r, info):
+        """(e08, Nick 7 Nov) the robots' own 6 cm virtual border is left as it is; how often it fires is counted and
+        logged (the evidence to remove it one day: 0 in the 5 Nov 4 h run and the 6 Nov run)."""
+        self.counts["border_fires"] = self.counts.get("border_fires", 0) + 1
+        self.event(r, "virtual border", "its own border stopped the step (%s)" % info)
 
     def tilt_trip(self, r, info):
         """(11-05h, Nick 5 Nov 20:46: a robot seen tilted at the board's edge) Its own tilt stop ended the step: the
@@ -1246,7 +1449,8 @@ class Controller:
             # 6.4 cm ahead) a tilted robot at an edge is kept out by the OTHERS with its whole body and a margin, so no
             # robot nudges it over; its own back-off may still leave (keep-outs allow moves that never get closer)
             q = dict(x=round(p[0], 1), y=round(p[1], 1), r=HALF + PLAN_GAP, t=round(self.t, 2), robot=r.name,
-                     src="tilted robot", edge_cm=round(edge_dist(self.rect, *p), 1), d_cm=0.0, owner=r.name)
+                     src="tilted robot", edge_cm=round(edge_dist(self.rect, *p), 1), d_cm=0.0, owner=r.name,
+                     confirmed=True)
             self.keepouts.append(q)
             self.log("keepouts", dict(q, what="tilted robot kept clear by the others"))
         r.back_off = dict(t=self.t, h=self.heading(r))
@@ -1255,6 +1459,9 @@ class Controller:
     def start_move(self, r):
         res = None
         tilted = getattr(r, "tilted", False)
+        if tilted and self.tilt_recovery:
+            r.back_off = None
+            return self.recover_step(r)            # (e08, A3) the recovery tries, never towards the drop
         if r.back_off is not None:
             r.back_off = None
             res = self.back_move(r)
@@ -1295,8 +1502,15 @@ class Controller:
         if abs(turn) >= 3.0:
             mv["turn_id"] = self.send_step(r, "fs %%d T %.2f -" % h1)
         if L > 0:
+            ex, ey = tr.end
+            lead = 0.0 if rev else SR.stop_lead_for(self.lead_tab.get(r.name), v, L)
+            if lead > 0:
+                # (e08, A5) its stop lead (from its calibration): sent that much short so it rests on the planned end
+                ex, ey = p[0] + (ex - p[0]) * (L - lead) / L, p[1] + (ey - p[1]) * (L - lead) / L
+                mv["lead_cm"] = round(lead, 2)
+                self.counts["leads_used"] = self.counts.get("leads_used", 0) + 1
             mv["drive_id"] = self.send_step(r, "fs %%d D %.2f %.2f %.2f %.2f %.2f %.2f %d -" % (
-                p[0], p[1], tr.end[0], tr.end[1], h1, v, 1 if rev else 0))
+                p[0], p[1], ex, ey, h1, v, 1 if rev else 0))
         else:
             mv["phase"] = "turn"
         r.move, r.traj, r.mode = mv, tr, "move"
@@ -1307,6 +1521,10 @@ class Controller:
     def step_over(self, r, sid, state, info):
         mv = r.move
         if mv is None:
+            return
+        if mv.get("kind") == "nudge":
+            if sid == mv.get("drive_id") and state in ("done", "failed", "dropped"):
+                self.nudge_over(r, mv, state)
             return
         if mv.get("curve"):
             return self.curve_step_over(r, sid, state, info)
@@ -1334,7 +1552,11 @@ class Controller:
                                style="stopturn", curvature=""))
         if state == "done" and self.fast_done(r, mv):
             state, info = "failed", "done without moving"
+        if str(mv["kind"]).startswith("recover"):
+            self.recover_result(r, mv, state, info)
         if state != "done":
+            if "virtual border" in info:
+                self.border_fire(r, info)
             if "tilted" in info:
                 self.tilt_trip(r, info)
             elif "obstacle" in info or "plywood edge" in info:
@@ -1407,7 +1629,7 @@ class Controller:
         """(11-05h, 3b) Failures piling up at one spot: a keep-out there for everyone, its pose re-seeded from the
         camera when it has a fresh fix (else a find-me), and a full stop said, instead of the same action again."""
         q = dict(x=round(p[0], 1), y=round(p[1], 1), r=KEEP_R * 3, t=round(self.t, 2), robot=r.name, src="hazard",
-                 edge_cm=round(edge_dist(self.rect, *p), 1), d_cm=0.0)
+                 edge_cm=round(edge_dist(self.rect, *p), 1), d_cm=0.0, confirmed=True)
         self.keepouts.append(q)
         self.log("keepouts", dict(q, what="hazard: " + why))
         self.counts["hazards"] = self.counts.get("hazards", 0) + 1
@@ -1422,6 +1644,10 @@ class Controller:
 
     def end_move(self, r):
         p = self.pos(r)
+        if r.move is not None and r.move.get("restore_tilt") is not None:
+            # (e08, A3) a pivot ran with the tilt stop raised: back to the run's limit
+            self.out(r, "set tilt_stop_deg %g" % r.move["restore_tilt"])
+            r.move["restore_tilt"] = None
         r.move = None
         r.queue, r.coast = [], None
         r.controls = [c for c in r.controls if c["kind"] != "farc"]   # (11-05d) a bend for a piece that is over
@@ -1443,6 +1669,443 @@ class Controller:
         self.why_zero(r, "halt: " + why)
         self.control(r, "halt", "halt")
         self.event(r, "halt", why)
+
+
+    # -- (e08, A3) tilt recovery ----------------------------------------------------------------------------------
+    RECOVER_L = 8.0          # cm: each reverse try (BACK_CM's longest)
+    RECOVER_RETRY_S = 20.0   # a robot that has tried everything holds this long, then tries again from the start (the
+                             # camera, its tilt or a person may have changed things). Chosen; no DOE
+
+    def tilt_dev(self, r):
+        w = r.__dict__.get("twatch")
+        return (w.last if (w is not None and w.level is not None) else None)
+
+    def recover_step(self, r):
+        """(e08, A3; 6 Nov run 1: Center tilted 6.1 deg at the x = 0 edge, "no room to back away: stands", its 8 cm
+        reverse "did NOT move") The next try of safety_rules.tilt_recovery_tries, each one logged (recovery.csv):
+        straight back when backing goes inward by the camera and its own pose (or its trail), even when the general
+        room check says no room; then a reverse one wheel's worth to each side; then a short inward pivot by the gyro
+        with the tilt stop raised to the tilt now + 2 deg for that step only; hold only when nothing safe remains."""
+        p, h = self.pos(r), self.heading(r)
+        if p is None:
+            return
+        rc = r.__dict__.get("recover")
+        if rc is not None and rc.get("hold_until") and self.t < rc["hold_until"]:
+            r.busy_until = self.t + 1.0
+            return
+        if rc is None or rc.get("hold_until"):
+            own = (r.own[1], r.own[2]) if r.own is not None else None
+            fresh = r.cam is not None and self.fresh(r) and r.lost is None
+            cam = (r.cam[1], r.cam[2]) if fresh else None
+            trail_ok = bool(getattr(r, "trail", None) and r.trail.reverse_ok(self.RECOVER_L, r.bubble if r.lost
+                                                                              else 0.0)[0])
+            back_in = SR.inward_agreed(self.rect, own, cam if cam is not None else (own if trail_ok else None), h,
+                                       reverse=True)
+            inward = SR.inward_heading(self.rect, *(cam or own or p))
+            rc = dict(t0=self.t, tries=SR.tilt_recovery_tries(h, inward, back_in), i=0, n=(rc or {}).get("n", 0) + 1,
+                      inward=inward, back_in=back_in, trail=trail_ok)
+            r.recover = rc
+            self.event(r, "tilt recovery", "tilted %s at %.1f, %.1f (%.1f cm from the edge): tries %s (backing goes "
+                       "inward: %s, by %s)" % ("%.1f deg" % self.tilt_dev(r) if self.tilt_dev(r) is not None else "",
+                                               p[0], p[1], edge_dist(self.rect, *p), ", ".join(rc["tries"]),
+                                               "yes" if back_in else "no", "camera and own pose" if cam else
+                                               "its trail" if trail_ok else "nothing"))
+        while rc["i"] < len(rc["tries"]):
+            name = rc["tries"][rc["i"]]
+            rc["i"] += 1
+            res = self.recover_move(r, name, p, h)
+            if res == "hold":
+                break
+            if res is None:
+                self.log("recovery", dict(t=round(self.t, 2), robot=r.name, n=rc["n"], attempt=name, result="not "
+                                          "safe from here: skipped", x=round(p[0], 1), y=round(p[1], 1),
+                                          tilt=self.tilt_dev(r) if self.tilt_dev(r) is not None else ""))
+                continue
+            return
+        # nothing safe remains: hold, said (and asked when a person is there); tried again later
+        rc["hold_until"] = self.t + self.RECOVER_RETRY_S
+        r.busy_until = self.t + 1.0
+        self.counts["recover_holds"] = self.counts.get("recover_holds", 0) + 1
+        self.log("recovery", dict(t=round(self.t, 2), robot=r.name, n=rc["n"], attempt="hold", result="nothing safe "
+                                  "remains", x=round(p[0], 1), y=round(p[1], 1),
+                                  tilt=self.tilt_dev(r) if self.tilt_dev(r) is not None else ""))
+        if not r.stopped_hard:
+            self.trophy_break(r, "tilted at the edge and no safe way out remains: holds (tries again in %.0f s)"
+                              % self.RECOVER_RETRY_S)
+        self.ask(r, "%s is tilted at the board's edge and could not back away safely. Please lift it back onto the "
+                 "board, or say it is fine." % r.name, ("I moved it back", "Leave it"))
+
+    def recover_move(self, r, name, p, h):
+        """One try: sends it and returns True, or None when that try is not safe from here."""
+        import observe as OB
+        fm = r.__dict__.setdefault("fmem", OB.FailMemory())
+        if name == "hold":
+            return "hold"
+        if name.startswith("reverse"):
+            if not r.recover.get("back_in"):
+                return None
+            L = self.RECOVER_L
+            hr = math.radians(h)
+            ux, uy = math.cos(hr), math.sin(hr)
+            side = {"reverse_left": 1.0, "reverse_right": -1.0}.get(name, 0.0)
+            ex, ey = p[0] - L * ux - side * SR.ONE_SIDE_CM * uy, p[1] - L * uy + side * SR.ONE_SIDE_CM * ux
+            e0, e1 = edge_dist(self.rect, *p), edge_dist(self.rect, ex, ey)
+            # inward only: it ends further in, with its body on the board (not the general room check)
+            if e1 < e0 + 1.0 or e1 < HALF + 1.0 + (r.bubble if r.lost else 0.0):
+                return None
+            if fm.same("recover:" + name, -1, L, p[0], p[1]):
+                return None
+            tr = Traj.move(self.t + 0.2, p, wrap180(h + 180.0), 0.0, math.dist(p, (ex, ey)), BACK_V,
+                           m0=self.margin0(r))
+            if not self.keepout_ok(r, tr) or any(clearance_profile(tr, o.traj, now=self.t)[-1] < REFLEX_CC
+                                                 for o in self.others(r)):
+                return None
+            mv = self.recover_send(r, name, p, h, 0.0, math.dist(p, (ex, ey)), tr, rev=True, end=(ex, ey))
+            return True
+        if name.startswith("pivot"):
+            sg = 1.0 if name == "pivot_left" else -1.0
+            if fm.same("recover:" + name, 1, SR.PIVOT_DEG, p[0], p[1]):
+                return None
+            if any(math.dist(self.pos(o), p) < HARD_CC + 1.0 for o in self.R.values() if o is not r and
+                   self.pos(o) is not None):
+                return None
+            lim = SR.tilt_limits()["tilt_stop_deg"]
+            dev = self.tilt_dev(r)
+            raise_to = min(SR.RECOVER_TILT_CAP, (dev if dev is not None else lim) + SR.RECOVER_TILT_MARGIN_DEG)
+            self.out(r, "set tilt_stop_deg %g" % max(lim, raise_to))
+            tr = Traj.move(self.t + 0.2, p, h, sg * SR.PIVOT_DEG, 0.0, 5.0, m0=self.margin0(r))
+            mv = self.recover_send(r, name, p, h, sg * SR.PIVOT_DEG, 0.0, tr)
+            mv["restore_tilt"] = lim
+            return True
+        return None
+
+    def recover_send(self, r, name, p, h, turn, L, tr, rev=False, end=None):
+        if r.stopped_hard and (r.adj is None or r.adj["kind"] != "stop"):
+            self.close_break(r)
+        h1 = wrap180(h + turn)
+        mv = dict(kind="recover:" + name, cell=None, turn=turn, L=L, v=BACK_V, t0=self.t, p0=p, h0=h, h1=h1,
+                  end=end or tr.end, phase="turn", n=r.n_moves + 1, drive_id=None, turn_id=None, t_drive=None,
+                  adj_scale=1.0, rev=rev)
+        if abs(turn) >= 3.0:
+            mv["turn_id"] = self.send_step(r, "fs %%d T %.2f -" % h1)
+        if L > 0:
+            ex, ey = end or tr.end
+            mv["drive_id"] = self.send_step(r, "fs %%d D %.2f %.2f %.2f %.2f %.2f %.2f %d -" % (
+                p[0], p[1], ex, ey, h1, BACK_V, 1 if rev else 0))
+        r.move, r.traj, r.mode = mv, tr, "move"
+        r.n_moves += 1
+        self.why_zero(r, "tilt recovery: " + name)
+        self.counts["recover_tries"] = self.counts.get("recover_tries", 0) + 1
+        self.pump(r)
+        return mv
+
+    def recover_result(self, r, mv, state, info):
+        import observe as OB
+        rc = r.__dict__.get("recover") or {}
+        out = mv.get("outcome") or {}
+        moved = state == "done" and out.get("verdict", "moved") == "moved"
+        p = self.pos(r) or mv["p0"]
+        self.log("recovery", dict(t=round(self.t, 2), robot=r.name, n=rc.get("n", 0), attempt=mv["kind"][8:],
+                                  result=("moved" if moved else "did not move: %s" % (out.get("words") or info))[:120],
+                                  x=round(p[0], 1), y=round(p[1], 1),
+                                  tilt=self.tilt_dev(r) if self.tilt_dev(r) is not None else ""))
+        if not moved:
+            fm = r.__dict__.setdefault("fmem", OB.FailMemory())
+            fm.add(self.t, mv["kind"], -1 if mv.get("rev") else 1, mv["L"] or abs(mv["turn"]), mv["p0"][0],
+                   mv["p0"][1])
+            return
+        dev = self.tilt_dev(r)
+        if mv.get("rev") and (dev is None or dev <= SR.tilt_limits()["stand_tilt_deg"]):
+            self.recovered(r, "backed off inward (%s)" % mv["kind"][8:])
+
+    def recovered(self, r, how):
+        r.tilted = False
+        r.recover = None
+        self.counts["recovered"] = self.counts.get("recovered", 0) + 1
+        self.event(r, "tilt recovered", "level again: %s" % how)
+        self.log("recovery", dict(t=round(self.t, 2), robot=r.name, n=0, attempt="level", result=how,
+                                  x=round(self.pos(r)[0], 1) if self.pos(r) else "",
+                                  y=round(self.pos(r)[1], 1) if self.pos(r) else "", tilt=self.tilt_dev(r) or ""))
+
+    # -- (e08, A2) sure / unsure near an edge ------------------------------------------------------------------------
+    UNSURE_RECHECK_S = 2.0
+    PERSON_SAYS_S = 60.0     # a person's answer stands this long at that spot (3 cm). Chosen; no DOE
+
+    def ask(self, r, text, choices):
+        """A question for a person: Mission Control's question card when the run is attended, else said and logged."""
+        open_q = r.__dict__.get("question")
+        if open_q is not None:
+            return open_q
+        self.counts["questions"] = self.counts.get("questions", 0) + 1
+        qid = None
+        if self.attended and self.asks is not None:
+            qid = self.asks.ask(r.name, text, choices)
+        self.event(r, "question", ("asked: " if qid else "(not attended: logged only) ") + text)
+        r.question = qid or "logged"
+        r.question_t = self.t
+        return r.question
+
+    def answered(self, r):
+        q = r.__dict__.get("question")
+        if not q or q == "logged" or self.asks is None:
+            return None
+        a = self.asks.answer(q)
+        if a is not None:
+            r.question = None
+            self.event(r, "answer", "the person answered: %s" % a)
+        return a
+
+    def close_question(self, r, why):
+        q = r.__dict__.get("question")
+        if q and q != "logged" and self.asks is not None:
+            self.asks.close(q, why)
+        r.question = None
+
+    def edge_watch(self, r):
+        """(e08, A2) Every half second: is the software sure where r is relative to the edge? Logged on every change
+        (edge_judgement.csv). Unsure (near an edge, and the camera is stale or its own pose disagrees with it): with a
+        person there it is held and asked; alone it moves inward only along a direction both the camera and its own
+        pose call inward, or holds; it never guesses outward."""
+        if r.mode not in ("idle", "move") or getattr(r, "held", None) or getattr(r, "tilted", False):
+            return
+        p = self.pos(r)
+        if p is None or r.lost is not None:
+            return
+        pf = r.__dict__.get("pfuse")
+        dis = pf.disagree_cm if pf is not None else 0.0
+        need = self.turn_need(r)
+        margin = edge_dist(self.rect, *p) - need
+        said = r.__dict__.get("person_says")
+        if said and self.t - said[1] < self.PERSON_SAYS_S and math.dist(said[2], p) < 3.0:
+            j = dict(state="clear" if said[0] == "clear" else "sure_near", why="a person said so %.0f s ago" % (
+                self.t - said[1]))
+        else:
+            j = SR.edge_judgement(margin, self.fresh(r), dis)
+        st = r.__dict__.get("edge_state")
+        if j["state"] != st:
+            r.edge_state = j["state"]
+            self.log("edge_judgement", dict(t=round(self.t, 2), robot=r.name, state=j["state"], why=j["why"],
+                                            margin_cm=round(margin, 2), need_cm=round(need, 2),
+                                            unc_cm=round(self.unc(r), 2), disagree_cm=round(dis, 2),
+                                            cam_fresh=int(self.fresh(r)), x=round(p[0], 1), y=round(p[1], 1)))
+            self.counts.setdefault("judgements", {})
+            self.counts["judgements"][j["state"]] = self.counts["judgements"].get(j["state"], 0) + 1
+            if st == "unsure":
+                self.close_question(r, "settled by the evidence: %s" % j["why"])
+                r.unsure = None
+                if r.stopped_hard and (r.adj is None or r.adj["kind"] != "stop"):
+                    self.close_break(r)
+        if j["state"] != "unsure":
+            return
+        if r.__dict__.get("unsure") is None:
+            r.unsure = dict(t=self.t, why=j["why"], tried=0)
+            self.event(r, "unsure near an edge", j["why"])
+            mv = r.move
+            # a move that ends further from the edges than it starts (a back-off, a reverse, an escape, its own inward
+            # step) is never interrupted; one heading outward is stopped
+            if r.mode == "move" and mv is not None and not str(mv["kind"]).startswith(("unsure", "recover")) and \
+                    edge_dist(self.rect, *mv["end"]) <= edge_dist(self.rect, *p) + 0.5:
+                self.halt(r, "unsure near an edge")
+                self.end_move(r)
+            if self.attended:
+                self.ask(r, "%s may be near the board's edge (%s). Is it near the edge?" % (r.name, j["why"]),
+                         ("It is near the edge", "It is clear of the edge"))
+        a = self.answered(r)
+        if a is not None:
+            r.person_says = ("clear" if "clear" in a.lower() else "near", self.t, p)
+
+    def unsure_step(self, r):
+        """An idle robot that is unsure near an edge and alone: one short move that goes inward by BOTH the camera and
+        its own pose (backwards first: it came from there), else it holds and checks again."""
+        u = r.unsure
+        if self.attended:
+            r.busy_until = self.t + self.UNSURE_RECHECK_S
+            if not r.stopped_hard:
+                self.trophy_break(r, "unsure near an edge: held while a person is asked")
+            return
+        own = (r.own[1], r.own[2]) if r.own is not None else None
+        cam = (r.cam[1], r.cam[2]) if (r.cam is not None and self.fresh(r)) else None
+        p, h = self.pos(r), self.heading(r)
+        for rev in (True, False):
+            if not SR.inward_agreed(self.rect, own, cam, h, reverse=rev):
+                continue
+            L = 6.0
+            tr = Traj.move(self.t + 0.2, p, wrap180(h + 180.0) if rev else h, 0.0, L, BACK_V, m0=self.margin0(r))
+            if edge_dist(self.rect, *tr.end) <= edge_dist(self.rect, *p) + 1.0 or not self.keepout_ok(r, tr):
+                continue
+            if any(clearance_profile(tr, o.traj, now=self.t)[-1] < REFLEX_CC for o in self.others(r)):
+                continue
+            mv = dict(kind="unsure: inward", cell=None, turn=0.0, L=L, v=BACK_V, t0=self.t, p0=p, h0=h, h1=h,
+                      end=tr.end, phase="turn", n=r.n_moves + 1, drive_id=None, turn_id=None, t_drive=None,
+                      adj_scale=1.0, rev=rev)
+            mv["drive_id"] = self.send_step(r, "fs %%d D %.2f %.2f %.2f %.2f %.2f %.2f %d -" % (
+                p[0], p[1], tr.end[0], tr.end[1], h, BACK_V, 1 if rev else 0))
+            r.move, r.traj, r.mode = mv, tr, "move"
+            r.n_moves += 1
+            u["tried"] += 1
+            self.counts["unsure_inward"] = self.counts.get("unsure_inward", 0) + 1
+            self.event(r, "unsure near an edge", "moves %.0f cm %s: inward by the camera and its own pose" % (
+                L, "back" if rev else "forward"))
+            self.pump(r)
+            return
+        r.busy_until = self.t + self.UNSURE_RECHECK_S
+        self.counts["unsure_holds"] = self.counts.get("unsure_holds", 0) + 1
+        if not r.stopped_hard:
+            self.trophy_break(r, "unsure near an edge and no direction both the camera and its own pose call inward: "
+                                 "holds and checks again")
+
+    # -- (e08, A7) held robots: never out of the run --------------------------------------------------------------
+    def hold_robot(self, r, kind, why):
+        """A robot that is silent for long, or whose heading is not known: held as an obstacle where the camera sees it,
+        checked again every safety_rules.CHECK_EVERY_S, rejoins when the camera and its own pose agree again."""
+        if getattr(r, "held", None) and r.held["kind"] == kind:
+            return
+        p = self.pos(r)
+        r.held = dict(kind=kind, why=why, t=self.t, check=self.t + 1.0, agree_since=None, n=0)
+        if r.move is not None:
+            self.halt(r, "held: " + why)
+            self.end_move(r)
+        if p is not None:
+            r.traj = Traj.stand(self.t, *p, m=self.margin0(r) + 1.0)
+        self.counts["held"] = self.counts.get("held", 0) + 1
+        self.event(r, "held", "%s: held as an obstacle where the camera sees it, checked again every %.0f s; it "
+                   "rejoins when the camera and its own pose agree" % (why, SR.CHECK_EVERY_S))
+
+    def held_check(self, r):
+        hd = r.held
+        t = self.t
+        if r.cam is not None and self.fresh(r):
+            r.traj = Traj.stand(t, r.cam[1], r.cam[2], m=self.margin0(r) + 1.0)
+        heard = r.heard is not None and t - r.heard < 2.0 and not r.silent
+        fresh = r.cam is not None and self.fresh(r)
+        pf = r.__dict__.get("pfuse")
+        agree = heard and fresh and r.own is not None and t - r.own[0] < 1.0 and \
+            (pf is None or pf.disagree_cm <= SR.SURE_TOL_CM)
+        if hd["kind"] == "heading":
+            if r.move is not None:
+                return
+            if agree and hd.get("heading_ok"):
+                return self.rejoin(r, "its heading measured by a %.0f cm nudge the camera saw" % hd["nudged"])
+            if t < hd["check"]:
+                return
+            hd["check"] = t + SR.CHECK_EVERY_S
+            hd["n"] += 1
+            if not (heard and fresh):
+                self.log("held", dict(t=round(t, 2), robot=r.name, kind="heading", check=hd["n"], result="not heard"
+                                      " or not seen"))
+                return
+            return self.heading_nudge(r)
+        # silent
+        if not agree:
+            hd["agree_since"] = None
+            if heard and fresh and r.own is not None and pf is not None and pf.disagree_cm > SR.SURE_TOL_CM and \
+                    t >= hd["check"]:
+                hd["check"] = t + 5.0
+                self.out(r, "fpose %.2f %.2f %.2f 1.0 3.0" % (r.cam[1], r.cam[2], self.heading(r)))
+                self.event(r, "held", "heard again; its own pose %.1f cm off the camera's: re-seeded from the camera"
+                           % pf.disagree_cm)
+            elif t >= hd["check"]:
+                hd["check"] = t + SR.CHECK_EVERY_S
+                hd["n"] += 1
+                self.log("held", dict(t=round(t, 2), robot=r.name, kind=hd["kind"], check=hd["n"],
+                                      result="heard" if heard else "still silent"))
+                if heard:
+                    self.out(r, "status")
+            return
+        if hd["agree_since"] is None:
+            hd["agree_since"] = t
+        if t - hd["agree_since"] >= SR.AGREE_FOR_S:
+            self.rejoin(r, "heard again; camera and its own pose agree for %.0f s" % SR.AGREE_FOR_S)
+
+    def rejoin(self, r, why):
+        hd = r.held
+        r.held = None
+        r.mode = "idle"
+        r.busy_until = self.t + 0.5
+        self.counts["rejoined"] = self.counts.get("rejoined", 0) + 1
+        self.log("held", dict(t=round(self.t, 2), robot=r.name, kind=hd["kind"] if hd else "", check="",
+                              result="rejoined after %.0f s: %s" % (self.t - (hd["t"] if hd else self.t), why)))
+        self.event(r, "rejoined", "%s (held %.0f s)" % (why, self.t - (hd["t"] if hd else self.t)))
+
+    def heading_nudge(self, r):
+        """A held robot whose heading is not known (its heading crawl failed): a 6 cm nudge the camera watches, only
+        where 6 cm in ANY direction keeps the derived clearance (the heading is not known)."""
+        import observe as OB
+        p = (r.cam[1], r.cam[2])
+        need = self.need_cm(r, BACK_V, True) + OB.NUDGE_CM
+        if edge_dist(self.rect, *p) < need or any(math.dist(self.pos(o), p) < PLAN_CC + OB.NUDGE_CM
+                                                  for o in self.R.values() if o is not r and self.pos(o) is not None):
+            self.log("held", dict(t=round(self.t, 2), robot=r.name, kind="heading", check=r.held["n"],
+                                  result="no room for a nudge in every direction here (%.0f cm from the edge)"
+                                  % edge_dist(self.rect, *p)))
+            return
+        h = self.heading(r)
+        tr = Traj.move(self.t + 0.2, p, h, 0.0, OB.NUDGE_CM, BACK_V, m0=self.margin0(r) + OB.NUDGE_CM)
+        mv = dict(kind="nudge", cell=None, turn=0.0, L=OB.NUDGE_CM, v=BACK_V, t0=self.t, p0=p, h0=h, h1=h,
+                  end=tr.end, phase="turn", n=r.n_moves + 1, drive_id=None, turn_id=None, t_drive=None,
+                  adj_scale=1.0, rev=False, cam0=(r.cam[1], r.cam[2], h))
+        mv["drive_id"] = self.send_step(r, "fs %%d D %.2f %.2f %.2f %.2f %.2f %.2f 0 -" % (
+            p[0], p[1], tr.end[0], tr.end[1], h, BACK_V))
+        r.move, r.traj = mv, tr
+        r.n_moves += 1
+        self.pump(r)
+
+    def nudge_over(self, r, mv, state):
+        """The heading nudge ended: the camera's motion direction is the heading (observe.heading_offset); fpose."""
+        import observe as OB
+        r.move = None
+        for st in r.steps.values():
+            if st["status"] in ("queued_local", "sent", "acked", "started"):
+                st["status"] = "dropped"
+        if r.cam is None or not self.fresh(r):
+            return
+        res = OB.heading_offset(mv["cam0"], (r.cam[1], r.cam[2], mv["cam0"][2]))
+        self.log("held", dict(t=round(self.t, 2), robot=r.name, kind="heading", check=r.held["n"] if r.held else "",
+                              result="nudge %s: %s" % (state, "camera saw %.1f cm" % res[2] if res else
+                                                       "the camera saw under 3 cm")))
+        if res is None:
+            return
+        snapped, raw, moved = res
+        h = wrap180(mv["cam0"][2] + raw)
+        self.out(r, "fpose %.2f %.2f %.2f 1.0 3.0" % (r.cam[1], r.cam[2], h))
+        r.own = (self.t, r.cam[1], r.cam[2], h) + tuple((r.own or (0, 0, 0, 0, "idle", 0))[4:])
+        if r.held is not None:
+            r.held["heading_ok"] = True
+            r.held["nudged"] = moved
+        self.event(r, "heading found", "a %.0f cm nudge: the camera saw it go towards %.0f deg (its own idea was %.0f):"
+                   " its heading set" % (moved, h, mv["cam0"][2]))
+
+    # -- (e08, A5) heading watch ----------------------------------------------------------------------------------
+    def heading_check(self, r, x, y):
+        """The robot's OWN heading checked against the direction the camera sees it drive, on every straight stretch
+        (observe.HeadingWatch, run_plan's watch): two disagreeing checks in a row re-set its heading (fpose) from the
+        motion. Heading lost after a restart or a sleep was seen 5 times (7 Nov audit)."""
+        import observe as OB
+        if not self.heading_watch or r.own is None:
+            return
+        w = r.__dict__.setdefault("hwatch", OB.HeadingWatch())
+        mv = r.move
+        sign = 0
+        if mv is not None and mv["phase"] == "drive" and r.lost is None and (not mv.get("curve") or
+                                                                              abs(mv.get("k", 0.0)) < 1e-3):
+            sign = -1 if mv.get("rev") else 1
+        ev = w.feed(self.t, (x, y, r.own[3]), r.own[3], sign)
+        if not ev:
+            return
+        self.counts.setdefault("heading", {})
+        self.counts["heading"][ev["kind"]] = self.counts["heading"].get(ev["kind"], 0) + 1
+        if ev["kind"] == "heading_ok":
+            return
+        self.log("heading", dict(t=round(self.t, 2), robot=r.name, **{k: v for k, v in ev.items()}))
+        if ev["kind"] == "heading_relearned":
+            h = wrap180(r.own[3] + ev["new_deg"])
+            r.hwatch = OB.HeadingWatch()
+            self.out(r, "fpose %.2f %.2f %.2f 1.0 3.0" % (x, y, h))
+            self.event(r, "heading re-set", "twice in a row it drove %.0f deg off its own heading (camera): its heading "
+                       "set to %.0f" % (ev["err_deg"], h))
+            if r.move is not None:
+                self.halt(r, "heading re-set")
+                self.end_move(r)
 
     # -- trophy breaks (full stops) ----------------------------------------------------------------------------
     def trophy_break(self, r, why):
@@ -1587,7 +2250,7 @@ class Controller:
                 hh = math.radians(h + dh)
                 L = min(rem, 30.0)
                 end = (p[0] + math.cos(hh) * L, p[1] + math.sin(hh) * L)
-                if edge_dist(self.rect, *end) < EDGE_CC + (a.bubble if a.lost else 0.0):
+                if edge_dist(self.rect, *end) < self.end_need(a):
                     continue
                 cands.append(("steer", 1.0, end))
         for kind, s, end in cands:
@@ -1772,21 +2435,25 @@ class Controller:
         """A curve plan (samples + loop disc) keeps the edges (every sample's middle LOOP_EDGE in, plus its margin
         beyond the base; the loop disc inside), the keep-outs and everyone's reservations. away: a robot already too
         close to an edge or another robot may take it if it never gets closer and ends clear."""
-        if not self.invariant_ok(r, tr):
-            return False
-        x0, y0, x1, y1 = self.rect
-        bub = r.bubble if r.lost else 0.0
-        xs, ys, ms = tr.x[:-1], tr.y[:-1], tr.m[:-1]
-        if len(xs):
-            ed = np.minimum(np.minimum(xs - x0, x1 - xs), np.minimum(ys - y0, y1 - ys)) - (ms - PLAN_M0)
-            need = LOOP_EDGE + bub
-            if away or edge_away:
-                need = np.minimum(need, ed[0] - 0.5)
-            if (ed < need).any():
+        if self.edge_rule != "fixed":
+            if not self.edge_ok(r, tr, getattr(tr, "v", None), away=(away or edge_away), stops=False):
                 return False
-        c = tr.loop_c
-        if c is not None and edge_dist(self.rect, *c) - (tr.m[-1] - LOOP_R - PLAN_M0) < LOOP_R + LOOP_EDGE + bub:
-            return False
+        else:
+            if not self.invariant_ok(r, tr):
+                return False
+            x0, y0, x1, y1 = self.rect
+            bub = r.bubble if r.lost else 0.0
+            xs, ys, ms = tr.x[:-1], tr.y[:-1], tr.m[:-1]
+            if len(xs):
+                ed = np.minimum(np.minimum(xs - x0, x1 - xs), np.minimum(ys - y0, y1 - ys)) - (ms - PLAN_M0)
+                need = LOOP_EDGE + bub
+                if away or edge_away:
+                    need = np.minimum(need, ed[0] - 0.5)
+                if (ed < need).any():
+                    return False
+            c = tr.loop_c
+            if c is not None and edge_dist(self.rect, *c) - (tr.m[-1] - LOOP_R - PLAN_M0) < LOOP_R + LOOP_EDGE + bub:
+                return False
         if not self.keepout_ok(r, tr):
             return False
         for o in self.others(r):
@@ -1815,7 +2482,9 @@ class Controller:
         grow = BLIND_PER_CM if r.lost is not None else 0.0
         find_me = r.lost is not None and r.bubble > BUBBLE_CAP
         # starting closer to an edge than a curve may go (after a stop there): curves that never get closer to it
-        ea = EDGE_AWAY and edge_dist(self.rect, x, y) < LOOP_EDGE + 3.0 + (r.bubble if r.lost else 0.0)
+        ea = EDGE_AWAY and edge_dist(self.rect, x, y) < (LOOP_EDGE if self.edge_rule == "fixed" else
+                                                          self.turn_need(r) - (r.bubble if r.lost else 0.0)) + 3.0 + \
+            (r.bubble if r.lost else 0.0)
 
         def tr_for(k, L, v, side):
             return curve_traj(t0, [(x, y, h, k, L, v)], side, m0=m0, bubble_grow=grow)
@@ -1877,6 +2546,10 @@ class Controller:
         """A curve robot with no piece running (the start, a coast after the last piece, a dodge, after a stop):
         the next piece from where it will be in a moment."""
         p, h = self.pos(r), self.heading(r)
+        if getattr(r, "tilted", False) and self.tilt_recovery:
+            r.back_off = None
+            r.coast = None
+            return self.recover_step(r)            # (e08, A3) the recovery tries, never towards the drop
         if r.back_off is not None:
             # its own front check STOPPED it (no dodge): back straight off first, as in stop-turn (a speed-zero moment)
             r.back_off = None
@@ -1943,6 +2616,21 @@ class Controller:
         """While a piece runs: the next one from its planned end, queued on the robot so they run into each other."""
         mv = r.move
         v_now = max(0.5, mv["v"] * (r.scale if r.scale > 0 else 1.0))
+        if self.pose_rule != "wait2s" and mv.get("t_drive") is not None:
+            # (e08, A1) the next piece is chained from this one's PLANNED end only while the robot is where the plan
+            # says (the fused position: the camera, latency-compensated); off it by more than SURE_TOL_CM, nothing is
+            # queued: the piece runs out (coast) and the next one starts from where the robot really is
+            done = (self.t - mv["t_drive"]) * v_now
+            ex, ey, _ = arc_at(mv["x"], mv["y"], mv["h"], mv["k"], min(mv["L"], max(0.0, done)))
+            p = self.pos(r)
+            if p is not None and math.hypot(p[0] - float(ex), p[1] - float(ey)) > SR.SURE_TOL_CM + PLAN_M0:
+                if not mv.get("off_plan"):
+                    mv["off_plan"] = True
+                    self.counts["off_plan"] = self.counts.get("off_plan", 0) + 1
+                    self.log("pose", dict(t=round(self.t, 2), robot=r.name, what="off plan: next piece from the "
+                                          "fused position", d_cm=round(math.hypot(p[0] - float(ex), p[1] - float(ey)), 2),
+                                          unc_cm=round(self.unc(r), 2)))
+                return
         if mv.get("t_drive") is not None:
             t_end = mv["t_drive"] + mv["L"] / v_now
         else:
@@ -2258,6 +2946,8 @@ class Controller:
             self.why_zero(r, "dodge coast ran out")
         else:
             r.coast = None
+            if "virtual border" in info:
+                self.border_fire(r, info)
             if "tilted" in info:
                 self.tilt_trip(r, info)
                 self.why_zero(r, "its own tilt stop")
@@ -2294,7 +2984,7 @@ class Controller:
         if p is None:
             return None
         x0, y0, x1, y1 = self.rect
-        k = PARK_EDGE_CC
+        k = PARK_EDGE_CC if self.edge_rule == "fixed" else self.end_need(r, 5.0) + 3.0
         cands = []
         for i in range(48):
             f = i / 48.0
@@ -2396,8 +3086,19 @@ class Controller:
             self.clear_keepouts()
         self.reflex()
         self.adj_watch()
+        half = int(t * 2) != int((t - 0.05) * 2)
         for r in self.R.values():
-            if r.mode == "idle" and t >= r.busy_until and self.pos(r) is not None and not r.silent and r.curve and \
+            if getattr(r, "held", None):
+                self.held_check(r)                     # (e08, A7) held as an obstacle, checked, rejoins
+                if r.mode not in ("gone",):
+                    self.pump(r)
+                continue
+            if half:
+                self.edge_watch(r)                     # (e08, A2) sure / unsure near an edge
+            if r.mode == "idle" and t >= r.busy_until and r.__dict__.get("unsure") and not r.silent and \
+                    self.pos(r) is not None and not getattr(r, "tilted", False):
+                self.unsure_step(r)
+            elif r.mode == "idle" and t >= r.busy_until and self.pos(r) is not None and not r.silent and r.curve and \
                     not r.lost_hold and not (r.battery is not None and r.battery <= self.floor) and \
                     not (r.lost is not None and r.bubble > 2 * BUBBLE_CAP):
                 self.start_curve(r)                    # (11-05d) never waits: from the coast or the stand
@@ -2425,7 +3126,7 @@ class Controller:
             self.motion_row()
 
     def watch(self, r):
-        if r.mode in ("out", "gone", "start"):
+        if r.mode in ("out", "gone", "start") or getattr(r, "held", None):
             return
         t = self.t
         # silence
@@ -2439,8 +3140,12 @@ class Controller:
             if r.cam is not None and self.fresh(r):
                 r.traj = Traj.stand(t, r.cam[1], r.cam[2], m=self.margin0(r))
             if t - r.silent_t > OUT_SILENT_S:
-                r.mode, r.out_why = "out", "silent"
-                self.event(r, "out", "silent for %.0f s: out of the run (an obstacle where it is)" % OUT_SILENT_S)
+                if self.silent_out:
+                    r.mode, r.out_why = "out", "silent"
+                    self.event(r, "out", "silent for %.0f s: out of the run (an obstacle where it is)" % OUT_SILENT_S)
+                else:
+                    # (e08, A7, Nick 30 Oct "no robot permanently out") held, checked, rejoins
+                    self.hold_robot(r, "silent", "silent for %.0f s" % OUT_SILENT_S)
             return
         # nothing from the robot for a moment while it should be moving: it may have stopped where the camera has it
         if r.own is not None and t - r.own[0] > 1.0 and r.mode == "move" and r.cam is not None and \
@@ -2580,10 +3285,14 @@ class Controller:
         self.log("zeros", dict(t=round(z["t"], 2), robot=r.name, style="curve" if r.curve else "stopturn",
                                dur_s=round(dur, 2), why=z["why"]))
 
-    def begin(self, name):
-        """The robot is following (run follow) and seen: it joins the roam."""
+    def begin(self, name, held=None):
+        """The robot is following (run follow) and seen: it joins the roam. held: (e08, A7) "heading" when its heading
+        crawl failed: it joins held as an obstacle, and a nudge the camera watches finds its heading."""
         r = self.R[name]
         r.mode = "idle"
+        if held:
+            self.hold_robot(r, held, "its heading is not known (the heading crawl failed)" if held == "heading" else
+                            str(held))
         r.curve = self.uses_curves(r)
         r.zero_why = ("the start (standing)", self.t + 1.0)
         self.event(r, "motion", "curves (continuous: firmware %s)" % r.fw if r.curve else

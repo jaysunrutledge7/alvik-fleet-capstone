@@ -57,6 +57,9 @@ HANDOFF_GRACE_S = 120   # chosen: after a hand-off, 8090 stays free this long fo
 START_TIMEOUT_S = 180   # run-e02-pi.sh's own work before it hands over to tmux (apt check, git pull, 8 s recorder)
 STOP_WAIT_S = 120       # after Stop, the page says "still stopping" past this (the runner's own backstop is 90 s)
 MC_PORT = 8095          # Mission Control (tools/fleet/mission_control.py)
+OLD_RUNNER = os.environ.get("MIRLT_OLD_RUNNER", "") == "1"   # (e08, Nick 7 Nov Q2: the E02 runner is a parts bin) the
+                        # page's main Start is Mission Control; the E02 runner's start card shows only with the page's
+                        # "Show the old runner" switch (or this set on the Pi); nothing of it is deleted
 MC_START_S = 60         # the Mission Control tab says "starting" this long after its button (the recorder's 8 s first)
 PIN_FAILS = 5           # wrong PINs from one address before a 60 s pause (chosen)
 COOKIE = "mirlt_launch"
@@ -885,6 +888,13 @@ def make_handler(L, conf, fails=None):
             if path == "/api/start":
                 if not d.get("confirm"):
                     return self._send(400, dict(ok=False, words="Not confirmed."))
+                if not (OLD_RUNNER or (d.get("options") or {}).get("old_runner")):
+                    why = L.check_can_start(d.get("options") or {})
+                    if why:
+                        return self._send(409, dict(ok=False, words=why))
+                    return self._send(409, dict(ok=False, words="The E02 runner is the old runner now (kept as a parts "
+                                                "bin): runs start in Mission Control. Tick \"Show the old runner\" to "
+                                                "use it."))
                 ok, words = L.start(d.get("options") or {})
                 return self._send(200 if ok else 409, dict(ok=ok, words=words))
             if path == "/api/stop":
@@ -1013,8 +1023,15 @@ pre{white-space:pre-wrap;font-size:.8rem;background:var(--bg);padding:8px;border
     </div>
   </section>
 
+  <section class="card" id="mcCard" style="margin-top:14px">
+    <h2>Start a run</h2>
+    <p class="sub">Calibrate, Free roam, Visit points and Experiment routes start in Mission Control.</p>
+    <a class="btn" id="mcGo" href="/#mc" target="_top">Open Mission Control</a>
+    <label class="chk" style="margin-top:12px"><input type="checkbox" id="oldRunner"><span>Show the old runner (E02: kept as a parts bin)</span></label>
+  </section>
+
   <section class="card hidden" id="startCard" style="margin-top:14px">
-    <h2>Start a session</h2>
+    <h2>Old runner (E02): start a session</h2>
     <div id="lockMsg" class="msg warn hidden"></div>
     <div id="startBody">
     <div class="row" id="sessRow"><span class="lbl">Session</span>
@@ -1080,7 +1097,9 @@ document.querySelectorAll('.seg[data-k]').forEach(g=>g.addEventListener('click',
 $('hoursIn').addEventListener('input',e=>{opt.hours=e.target.value;save();paintSeg()});
 $('robots').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;const r=b.dataset.r;opt.robots=opt.robots.includes(r)?opt.robots.filter(x=>x!==r):[...opt.robots,r];save();paintSeg();hideConfirm()});
 $('extras').innerHTML=Object.entries(EXTRAS).map(([f,w])=>`<label class="chk"><input type="checkbox" data-f="${esc(f)}"><span>${esc(w)} <span class="small">${esc(f)}</span></span></label>`).join('');
-function options(){return Object.assign({},opt,{production:opt.production==='1',side:opt.side==='1',
+function oldOn(){try{return localStorage.getItem('mirlt-old-runner')==='1'}catch(e){return false}}
+$('oldRunner').checked=oldOn();$('oldRunner').onchange=()=>{try{localStorage.setItem('mirlt-old-runner',$('oldRunner').checked?'1':'0')}catch(e){}render()};
+function options(){return Object.assign({},opt,{old_runner:oldOn(),production:opt.production==='1',side:opt.side==='1',
   extras:[...document.querySelectorAll('#extras input:checked')].map(x=>x.dataset.f),max_runs:$('maxRuns').value,other:$('other').value,card_ok:$('cardOk').checked})}
 function hideConfirm(){$('startConfirm').classList.add('hidden');$('startBtn').classList.remove('hidden')}
 let msgT=0;function msg(el,cls,words){$(el).innerHTML=words?`<div class="msg ${cls}">${esc(words)}</div>`:'';if(el==='startMsg')msgT=Date.now()}
@@ -1134,7 +1153,7 @@ function render(s){S=s;$('host').textContent=s.host;
   const LOCK={starting:'A session is starting.',running:'A session is running: a second one can\'t start until it ends.',
     stopping:'The session is stopping; it uploads next.',uploading:'The last session is uploading: a new one can start when the upload is done.',
     busy:'The recorder or a plan is still running.',fleet:'A robot run (DOE loop, mission or ladder) is driving the robots.'};
-  $('startCard').classList.remove('hidden');const locked=s.phase!=='idle';
+  $('startCard').classList.toggle('hidden',!oldOn());const locked=s.phase!=='idle';
   $('startBody').classList.toggle('hidden',locked&&$('startConfirm').classList.contains('hidden'));
   $('lockMsg').classList.toggle('hidden',!locked);$('lockMsg').textContent=locked?('Start is locked. '+(LOCK[s.phase]||'')):'';
   // the session choice
@@ -1352,9 +1371,9 @@ async function tick(){const r=await api('/api/status').catch(()=>null);
   if(!r){$('chips').innerHTML='<span class="chip ask"><i></i>The Pi does not answer</span>';return}
   if(r._code===401){S=null;if(tab!=='start')show('start');else render();return}
   const first=!S;S=r;
-  if(first&&!location.hash.slice(1)){show(e02Live(r)||(r.fleet||[]).length?'live':r.mc&&r.mc.up?'mc':'start');return}
+  if(first&&!location.hash.slice(1)){show(e02Live(r)||(r.fleet||[]).length?'live':'mc');return}   // (e08) Mission Control is the main Start
   render()}
-show(['live','mc','start'].includes(location.hash.slice(1))?location.hash.slice(1):'start');
+show(['live','mc','start'].includes(location.hash.slice(1))?location.hash.slice(1):'mc');
 tick();setInterval(()=>{if(!document.hidden)tick()},2000);
 </script></body></html>
 """

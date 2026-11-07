@@ -47,6 +47,9 @@ import setup_job as SJ    # noqa: E402
 PAGE = os.path.join(HERE, "mission_control.html")
 PORT = 8095
 PREVIEW_STEP_S = 0.25     # the preview's sampling of the plan (the slider's resolution). No DOE: display only
+MONDAY_DEMO = os.environ.get("MIRLT_MONDAY_DEMO", "0") == "1"   # (e08, A10) the 2 Nov Monday demo's mission machinery
+                        # (Monday blocks, the old 3-robot routine) is switched off by default: its modes are hidden on
+                        # the Mission screen unless MIRLT_MONDAY_DEMO=1 (nothing deleted; the API still plans them)
 TABLE_SIZES = [[61, 122], [70, 130], [76, 137]]   # Monday's table: at least 2 x 4 ft, at most 2.5 x 4.5 ft (Nick,
                                                   # 16:43); exact size Thursday. The Workspace screen's quick choices
 
@@ -77,7 +80,7 @@ RUN_DEFAULTS = {
                                       # corners clicked) or "none" (no camera: odometry only, robots placed on their
                                       # homes by hand). The Run screen's selector (2026-11-03, Nick: "with or without
                                       # tags")
-    "on_problem": "",                 # "" = the site's on_problem (home: stop; school: keep_going); "keep_going" or
+    "on_problem": "",                 # "" = the site's on_problem (e08: keep_going at home and school; stop is the switch); "keep_going" or
                                       # "stop" for the runs from this page (the Run screen's tick-box, 2026-11-03)
     "mirror": True,                   # a mirrored mission (Monday: Left and Right) is re-timed so they reach matching
                                       # points together: the late one speeds up, the leader slows or waits (run_plan's
@@ -363,11 +366,12 @@ class Session:
             st = self.site
             out["site"] = {"name": st["name"], "title": st["title"], "tracking": st["tracking"],
                            "attended_only": bool(st.get("attended_only")),
+                           "monday_demo": MONDAY_DEMO,
                            "robots": [r["name"] for r in st["robots"]],
                            "colours": {r["name"]: r["colour"] for r in st["robots"]},
                            "cameras": {k: v.get("label", k) for k, v in st["cameras"].items()},
                            "capture": st["capture"], "tags": st.get("tags"), "table": st.get("table"),
-                           "on_problem": st.get("on_problem", "stop"), "feel_out_trust": st.get("feel_out_trust"),
+                           "on_problem": st.get("on_problem", "keep_going"), "feel_out_trust": st.get("feel_out_trust"),
                            "lost_robot_points": st.get("lost_robot_points"),
                            "run_tracking": st.get("run_tracking", st["tracking"]),
                            "points_typed": bool((st.get("points") or {}).get("use") == "typed"),
@@ -609,11 +613,11 @@ class Session:
         return (self.site or {}).get("run_tracking") or (self.site or {}).get("tracking") or "lights"
 
     def on_problem(self):
-        """keep_going or stop for the runs from this page: the Run screen's tick-box, else the site's (home: stop)."""
+        """keep_going or stop for the runs from this page: the Run screen's tick-box, else the site's (e08: keep_going everywhere)."""
         v = (self.settings.get("run") or {}).get("on_problem") or ""
         if v in ("keep_going", "stop"):
             return v
-        return (self.site or {}).get("on_problem") or "stop"
+        return (self.site or {}).get("on_problem") or "keep_going"      # (e08, Q7) keep going by default
 
     def start_cam_run(self, kind, conn, d):
         """The run through the cameras (mission_run.py): the robots on the Pi, or the simulator's two cameras through
@@ -1363,6 +1367,11 @@ class Handler(BaseHTTPRequestHandler):
                     return self._send(200, clean(S.start.start(d.get("kind"), attended=bool(d.get("attended")))))
                 if path == "/api/start/stop":
                     return self._send(200, clean(S.start.stop_all()))
+                if path == "/api/start/answer":
+                    # (e08, A2) a person's answer to a run's question (safety_rules.Questions)
+                    import safety_rules as SR_
+                    SR_.write_answer(str(d.get("id") or ""), str(d.get("choice") or ""))
+                    return self._send(200, clean(S.start.state()))
                 if path == "/api/start/advanced":
                     S.start.set_advanced(d)
                     import sites as SI_

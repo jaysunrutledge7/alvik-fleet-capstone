@@ -341,7 +341,8 @@ def _room_stub(tmp_path, pos, heading=10.0, others=None):
 def test_near_an_edge_it_drives_to_open_space_instead_of_parking(tmp_path):
     """19:27, 28 Oct: Left 24 cm from the x = 122 edge was parked ("the turn check needs it 25 cm in"); 19:34 Center
     at x = 0 the same; the loop ended at 19:44 with all three out. Now it is driven back to open space."""
-    L = _room_stub(tmp_path, (98.0, 42.0), others={"Right": (46.0, 93.0)})
+    # (e08, A2) 16 cm from the x = 122 edge: under the derived 18.5 cm room (it was 24 cm under Nick's 25)
+    L = _room_stub(tmp_path, (106.0, 42.0), others={"Right": (46.0, 93.0)})
     drove = {}
 
     def drive_to(sub, tag, targets, cms=5.0, via=None):
@@ -353,7 +354,7 @@ def test_near_an_edge_it_drives_to_open_space_instead_of_parking(tmp_path):
     assert L.ensure_room(str(tmp_path), "Left", 3) is True
     x, y, _ = drove["Left"]
     assert D.edge_dist(L.rect, x, y) >= D.ROOM_TARGET_CM and math.dist((x, y), (46.0, 93.0)) >= D.ROOM_TARGET_ROBOT_CM
-    assert math.dist((x, y), (98.0, 42.0)) < 15.0           # the nearest open spot, not across the board
+    assert math.dist((x, y), (106.0, 42.0)) < 15.0          # the nearest open spot, not across the board
     assert "Left" not in L.st["kept_out"]
     assert "room made" in open(os.path.join(str(tmp_path), "events.csv")).read()
     # with room already: nothing moves

@@ -1007,8 +1007,11 @@ def run(args):
             "driven (29 Oct logs, measured to 40 cm only); no camera checks anything during the run.")
     if not args.no_turn_pause:
         rp += ["--turn-pause"]         # after each turn, stand until the cameras agree (2026-10-29)
-    # the keep-going policy (2026-11-03): the site's on_problem (home: stop, as before)
+    # the keep-going policy (2026-11-03): the site's on_problem (e08: keep_going at home too)
     rp += ["--on-problem", args.on_problem_, "--lost-robot-points", args.lost_robot_points_]
+    rp += ["--edge-tracking", args.tracking_ if args.tracking_ in ("lights", "tags", "none") else "lights"]   # (e08)
+    if os.environ.get("MIRLT_ATTENDED") == "1":
+        rp += ["--attended"]                 # (e08, A2) Mission Control's Start screen: a person is there
     say("on a problem: %s" % ("KEEP GOING (said once, logged, worked round; a lost robot's points %s)" % (
         "go to the robots still running" if args.lost_robot_points_ == "reassign" else "are listed as not done")
         if args.on_problem_ == "keep_going" else "stop the run (as before)"))
@@ -1595,7 +1598,7 @@ def main(argv=None):
     ap.add_argument("--on-problem", choices=["auto", "keep_going", "stop"], default="auto",
                     help="this run only (2026-11-03): keep_going = a problem that used to stop the whole run is said "
                          "once, logged and worked round (only a full card, Stop / Ctrl+C or every robot out end it); "
-                         "stop = as before; auto = the site's on_problem (home: stop; school: keep_going)")
+                         "stop = as before; auto = the site's on_problem (e08: keep_going at home and school; stop is the switch)")
     ap.add_argument("--lost-robot-points", choices=["auto", "reassign", "skip"], default="auto",
                     help="with keep_going: a robot that is out hands its points not done to the others (reassign) or "
                          "they are listed as not done (skip); auto = the site's lost_robot_points")

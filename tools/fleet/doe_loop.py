@@ -68,7 +68,10 @@ LENGTHS = (25.0, 40.0)  # Nick's figures (cm): heading from a short vs a long la
 TURN_EVERY = 4          # chosen: the turn check every 4th drive of a robot (and its first): about 1 turn check per
                         # speed cycle, ~25 % of the robot's time. DOE note: 2 / 4 / 8 against how fast the turn error
                         # drifts over a battery (turns.csv per robot over time); docs/doe-backlog.md
-CLEAR_CM = 25.0         # Nick (2026-10-27): every spot and line 25 cm from every edge and parked robot. No DOE: safety
+import calib_room as _CR   # noqa: E402
+CLEAR_CM = _CR.SR.edge_room_cm("doe")   # (e08, A2) the one derived rule (18.5 cm; MIRLT_EDGE_RULE=fixed: 25). Parked
+                        # robots keep PARKED_CLEAR_CM (30) as before. Before e08:
+                        # 25.0 Nick (2026-10-27): every spot and line 25 cm from every edge and parked robot. No DOE: safety
 FLOOR_INSET_CM = 13.5   # the planner's floor shrunk this much on every side. Turning on the spot needs the middle
                         # 11.2 cm inside the floor (planner: 8.2 cm clear + 3), so a turn stays 24.7 cm in, and a
                         # robot L0 accepted at 25 cm can still turn where it stands (dry run 2 with 20: Right at 31 cm
@@ -103,7 +106,7 @@ A_INWARD_CM = 5.0       # chosen (2026-10-30): a drive's A (its start and park s
                         # (events.csv) and the extra seconds driving to A
 ROOM_ROBOT_CM = 30.0    # chosen: a robot whose middle is nearer than this to another's makes room before a turn check
                         # or drive (a turn check's crawl tip keeps 22 cm; PARKED_CLEAR_CM is 30). No DOE: a safety room
-ROOM_TARGET_CM = 32.0   # chosen: making room drives it to a spot this far from every edge (7 cm past the 25 cm rule,
+ROOM_TARGET_CM = CLEAR_CM + 7.0   # (e08: follows CLEAR_CM; 32 before) chosen: making room drives it to a spot this far from every edge (7 cm past the 25 cm rule,
 ROOM_TARGET_ROBOT_CM = 38.0   # so camera wobble does not bring it back under) and this far from the others' middles.
                         # DOE note: 28 / 32 / 36 cm against how often a robot needs room again within its next 3 drives
                         # (events.csv "room made") and the minutes the moves take
@@ -1681,9 +1684,12 @@ def main(argv=None):
     ap.add_argument("--day-state", default="", help="today's calibration record (default: ladder.py's)")
     ap.add_argument("--sim-place", action="append", default=[], metavar="NAME=X,Y,DEG", help="--dry: as ladder.py")
     ap.add_argument("--sim-from", default="", help="--dry: as ladder.py (a second session on the same board)")
-    ap.add_argument("--keep-going", action="store_true",
-                    help="never park a robot on a failed turn check, heading crawl, line check or one camera's "
-                         "evidence: log \"would have parked\" and carry on (safety stops still park)")
+    ap.add_argument("--keep-going", action="store_true", default=True,
+                    help="(the default since e08, Nick 7 Nov Q7) never park a robot on a failed turn check, heading "
+                         "crawl, line check or one camera's evidence: log \"would have parked\" and carry on (safety "
+                         "stops still park)")
+    ap.add_argument("--no-keep-going", dest="keep_going", action="store_false",
+                    help="(e08: the old default, kept as a switch) park a robot out of the loop on those failures")
     ap.add_argument("--sim-free", default="", help="--dry: simulated free space, e.g. card=2.6,drive=6.2,fall=0.5 "
                                                    "(GB; fall: less before every loop): shows the guard's clean stop")
     a = ap.parse_args(argv)

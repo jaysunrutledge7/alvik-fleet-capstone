@@ -64,7 +64,10 @@ NAME_RE = re.compile(r"^[A-Za-z0-9_-]{1,10}$")    # the firmware keeps at most 1
 #                      robots still running) or "skip" (they are listed as not done, as before)
 POLICY_WORDS = {"on_problem": ("keep_going", "stop"), "feel_out_trust": ("camera", "sensor"),
                 "lost_robot_points": ("reassign", "skip")}
-POLICY_DEFAULTS = {"on_problem": "stop", "feel_out_trust": "sensor", "lost_robot_points": "reassign"}
+POLICY_DEFAULTS = {"on_problem": "keep_going", "feel_out_trust": "sensor", "lost_robot_points": "reassign"}
+# (e08, Nick 7 Nov Q7) keep going by default everywhere ("no stops ... rather a warning and a logged failure", 30 Oct;
+# "stop only when safety can't be kept", 5 Nov); "stop" stays as the switch (a site's on_problem, run_plan --on-problem
+# stop, mission_run --on-problem stop, the Run screen's tick-box, doe_loop --no-keep-going). Safety holds still happen
 
 RUN_TRACKING_WORDS = {"tags": "roof AprilTags (tag bridge)",
                       "lights": "the robots' lights and outlines (camera bridge; corners clicked)",

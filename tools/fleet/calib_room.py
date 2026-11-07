@@ -24,7 +24,12 @@ roll needs room in ONE direction, and its own front-sensor look cannot see a ply
 """
 import math
 import os
+import sys
 import time
+
+if os.path.dirname(os.path.abspath(__file__)) not in sys.path:
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import safety_rules as SR   # noqa: E402  (e08: the one derived edge rule)
 
 # ---------------------------------------------------------------------------------------------- the numbers
 BODY_HALF_CM = 4.75     # the body is 9.5 x 9.5 cm (tools/sim/config.py length_cm / width_cm), axle under its middle
@@ -35,6 +40,10 @@ CAM_ERR_CM = 2.0        # chosen: the camera's spot of a standing robot against 
                         # against the still spot before the spin, per robot, near and away from the edges
 MARGIN_CM = 3.0         # chosen: kept free beyond that (as the firmware's calib_margin_cm). No DOE: a safety room
 ROOM_EDGE_CM = float(math.ceil(SWEEP_R_CM + CAM_ERR_CM + MARGIN_CM))                 # 6.72 + 2 + 3 = 11.7 -> 12 cm
+if SR.EDGE_RULE != "fixed":
+    # (e08, A2) the one derived rule: half diagonal + the measured track error + the camera's edge bias (lights; a spin
+    # does not overrun): 6.72 + 1.7 + 5 = 13.4 -> 14 cm. MIRLT_EDGE_RULE=fixed: the 12 cm above
+    ROOM_EDGE_CM = float(math.ceil(SR.edge_room_cm("calib_room")))
 ROOM_ROBOT_CM = float(math.ceil(2 * SWEEP_R_CM + 2 * CAM_ERR_CM + MARGIN_CM))        # 13.4 + 4 + 3 = 20.4 -> 21 cm
 #   (both robots may be spinning at once, as run_plan calibrates them together; each camera spot can be 2 cm off)
 ROLL_CM = 15.0          # the firmware's calib_roll_cm (params.h)

@@ -49,7 +49,7 @@ def test_practice_blocks_plan_on_every_monday_table(name, table):
 
 
 def test_launcher_practice_needs_a_known_block():
-    env = dict(os.environ, FLEET_DRY="1")
+    env = dict(os.environ, FLEET_DRY="1", MIRLT_MONDAY_DEMO="1")     # (e08, A10) the Monday demo is behind a switch
     r = subprocess.run(["bash", os.path.join(REPO, "run-fleet-pi.sh"), "practice", "nope"], capture_output=True,
                        text=True, env=env, cwd=REPO)
     assert r.returncode == 1 and "mow|circle|chicken|dance" in r.stdout

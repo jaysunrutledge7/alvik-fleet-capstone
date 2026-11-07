@@ -313,6 +313,8 @@ class Starter:
             self.S.stop_asked = False
             self.active, self.active_practice = kind, pr
             self.started_t = time.time()
+            self.attended = bool(attended)          # (e08, A2) a person is there: runs may ask questions
+            os.environ["MIRLT_ATTENDED"] = "1" if attended and not pr else "0"   # mission_run -> run_plan --attended
             if self.tags():
                 r = self.start_tags(kind, pr)
             else:
@@ -388,12 +390,13 @@ class Starter:
                 n = max(1, min(3, int(self.adv.get("practice_robots") or 2)))
                 cmd = [sys.executable, os.path.join(HERE, "freeroam.py"), "run", "--dry", "--hours", hrs,
                        "--robots", ",".join(["Left", "Center", "Right"][:n]),
-                       "--sim-minutes", "%.1f" % PRACTICE_ROAM_MIN, "--motion", "curves", "--dir", folder]
+                       "--sim-minutes", "%.1f" % PRACTICE_ROAM_MIN, "--motion", "curves", "--dir", folder] + \
+                    (["--attended"] if getattr(self, "attended", False) else [])
                 import calib_job as CJ
                 if CJ._ns_ok():
                     cmd = ["unshare", "-rn"] + cmd
             else:
-                cmd = ["bash", sh, "freeroam-run", hrs]
+                cmd = ["bash", sh, "freeroam-run", hrs] + (["--attended"] if getattr(self, "attended", False) else [])
         self.job = ProcJob(kind, cmd, folder, env=env, practice=pr)
         return {"started": kind, "folder": folder}
 
@@ -424,6 +427,11 @@ class Starter:
         running = self.busy()
         out = {"running": running, "kind": kind, "title": TITLES.get(kind, ""), "practice": self.active_practice,
                "lines": [], "elapsed_s": None, "points": None}
+        try:                                   # (e08, A2) open questions from the run (safety_rules.Questions)
+            import safety_rules as SR
+            out["questions"] = SR.open_questions()[-3:] if running else []
+        except Exception:  # noqa: BLE001
+            out["questions"] = []
         if kind is None:
             return out
         out["elapsed_s"] = round(time.time() - getattr(self, "started_t", time.time()), 0)

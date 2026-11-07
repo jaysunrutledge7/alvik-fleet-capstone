@@ -103,10 +103,11 @@ def test_halves_switch_kept(tmp_path):
 def test_safety_settings_per_site():
     assert OB.site_safe_edge(SI.load("school-conference")) == 2
     cmds = OB.safety_commands(2)
-    assert "set safe_edge 2" in cmds and "set tilt_stop_deg 5" in cmds and "set tilt_ms 300" in cmds
+    tl = "set tilt_stop_deg %g" % OB.TILT_STOP_DEG          # (e08, A4) 4 deg from the logs (old rule: 5)
+    assert "set safe_edge 2" in cmds and tl in cmds and "set tilt_ms 300" in cmds
     import mission_run as MR
     g = MR.guard_cmds(argparse.Namespace(site_=SI.load("school-conference")))
-    assert "set safe_edge 2" in g and "set tilt_stop_deg 5" in g and "set safe_edge 3" not in g
+    assert "set safe_edge 2" in g and tl in g and "set safe_edge 3" not in g
 
 
 def test_trip_helpers():

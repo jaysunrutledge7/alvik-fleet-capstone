@@ -94,7 +94,9 @@ def test_monday_lanes_17_in_and_body_7_from_every_edge(plans, size):
             for q in P.step_poses(st, 12):
                 c = body.corners(np.array([q[:3]]))[0]
                 worst = min(worst, c[:, 0].min(), W - c[:, 0].max(), c[:, 1].min(), H - c[:, 1].max())
-    assert worst >= 10.0, worst
+    # (e08, A2) the edge room is the one derived rule (15.8 cm lights; fixed: Nick's 17): by plan the body's corner keeps
+    # that less the half diagonal (9.1 cm; 10.3 with 17)
+    assert worst >= MS.SETTINGS["edge_room_cm"] - 6.72 - 0.05, worst
 
 
 def test_old_saved_lane_inset_gives_way_and_others_are_kept():

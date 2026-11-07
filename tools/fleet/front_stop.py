@@ -57,7 +57,8 @@ FLOOR_FAR_CM = 40.0      # in-path readings this far or more are "no floor seen"
 FLOOR_ROBOT_AHEAD_CM = 30.0  # another robot (or a known obstacle) this near in front: its body would be read as the
                              # floor, so the check is skipped for this robot. Chosen; no DOE (a guard)
 
-UNCONFIRMED_S = 15.0     # Nick, 2026-10-29 16:2x ("about 15 s"): a sensor-only obstacle expires this long after its
+UNCONFIRMED_S = 15.0     # (e08: safety_rules.UNCONFIRMED_S is this same number for free roam and observe; one rule)
+                         # Nick, 2026-10-29 16:2x ("about 15 s"): a sensor-only obstacle expires this long after its
                          # stop. DOE: worth one, in the simulator: 5 / 15 / 30 s with a false stop after every lane-end
                          # turn and a real brick dropped without the camera, against "no plan" ends, the extra time,
                          # and repeat stops at the same spot (a real brick hit twice is confirmed, so it never expires)

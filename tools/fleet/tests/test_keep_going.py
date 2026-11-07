@@ -99,9 +99,9 @@ def labels(plan, n):
 
 def test_site_policy_defaults_home_stop_school_keep_going():
     h, s = SI.load("home"), SI.load("school-conference")
-    assert (h["on_problem"], h["feel_out_trust"]) == ("stop", "sensor")
+    assert (h["on_problem"], h["feel_out_trust"]) == ("keep_going", "sensor")      # (e08, Q7): home keeps going too
     assert (s["on_problem"], s["feel_out_trust"], s["lost_robot_points"]) == ("keep_going", "camera", "reassign")
-    assert "stop the run (as before)" in SI.words(h)
+    assert "keep going" in SI.words(h)
     assert "keep going" in SI.words(s) and "trusted" in SI.words(s)
 
 
@@ -124,7 +124,7 @@ def test_mission_run_resolves_the_policy_from_the_site_and_the_override():
     a2 = MR.main.__globals__["argparse"].Namespace(site="home", tracking="auto", robots="Left,Right",
                                                    on_problem="auto", lost_robot_points="auto", feel_trust="auto")
     MR.resolve_site(a2)
-    assert a2.on_problem_ == "stop" and a2.feel_out_trust_ == "sensor"
+    assert a2.on_problem_ == "keep_going" and a2.feel_out_trust_ == "sensor"      # (e08, Q7)
     a3 = MR.main.__globals__["argparse"].Namespace(site="school-conference", tracking="auto", robots="Left,Right",
                                                    on_problem="stop", lost_robot_points="skip", feel_trust="sensor")
     MR.resolve_site(a3)
@@ -479,7 +479,7 @@ def test_mission_control_tick_box_overrides_the_site():
     assert s.on_problem() == "stop"
     s.site = None
     s.settings["run"]["on_problem"] = ""
-    assert s.on_problem() == "stop"                                             # home / no site: as before
+    assert s.on_problem() == "keep_going"                                       # (e08, Q7) no site: keep going
 
 
 def test_feel_job_keep_going_starts_production_after_a_failed_feel_out():

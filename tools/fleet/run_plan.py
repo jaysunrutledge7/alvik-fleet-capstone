@@ -1558,6 +1558,47 @@ class Coordinator:
             p0 = stp.get("from")
         return p0 is not None and math.hypot(pose[0] - p0[0], pose[1] - p0[1]) >= self.MOVING_CM
 
+    # -- (e08, A2) sure / unsure near an edge: the rule free roam uses (safety_rules.edge_judgement) ---------------
+    def edge_watch(self):
+        """Twice a second: for every robot with a fresh camera fix, the derived edge clearance's margin at the camera's
+        spot (its uncertainty: the camera's sigma + its own pose's distance from the camera), the sure / unsure
+        judgement logged on every change (edge_judgement); unsure with a person there (--attended): a question on
+        Mission Control's Start screen (safety_rules.Questions), else logged only. The plan's own edge room (the same
+        derived rule) and the robots' edge guards stay the protection while it is asked."""
+        import safety_rules as SR
+        t = now()
+        if t - getattr(self, "_edge_t", 0.0) < 0.5 or not self.t_run_started():
+            return
+        self._edge_t = t
+        f = self.m["floor"]
+        rect = (f["x_min"], f["y_min"], f["x_max"], f["y_max"])
+        trk = getattr(self.args, "edge_tracking", "lights") or "lights"
+        for b in self.bots.values():
+            if b.out or b.pose is None or getattr(b, "last_cam", None) is None:
+                continue
+            fresh = t - (getattr(b, "cam_t", None) or -1e9) <= SR.SURE_CAM_AGE_S
+            cam = b.last_cam
+            dis = math.hypot(b.pose[0] - cam[0], b.pose[1] - cam[1]) if fresh else None
+            need = SR.clearance_cm(SR.CAM_SIGMA_CM + (dis or 0.0), None, trk, stops_here=False)
+            margin = SR.edge_dist(rect, cam[0], cam[1]) - need
+            j = SR.edge_judgement(margin, fresh, dis)
+            if j["state"] == getattr(b, "edge_state", None):
+                continue
+            b.edge_state = j["state"]
+            self.log("edge_judgement", robot=b.name, state=j["state"], why=j["why"], margin_cm=round(margin, 2),
+                     need_cm=round(need, 2), disagree_cm=None if dis is None else round(dis, 2))
+            if j["state"] == "unsure":
+                self.n_unsure = getattr(self, "n_unsure", 0) + 1
+                self.say("%s: unsure near an edge (%s)" % (b.name, j["why"]))
+                if getattr(self.args, "attended", False):
+                    if getattr(self, "_asks", None) is None:
+                        self._asks = SR.Questions(run=os.path.basename(self.outdir.rstrip("/")))
+                    b.edge_q = self._asks.ask(b.name, "%s may be near the table's edge (%s). Is it near the edge?" % (
+                        b.name, j["why"]), ("It is near the edge", "It is clear of the edge"))
+            elif getattr(b, "edge_q", None) and getattr(self, "_asks", None) is not None:
+                self._asks.close(b.edge_q, "settled by the evidence: %s" % j["why"])
+                b.edge_q = None
+
     def mark_unconfirmed(self, b, ob):
         if ob is None or not getattr(self.args, "unconfirmed_s", FSTOP.UNCONFIRMED_S):
             return
@@ -3679,16 +3720,8 @@ class Coordinator:
         if L < self.LEAD_MIN_LEG_CM:
             return stp
         v = float(stp.get("speed") or 0.0)
-        ks = sorted(leads)
-        if len(ks) == 1 or v <= ks[0]:
-            lead = leads[ks[0]] * (v / ks[0] if len(ks) > 1 and v < ks[0] and ks[0] > 0 else 1.0)
-        elif v >= ks[-1]:
-            lead = leads[ks[-1]]
-        else:
-            j = max(k for k in range(len(ks)) if ks[k] <= v)
-            a, c = ks[j], ks[j + 1]
-            lead = leads[a] + (leads[c] - leads[a]) * (v - a) / (c - a)
-        lead = max(0.0, min(lead, self.LEAD_MAX_SHARE * L, 1.5))
+        import safety_rules as SR        # (e08) the interpolation shared with free roam (one copy)
+        lead = SR.stop_lead_for(leads, v, L)
         if lead <= 0.0:
             return stp
         k = (L - lead) / L
@@ -3881,6 +3914,7 @@ class Coordinator:
             if self.abort:
                 break
             self.unconfirmed_watch()
+            self.edge_watch()
             self.rejoin_watch()
             if self.abort:
                 break
@@ -5392,7 +5426,13 @@ def main(argv=None):
                          "under 8 cm (front_stop.py; default %(default)s)")
     ap.add_argument("--floor-margin-cm", type=float, default=FSTOP.FLOOR_MARGIN_CM,
                     help="the floor check: the limit sits this far under the floor's level (default %(default)s)")
-    ap.add_argument("--unconfirmed-s", type=float, default=FSTOP.UNCONFIRMED_S,
+    ap.add_argument("--attended", action="store_true", help="(e08, A2) a person is with the robots: a robot the run is "
+                    "unsure about near an edge is asked about on Mission Control's Start screen (else logged only)")
+    ap.add_argument("--edge-tracking", default="lights", choices=["lights", "tags", "none", "motion"],
+                    help="(e08, A2) what the camera tracks (its edge bias: lights 5 cm, roof tags 0): mission_run passes it")
+    import safety_rules as _SR
+    ap.add_argument("--unconfirmed-s", type=float,
+                    default=FSTOP.UNCONFIRMED_S if _SR.KEEPOUT_RULE != "permanent" else 0.0,   # (e08, A6) one rule
                     help="a distance-sensor obstacle the camera (or a second stop) did not confirm leaves the map "
                          "after this long, and before a re-plan gives up with no plan (default %(default)s; 0 = "
                          "every one stays, as before)")
@@ -5429,11 +5469,11 @@ def main(argv=None):
     ap.add_argument("--cam-guard-cm", type=float, default=Coordinator.CAM_GUARD_CM,
                     help="stop everyone when a robot's own pose and the camera disagree by more than this for 1 s "
                          "(0 = off; default %(default)s)")
-    ap.add_argument("--on-problem", choices=("stop", "keep_going"), default="stop",
+    ap.add_argument("--on-problem", choices=("stop", "keep_going"), default="keep_going",
                     help="keep_going (2026-11-03; a site's on_problem, mission_run passes it): a problem that stopped "
                          "everyone (camera and pose disagree for long, out of re-plans, no plan, a robot lost) is said "
                          "once, logged and worked round; only a full card, Stop / Ctrl+C and every robot out end the "
-                         "run (and the time limit, stretched to the newest plan's end). stop: as before (default)")
+                         "run (and the time limit, stretched to the newest plan's end; the default since e08). stop: as before e08 (a switch)")
     ap.add_argument("--lost-robot-points", choices=("reassign", "skip"), default="reassign",
                     help="with --on-problem keep_going: a robot that is out hands its production points not done to "
                          "the robots still running (reassign, default), or they are listed as not done (skip)")

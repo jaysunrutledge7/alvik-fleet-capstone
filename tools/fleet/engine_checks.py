@@ -34,8 +34,10 @@ BATTERY_FLOOR_LOWEST = 5   # Nick (2 Nov 2026): a low-battery run "doesn't need 
 BATTERY_FLOOR_ENV = "MIRLT_MIN_BATTERY"
 
 
-def battery_floor(env=None):
-    """THE battery floor (one source of truth, 2026-11-02): MIRLT_MIN_BATTERY if set (`./run-fleet-pi.sh doe <h>
+def battery_floor(env=None, run_type="default"):
+    """(e08, A11) run_type: per-run-type values from safety_rules.BATTERY_FLOORS (free roam 10 %, the rest 25 %); the
+    environment's MIRLT_MIN_BATTERY overrides every type as before.
+    THE battery floor (one source of truth, 2026-11-02): MIRLT_MIN_BATTERY if set (`./run-fleet-pi.sh doe <h>
     low-battery` sets 5), never under BATTERY_FLOOR_LOWEST; else BATTERY_FLOOR_DEFAULT. Every process on the drive
     path reads it: the ladder's L0 and the DOE loop's check (ladder.MIN_BATTERY), and run_plan.py's --battery-floor
     default (start-up refusal, the mid-run note, a restarted robot's re-check), which the warm-up, straightening and
@@ -43,9 +45,19 @@ def battery_floor(env=None):
     env = os.environ if env is None else env
     raw = env.get(BATTERY_FLOOR_ENV, "")
     try:
-        return max(BATTERY_FLOOR_LOWEST, int(raw)) if str(raw).strip() else BATTERY_FLOOR_DEFAULT
+        if str(raw).strip():
+            return max(BATTERY_FLOOR_LOWEST, int(raw))
     except ValueError:
-        return BATTERY_FLOOR_DEFAULT
+        pass
+    if run_type != "default":
+        try:
+            if HERE not in sys.path:
+                sys.path.insert(0, HERE)
+            import safety_rules as SR
+            return max(BATTERY_FLOOR_LOWEST, SR.battery_floor(run_type))
+        except ImportError:
+            pass
+    return BATTERY_FLOOR_DEFAULT
 
 
 def battery_floor_words(floor=None, env=None):

@@ -29,7 +29,12 @@ import json
 import math
 import os
 
-VERSION = "2026-11-05a"
+VERSION = "2026-11-07a"   # 11-07a (e08): tilt limits from safety_rules (re-picked from the 5 / 6 Nov logs), trip
+                          # keep-outs marked confirmed (the one keep-out rule)
+import sys as _sys
+if os.path.dirname(os.path.abspath(__file__)) not in _sys.path:
+    _sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import safety_rules as _SR   # noqa: E402  (e08: the rules shared by every run type)
 
 # ------------------------------------------------------------------------------------------------ chosen numbers
 SNAP_DEG = 90.0          # a roof tag is stuck on square to the robot: the measured offset is snapped to a quarter turn
@@ -503,8 +508,10 @@ def detect_retry(detect, grey, want_ids, scales=(0.5,), resize=None):
 # restarts the robot. The tilt stop (firmware motion.h TILT) stops any drive or turn when the robot tips more than
 # tilt_stop_deg from its level for tilt_ms (e02 legs and follow steps alike); the edge guard's bottom zone sees a real
 # drop ahead. School: safe_edge 2 (the bottom zone only: the line sensors read the black seam tape as an edge).
-TILT_STOP_DEG = 5.0      # firmware's chosen value (motion.h: real logs within 4.1 deg of level, hanging 10.2)
-TILT_MS = 300.0          # firmware's chosen value
+TILT_STOP_DEG = _SR.tilt_limits()["tilt_stop_deg"]   # (e08, A4) 4 deg, re-picked from the 5 / 6 Nov home logs: 0 false
+                         # stops in 12.1 robot-hours, 2 of the 3 real hangs caught (5 deg: none of them). Sent at every
+                         # run's start (a runtime param: no reflash). Before e08: the firmware's 5 (MIRLT_TILT_RULE=old)
+TILT_MS = _SR.tilt_limits()["tilt_ms"]                # 300 ms (kept: 3 false stops at 100 ms and 4 deg)
 EDGE_BOT_CM = 11.0       # the bottom zone's drop cue (mission_run / calib_run EDGE_GUARD)
 BACK_OFF_CM = 10.0       # after a tilt or drop trip: straight BACKWARDS this far (never forward): the body's half
                          # length (6 cm) plus 4, so the wheels come back over the board and the next leg starts clear of
@@ -560,9 +567,11 @@ def trip_kind(info):
 def trip_keepout(x, y, th_deg, name="trip"):
     """The keep-out disc for a tilt / drop trip at pose (x, y, th): centred NOSE_AHEAD_CM ahead of the axle."""
     h = math.radians(th_deg)
+    src = "tilt/drop trip (discovered edge)"
     return {"name": name, "center": [round(x + NOSE_AHEAD_CM * math.cos(h), 2),
                                      round(y + NOSE_AHEAD_CM * math.sin(h), 2)],
-            "radius": TRIP_KEEPOUT_R_CM, "shape": "circle", "source": "tilt/drop trip (discovered edge)"}
+            "radius": TRIP_KEEPOUT_R_CM, "shape": "circle", "source": src,
+            "confirmed": _SR.keepout_confirmed(src)}     # (e08, A6) a real trip: confirmed, never fades
 
 
 def back_off_target(x, y, th_deg, d=BACK_OFF_CM):
@@ -580,8 +589,10 @@ POSE_AGREE_CM = 5.0      # (1) own pose vs camera: more than this ...
 POSE_AGREE_S = 2.0       # ... for this long (camera fresh) = stop that robot, re-seed its pose from the camera before
                          # any further move. Chosen (the analysis: 13-52 cm for 80 min went unnoticed; the camera's
                          # own error is under 1 cm). DOE note: 3 / 5 / 8 cm against false stops in a normal run
-STAND_TILT_DEG = 2.5     # (2) standing tilt: more than this from its level ...
-STAND_TILT_S = 2.0       # ... for this long while not driving = a hazard (a wheel over an edge). Chosen from the
+STAND_TILT_DEG = _SR.tilt_limits()["stand_tilt_deg"]  # (2) standing tilt: more than this from its level ...
+STAND_TILT_S = _SR.tilt_limits()["stand_tilt_s"]      # ... for this long while not driving = a hazard (a wheel over an
+                         # edge). (e08) checked against the 5 / 6 Nov logs: 0 false in 12.1 robot-hours, 2 of 3 hangs
+                         # caught (2 deg: 2 false; 3 deg / 1 s: also 0, 1 s sooner). Kept. Chosen from the
                          # analysis (robots stood within 1.5 deg on the board; Center sat at 3.4). No bench test now
                          # (Nick 21:38): kept as chosen. DOE note: a wheel over a 1 / 2 / 3 cm drop, standing and
                          # driving, would set both

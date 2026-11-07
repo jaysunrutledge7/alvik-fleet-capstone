@@ -53,7 +53,9 @@ SETTINGS = {
                                   # lane margin (e.g. 14 / 17 / 20 cm) against the camera's closest body-to-edge at the
                                   # turn-arounds would set it (and show whether the lane ends can sit nearer than the
                                   # lane line: along a lane the stop error is smaller than across it in the simulator)
-    "edge_room_cm": 17.0,         # Nick (2026-10-28 21:27, "everywhere in the mission"): the same target as
+    "edge_room_cm": __import__("safety_rules").edge_room_cm("missions"),   # (e08, A2) the one derived rule:
+                                  # 6.72 + 1.7 + 2.4 + 5 = 15.8 cm (lights; MIRLT_EDGE_RULE=fixed: 17). Before e08:
+                                  # 17.0 Nick (2026-10-28 21:27, "everywhere in the mission"): the same target as
                                   # mow_inset_cm for the spots the blocks pick themselves: Chicken's run-in starts (the
                                   # robot turns on the spot there to face along the Chicken line) and the ends its pass
                                   # drives on to. Before: the planner's least room + 1 cm (12.2 cm), which left the body

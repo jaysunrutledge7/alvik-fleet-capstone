@@ -48,7 +48,10 @@ for p in (HERE, TOOLS):
 import freeroam_core as FC   # noqa: E402
 
 PY = sys.executable
-VERSION = "freeroam-runner-2026-11-05d"   # 11-05d: --motion curves|stopturn, arc calibration save
+VERSION = "freeroam-runner-2026-11-07a"   # 11-07a (e08 Phase A): --edge-rule, --pose-rule, --keepout-rule,
+                                          # --silent-out, --no-tilt-recovery, --stop-lead; attended runs ask questions
+                                          # (Mission Control's card); a failed heading crawl joins held, not out
+                                          # 11-05d: --motion curves|stopturn, arc calibration save
 HOME_BOARD = (0.0, 0.0, 122.24, 121.92)    # roam.py's board (the home plywood in the floor calibration's cm)
 FOLLOW_LOOK_CM = 8.0    # the robots' own front stop while driving: roam.py's 8 (the plywood reads ~10 cm ahead, 12
                         # stopped drives). Another robot's face at the planned gap is 7.9 cm or more away; the reflex
@@ -135,9 +138,15 @@ class Runner:
         self.link.session.listeners.append(lambda *v: self.q.put((AC.now(),) + v))
         self.source = UdpSource(fix_port)
         self.tables = Tables(outdir)
+        import safety_rules as SR
+        asks = SR.Questions(run=os.path.basename(outdir.rstrip("/"))) if a.attended else None
         self.ctrl = FC.Controller(names, rect, self.send, self.logrow, seed=a.seed, lost_mode=a.lost_mode,
                                   battery_floor=a.battery_floor, park_sleep=not a.no_sleep,
-                                  drill=a.reflex_drill if a.dry else 0.0, motion=a.motion)
+                                  drill=a.reflex_drill if a.dry else 0.0, motion=a.motion,
+                                  edge_rule=a.edge_rule, pose_rule=a.pose_rule, keepout_rule=a.keepout_rule,
+                                  silent_out=a.silent_out, tilt_recovery=not a.no_tilt_recovery,
+                                  attended=a.attended, questions=asks, leads=stop_leads(a, names))
+        self.held = dict(getattr(a, "_held", None) or {})
         self.ctrl.arc_save_on = not a.no_arc_save
         self.offsets = {n: [] for n in names}
         self.fix_last = {n: 0.0 for n in names}
@@ -421,7 +430,7 @@ class Runner:
                 r.mode, r.out_why = "gone", "not seen at the start"
                 continue
             c.t = self.AC.now()
-            c.begin(n)
+            c.begin(n, held=self.held.get(n))
             self.joined.add(n)
             say("  %s joins at %.1f, %.1f (facing %.0f deg)" % (n, r.cam[1], r.cam[2], r.own[3]))
         if not self.joined:
@@ -437,7 +446,7 @@ class Runner:
             self.frames.active(True, "freeroam")
         say("Free roam: %s, until each is at %d %% or %.1f h. Ctrl+C (or ./run-fleet-pi.sh freeroam-stop) stops "
             "every robot." % (", ".join(sorted(self.joined)), c.floor, hours))
-        say(board_words(self.rect, "" if self.a.dry else getattr(self.a, "calib", "")))
+        say(board_words(self.rect, "" if self.a.dry else getattr(self.a, "calib", ""), self.a.edge_rule))
         why = None
         while True:
             now = self.AC.now()
@@ -494,15 +503,51 @@ class Runner:
         self.track.close()
 
 
-def board_words(rect, calib=""):
-    """(11-05c) What board the planner assumes, said at the start (Nick 5 Nov: say what board size it assumes)."""
+def stop_leads(a, names):
+    """(e08, A5) each robot's stop lead {name: {speed: cm}}: --stop-lead NAME=SPEED:CM,... else the Pi's stop_leads.json
+    (calib_run keeps it by WiFi name; at home the robots' names), else none (drives as planned)."""
+    out = {}
+    for spec in getattr(a, "stop_lead", None) or []:
+        try:
+            n, rest = spec.split("=", 1)
+            out[n.strip()] = {float(x): float(y) for x, y in (kv.split(":") for kv in rest.split(",") if kv)}
+        except ValueError:
+            continue
+    if a.dry or out:
+        return out
+    try:
+        p = os.path.join(os.path.expanduser("~/.config/mirlt"), "stop_leads.json")
+        recs = json.load(open(p))
+        for n in names:
+            sl = (recs.get(n) or {}).get("stop_lead_cm") or {}
+            if sl:
+                out[n] = {float(k): float(v) for k, v in sl.items()}
+    except (OSError, ValueError, AttributeError):
+        pass
+    return out
+
+
+def board_words(rect, calib="", edge_rule=None):
+    """(11-05c) What board the planner assumes, said at the start (Nick 5 Nov: say what board size it assumes).
+    (e08) and the edge rule in force."""
+    import safety_rules as SR
     x0, y0, x1, y1 = rect
     src = os.path.basename(calib) if calib else "the simulator's board"
-    return ("Board assumed: x %.0f to %.0f cm, y %.0f to %.0f cm (%.0f x %.0f cm, from %s). Moves end %.0f cm or more "
-            "inside it (%.0f x %.0f cm usable); turns on the spot %.1f cm in. Walls or objects inside it are found "
-            "during the run: each front stop or edge-guard stop becomes a keep-out (events: keep-out; keepouts.csv)." % (
-                x0, x1, y0, y1, x1 - x0, y1 - y0, src, FC.EDGE_CC, x1 - x0 - 2 * FC.EDGE_CC, y1 - y0 - 2 * FC.EDGE_CC,
-                FC.TURN_EDGE_CC))
+    head = "Board assumed: x %.0f to %.0f cm, y %.0f to %.0f cm (%.0f x %.0f cm, from %s). " % (
+        x0, x1, y0, y1, x1 - x0, y1 - y0, src)
+    tail = ("Walls or objects inside it are found during the run: a front stop felt twice, or an edge-guard or tilt "
+            "stop, becomes a keep-out; one felt once fades after %.0f s (events: keep-out; keepouts.csv)."
+            % SR.UNCONFIRMED_S)
+    if (edge_rule or SR.EDGE_RULE) == "fixed":
+        return head + ("Edge rule: fixed (before e08). Moves end %.0f cm or more inside it (%.0f x %.0f cm usable); "
+                       "turns on the spot %.1f cm in. " % (FC.EDGE_CC, x1 - x0 - 2 * FC.EDGE_CC, y1 - y0 - 2 * FC.EDGE_CC,
+                                                           FC.TURN_EDGE_CC)) + tail
+    return head + ("Edge rule: derived (e08): a robot's middle stays half its diagonal (6.7 cm) + its position "
+                   "uncertainty now + the camera's edge error (%.0f cm) from every edge along the whole path, plus its "
+                   "stopping distance where it stops: about %.1f cm along a path and %.1f cm where a move ends when "
+                   "the camera and the robot agree, more when they do not. " % (
+                       SR.tracking_bias_cm("lights"), SR.clearance_cm(1.0, None, "lights", False),
+                       SR.clearance_cm(1.0, 13.0, "lights", True))) + tail
 
 
 def loopback_up():
@@ -615,8 +660,20 @@ def real_start(a, outdir):
                 q = L.eye.still(n) or q0
                 L.set_pose(n, q[0], q[1], h, "crawl")
             except LadderStop as e:
-                say("  %s: no heading (%s): it stays out of the run, parked where it is." % (n, e))
-                L.keep_out(n, "no heading for the free roam: %s" % e)
+                if getattr(a, "heading_out", False):
+                    say("  %s: no heading (%s): it stays out of the run, parked where it is." % (n, e))
+                    L.keep_out(n, "no heading for the free roam: %s" % e)
+                else:
+                    # (e08, A7; 6 Nov: Right parked for the whole run after the camera re-found it 15 cm from its first
+                    # placement: a camera mis-placement, not its wheels) it joins HELD as an obstacle; the controller
+                    # finds its heading by a nudge the camera watches and it rejoins
+                    q = L.eye.still(n) if getattr(L, "eye", None) else None
+                    q = q or L.pos(n)
+                    h = getattr(e, "heading", None)
+                    L.set_pose(n, q[0], q[1], h if h is not None else 0.0, "crawl failed: held")
+                    a._held = dict(getattr(a, "_held", None) or {}, **{n: "heading"})
+                    say("  %s: no heading (%s): it joins HELD as an obstacle; a short nudge the camera watches will "
+                        "find its heading, then it rejoins." % (n, e))
     names = [n for n in L.active("L1") if L.heading(n) is not None]
     rect = tuple(L.rect)
     L.drop_bench()
@@ -708,6 +765,23 @@ def main(argv=None):
     ap.add_argument("--motion", choices=("curves", "stopturn"), default="curves",
                     help="(5 Nov) curves (default: continuous curving pieces on firmware 2026-11-05c+, older robots "
                          "stop-turn-drive) or stopturn (everyone as before)")
+    # (e08 Phase A) the new rules, each with the old one behind its switch
+    ap.add_argument("--edge-rule", choices=("derived", "fixed"), default=None,
+                    help="(e08, A2) derived (default: half diagonal + uncertainty + stop distance + camera edge bias, on "
+                         "the whole path) or fixed (the 16 cm end / 9.2 cm path rule before e08)")
+    ap.add_argument("--pose-rule", choices=("widen", "wait2s"), default=None,
+                    help="(e08, A1) widen (default: own pose vs camera widens the uncertainty at once) or wait2s (before)")
+    ap.add_argument("--keepout-rule", choices=("fade", "permanent"), default=None,
+                    help="(e08, A6) fade (default: sensor-only keep-outs fade after 15 s) or permanent (before)")
+    ap.add_argument("--silent-out", action="store_true",
+                    help="(e08, A7: the old way) a robot silent 120 s is out for the rest of the run (default: held, "
+                         "checked, rejoins)")
+    ap.add_argument("--heading-out", action="store_true",
+                    help="(e08, A7: the old way) a robot whose heading crawl fails stays out (default: joins held)")
+    ap.add_argument("--no-tilt-recovery", action="store_true",
+                    help="(e08, A3: the old way) a tilted robot with no room to back away stands")
+    ap.add_argument("--stop-lead", action="append", default=[], metavar="NAME=SPEED:CM,...",
+                    help="(e08, A5) a robot's stop lead (default: the Pi's stop_leads.json)")
     ap.add_argument("--no-arc-save", action="store_true", help="(5 Nov) do not save the curves' calibration found "
                     "in the run on a robot when it parks")
     ap.add_argument("--seed", type=int, default=None, help="the menu's seed (default: from the clock; recorded)")
@@ -788,7 +862,11 @@ def main(argv=None):
                 % st_.get("name"))
             return 2
     say("Free roam: %s (seed %d, battery floor %d %%, lost: %s)" % (outdir, a.seed, a.battery_floor, a.lost_mode))
+    import safety_rules as SR
     run_info = dict(version=VERSION, core=FC.VERSION, motion=a.motion, seed=a.seed, hours=a.hours, battery_floor=a.battery_floor,
+                    rules=dict(safety_rules=SR.VERSION, edge=a.edge_rule or SR.EDGE_RULE, pose=a.pose_rule or SR.POSE_RULE,
+                               keepouts=a.keepout_rule or SR.KEEPOUT_RULE, silent_out=a.silent_out,
+                               tilt_recovery=not a.no_tilt_recovery, tilt=SR.tilt_limits(), attended=a.attended),
                     lost_mode=a.lost_mode, dry=a.dry, reflex_drill=a.reflex_drill, started=dt.datetime.now().isoformat(timespec="seconds"),
                     argv=sys.argv[1:])
     try:

@@ -26,7 +26,8 @@ def cap_at(cp, deg):
 
 def test_room_numbers_follow_from_the_body():
     assert abs(CR.SWEEP_R_CM - 6.72) < 0.01                      # half the 9.5 cm body's diagonal
-    assert CR.ROOM_EDGE_CM == 12.0                               # 6.72 + 2 (camera) + 3 (margin), rounded up
+    # (e08, A2) the one derived rule: 6.72 + 1.7 (track) + 5 (camera edge error), rounded up; fixed: 6.72 + 2 + 3 -> 12
+    assert CR.ROOM_EDGE_CM == (12.0 if CR.SR.EDGE_RULE == "fixed" else 14.0)
     assert CR.ROOM_ROBOT_CM == 21.0                              # 2 x 6.72 + 2 x 2 + 3, rounded up
 
 
