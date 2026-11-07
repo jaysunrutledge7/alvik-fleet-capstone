@@ -49,6 +49,30 @@ def table(s):
     return "\n".join(lines)
 
 
+def table_h(rows):
+    """(Nick 7 Nov) case h: a robot put down near / hung over the edge: always wait (before) or free itself first."""
+    out = {}
+    for r in rows:
+        c = r.get("case", "")
+        if not c.startswith("h-") or "error" in r:
+            continue
+        who = "Right" if "-near-" in c else "Center"
+        d = out.setdefault(c, dict(n=0, freed=0, body=[], end=[], hangs_after=0, falls=0, moving=[], asked=0))
+        d["n"] += 1
+        pa = r.get("phase_a") or {}
+        d["freed"] += int(r["moving_pct"].get(who, 0.0) > 5.0)        # it drove on (freed by itself or after a hold)
+        d["falls"] += r["falls"]
+        d["moving"].append(r["moving_pct"].get(who, 0.0))
+        d["asked"] += int((pa.get("recover_holds") or 0) > 0 or ((r.get("incident") or {}).get("start_held") or 0) > 0)
+    lines = ["| Case | Runs | Drove on (over 5 % moving) | Held or asked at some point | Falls | The robot's moving time "
+             "(median / lowest) |", "|---|---|---|---|---|---|"]
+    for c in sorted(out):
+        d = out[c]
+        lines.append("| %s | %d | %d | %d | %d | %.1f / %.1f %% |" % (c[2:], d["n"], d["freed"], d["asked"], d["falls"],
+                                                                   statistics.median(d["moving"]), min(d["moving"])))
+    return "\n".join(lines)
+
+
 def chart(rows, png):
     import matplotlib
     matplotlib.use("Agg")
@@ -85,6 +109,8 @@ def main():
     rows = load(a.folder)
     s = summary(rows)
     print(table(s))
+    print()
+    print(table_h(rows))
     if a.png:
         chart(rows, a.png)
         print(a.png)

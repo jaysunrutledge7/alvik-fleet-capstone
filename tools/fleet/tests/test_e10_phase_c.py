@@ -215,7 +215,7 @@ def test_the_quiz_fills_the_page_and_the_page_reaches_the_runs():
     env = SJ.prefs_env(dict(SJ.PREFS_DEFAULTS, pose_source="ekf", camera_watch=True))
     assert env["MIRLT_POSE_SOURCE"] == "ekf" and env["MIRLT_CAMERA_WATCH"] == "1" and env["MIRLT_DISCOVERY"] == "1"
     d = SJ.prefs_env(SJ.PREFS_DEFAULTS)                # the defaults are the build's own
-    assert d["MIRLT_CAMERA_WATCH"] == "0" and d["MIRLT_POSE_SOURCE"] == "blend" and d["MIRLT_SCHOOL_ROAM"] == "freeroam"
+    assert d["MIRLT_CAMERA_WATCH"] == "1" and d["MIRLT_POSE_SOURCE"] == "blend" and d["MIRLT_SCHOOL_ROAM"] == "freeroam"
     assert SJ.prefs_path("/x", "school-conference").endswith("prefs/school-conference.json")
 
 
@@ -264,3 +264,25 @@ def test_an_own_pose_reset_is_not_read_as_motion_and_a_standing_robot_is_not_a_b
     assert g < 1.0 and bricks == 0
     g_old, bricks_old = run(False)                       # the switch: as e09
     assert g_old > 5.0
+
+
+def test_the_filters_uncertainty_learns_what_it_missed_at_camera_gaps():
+    """(e10, 7 Nov) the real 7 Nov run 1 replay: the filter's 95 % undercovered (79-92 %). At the end of each camera gap
+    the fix's miss beyond the uncertainty is learned and added; MIRLT_UNC_LEARN=0 the old way."""
+    out = {}
+    for learn in (True, False):
+        fp = FP.FusedPose("r", learn=True)
+        fp.unc_learn = learn
+        fp.fix(0.0, 50, 50, None, 1.0, "motion")
+        t = 0.0
+        for i in range(12):
+            for k in range(3):
+                t += 0.08
+                fp.raw(t, 0.0, 0.0, 0.0, True, 0.0, None, (50, 50, 50))
+                fp.fix(t, 50, 50, None, 1.0, "motion")
+            t += 1.5                                         # a camera gap
+            fp.raw(t, 0.0, 0.0, 0.0, True, 0.0, None, (50, 50, 50))
+            fp.fix(t, 50 + (4 if i % 2 else -4), 50, None, 1.0, "motion")   # the camera 4 cm off after it
+        out[learn] = (fp.unc_add, fp.unc_cm(t))
+    assert out[True][0] > 1.0 and out[False][0] == 0.0
+    assert out[True][1] > out[False][1] + 1.0

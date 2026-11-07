@@ -1396,7 +1396,7 @@ class Sim:
                     phase_b=self.phase_b(), phase_c=self.phase_c(),
                     # (e10) the 7 Nov run 2 incident's measures
                     incident=dict({k: c.counts.get(k, 0) for k in ("queue_watch", "reaimed", "queue_heading_resets",
-                                                                    "marks_deferred", "start_held", "dropped_started",
+                                                                    "marks_deferred", "start_held", "dropped_started", "start_recover", "start_freed",
                                                                     "surface_marks", "off_plan")},
                                   hdg_faults=st.get("hdg_faults", 0), hdg_fault_cured=st.get("hdg_fault_cured", 0),
                                   bottom_trips=st.get("bottom_trips", 0), log=getattr(self, "hdg_log", [])[:20]))

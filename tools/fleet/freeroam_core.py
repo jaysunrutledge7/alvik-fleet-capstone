@@ -49,7 +49,8 @@ if _HERE not in sys.path:
 import safety_rules as SR   # noqa: E402  (e08 Phase A: the rules shared with run_plan and observe)
 import fused_pose as FP     # noqa: E402  (e09 Phase B: one filter per robot, fed by the tracking layer and RAW)
 
-VERSION = "freeroam-2026-11-07d"   # 11-07d (e10, the 7 Nov run 2 incident): the queue watch (every tick, off plan or a queued piece breaking the edge rule from where the robot really is: re-aimed or stopped, heading re-set), the surface-mark verdict less the uncertainty, the start check (held at an edge)
+VERSION = "freeroam-2026-11-07e"   # 11-07e (Nick 7 Nov): a robot put down at or over an edge first tries the e08 tilt recovery, a person asked only if that fails (MIRLT_START_EDGE_MODE=wait: always wait)
+VERSION_D = "freeroam-2026-11-07d"   # 11-07d (e10, the 7 Nov run 2 incident): the queue watch (every tick, off plan or a queued piece breaking the edge rule from where the robot really is: re-aimed or stopped, heading re-set), the surface-mark verdict less the uncertainty, the start check (held at an edge)
 VERSION_C = "freeroam-2026-11-07c"   # 11-07c (e10 Phase C): proven workspace, probe ahead, corner shuffle, empty moves end, pictures 1/min
 VERSION_B = "freeroam-2026-11-07b"     # 11-07b (e09 Phase B): the filter's pose and uncertainty for the planner and the
                                      # edge rule (pose_source "ekf"; "blend" the one-step blend as before), fixes with a
@@ -214,7 +215,11 @@ QUEUE_WATCH = os.environ.get("MIRLT_QUEUE_WATCH", "1") != "0"   # (a, c) every t
                         # rule from where the robot really is and the way it really goes; off plan: re-aimed or stopped
 MARK_UNC = os.environ.get("MIRLT_MARK_UNC", "1") != "0"         # (b) the surface-mark verdict uses the camera's
                         # edge distance minus the fused pose's uncertainty (near an edge a line trip is an edge)
-START_EDGE = os.environ.get("MIRLT_START_EDGE", "1") != "0"     # (d) a robot that starts over or at an edge holds
+START_EDGE = os.environ.get("MIRLT_START_EDGE", "1") != "0"     # (d) a robot that starts over or at an edge: checked
+START_EDGE_MODE = os.environ.get("MIRLT_START_EDGE_MODE", "recover")   # (d; Nick 7 Nov) "recover": it first tries to
+                        # free itself the e08 tilt-recovery way (straight back when the camera and its own pose agree
+                        # that backing is inward, then the other tries) and a person is asked only if that fails;
+                        # "wait": it always waits for a person (the first e10 way, the switch)
 OFFPLAN_CM = 4.0        # (a) off plan: the fused position (or the camera's fix) this far ACROSS the running piece's path
                         # (SURE_TOL_CM + PLAN_M0: own pose and camera agree within 3 cm, the plan's 1 cm margin).
                         # 25 deg off is caught after ~10 cm. Chosen; DOE with OFFPLAN_S
@@ -519,7 +524,7 @@ class Controller:
                  tracking="lights", attended=False, questions=None, silent_out=False, leads=None, pose_rule=None,
                  keepout_rule=None, tilt_recovery=True, heading_watch=True, pose_source=None, gyro_heading=None,
                  shuffle=True, workspace=None, picture_every_s=None, probe_ahead=False, queue_watch=None,
-                 mark_unc=None, start_edge=None):
+                 mark_unc=None, start_edge=None, start_mode=None):
         # (e08 Phase A) switches, each with the old behaviour on its other side (CLAUDE.md keep features, switch off):
         #   edge_rule "derived" | "fixed" (EDGE_CC 16 / LOOP_EDGE 9.2 as before); pose_rule "widen" | "wait2s";
         #   keepout_rule "fade" | "permanent"; silent_out False (held, rejoins) | True (out at 120 s as before);
@@ -533,6 +538,7 @@ class Controller:
         self.queue_watch_on = QUEUE_WATCH if queue_watch is None else bool(queue_watch)
         self.mark_unc = MARK_UNC if mark_unc is None else bool(mark_unc)
         self.start_edge = START_EDGE if start_edge is None else bool(start_edge)
+        self.start_mode = start_mode or START_EDGE_MODE
         # (e10) at most one "unsure near an edge, alone" picture per robot per this many seconds (Claude's default: 60)
         self.picture_every_s = PICTURE_EVERY_S if picture_every_s is None else float(picture_every_s)
         # (e09, Phase B) pose_source "ekf" (one filter per robot: fused_pose.FusedPose) | "blend" (as before);
@@ -3285,11 +3291,45 @@ class Controller:
                                p[1] + a * math.sin(hr) + b * math.cos(hr))
                      for a in (-BODY / 2, BODY / 2) for b in (-BODY / 2, BODY / 2))
         held = r.__dict__.get("start_held")
-        if ec >= (START_CLEAR_CM if held else START_CORNER_CM):
+        rec = r.__dict__.get("start_recovering")
+        if ec >= (START_CLEAR_CM if (held or rec) else START_CORNER_CM) and not (rec and getattr(r, "tilted", False)):
             r.start_ok = True
             if held:
                 self.event(r, "start check", "now %.0f cm inside the board's edge: it starts" % e)
                 self.close_break(r)
+            elif rec:
+                self.counts["start_freed"] = self.counts.get("start_freed", 0) + 1
+                self.event(r, "start check", "freed itself: now %.0f cm inside the board's edge, it starts" % e)
+            return True
+        if self.start_mode == "recover" and self.tilt_recovery and not held:
+            # (Nick 7 Nov) first it tries to free itself, as a robot that tilts at an edge during a run does
+            # (recover_step: straight back when backing is inward by the camera and its own pose, then a reverse to
+            # each side, then a short inward pivot); recover_step itself holds and asks a person when nothing safe
+            # remains, and tries again later
+            if not rec:
+                r.start_recovering = self.t
+                self.counts["start_recover"] = self.counts.get("start_recover", 0) + 1
+                where = "its middle is over the edge" if e < 0 else ("part of its body is over the edge" if ec < 0
+                                                                     else "it is right at the edge")
+                self.event(r, "start check", "%s starts at the board's edge: %s (the camera puts its middle %.1f cm "
+                           "from the edge). It tries to free itself first (backing straight inward if the camera and "
+                           "its own pose agree that is inward); a person is asked only if that fails." % (
+                               r.name, where, e))
+            dev = self.tilt_dev(r)
+            if dev is not None and dev > SR.tilt_limits()["stand_tilt_deg"]:
+                return True                  # it reads a tilt: hung; its tilt watch starts the same recovery as in a run
+            if not getattr(r, "tilted", False):
+                if r.__dict__.get("start_tried"):
+                    # its recovery said it backed off but it is still at the edge (a hung robot's wheels turn, its
+                    # body stays): from here the run's own edge rules take it, as for a robot hung during a run (the
+                    # edge trap's reverse, the corner shuffle, the unsure step: none of them ever goes outward)
+                    r.start_ok = True
+                    self.event(r, "start check", "its recovery tries are done and it is still %.0f cm from the edge: "
+                               "the run's own edge rules take it from here" % e)
+                    return True
+                r.start_tried = True
+                r.tilted = True              # the recovery tries run through start_move / start_curve
+                r.back_off = dict(t=self.t, h=self.heading(r))
             return True
         if not held:
             r.start_held = self.t
@@ -3804,7 +3844,11 @@ class Controller:
             if half:
                 self.edge_watch(r)                     # (e08, A2) sure / unsure near an edge
                 self.felt_mark(r)                      # (e10, C2) the proven workspace grows under its wheels
-            if r.mode == "idle" and t >= r.busy_until and r.__dict__.get("probe_ret") and not r.silent and \
+            if r.mode == "idle" and t >= r.busy_until and self.pos(r) is not None and not r.silent and \
+                    not self.start_check(r):
+                pass                                   # (e10, run 2 incident d) put down over or at an edge: held
+                                                       # (before anything else, the unsure-near-an-edge step too)
+            elif r.mode == "idle" and t >= r.busy_until and r.__dict__.get("probe_ret") and not r.silent and \
                     self.pos(r) is not None and not getattr(r, "tilted", False):
                 res_r = self.probe_return(r)           # (e10, C2) back from a probe first, lost or not (the camera
                 if res_r is not None:                  # may not see there: it retraces its own path)
@@ -3815,9 +3859,6 @@ class Controller:
             elif r.mode == "idle" and t >= r.busy_until and r.__dict__.get("unsure") and not r.silent and \
                     self.pos(r) is not None and not getattr(r, "tilted", False):
                 self.unsure_step(r)
-            elif r.mode == "idle" and t >= r.busy_until and self.pos(r) is not None and not r.silent and \
-                    not self.start_check(r):
-                pass                                   # (e10, run 2 incident d) started over or at an edge: held
             elif r.mode == "idle" and t >= r.busy_until and self.pos(r) is not None and not r.silent and r.curve and \
                     not r.lost_hold and not (r.battery is not None and r.battery <= self.floor) and \
                     not (r.lost is not None and r.bubble > 2 * BUBBLE_CAP):

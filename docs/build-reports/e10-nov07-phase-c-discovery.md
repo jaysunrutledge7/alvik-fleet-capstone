@@ -27,7 +27,7 @@ the real 5 Nov log (first 90 min) for the filter's uncertainty. "Before" = e09's
 | C3 school free roam on the same controller | `mission_run` hands the found robots and its tag bridge to `freeroam.py --external-bridge --tracking tags`: the same controller, filter, layer (with the mid-run identity wiggle), proof drive and workspace as at home; practice mode too | **now the default** (its practice run passed); the planner's roam is the switch: `MIRLT_SCHOOL_ROAM=planner`, the page's "School free roam runs on" (question 2) |
 | C3 motion at school | the tag bridge now runs the motion detector (cam_bridge's tracker, the robots' own poses as its prediction) beside the lock-on, re-seated by every tag read; its sure sightings go out as `tag_bridge:motion` where neither tag nor lock gave a fix | `--no-motion`, `MIRLT_TAG_MOTION=0` |
 | C4 the filter's hang case | three causes found and fixed (section 3) | `MIRLT_UNC_SPLIT=0`; `--no-shuffle` |
-| C4 the camera watch | cause found and fixed (section 3) | `MIRLT_CAMERA_WATCH_METHOD=e09`; the watch itself **still off by default** |
+| C4 the camera watch | cause found and fixed (section 3) | `MIRLT_CAMERA_WATCH_METHOD=e09`; the watch itself **now on by default** (Nick 7 Nov; `MIRLT_CAMERA_WATCH=0` off). Found: since e09 the home runner passed "on" to the layer itself, so e09b's "off" never reached home free roam; it now follows the setting |
 | C4 95 % | the filter's uncertainty: 8 x sigma (was 6), measured on the real log | `MIRLT_UNC_SPLIT=0` and a `k_sigma` |
 | C5 preferences | Mission Control's Start screen: a first-time quiz (5 questions) that fills in a page of choices; the essentials up front, every e08 / e09 / e10 switch under Advanced; saved per site on the Pi (`~/.config/mirlt/prefs/<site>.json`); every run started from the page gets them | - |
 | Claude's defaults | pictures "unsure near an edge": at most one per robot per minute; wiggle stop 2.5 s kept; gyro-rate heading off | on the page |
@@ -125,7 +125,7 @@ Left: the freed robot now drives on with the filter in charge. Right: the camera
 e09 with the filter in charge left case b's freed robot standing; now it drives on. One new finding: in case d, seed 6,
 with the filter in charge, Right rejoined after its silence but then stood with a "hazard" stop for the rest of the run
 (11 % moving); the blend never did. Not chased in this build (Sweep 1). These ran before the run 2 fixes; case b starts a
-robot hung at the edge, which the new start check would now hold (the e08 tests that need it set `start_edge=False`).
+robot hung at the edge; the rehearsal keeps the start check off there because it stands for a robot hung during a run (rehearsal h covers one put down at the edge).
 
 **Rehearsal e: the camera watch on, false alarms** (Phase B's cases a and b, 12 seeds each, both watch methods):
 
@@ -251,7 +251,7 @@ The planned straight (dashed) and the piece queued behind it (dotted) against wh
 | (a) re-check queued pieces every tick against the fused pose and the edge rule | `queue_watch`: every tick while a curve piece runs, (1) how far the fused position (and the camera's own fix, at its time) is **across** the piece's path: over 4 cm for 0.3 s is "off plan"; (2) its own heading against the camera's course (the camera's track against its own pose's track over the last 1.5 s: on a curve both bend alike, so the difference is the heading error); 10 deg off for 0.5 s and the rest of the piece **plus every queued piece**, chained from where it really is the way it really goes, is checked with the edge rule. Off plan or failing: the queued pieces are dropped; with its heading over 15 deg off, its heading is re-set (`fpose`), it stops and the next piece is planned from where it stands; otherwise the piece is re-aimed from the fused position (`farc`, which also drops the robot's queue; no stop). A dropped piece that starts on the robot anyway is halted. The "unsure near an edge" check now judges "inward" by where the piece really ends | `MIRLT_QUEUE_WATCH=0`; Preferences > Advanced "Queue watch" |
 | (b) after an edge-guard or tilt stop drop every queued piece; the surface-mark verdict defers to the uncertainty | the dropping already happened on both sides (above: checked in the firmware and the controller, and a test); the verdict now uses the camera's edge distance **less the filter's uncertainty**: run 2's 9.4 cm with 6.1 cm of doubt is 3.3 cm, so it is the edge (kept out, backed away from), logged as "edge, not a mark" | `MIRLT_MARK_UNC=0`; "A line-sensor stop near an edge counts as the edge" |
 | (c) a long straight checkable mid-move against the camera | the same watch runs all along every piece, straights included: 25 deg off is caught after about 10 cm (4 cm across), and sooner when the queued piece would break the edge rule (in the test on run 2's numbers: after 5.5 cm, 42 cm from the edge) | as (a) |
-| (d) a start check | a robot with any corner of its body less than 1 cm inside the board by the camera (over the edge, or right at it) does not move; it says, in plain words, e.g. "Right starts at the board's edge: part of its body is over the edge (the camera puts its middle 3.0 cm from the edge). It will not move. Please move it a hand's width (10 cm) onto the board; it starts by itself once it is there." A robot just inside (Right on 5 Nov, 6.6 cm in, facing out) starts, and e08's edge-trap rule backs it out. The proof drive (its first move a turn on the spot) is skipped for any robot whose middle is under 7.7 cm in (asked as a question when someone is watching; a picture is saved when not) | `MIRLT_START_EDGE=0`; "Start check" |
+| (d) a start check | a robot with any corner of its body less than 1 cm inside the board by the camera (over the edge, or right at it): **first it tries to free itself** the e08 tilt-recovery way (straight back when the camera and its own pose agree that backing is inward, then a reverse to each side, then a short inward pivot; Nick 7 Nov), and the run says so; only if nothing safe remains is it held and a person asked ("... Please lift it back onto the board"; a picture saved when nobody is there), tried again every 20 s. Behind the switch it always waits: "Right starts at the board's edge: part of its body is over the edge ... Please move it a hand's width (10 cm) onto the board; it starts by itself once it is there." A robot just inside (Right on 5 Nov, 6.6 cm in, facing out) starts normally. The proof drive (its first move a turn on the spot) is skipped for any robot whose middle is under 7.7 cm in | `MIRLT_START_EDGE=0` (no check); `MIRLT_START_EDGE_MODE=wait` (always wait); Preferences > Advanced "A robot put down at an edge" |
 | (e) a simulator reproduction | `freeroam_fastsim` `hdg_fault`: a 35 cm+ straight starts with the robot's own heading 25 deg off the way that takes it towards the nearest edge (only when it would end within 14 cm of one), the firmware not steering back by position (as Right's), until it is told its heading. Rehearsal `rehearse_phase_c.py g`, 8 seeds x 9 min, home, the e10 start; and a robot started 3 cm from the edge | - |
 
 ![run 2 fix](../screenshots/2026-11-07/e10-feature-run2-fix-before-after.png)
@@ -270,7 +270,28 @@ Left: the closest any body came to an edge per run with run 2's heading fault (r
 With the heading fault, before: 2 of 8 runs hung a robot and the worst body was 1.8 cm over; median 1.4 cm in. After: no hang, worst 7.5 cm in, moving unchanged (98 %). The queue watch acted about 17 times per 9-minute run (most re-aims with no stop); the injected fault was 9-11 per 8 runs, so most actions are on ordinary drift of 4 cm or more; in 30-minute runs with no fault it acted 13 and 85 times (section 5). How often on real logs is a Sweep 1 item.
 
 Before = the three switches off (e10 otherwise). "Held at the start" counts robots held; its body figure is where it was
-put (-1.8 cm: 3 cm in, half its 9.5 cm body over), and it never moved. Tests: `tools/fleet/tests/test_e10_incident.py`
+put (-1.8 cm: 3 cm in, half its 9.5 cm body over), and it never moved. These "start" rows ran with the first e10 way
+(always wait); Nick then asked for "free itself first", compared in rehearsal h below.
+
+**Rehearsal h: a robot put down at the edge, Nick's "free itself first"** (8 seeds x 3 min each; "near" = Right put
+down 3 cm from the y = 0 edge facing out, half its body over; "hung" = Center put down hung over the x = 0 edge, the e09
+hang case; before = always wait for a person, after = free itself first):
+
+| Case | Runs | Drove on (over 5 % moving) | Held or asked at some point | Falls | The robot's moving time (median / lowest) |
+|---|---|---|---|---|---|
+| hung-after | 8 | 8 | 3 | 0 | 83.1 / 33.4 % |
+| hung-before | 8 | 0 | 8 | 0 | 0.0 / 0.0 % |
+| near-after | 8 | 8 | 0 | 0 | 95.0 / 90.9 % |
+| near-before | 8 | 0 | 8 | 0 | 0.0 / 0.0 % |
+
+Before, neither robot ever moved (nobody came). After, every one drove on: the robot near the edge backed itself in
+every time with no person needed (moving 91-96 % of the run); the hung robot got free in all 8, in 3 after one or more
+holds where it asked for a person and tried again 20 s later (moving 33-94 %). No falls or contacts. On the first try a
+body corner of the robot near the edge swung up to 1.1 cm further out (worst -2.8 cm against -1.75 where it was put)
+before it backed in. How it works: the e08 tilt recovery's tries first (straight back when the camera and its own pose
+agree backing is inward, a reverse to each side, a short inward pivot); if it still has not cleared the edge, the run's
+own edge rules take it, as for a robot hung during a run (the edge trap's reverse, the corner shuffle), none of which
+ever goes outward. Tests: `tools/fleet/tests/test_e10_incident.py`
 (7: run 2's straight caught within 15 cm and its queued piece dropped, the old way leaves it, an on-line straight left
 alone, run 2's line trip is the edge, the start check holds and releases, the proof drive skips an edge robot, and the
 simulator's before / after).
@@ -279,6 +300,42 @@ simulator's before / after).
 heading watch needs two straight stretches to re-set it) is not known from the logs; the queue watch now catches the
 effect within about 10 cm. A robot hung at the start still waits for a person (the hold); e08's tilt recovery still
 runs for a robot that tilts during a run.
+
+### 8. The filter's uncertainty on today's real runs (the coordinator's replay, added at the end)
+
+**Premise.** The coordinator replayed the filter on both 7 Nov home runs (`tools/analysis/fused_replay.py`: camera gaps
+cut out of the real track; the filter's position at each gap's end against the camera there). It tracks better than the
+blend, but on run 1 its 95 % uncertainty held the real error only 79-92 % of the time.
+
+**Fix.** The filter now learns what it misses: at the first camera fix after every gap of 0.5 s or more, it notes how far
+that fix fell outside the uncertainty it gave just before; the 99th percentile of the last 60 such misses (never below
+0, used after 5) is added to the uncertainty from then on. It learns per robot, from the run's own gaps, from the first
+minutes (`fused_pose.UNC_LEARN`; `MIRLT_UNC_LEARN=0` the old way). The positions themselves do not change. The filter
+stays off by default (the coordinator decides after one board run).
+
+| Run (real logs) | Gap (s) | Gaps | Filter error, median, before / after (cm) | Blend error (cm) | Inside the uncertainty, before / after (%) | Uncertainty, median, before / after (cm) |
+|---|---|---|---|---|---|---|
+| 7 Nov run 1 | 2 | 165 | 1.70 / 1.70 | 1.84 | 79.4 / **94.5** | 2.37 / 3.46 |
+| 7 Nov run 1 | 5 | 151 | 1.80 / 1.80 | 2.71 | 84.1 / **94.7** | 3.42 / 5.05 |
+| 7 Nov run 1 | 10 | 134 | 1.98 / 1.98 | 2.75 | 87.3 / **95.5** | 4.21 / 5.91 |
+| 7 Nov run 1 | 20 | 106 | 3.04 / 3.04 | 2.91 | 92.5 / **96.2** | 6.68 / 8.15 |
+| 7 Nov run 2 | 2 | 118 | 1.06 / 1.06 | 1.62 | 94.9 / 97.5 | 2.45 / 2.88 |
+| 7 Nov run 2 | 5 | 108 | 1.49 / 1.49 | 2.03 | 98.1 / 100.0 | 3.53 / 3.96 |
+| 7 Nov run 2 | 10 | 95 | 1.61 / 1.61 | 2.27 | 96.8 / 96.8 | 4.61 / 5.09 |
+| 7 Nov run 2 | 20 | 74 | 2.27 / 2.27 | 2.77 | 100 / 100 | 6.35 / 7.09 |
+| 5 Nov, first 90 min | 2 | 450 | 1.00 / 1.00 | 0.99 | 83.8 / 98.2 | 1.77 / 4.29 |
+| 5 Nov | 5 | 453 | 1.38 / 1.38 | 1.92 | 87.2 / 97.4 | 2.65 / 5.47 |
+| 5 Nov | 10 | 384 | 1.62 / 1.62 | 2.29 | 96.9 / 99.5 | 4.08 / 7.12 |
+| 5 Nov | 20 | 318 | 2.06 / 2.06 | 2.56 | 96.2 / 98.4 | 6.09 / 9.91 |
+| 5 Nov | 40 | 222 | 2.81 / 2.81 | 2.94 | 95.9 / 98.2 | 8.54 / 11.68 |
+
+Source: `docs/results/e10-rehearsals-2026-11-07/filter-coverage/` (before = the coordinator's replays; 5 Nov before at
+5-40 s = section 3's replay). **Conclusion:** coverage reaches 95 % or more everywhere except run 1's 2 s gaps
+(94.5 %: the first few gaps come before it has learned anything), with the same accuracy. The price is a wider
+uncertainty: up to about 1.6 cm more on run 1, and up to 3.6 cm more on 5 Nov, where the 99th percentile now
+over-covers (98-99 %). That is room the planner gives up near edges when the filter is in charge. The percentile is a
+chosen number; a DOE over it (97.5 gave 93 % on run 1's short gaps) against the room lost is the right way to set it
+(Sweep 2).
 
 ## Conclusion
 
@@ -292,15 +349,22 @@ runs for a robot that tilts during a run.
 - **Both e09 failures are fixed** in the simulator: the hung robot drives on with the filter in charge, and the camera
   watch has had no false alarm in 48 runs (e09's way: 3 of 24 with the filter).
 - **The run 2 incident is reproduced and fixed** in the simulator: with run 2's heading fault, 2 of 8 runs hung a robot
-  before, none after; a robot put down at the edge waits instead of hanging. On the real board none of this has run yet.
+  before, none after; a robot put down at or over the edge now frees itself (16 of 16 in the simulator; before, as
+  always-wait, none moved). On the real board none of this has run yet.
 - **Two real-log camera faults fixed:** the 5-minute video part no longer stalls the live pictures (a test; not yet on
   the Pi) and Left's 13 s loss is gone on the replayed 7 Nov log.
-- Full fleet suite: 733 passed, 9 skipped, 2 failed on the first full run with every change (e09: 712 passed, 9 skipped). The 2 failures were the 5 Nov edge-trap tests: the first start check held a robot 6.6 cm in that the trap rule should back out; the check now looks at the body's corners, and those test files pass again (32 of 32), as do the e08 / e09 / e10 files (67 of 67). The pi tests for the stream fix: 3 of 3.
+- **The filter's uncertainty** now learns its own misses: 95 % coverage or more on both 7 Nov runs and 5 Nov (run 1's
+  2 s gaps 94.5 %), accuracy unchanged, at the cost of 0.4-3.6 cm more uncertainty; the filter stays off by default.
+- **The camera watch is on by default** (Nick); the home runner had in fact kept it on since e09 regardless of the
+  setting (fixed: it now follows the setting).
+- Full fleet suite with every change (the follow-up included): **737 passed, 9 skipped, 0 failed** (e09: 712 passed, 9
+  skipped). On the way, the first start check failed 2 edge-trap tests (it held a robot 6.6 cm in); fixed. The pi tests
+  for the stream fix: 3 of 3.
 
 ## What's next
 
-1. Nick answers the questions below (the filter in charge, the school's controller, the camera watch).
-2. One attended home run with the new start (the proof drive takes about 15 s): read `discovery.json`, `workspace.json`
+1. Nick answers the questions below (probe ahead, the queue watch).
+2. One home run with the new start (nobody needs to watch) (the proof drive takes about 15 s): read `discovery.json`, `workspace.json`
    and `~/.config/mirlt/robots/<robot>.json` in the run folder and on the Pi.
 3. At school with Jay-Sun: one Visit points run as before, then one free roam on the free-roam controller (steps below).
 4. The board's edge bench test (tilt, hang, bottom zone at the edge), asked for in five reports: it decides the corner
@@ -308,28 +372,26 @@ runs for a robot that tilts during a run.
 
 ## Questions for Nick
 
+**Answered during the build (Nick, 7 Nov, through the coordinator)**
+- A robot put down at or over an edge first tries to free itself the e08 way; a person is asked only if that fails
+  (built: section 7; "always wait" is the switch).
+- The camera watch is on by default (built; `MIRLT_CAMERA_WATCH=0` turns it off).
+- School free roam stays on the free-roam controller by default.
+- The filter in charge: the coordinator decides from the data (rehearsal d); it stays off by default.
+
 **Substantive**
-1. The filter's hang case is fixed: with the filter in charge the freed robot moved 88 % (median; the lowest robot 77 %) of the time over 12
-   seeds (the blend 90 % / 76 %), no contact, no fall, and Phase A's other cases held. Put the filter in charge by
-   default now, or after one attended home run with `filter`?
-2. School free roam on the free-roam controller (one pipeline) is built, rehearsed in the fast simulator (35-38 of 40 points, 99.7 % tracked on the far side, no contact)
-   and passed a Mission Control practice run (the 0.70 s clock skew found, no collision). I made it the school's default; the first real one should be with Jay-Sun watching. Keep it the
-   default, or switch back to the planner's roam until that run (Preferences > Advanced, one setting)?
-3. The camera watch no longer alarms falsely (0 false alarms in 48 runs, the blend or the filter in charge; e09's way alarmed in 3 of 24 with the filter), but against a camera mirrored mid-run it now rarely gets a
-   vote (the mirrored sightings mostly miss every robot's gate), so it is no longer the main guard: the start's proof
-   drive is. Turn the watch on by default (it is cheap and quiet now), or leave it off?
-4. Probe ahead (proving ground the camera cannot see) is off by default, as you asked ("behind a setting"). In the
-   rehearsal it proved 74 % of the board against 68 % (it reached half the unseen strip); one robot's front corner went 1.5 cm past the edge before its bottom zone stopped it (no wheel over) and nothing fell. Keep it off until the edge bench test?
-5. (Run 2) The queue watch is on by default. In the simulator it re-aims or stops a robot about 17 times per 9-minute
-   run (most without a stop); on the real board, with real drift, it may act more often. Keep it on, and should the
-   next home run be attended so we can read its `off plan` events?
-6. (Run 2) A robot put down at an edge now waits for a person, alone or not (it never drives off on its own). Or should
-   it first try e08's tilt recovery (back straight inward) when the camera and its own pose agree which way is in?
+1. Probe ahead (proving ground the camera cannot see) is off by default, as you asked ("behind a setting"). In the
+   rehearsal it proved 74 % of the board against 68 % (it reached half the unseen strip); one robot's front corner went
+   1.5 cm past the edge before its bottom zone stopped it (no wheel over) and nothing fell. Keep it off until the edge
+   bench test?
+2. (Run 2) The queue watch is on by default. In the simulator it re-aims or stops a robot about 17 times per 9-minute
+   run (most without a stop); on the real board, with real drift, it may act more often. Keep it on? (Its `off plan`
+   events will be read from the next run's logs; nobody needs to watch.)
 
 **Other**
-7. The proof drive goes the same way every time (left turns). Near an edge it is guarded only by the robots' own edge
+3. The proof drive goes the same way every time (left turns). Near an edge it is guarded only by the robots' own edge
    sensors. Should it first turn to face the board's middle as the camera sees it (one more turn, about 2 s)?
-8. The first-time quiz has 5 questions. Anything you would ask a new user that is missing (for example the robots'
+4. The first-time quiz has 5 questions. Anything you would ask a new user that is missing (for example the robots'
    names, or the battery floor)?
 
 ## How to run it at home
@@ -354,13 +416,13 @@ Mission Control tab. The first time you will see **"First time here: five quick 
 then **Fill in my preferences**. You should see **"Preferences for home"** with your answers; nothing else is needed.
 Press **Free roam**. At the start each robot makes a short L-shaped drive on its spot (about 15 s); then the run's lines
 say **"Discovery: Camera, board and clock check out ..."** (or what it found and fixed). Then free roam as before. A robot
-put down at the board's edge does not move and the run says so ("... starts at the board's edge ... Please move it at
-a hand's width (10 cm) onto the board"); move it in and it starts by itself.
+put down at the board's edge first backs itself inward (the run says "... starts at the board's edge ... It tries to
+free itself first"); only if that fails is it held and the run asks for it to be moved in.
 
-**Or from the terminal** (Pi terminal), an attended 30-minute run:
+**Or from the terminal** (Pi terminal), a 30-minute run (nobody needs to stay):
 
 ```
-./run-fleet-pi.sh freeroam 0.5 attended
+./run-fleet-pi.sh freeroam 0.5
 ```
 
 You should see `Free roam started in tmux session 'freeroam'`. To watch:
@@ -373,13 +435,13 @@ Look for the line that starts with `Discovery:`. To also let the robots slowly p
 cannot see (off by default), start it this way instead:
 
 ```
-./run-fleet-pi.sh freeroam 0.5 attended probe
+./run-fleet-pi.sh freeroam 0.5 probe
 ```
 
 To compare with e09's start (no proof drive, the typed board):
 
 ```
-./run-fleet-pi.sh freeroam 0.5 attended no-discovery typed-board
+./run-fleet-pi.sh freeroam 0.5 no-discovery typed-board
 ```
 
 When it ends, **start the upload straight away** (it runs while we talk):
@@ -403,8 +465,8 @@ git pull
 On the laptop's browser open the Pi's start page, Mission Control tab. Answer the five questions the first time (they
 are kept for the school separately from home). **Visit points** runs as before. **Free roam** now runs on the same controller
 as home (with Jay-Sun in the room the first time): press **Free roam**. You should see `FREE ROAM on the free-roam
-controller (e10)` and then a `Discovery:` line. If a robot is placed at the table's edge you will see "... starts at the
-board's edge ... Please move it a hand's width (10 cm) onto the board": move it in and it starts by itself. To go back to the
+controller (e10)` and then a `Discovery:` line. If a robot is placed at the table's edge it first backs itself inward ("... It
+tries to free itself first"); only if that fails does the run ask for it to be moved a hand's width onto the table. To go back to the
 planner's roam: Preferences > **Advanced** > **"School free roam runs on"** > "The planner over Jay-Sun's points". The tag bridge's summary (`bridge_summary.json`) now has a `motion` count per robot.
 
 ## Sweep 1: new tests that may now be needed
@@ -460,7 +522,8 @@ planner's roam: Preferences > **Advanced** > **"School free roam runs on"** > "T
 | Course from the camera | 1.5 s of fixes, 3 cm of travel | chosen | no |
 | Re-aim only with this much piece left | 0.6 s | chosen (the queued piece might start first) | no |
 | Surface mark | camera edge distance less the uncertainty, over 8 cm | 8 cm from e08 (the school tape); the subtraction chosen | no |
-| Start check | every body corner 1 cm in to start (3 cm once held); the proof drive needs the middle 7.7 cm in | 1 cm chosen (the camera's ~1 cm error); 7.7 cm is the body's turning circle + 1 cm | no |
+| Filter uncertainty learned | 99th percentile of the last 60 misses at gap ends (0.5 s+), after 5 | chosen | yes: coverage against room lost |
+| Start check | every body corner 1 cm in to start (3 cm once held); the proof drive needs the middle 7.7 cm in; free itself first, then the run's edge rules | 1 cm chosen (the camera's ~1 cm error); 7.7 cm is the body's turning circle + 1 cm | no |
 | Simulator heading fault | 25 deg, only when the straight would end within 14 cm of an edge, no steering back | a model of run 2 (one case) | - |
 
 ## Not done as asked

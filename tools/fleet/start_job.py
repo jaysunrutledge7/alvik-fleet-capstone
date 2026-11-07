@@ -77,10 +77,11 @@ PREFS_DEFAULTS = {
     "camera_watch_method": "e10",  # e10 (averaged, noise-aware) | e09
     "queue_watch": True,           # (7 Nov run 2) every piece and its queued pieces re-checked against the fused position
     "mark_unc": True,              # (7 Nov run 2) a line trip near an edge is the edge unless the camera is sure enough
-    "start_edge": True,            # (7 Nov run 2) a robot that starts over or at an edge is held with a message
+    "start_edge": True,            # (7 Nov run 2) a robot that starts over or at an edge is checked
+    "start_edge_mode": "recover",  # recover (Nick 7 Nov: it first tries to back inward, asks only if that fails) | wait
     # advanced: e09
     "pose_source": "blend",        # blend | ekf (the filter in charge)
-    "camera_watch": False,         # the camera watch (Nick 7 Nov: off until its false alarms are understood)
+    "camera_watch": True,          # the camera watch (Nick 7 Nov, after e10: on; e09b had it off)
     "identity": "wiggle",          # wiggle (e09) | predict
     "gyro_heading": False,         # B3
     "old_tracking": False,         # the sources before e09
@@ -99,7 +100,7 @@ PREF_CHOICES = {
     "caution": ("careful", "normal", "explore"), "watching": ("yes", "no", "ask"), "workspace": ("proven", "typed"),
     "school_roam": ("planner", "freeroam"), "camera_watch_method": ("e10", "e09"), "pose_source": ("blend", "ekf"),
     "identity": ("wiggle", "predict"), "edge_rule": ("derived", "fixed"), "pose_rule": ("widen", "wait2s"),
-    "keepout_rule": ("fade", "permanent"), "tilt_rule": ("logs", "old")}
+    "keepout_rule": ("fade", "permanent"), "tilt_rule": ("logs", "old"), "start_edge_mode": ("recover", "wait")}
 PREF_ENV = {           # preference -> (environment variable, value when True / the string itself)
     "discovery": ("MIRLT_DISCOVERY", "1", "0"), "unc_split": ("MIRLT_UNC_SPLIT", "1", "0"),
     "camera_watch": ("MIRLT_CAMERA_WATCH", "1", "0"), "gyro_heading": ("MIRLT_GYRO_HEADING", "1", "0"),
@@ -108,7 +109,8 @@ PREF_ENV = {           # preference -> (environment variable, value when True / 
     "keepout_rule": ("MIRLT_KEEPOUT_RULE",), "tilt_rule": ("MIRLT_TILT_RULE",),
     "camera_watch_method": ("MIRLT_CAMERA_WATCH_METHOD",), "school_roam": ("MIRLT_SCHOOL_ROAM",),
     "lock": ("MIRLT_TAG_LOCK", "1", "0"), "queue_watch": ("MIRLT_QUEUE_WATCH", "1", "0"),
-    "mark_unc": ("MIRLT_MARK_UNC", "1", "0"), "start_edge": ("MIRLT_START_EDGE", "1", "0")}
+    "mark_unc": ("MIRLT_MARK_UNC", "1", "0"), "start_edge": ("MIRLT_START_EDGE", "1", "0"),
+    "start_edge_mode": ("MIRLT_START_EDGE_MODE",)}
 QUIZ = [
     dict(id="where", q="Where are the robots today?",
          choices=[("auto", "Let it work it out (it looks at the table and the camera)"), ("home", "At home, on the 4 x 4 ft board"),

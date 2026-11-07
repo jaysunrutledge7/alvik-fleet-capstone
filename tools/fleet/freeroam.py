@@ -166,7 +166,10 @@ class Runner:
         old = bool(getattr(a, "old_tracking", False))
         self.layer = TL.TrackingLayer(names, TL.sources_for(getattr(a, "tracking", "lights") or "lights", old=old),
                                       identity="predict" if old else None, parked_watch=not old,
-                                      brick_watch=False, cluster=not old, camera_watch=not old,
+                                      brick_watch=False, cluster=not old,
+                                      # (e10) the layer's default (MIRLT_CAMERA_WATCH, on): e09 passed True here, so
+                                      # e09b's "off" never reached the home runner
+                                      camera_watch=None if not old else False,
                                       log=lambda kind, row: self.tables(kind, row),
                                       wiggle=None if old else (lambda n, why: self.ctrl.identity_wiggle(
                                           self.ctrl.R[n], why)))
@@ -1156,7 +1159,8 @@ def main(argv=None):
                     rules=dict(safety_rules=SR.VERSION, edge=a.edge_rule or SR.EDGE_RULE, pose=a.pose_rule or SR.POSE_RULE,
                                keepouts=a.keepout_rule or SR.KEEPOUT_RULE, silent_out=a.silent_out,
                                tilt_recovery=not a.no_tilt_recovery, tilt=SR.tilt_limits(), attended=a.attended,
-                               queue_watch=FC.QUEUE_WATCH, mark_unc=FC.MARK_UNC, start_edge=FC.START_EDGE),
+                               queue_watch=FC.QUEUE_WATCH, mark_unc=FC.MARK_UNC, start_edge=FC.START_EDGE,
+                               start_edge_mode=FC.START_EDGE_MODE),
                     tracking=dict(layer=__import__("tracking_layer").VERSION, filter=__import__("fused_pose").VERSION,
                                   pose_source=a.pose_source or __import__("fused_pose").POSE_SOURCE,
                                   gyro_heading=bool(a.gyro_heading), old_tracking=bool(a.old_tracking),

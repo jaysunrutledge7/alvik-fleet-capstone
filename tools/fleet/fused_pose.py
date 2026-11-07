@@ -43,7 +43,8 @@ import numpy as np   # noqa: E402
 
 from ekf import EKF, Noise   # noqa: E402
 
-VERSION = "fused-pose-2026-11-07c"   # c (e10): late RAW rows used, 95 % uncertainty (K 8)
+VERSION = "fused-pose-2026-11-07d"   # d (e10, the coordinator 7 Nov): the uncertainty learns its own shortfall at the end of every camera gap (UNC_LEARN)
+VERSION_C = "fused-pose-2026-11-07c"   # c (e10): late RAW rows used, 95 % uncertainty (K 8)
 D2R = math.pi / 180.0
 
 POSE_SOURCE = os.environ.get("MIRLT_POSE_SOURCE", "blend")    # "ekf": the filter in the loop (e09) | "blend": the one-step
@@ -62,6 +63,15 @@ K_SIGMA = 8.0           # MEASURED for a CHOSEN 95 % coverage (Nick, 7 Nov: 95 %
 K_TRACK = 2.45          # (e10) the 2-D 95 % factor (chi-square, 2 dof) for the camera-limited part: not chosen
 SPLIT_UNC = os.environ.get("MIRLT_UNC_SPLIT", "1") != "0"   # (e10) 0: e09's single K_SIGMA x sigma
 LATE_RAW_S = 0.5        # (e10) CHOSEN: a RAW row this late is still applied now (WiFi 5-40 ms + the picture's ~0.15 s)
+UNC_LEARN = os.environ.get("MIRLT_UNC_LEARN", "1") != "0"   # (e10, 7 Nov) the uncertainty learns what it missed: at
+                        # the first fix after every camera gap of UNC_LEARN_GAP_S or more, how far the fix fell OUTSIDE
+                        # the uncertainty the filter gave just before it; the 95th percentile of the last UNC_LEARN_KEEP
+                        # such misses (never below 0) is added to the uncertainty from then on. 0: off (the switch)
+UNC_LEARN_GAP_S = 0.5   # CHOSEN: a gap long enough that the filter ran on its own (12 pictures a second otherwise)
+UNC_LEARN_Q = float(os.environ.get("MIRLT_UNC_LEARN_Q", "99"))     # CHOSEN: the percentile kept (over 95: the
+                        # misses are learned from the past, the next gap may be worse); DOE with the coverage replays
+UNC_LEARN_KEEP = 60     # CHOSEN: about 10-30 min of gaps at home
+UNC_LEARN_MIN = 5       # CHOSEN: misses needed before it is used
 UNC_FLOOR_CM = 1.0      # never below the old camera sigma (PLAN_M0 / safety_rules.CAM_SIGMA_CM): not chosen anew
 GYRO_REL = 0.014        # MEASURED: heading error per degree turned (logs DOE, 25 Oct: 0.014, not the chosen 0.005)
 GYRO_BASE_DPS = 0.3     # the filter's gyro noise (fusion default; the raw rate's standing sd 0.02-0.04 deg/s here)
@@ -164,6 +174,9 @@ class FusedPose:
         self.last_disagree_cm = 0.0
         self.disagree_t = None
         self.last_fix_t = None
+        self.unc_miss = deque(maxlen=UNC_LEARN_KEEP)    # (e10) at each gap's end: the fix's distance less the uncertainty
+        self.unc_add = 0.0                              # the learned addition (cm)
+        self.unc_learn = UNC_LEARN
         self.last_raw_t = None
         self.gsign = None                # the raw gyro's sign (learned from the wheels, as GyroHeading)
         self._gagree = 0.0
@@ -383,6 +396,13 @@ class FusedPose:
             k.P[1, 1] = min(1e4, max(k.P[1, 1], 0.25 * dis * dis))
             self._keep()
             return dict(used=False, d2=round(d2, 2), disagree_cm=round(dis, 2), jump=True)
+        if self.unc_learn and self.last_fix_t is not None and t_pic - self.last_fix_t >= UNC_LEARN_GAP_S:
+            # (e10) the end of a camera gap: did the uncertainty given just before it cover where the camera puts it?
+            u0 = self._unc_raw(None)
+            if u0 is not None:
+                self.unc_miss.append(dis - u0)
+                if len(self.unc_miss) >= UNC_LEARN_MIN:
+                    self.unc_add = max(0.0, float(np.percentile(np.array(self.unc_miss), UNC_LEARN_Q)))
         r_scale = 1.0
         widen = None
         if d2 > GATE_D2:
@@ -480,7 +500,14 @@ class FusedPose:
 
     def unc_cm(self, t=None):
         """The uncertainty the edge rule and the planner use (cm): K_SIGMA x the 1-sigma position error, never under the
-        camera's 1 cm. Staleness, blind driving and disagreements are all inside the covariance."""
+        camera's 1 cm. Staleness, blind driving and disagreements are all inside the covariance; (e10) plus what it
+        learned it misses at the end of camera gaps (UNC_LEARN)."""
+        u = self._unc_raw(t)
+        if u is None:
+            return None
+        return u + (self.unc_add if self.unc_learn else 0.0)
+
+    def _unc_raw(self, t=None):
         _, P = self.state(t)
         if P is None:
             return None
@@ -506,7 +533,7 @@ class FusedPose:
                     bias_updates=self.gh.n_bias, bumps=self.n_bumps, drops=self.n_drops,
                     wheel_scale=None if (k is None or not self.scale) else round(float(k.s[6]), 4),
                     turn_scale=None if (k is None or not self.scale) else round(float(k.s[7]), 4),
-                    gyro_heading=self.gyro_heading)
+                    gyro_heading=self.gyro_heading, unc_add_cm=round(self.unc_add, 2), unc_misses=len(self.unc_miss))
 
 
 def raw_true(row):

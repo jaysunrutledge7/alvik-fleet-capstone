@@ -150,6 +150,17 @@ def case_runs(case, hours=None, seeds=None):
                 k["starts"] = {"Right": (60.0, 3.0, -90.0)}
                 k["ctrl_kw"] = dict(k["ctrl_kw"], **sw)
                 out.append(("g-start-%s" % when, sd, dict(k, hours=0.03)))
+    elif case == "h":
+        # (Nick 7 Nov) a robot put down 3 cm from the edge, and one put down hung over it: before = it always waits
+        # for a person (MIRLT_START_EDGE_MODE=wait), after = it first tries to free itself (the e08 tilt recovery)
+        for sd in range(1, (seeds or 8) + 1):
+            for when, mode in (("before", "wait"), ("after", "recover")):
+                for where, st in (("near", {"Right": (60.0, 3.0, -90.0)}), ("hung", {"Center": (3.5, 18.6, 117.0)})):
+                    k = base("home")
+                    k.update(AFTER)
+                    k["starts"] = st
+                    k["ctrl_kw"] = dict(k["ctrl_kw"], start_mode=mode)
+                    out.append(("h-%s-%s" % (where, when), sd, dict(k, hours=hours or 0.05)))
     elif case == "f":
         for sd in (1, 2):
             k = base("home")

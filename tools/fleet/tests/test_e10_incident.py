@@ -94,8 +94,22 @@ def test_a_line_trip_9_cm_in_with_6_cm_of_doubt_is_the_edge():
     assert line_trip(False, 6.1).counts.get("surface_marks", 0) == 1         # the old way (the switch)
 
 
-def test_a_robot_that_starts_at_an_edge_is_held_until_moved_in():
-    c = FC.Controller(["Right"], HOME, lambda n, s: None, lambda *a: None, pose_source="blend")
+def test_a_robot_that_starts_at_an_edge_first_tries_to_free_itself():
+    sent = []
+    c = FC.Controller(["Right"], HOME, lambda n, s: sent.append(s), lambda *a: None, pose_source="blend")
+    r = c.R["Right"]
+    c.t = 1.0
+    c.on_follow("Right", 1.0, "idle", 60.0, 3.0, -90.0)
+    c.on_fix("Right", 1.0, 60.0, 3.0, None)
+    assert c.start_mode == "recover"
+    assert c.start_check(r) and r.tilted and c.counts["start_recover"] == 1      # Nick 7 Nov: the e08 tries first
+    assert c.counts.get("start_held", 0) == 0
+    c.start_move(r)                                                              # the recovery's first try
+    assert r.move is not None and r.move["kind"].startswith("recover") and r.move.get("rev")
+
+
+def test_a_robot_that_starts_at_an_edge_is_held_until_moved_in_behind_the_switch():
+    c = FC.Controller(["Right"], HOME, lambda n, s: None, lambda *a: None, pose_source="blend", start_mode="wait")
     r = c.R["Right"]
     c.t = 1.0
     c.on_follow("Right", 1.0, "idle", 60.0, 3.0, -90.0)
@@ -106,7 +120,8 @@ def test_a_robot_that_starts_at_an_edge_is_held_until_moved_in():
     c.on_follow("Right", 4.0, "idle", 60.0, 20.0, 90.0)
     c.on_fix("Right", 4.0, 60.0, 20.0, None)
     assert c.start_check(r)                  # moved in: it starts by itself
-    c2 = FC.Controller(["Right"], HOME, lambda n, s: None, lambda *a: None, pose_source="blend", start_edge=False)
+    c2 = FC.Controller(["Right"], HOME, lambda n, s: None, lambda *a: None, pose_source="blend", start_edge=False,
+                       start_mode="wait")
     c2.t = 1.0
     c2.on_follow("Right", 1.0, "idle", 60.0, 3.0, -90.0)
     c2.on_fix("Right", 1.0, 60.0, 3.0, None)
