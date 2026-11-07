@@ -1,0 +1,3 @@
+WHERE: This looks like the school conference table (its reference tags 20, 21, 23, 24, 25 are on the table and the table measures 396 x 167 cm, its size).
+Connect screen opens on: dry run (FLEET_DRY=1): the simulator
+Mission Control: http://127.0.0.1:8095/  (Ctrl+C to stop)

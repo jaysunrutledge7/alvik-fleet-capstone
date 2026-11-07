@@ -1,0 +1,53 @@
+{
+ "version": "freeroam-runner-2026-11-07a",
+ "core": "freeroam-2026-11-07a",
+ "t0": 1794065367.4800403,
+ "now": 1794065547.5050898,
+ "ended": "the time cap (0.1 h)",
+ "seed": 65356,
+ "robots": {
+  "Left": {
+   "mode": "out",
+   "out": "battery 9 %",
+   "battery": 1,
+   "moves": 24,
+   "fw": "2026-11-05d",
+   "lost": false
+  },
+  "Center": {
+   "mode": "move",
+   "out": null,
+   "battery": 4,
+   "moves": 54,
+   "fw": "2026-11-05d",
+   "lost": false
+  }
+ },
+ "counts": {
+  "fallback": {
+   "loop": 4,
+   "escape curve": 2
+  },
+  "reflex": {},
+  "breaks": 1,
+  "contacts": 0,
+  "front_stops": 0,
+  "keepouts": 0,
+  "backoffs": 0,
+  "cam_refused": 0,
+  "dodges": 0,
+  "pieces": 78,
+  "loops": 4,
+  "zeros": {
+   "the start": 2,
+   "trophy break": 1
+  },
+  "edge_refused": 1790,
+  "judgements": {
+   "clear": 2
+  },
+  "heading": {
+   "heading_ok": 6
+  }
+ }
+}

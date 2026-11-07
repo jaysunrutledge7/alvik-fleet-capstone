@@ -1,0 +1,11 @@
+{
+ "centre_min": 15.8,
+ "body_min": 10.3,
+ "centres_apart_min": 23.8,
+ "moving": {
+  "Left": 98.1,
+  "Center": 99.7
+ },
+ "breaks": 1,
+ "ended": "the time cap (0.1 h)"
+}

@@ -503,3 +503,7 @@ One line per picture: what it shows (feature or problem), and where it comes fro
 - `2026-11-06/e07-problem-new-area-run-stalled-small-table.png`: **problem.** The new-area run stalled: the simulator could not lay 12 stickers on a small table (fixed). Build e07
 - `2026-11-06/e07-problem-new-area-both-robots-put-on-one-spot.png`: **problem.** Both simulated robots put on one point (fixed). Build e07
 - `2026-11-06/e07-problem-new-area-robot-48cm-off-roof-heights-slid.png`: **problem.** New area: roof heights and camera heights slid together; a robot 48 cm off (fixed: roofs held when the cross-check disagrees). Build e07
+- `2026-11-07/e08-feature-rehearsals-closest-edge-before-after.png`: **feature.** Closest body corner to the board's edge in each simulated run, before (old rules) and after e08, for the 6 Nov reproduction, a hung robot, Right's failed heading crawl and a 3-minute silence. Build e08
+- `2026-11-07/e08-feature-tilt-limits-false-vs-caught.png`: **feature.** Tilt-limit candidates from the 5 / 6 Nov home logs: false fires per robot-hour against real hangs caught; the chosen 4 deg / 300 ms and 2.5 deg / 2 s circled. Build e08
+- `2026-11-07/e08-feature-mission-control-edge-question.png`: **feature.** Mission Control's Start screen during a free roam with a question from the run: a robot it is unsure about near an edge, held until the person answers. Build e08
+- `2026-11-07/e08-feature-mission-control-edge-question-card.png`: **feature.** The question card alone (the two answers). Build e08

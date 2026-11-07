@@ -1,0 +1,30 @@
+{
+ "name": "school-roam-3",
+ "room": "school",
+ "kind": "freeroam",
+ "start_error": null,
+ "ended_s": 334.1,
+ "status": {
+  "running": false,
+  "kind": "freeroam",
+  "title": "Free roam",
+  "practice": true,
+  "lines": [
+   "POINT point P11 (Alpha): \u00b11.4 cm, one camera (overhead)",
+   "  Charlie 10/22  Bravo 9/30  Alpha 7/7",
+   "POINT point P05 (Charlie): \u00b11.4 cm, one camera (overhead)",
+   "POINT point P17 (Bravo): \u00b11.4 cm, one camera (overhead)",
+   "  Charlie 17/22  Bravo 16/30  Alpha 7/7",
+   "POINT point P14 (Bravo): \u00b11.4 cm, one camera (overhead)",
+   "  Charlie 22/22  Bravo 23/30  Alpha 7/7",
+   "all robots done"
+  ],
+  "elapsed_s": 334.0,
+  "points": 36,
+  "questions": [],
+  "words": "Free roam ended.",
+  "folder": "/tmp/claude-0/-home-claude/fff6dc9c-5876-54f9-92a7-a08483d3d5c7/scratchpad/peek/peek/docs/results/e08-regression-2026-11-07/school-roam-3/mc/runs/20261107-093234-roam-sim-cameras"
+ },
+ "where": "This looks like the school conference table (its reference tags 20, 21, 23, 24, 25 are on the table and the table measures 396 x 167 cm, its size).",
+ "folder": "/tmp/claude-0/-home-claude/fff6dc9c-5876-54f9-92a7-a08483d3d5c7/scratchpad/peek/peek/docs/results/e08-regression-2026-11-07/school-roam-3/mc/runs/20261107-093234-roam-sim-cameras"
+}

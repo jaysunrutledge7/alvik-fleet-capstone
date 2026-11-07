@@ -1,0 +1,16 @@
+t,robot,kind,text
+1794065364.15,Left,safety armed,"safe_edge 3, edge_bot_cm 11, tilt_stop_deg 4, tilt_ms 300, safe_lift 1"
+1794065364.15,Center,safety armed,"safe_edge 3, edge_bot_cm 11, tilt_stop_deg 4, tilt_ms 300, safe_lift 1"
+1794065364.15,Left,firmware,2026-11-05d (fspd/fsteer/watchdog)
+1794065364.15,Center,firmware,2026-11-05d (fspd/fsteer/watchdog)
+1794065367.48,Left,motion,curves (continuous: firmware 2026-11-05d)
+1794065367.48,Center,motion,curves (continuous: firmware 2026-11-05d)
+1794065429.24,Left,lost,"camera lost it at 104.2, 97.6: dead reckoning, bubble 2.0 cm"
+1794065441.58,Left,halt,eases to a stop: bubble 16.2 cm
+1794065441.58,Left,find me,"bubble too big (bubble 16.2 cm): eases to a stop, then wiggles"
+1794065441.73,Left,trophy break,lost near an edge: stands until seen
+1794065442.69,Left,seen again,"after 13.5 s, 64.6 cm and 292 deg blind: odometry was 1.0 cm off at the picture's time (bubble 16.4; the fix was 0.20 s old)"
+1794065442.74,Left,parking,battery 9 % (floor 10 %)
+1794065445.44,Left,arc calibration,"curves' calibration from 7 pieces: curvature x1.178 (+-0.166), length x0.973 (+-0.022) of what was asked; arc_k_scale 1.0000 -> 0.8486, arc_d_scale 1.0000 -> 1.0281 (its values in use were not heard: taken as 1): NOT saved (too few pieces or too spread)"
+1794065445.44,Left,out,"parked at 105.6, 75.0 and stopped (battery 9 %)"
+1794065547.5,-,end,the time cap (0.1 h)

@@ -1,0 +1,16 @@
+t,clock,kind,robot,text,still,clip,pi_frame
+1794062128.845,09:35:28,hold,Alpha,halted,stills/093528_hold-Alpha.jpg,clips/093528_hold-Alpha.avi,1255
+1794062128.845,09:35:28,other,Alpha,halted,stills/093528_other-Alpha.jpg,clips/093528_hold-Alpha.avi,1255
+1794062129.365,09:35:29,hold,Bravo,held,stills/093529_hold-Bravo.jpg,clips/093528_hold-Alpha.avi,1261
+1794062129.365,09:35:29,hold,Charlie,held,stills/093529_hold-Charlie.jpg,clips/093528_hold-Alpha.avi,1261
+1794062140.429,09:35:40,hold,Charlie,held,stills/093540_hold-Charlie.jpg,clips/093540_hold-Charlie.avi,1394
+1794062140.429,09:35:40,hold,Bravo,held,stills/093540_hold-Bravo.jpg,clips/093540_hold-Charlie.avi,1394
+1794062142.091,09:35:42,hold,Charlie,halted,stills/093542_hold-Charlie.jpg,clips/093540_hold-Charlie.avi,1414
+1794062142.091,09:35:42,other,Charlie,halted,stills/093542_other-Charlie.jpg,clips/093540_hold-Charlie.avi,1414
+1794062142.091,09:35:42,hold,Bravo,halted,stills/093542_hold-Bravo.jpg,clips/093540_hold-Charlie.avi,1414
+1794062142.091,09:35:42,other,Bravo,halted,stills/093542_other-Bravo.jpg,clips/093540_hold-Charlie.avi,1414
+1794062219.752,09:36:59,hold,Alpha,halted,stills/093659_hold-Alpha.jpg,clips/093659_hold-Alpha.avi,2344
+1794062236.246,09:37:16,hold,Bravo,halted,stills/093716_hold-Bravo.jpg,clips/093716_hold-Bravo.avi,2541
+1794062236.246,09:37:16,other,Bravo,halted,stills/093716_other-Bravo.jpg,clips/093716_hold-Bravo.avi,2541
+1794062236.756,09:37:16,hold,Charlie,held,stills/093716_hold-Charlie.jpg,clips/093716_hold-Bravo.avi,2547
+1794062236.756,09:37:16,hold,Alpha,held,stills/093716_hold-Alpha.jpg,clips/093716_hold-Bravo.avi,2547
