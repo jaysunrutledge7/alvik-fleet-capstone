@@ -28,7 +28,9 @@ REPO = os.path.dirname(os.path.dirname(HERE))
 GB = 1e9
 
 # ---------------------------------------------------------------------------------------------- chosen numbers
-CARD_STOP_GB = 1.0      # chosen: under this on the card, a long run (DOE loop, Monday mission, ladder) ends between
+CARD_STOP_GB = float(os.environ.get("MIRLT_CARD_STOP_GB", "1.0"))   # (9 Nov, school: a 7 GB card shared with
+                        # Jay-Sun's work had 0.63 GB free) MIRLT_CARD_STOP_GB lowers it for a short run; never under
+                        # CARD_HARD_GB below. Was: 1.0, chosen: under this on the card, a long run (DOE loop, Monday mission, ladder) ends between
                         # loops. The 21:34 loop's logs (everything but frames) were 9.3 MB for 23 loops (0.4 MB a
                         # loop, ~80 MB for 4 h), so 1 GB is mostly room for the system (its journal, apt, Python, the
                         # start page): a full card also breaks those. No DOE: a safety margin; the logs' share can be
