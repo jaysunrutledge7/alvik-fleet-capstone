@@ -910,7 +910,9 @@ def run_readmap(args, out):
                     continue
                 if os.path.exists(pth):
                     m = CAM.load_camera(pth)
-                    cams.append((lambda P, m=m: m.project(P), tuple(m.image_size)))
+                    cams.append((lambda P, m=m: [tuple(m.project(tuple(q))) for q in P], tuple(m.image_size)))   # (9 Nov, school)
+                    # e02_camera's project takes ONE point (x, y, z) -> (u, v); the seed passes a list: one call per point
+                    # (a list of points crashed the first school free roam: IndexError in observe.seed_from_cameras)
     except Exception as e:      # noqa: BLE001
         say("(readability: no camera model (%s): every point taken as readable)" % e)
         return None
