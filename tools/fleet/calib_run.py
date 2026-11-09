@@ -61,7 +61,9 @@ for p in (HERE, TOOLS, os.path.join(TOOLS, "sim"), os.path.join(TOOLS, "recognit
 
 import numpy as np   # noqa: E402
 
-VERSION = "2026-11-05h"     # 11-05h: stop lead per speed (school 19:34: the scale fit was right; a fixed ~0.3 / 0.5 cm
+VERSION = "2026-11-05i"     # 11-05i (9 Nov, school): a tripped stop mid-tour crashed the run (TypeError: ev() got two
+                             # values for kind); the trip event now says stop_kind. VERSION_H was:
+VERSION_H = "2026-11-05h"     # 11-05h: stop lead per speed (school 19:34: the scale fit was right; a fixed ~0.3 / 0.5 cm
                             # overrun per leg at 5 / 10 cm/s read as "+1 cm/m after the fit"). Shared observe checks.
 VERSION_G = "2026-11-05g"     # 11-05g: --view-x-max (zone 1 only while the far end reads poorly).
 VERSION_F = "2026-11-05f"     # 11-05f: heading check (the school tag reads 180 deg off the nose: legs ran backwards, 1 cm from the edge).
@@ -2335,14 +2337,14 @@ class CalibRun:
                                          others=others, tilted=True)
         ok_ = how in ("reverse_trail", "reverse_camera") and L_ >= 3.0
         if not ok_:
-            self.ev("trip", kind=kind, info=r.get("info"), at=[round(x, 1), round(y, 1), round(th, 1)], keepout=ko,
+            self.ev("trip", stop_kind=kind, info=r.get("info"), at=[round(x, 1), round(y, 1), round(th, 1)], keepout=ko,
                     back_off="refused", back_info=why_)
             raise RunEnd("%s tripped its %s stop and backing away is not safe (%s): it stands where it is; nothing "
                          "else moves it" % (self.name, kind, why_))
         say("  backing away: %s" % why_)
         rb_ = self.rb.leg("go", -min(OB.BACK_OFF_CM, L_), timeout=15.0)
         self.odo_step(rb_)
-        self.ev("trip", kind=kind, info=r.get("info"), at=[round(x, 1), round(y, 1), round(th, 1)], keepout=ko,
+        self.ev("trip", stop_kind=kind, info=r.get("info"), at=[round(x, 1), round(y, 1), round(th, 1)], keepout=ko,
                 back_off=rb_.get("result"), back_info=rb_.get("info"))
         if rb_.get("result") != "done":
             raise RunEnd("%s tripped its %s stop and could not back away (%s %s): stopped where it is, nothing "
