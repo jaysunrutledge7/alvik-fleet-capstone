@@ -51,6 +51,8 @@ ADV_DEFAULTS = {
     "recover_reserve": "on",       # Nick 6 Nov: a lost robot's recovery path reserved in the others' plans
     "stop_lead": "on",             # Nick 6 Nov: missions use each robot's stop lead
     "show_all_screens": False,     # the old screens (Connect ... Production), kept
+    "roam_motion": "curves",       # (Nick 9 Nov) free roam's driving: curves (the default) or stopturn (straight lines,
+                                   # stop and turn on the spot), at home and at school
 }
 
 
@@ -563,6 +565,7 @@ class Starter:
         d = {"kind": kind, "conn": conn, "dry": pr, "sim_robots": n, "extra": extra}
         if kind == "freeroam":
             d["kind"] = "roam"
+            d["motion"] = self.adv.get("roam_motion", "curves")   # (Nick 9 Nov)
             d["roam_min"] = PRACTICE_ROAM_MIN if pr else float(self.prefs.get("run_min") or self.adv.get("roam_min") or
                                                                ROAM_MIN)
         elif kind == "experiment":
@@ -585,7 +588,8 @@ class Starter:
                 n = max(1, min(3, int(self.adv.get("practice_robots") or 2)))
                 cmd = [sys.executable, os.path.join(HERE, "freeroam.py"), "run", "--dry", "--hours", hrs,
                        "--robots", ",".join(["Left", "Center", "Right"][:n]),
-                       "--sim-minutes", "%.1f" % PRACTICE_ROAM_MIN, "--motion", "curves", "--dir", folder] + \
+                       "--sim-minutes", "%.1f" % PRACTICE_ROAM_MIN, "--motion", self.adv.get("roam_motion", "curves"),
+                       "--dir", folder] + \
                     (["--attended"] if getattr(self, "attended", False) else []) + \
                     prefs_args(self.prefs, with_robots=False)
                 import calib_job as CJ
@@ -593,7 +597,7 @@ class Starter:
                     cmd = ["unshare", "-rn"] + cmd
             else:
                 cmd = ["bash", sh, "freeroam-run", hrs] + (["--attended"] if getattr(self, "attended", False) else []) + \
-                    prefs_args(self.prefs)
+                    ["--motion", self.adv.get("roam_motion", "curves")] + prefs_args(self.prefs)
         env.update(prefs_env(self.prefs))
         self.job = ProcJob(kind, cmd, folder, env=env, practice=pr)
         return {"started": kind, "folder": folder}

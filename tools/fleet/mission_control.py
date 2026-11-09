@@ -690,7 +690,7 @@ class Session:
                 raise ValueError("free roam through mission_run is for a roof-tag site (home: freeroam.py)")
             rm = float(d.get("roam_min") or 10.0)
             cmd[cmd.index("--timeout-s") + 1] = str(rm * 60.0 + 240.0)
-            cmd += ["--robots", "auto", "--split", "auto", "--motion", "curves", "--roam-min", "%g" % rm]
+            cmd += ["--robots", "auto", "--split", "auto", "--motion", d.get("motion") or "curves", "--roam-min", "%g" % rm]   # (Nick 9 Nov) Advanced: free roam's driving
             cmd += list(d.get("extra") or [])
         elif kind == "experiment":
             # (e07) the Start screen's Experiment routes: Jay-Sun's next route for every robot found by its wiggle

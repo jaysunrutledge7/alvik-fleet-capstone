@@ -995,6 +995,7 @@ function wireSync() {
 // Four big buttons, the red Stop, plain status. Nothing to type: everything typed or switched is under Advanced.
 let stPoll = null;
 const ADV_CHOICES = {
+  roam_motion: [["curves", "Smooth curves, never stopping (default)"], ["stopturn", "Straight lines: stop and turn on the spot"]],
   corner_clicks: [["auto", "Only when no corner tile is seen (automatic)"], ["on", "Always click the corners"], ["off", "Never"]],
   surface_marks: [["log", "Log them only (a line with no drop is not an edge)"], ["act", "e06 way: a mark switches that robot's line sensors off"], ["off", "Every line trip is an edge (before e06)"]],
   measure_trust: [["auto", "Cameras win when the corner tiles are seen (automatic)"], ["cameras", "Cameras always win"], ["typed", "Typed values win (the tape)"]],
@@ -1112,6 +1113,7 @@ function startScreen() {
       <label>A lost robot's way back${advSel("recover_reserve", a)}</label>
       <label>Stop lead in missions${advSel("stop_lead", a)}</label>
       <label>Experiment routes${advSel("experiment", a)}</label>
+      <label>Free roam driving${advSel("roam_motion", a)}</label>
       <label>Free roam minutes (school)<input data-advn="roam_min" value="${esc(a.roam_min)}"></label>
       ${advTick("allow_half_table", a, "Experiments may use the half the camera cannot read (Dr. Sodhi agreed)")}
       ${advTick("practice_breaks", a, "Practice runs break the guesses on purpose (turned tags, dark patch, clock off, a restart)")}

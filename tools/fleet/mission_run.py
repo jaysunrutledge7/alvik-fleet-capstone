@@ -1057,7 +1057,7 @@ def run(args):
               "--robots", ",".join(names_), "--board", "%g,%g,%g,%g" % (fl["x_min"], fl["y_min"], fl["x_max"],
                                                                          fl["y_max"]),
               "--hours", "%.3f" % (float(args.roam_min) / 60.0), "--site", (args.site_ or {}).get("name") or "school",
-              "--dir", sess]
+              "--dir", sess, "--motion", args.motion if "--motion" in sys.argv else "curves"]   # (Nick 9 Nov) curves (default) or stopturn, from the Start screen's Advanced
         for ip in args.robot:
             rp += ["--robot", ip]
         if os.environ.get("MIRLT_ATTENDED") == "1":
