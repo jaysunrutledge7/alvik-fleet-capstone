@@ -246,8 +246,22 @@ class Runner:
         for line in res["say"]:
             say("  " + line)
         c.event(None, "discovery", " ".join(res["say"]))
-        if res["camera"] in ("missing", "wrong", "unproven"):
-            self.camera_off = True
+        if res["camera"] in ("missing", "unproven") and not getattr(self.a, "discovery_strict", False):
+            # (e11, 9 Nov home: a 0 cm2 workspace froze every robot for 9 min) discovery could not prove the camera:
+            # the TYPED board, as before e10 (the camera stays on; nothing is taken as proven by the camera's drive)
+            msg = ("DISCOVERY COULD NOT PROVE THE CAMERA (%s): FALLING BACK TO THE TYPED BOARD %.0f x %.0f cm and the "
+                   "camera as configured (the way before e10). Check the camera if the robots drift." % (
+                       res["camera"], self.rect[2] - self.rect[0], self.rect[3] - self.rect[1]))
+            say("!" * 20)
+            say(msg)
+            say("!" * 20)
+            c.event(None, "discovery fallback", msg)
+            res["fallback"] = "typed board"
+            if c.ws is not None:
+                ws = self.make_workspace(self.rect, camera=True)
+                c.ws, c.rect = ws, ws
+        elif res["camera"] in ("missing", "wrong", "unproven"):
+            self.camera_off = True             # (e10) --discovery-strict: the run narrows to the robots' own sensors
             if c.ws is not None:
                 ws = self.make_workspace(self.rect, camera=False)
                 c.ws, c.rect = ws, ws
@@ -493,10 +507,11 @@ class Runner:
         if self.a.dry and (sd or sc):
             # SIMULATOR ONLY: the camera's fixes held back sd s more and stamped on a clock sc s ahead (the Pi's real
             # pipeline: 0.45 s; a clock mismatch the run must discover)
-            self.held = getattr(self, "held", []) + [(now + sd, dict(ev, t=float(ev["t"]) + sc)) for ev in evs
-                                                     if ev.get("type") == "fix"]
-            evs = [e for due, e in self.held if due <= now]
-            self.held = [(due, e) for due, e in self.held if due > now]
+            # (e11) its own list: self.held is the held robots (e08) and the two collided (TypeError)
+            self.cam_held = getattr(self, "cam_held", []) + [(now + sd, dict(ev, t=float(ev["t"]) + sc)) for ev in evs
+                                                             if ev.get("type") == "fix"]
+            evs = [e for due, e in self.cam_held if due <= now]
+            self.cam_held = [(due, e) for due, e in self.cam_held if due > now]
         # (e09, B1) obstacles from the bridge's brick watch: kept out by every robot
         for ev in evs:
             if ev.get("type") == "obstacle" and ev.get("center") is not None:
@@ -1104,6 +1119,9 @@ def main(argv=None):
     ap.add_argument("--sim-fw", action="append", default=[], metavar="NAME=VERSION")
     ap.add_argument("--sim-silent", action="append", default=[], metavar="NAME@T:DUR")
     ap.add_argument("--sim-wifi-drop", action="append", default=[], metavar="NAME@T:DUR")
+    ap.add_argument("--discovery-strict", action="store_true",
+                    help="(e10's way, kept off) a camera discovery cannot prove is switched off and only felt ground "
+                         "is used; default (e11): the typed board, said loudly")
     ap.add_argument("--sim-fix-hz", type=float, default=12.0, metavar="HZ",
                     help="(e11) the simulated camera's fixes a second per robot (the 9 Nov home Pi gave about 4-5)")
     ap.add_argument("--sim-cam-delay", type=float, default=0.0, metavar="S",

@@ -36,7 +36,7 @@ import math
 import os
 import time
 
-VERSION = "start-discovery-2026-11-07b"
+VERSION = "start-discovery-2026-11-09e11"   # e11: stands wait for the camera's sightings (STAND_MAX_S)
 ENABLED = os.environ.get("MIRLT_DISCOVERY", "1") != "0"
 
 TURN1_DEG = 45.0          # CHOSEN: the first turn (on its spot): a small one first
@@ -51,6 +51,8 @@ SCALE_TOL = 0.06          # CHOSEN: the camera's scale against the wheels' may b
                           # called wrong (wheel scales differ +-3 % robot to robot: MEASURED 0.979-1.008 on 5 Nov), and
                           # only when it is also 3 standard errors from 1 (its spread over the robots)
 SEEN_MIN = 4              # CHOSEN: sightings needed at a stand for it to count
+STAND_MAX_S = 6.0         # (e11) a stand waits up to this long for SEEN_MIN sightings (CHOSEN: a camera at 1 fix/s still
+                          # fills it; the 9 Nov home Pi gave 4-5 fixes/s, and 1.2 s stands got 3-4: "out of view")
 TAG_TURN_DEG = 20.0       # CHOSEN: a tag's heading off its travel by more than this is a turned tag
 SKEW_MIN_S = 0.15         # CHOSEN: a clock offset under this is left to align_clock (the picture's own ~0.15 s)
 CAL_SURE = 0.01           # CHOSEN: a robot's pooled wheel / gyro scale is saved on the robot when its standard error is
@@ -147,7 +149,11 @@ class ProofDriver:
                 if r["stand_t"] is None:
                     r["stand_t"] = t
                     r["marks"].append(dict(phase=r["phase"], t0=t, t1=None))
-                elif t - r["stand_t"] >= val:
+                elif t - r["stand_t"] >= val and (t - r["stand_t"] >= STAND_MAX_S or sum(
+                        1 for q in r["cam"] if r["stand_t"] + 0.2 <= q[0] <= t) >= SEEN_MIN):
+                    # (e11, 9 Nov home: every robot "out of view" with the camera tracking all three) a stand ends when
+                    # the camera has given it enough sightings (they arrive late and, on a busy Pi, 4-5 a second), not
+                    # on the clock alone
                     r["marks"][-1]["t1"] = t
                     r["phase"] += 1
                     r["stand_t"] = None
@@ -294,8 +300,8 @@ def analyse(data, board, candidates=None):
             all(o is not None for o in r["own"][:3])}
     if not full:
         out["camera"] = "unproven"
-        out["say"].append("No robot finished its proof drive in view of the camera (%s): the camera is not proven; "
-                          "the run narrows to the robots' own sensors." % ", ".join(
+        out["say"].append("No robot finished its proof drive in view of the camera (%s): the camera is not proven "
+                          "by the drive." % ", ".join(
                               "%s %s" % (n, r["failed"] or "out of view") for n, r in robots.items()))
         return out
 

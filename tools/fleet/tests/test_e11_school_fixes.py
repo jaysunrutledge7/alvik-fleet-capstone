@@ -200,3 +200,32 @@ def test_stops_csv_each_stop_findable_with_unix_times(tmp_path):
     assert n == 2 and rows[0]["point"] == "P12" and rows[1]["n"] == "2"
     assert float(rows[0]["dwell_start_unix"]) == 1794240000.0 and float(rows[0]["dwell_end_unix"]) == 1794240008.0
     assert rows[0]["cam_x_cm"] == "10.0" and "stops.csv" in " ".join(r for r, _ in RX.BUNDLE_FILES)
+
+
+# -- 9 Nov home: discovery said "out of view" with the camera tracking all three robots -------------------------------
+def test_a_stand_waits_for_a_slow_camera():
+    import start_discovery as D
+    sent = []
+    pd = D.ProofDriver(["Left"], lambda n, txt: sent.append(txt), t0=0.0)
+    t, k = 0.0, 0
+    pd.on_follow("Left", 0.0, 40.0, 50.0, 0.0)
+    while t < 1.6:                         # the first stand (1.5 s) with a camera giving 2 fixes a second
+        if abs(t * 2 - round(t * 2)) < 1e-6:
+            pd.on_sighting("Left", t - 0.3, 40.0, 50.0)
+        pd.tick(t)
+        t = round(t + 0.05, 2)
+    assert pd.R["Left"]["phase"] == 0      # before e11 it moved on with 2 sightings: the stand never counted
+    while pd.R["Left"]["phase"] == 0 and t < 10:
+        if abs(t * 2 - round(t * 2)) < 1e-6:
+            pd.on_sighting("Left", t - 0.3, 40.0, 50.0)
+        pd.tick(t)
+        t = round(t + 0.05, 2)
+    m = pd.R["Left"]["marks"][0]
+    assert pd.R["Left"]["phase"] == 1 and sum(1 for q in pd.R["Left"]["cam"] if m["t0"] + 0.2 <= q[0] <= m["t1"]) >= \
+        D.SEEN_MIN
+
+
+def test_an_unproven_camera_falls_back_to_the_typed_board():
+    src = open(os.path.join(FLEET, "freeroam.py")).read()
+    assert "FALLING BACK TO THE TYPED BOARD" in src and "make_workspace(self.rect, camera=True)" in src
+    assert '"--discovery-strict"' in src
