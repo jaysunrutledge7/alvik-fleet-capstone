@@ -258,8 +258,8 @@ def visit_orders(args, robots, out):
             seq.append(l)
         final[n] = seq
     for l, why in sorted(flagged.items()):
-        say("VISIT ORDER: %s: %s%s" % (l, why, "" if keep else " (--visit-keep-unreadable, or the page's 'keep "
-                                                                "them', keeps it)"))
+        say("VISIT ORDER: %s: %s%s" % (l, why, "" if keep else " (the page's 'try unreadable points anyway', or --visit-keep-unreadable, "
+                                                                "keeps it)"))
     for n in robots:
         if n in final:
             say("VISIT ORDER %s: %s" % (n, " -> ".join(final[n]) or "(nothing left to visit)"))

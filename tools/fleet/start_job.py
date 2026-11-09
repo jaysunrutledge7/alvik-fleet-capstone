@@ -53,7 +53,7 @@ ADV_DEFAULTS = {
     "show_all_screens": False,     # the old screens (Connect ... Production), kept
     "visit_speed_cms": 10.0,       # (e11, Jay-Sun's Experiment A tours) Visit points in an order: driving speed
     "visit_dwell_s": 8.0,          # ... and the stop at each point (his numbers, 9 Nov)
-    "visit_order": "off",          # (e11, Nick 9 Nov) the Start screen's "Visit points in your order" picker (off: hidden)
+    "visit_order": "on",           # (e11, Nick 9 Nov) the Start screen's "Visit points in your order" picker (off: hidden)
     "practice_path": "real",       # (e11, 9 Nov) practice on the real path (robots answer with WiFi names, the real
                                    # launcher and camera models: mission_run --practice-real) or "dry" (before e11)
     "roam_motion": "curves",       # (Nick 9 Nov) free roam's driving: curves (the default) or stopturn (straight lines,
