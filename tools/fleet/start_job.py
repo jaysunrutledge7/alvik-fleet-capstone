@@ -51,8 +51,22 @@ ADV_DEFAULTS = {
     "recover_reserve": "on",       # Nick 6 Nov: a lost robot's recovery path reserved in the others' plans
     "stop_lead": "on",             # Nick 6 Nov: missions use each robot's stop lead
     "show_all_screens": False,     # the old screens (Connect ... Production), kept
+    "visit_speed_cms": 10.0,       # (e11, Jay-Sun's Experiment A tours) Visit points in an order: driving speed
+    "visit_dwell_s": 8.0,          # ... and the stop at each point (his numbers, 9 Nov)
+    "visit_order": "off",          # (e11, Nick 9 Nov) the Start screen's "Visit points in your order" picker (off: hidden)
+    "practice_path": "real",       # (e11, 9 Nov) practice on the real path (robots answer with WiFi names, the real
+                                   # launcher and camera models: mission_run --practice-real) or "dry" (before e11)
     "roam_motion": "curves",       # (Nick 9 Nov) free roam's driving: curves (the default) or stopturn (straight lines,
                                    # stop and turn on the spot), at home and at school
+}
+
+
+# (e11, Jay-Sun 9 Nov, Experiment A) the order presets on the visit card; more are saved from the page per site folder
+# (visit_presets.json). "Jay-Sun custom" is his list as he gave it.
+VISIT_PRESETS = {
+    "In order (P01-P20)": ["P%02d" % k for k in range(1, 21)],
+    "Reversed (P20-P01)": ["P%02d" % k for k in range(20, 0, -1)],
+    "Jay-Sun custom": "P12 P18 P09 P14 P15 P13 P17 P11 P04 P19 P08 P01 P03 P20 P07 P05 P10 P16 P02 P06".split(),
 }
 
 
@@ -252,6 +266,7 @@ class Starter:
         except (OSError, ValueError):
             pass
         self.sleep_log = []
+        self.deferred_sleep = None      # (e11) {at, why}: the sleep held back after a start where nothing moved
         self.load_prefs()
 
     # -- (e10, C5) preferences, saved per site on the Pi ------------------------------------------------------------
@@ -454,8 +469,11 @@ class Starter:
             return "Each robot measures how its wheels and turns are off and fixes them. About 40 min a robot." \
                 if self.tags() else "Finds the robots by their lights and calibrates each (the ladder's first steps)."
         if k == "freeroam":
-            return ("All robots wander at once on smooth curves for about %.0f min." % self.adv["roam_min"]) \
-                if self.tags() else "All robots drive at once on smooth curves until their batteries reach 10 %."
+            # (e11, 9 Nov) the button says the driving that will be used (Advanced > Free roam driving)
+            how = "in straight lines (stop and turn on the spot)" if self.adv.get("roam_motion") == "stopturn" else \
+                "on smooth curves"
+            return ("All robots wander at once %s for about %.0f min." % (how, self.adv["roam_min"])) \
+                if self.tags() else "All robots drive at once %s until their batteries reach 10 %%." % how
         if k == "visit":
             return "Every robot drives to the points in its share of the table, in straight lines."
         if k == "experiment":
@@ -490,7 +508,96 @@ class Starter:
         return bool((self.job is not None and self.job.running()) or (self.S.run is not None and self.S.run.alive())
                     or self.S.calib.running())
 
-    def start(self, kind, attended=False):
+    # -- (e11, Nick 9 Nov) Visit points in an order Nick chooses -------------------------------------------------------
+    def visit_points(self, cam="overhead"):
+        """The site's stickers for the order picker: their spots on the table (cm), where each sits in the camera's
+        picture (px, through the site's camera model: the setup's fit on the robots, the practice room's in practice),
+        and the ones the camera cannot read (flagged before the run; the run checks again)."""
+        import argparse as _ap
+        import math as _m
+        import sticker_points as SP
+        S = self.S
+        site = S.site or {}
+        pts, _z, _w = SP.points_cm(site)
+        tb = site.get("table") or {}
+        L, W = float(tb.get("length_cm") or 396.2), float(tb.get("width_cm") or 167.6)
+        pr = self.practice()
+        out = {"points": pts, "table": [L, W], "px": {}, "size": None, "unreadable": {}, "cam": cam,
+               "practice": pr, "words": [], "presets": self.visit_presets()}
+        model = None
+        try:
+            sys.path.insert(0, os.path.join(os.path.dirname(HERE), "experiment"))
+            import e02_camera as CAM
+            dirs = ([S.tag.sim_cal_dir()] if pr else []) + [S.tag.cal_dir]
+            if pr:
+                lr = (getattr(S, "last_runs", {}) or {}).values()
+                dirs = [os.path.join(os.path.dirname(r_), "tagcal") for r_ in lr if r_] + dirs
+            for d_ in dirs:
+                p_ = os.path.join(d_, cam + ".json")
+                if os.path.exists(p_):
+                    model = CAM.load_camera(p_)
+                    out["model"] = p_
+                    break
+        except Exception as e:      # noqa: BLE001
+            out["words"].append("no camera model (%s): click the map instead" % e)
+        if model is not None:
+            z = float((site.get("tags") or {}).get("sticker_z_cm") or 0.0)
+            for lab, (x, y) in pts.items():
+                try:
+                    u, v = model.project((float(x), float(y), z))
+                    if _m.isfinite(u) and _m.isfinite(v):
+                        out["px"][lab] = [round(float(u), 1), round(float(v), 1)]
+                except Exception:   # noqa: BLE001
+                    pass
+            out["size"] = [int(v) for v in model.image_size]
+        elif not out["words"]:
+            out["words"].append("no camera model for %s yet (Setup, Measure): click the map instead" % cam)
+        try:
+            import mission_run as MR
+            side = ((site.get("cameras") or {}).get("side") or {})
+            a = _ap.Namespace(site_=site, dry=pr, practice_real=False, no_side=not side.get("use", True),
+                              cam_size="%dx%d" % (int((site.get("capture") or {}).get("width") or 1280),
+                                                  int((site.get("capture") or {}).get("height") or 960)),
+                              seed=1, no_refs=False, tags_=None)
+            rm = MR.run_readmap(a, None)
+            if rm is not None:
+                for lab, (x, y) in pts.items():
+                    ok, why = rm.readable(float(x), float(y))
+                    if not ok:
+                        out["unreadable"][lab] = why
+        except Exception as e:      # noqa: BLE001
+            out["words"].append("(readable area not known: %s)" % e)
+        return out
+
+    def visit_presets(self):
+        out = {k: list(v) for k, v in VISIT_PRESETS.items()}
+        try:
+            with open(os.path.join(self.S.dir, "visit_presets.json")) as f:
+                out.update({str(k): [str(x) for x in v] for k, v in json.load(f).items()})
+        except (OSError, ValueError, AttributeError):
+            pass
+        return out
+
+    def save_visit_preset(self, name, order):
+        name = str(name or "").strip()[:60]
+        if not name:
+            raise ValueError("Give the order a name")
+        labs = [x for x in str(order or "").replace(" ", ",").split(",") if x.strip()]
+        if not labs:
+            raise ValueError("The order is empty")
+        p = os.path.join(self.S.dir, "visit_presets.json")
+        cur = {}
+        try:
+            with open(p) as f:
+                cur = json.load(f)
+        except (OSError, ValueError):
+            pass
+        cur[name] = labs
+        with open(p, "w") as f:
+            json.dump(cur, f, indent=1)
+        return self.visit_presets()
+
+    def start(self, kind, attended=False, order="", keep_unreadable=False):
         if kind not in KINDS:
             raise ValueError("no such run: %s" % kind)
         with self.lock:
@@ -510,11 +617,14 @@ class Starter:
             self.attended = bool(attended)          # (e08, A2) a person is there: runs may ask questions
             os.environ["MIRLT_ATTENDED"] = "1" if attended and not pr else "0"   # mission_run -> run_plan --attended
             os.environ.update(prefs_env(self.prefs))     # (e10, C5) the preferences reach every run this page starts
+            self.visit_order_ = {"order": str(order or "").strip(), "keep": bool(keep_unreadable)} \
+                if kind == "visit" else None
             if self.tags():
                 r = self.start_tags(kind, pr)
             else:
                 r = self.start_home(kind, pr)
             self.last = None
+            self.deferred_sleep = None      # (e11) a new run: the sleep held after a refused start is off
             return r
 
     def sim_breaks(self, n):
@@ -556,6 +666,8 @@ class Starter:
         extra = []
         if pr:
             extra += ["--sim-robots", str(n), "--sim-bind"] + self.sim_breaks(n)
+            if self.adv.get("practice_path", "real") == "real":
+                extra += ["--practice-real"]       # (e11) the school's own path, simulated robots
         if self.adv.get("recover_reserve", "on") == "off":
             extra += ["--rp-arg=--recover-reserve=off"]
         if self.adv.get("surface_marks", "log") != "log":
@@ -563,6 +675,11 @@ class Starter:
         if self.adv.get("stop_lead", "on") == "off":
             extra += ["--no-stop-lead"]
         d = {"kind": kind, "conn": conn, "dry": pr, "sim_robots": n, "extra": extra}
+        vo = getattr(self, "visit_order_", None)
+        if kind == "visit" and vo and vo.get("order"):
+            d["order"], d["keep_unreadable"] = vo["order"], vo["keep"]      # (e11) Nick's order
+            d["extra"] = list(d["extra"]) + ["--visit-speed-cms", "%g" % float(self.adv.get("visit_speed_cms") or 10.0),
+                                             "--visit-dwell-s", "%g" % float(self.adv.get("visit_dwell_s") or 8.0)]
         if kind == "freeroam":
             d["kind"] = "roam"
             d["motion"] = self.adv.get("roam_motion", "curves")   # (Nick 9 Nov)
@@ -635,6 +752,7 @@ class Starter:
         except Exception:  # noqa: BLE001
             out["questions"] = []
         if kind is None:
+            self.deferred_sleep_due()
             return out
         out["elapsed_s"] = round(time.time() - getattr(self, "started_t", time.time()), 0)
         if self.job is not None and self.job.kind == kind and not self.tags():
@@ -668,15 +786,69 @@ class Starter:
             if refused and not st.get("running"):
                 out["words"] = refused
                 out["refused"] = True
+        if not running and kind not in ("calibrate",) and not out.get("refused"):
+            # (e11, 9 Nov school) a free roam that stopped at its start ("No robot answered") is a refused start too
+            w_ = self.start_failure_words(out.get("folder"))
+            if w_:
+                out["words"], out["refused"] = w_, True
         end_now = False
         with self._end_lock:                  # the page's poll and the sleeper thread both ask: one sleep only
             if not running and self.last is None:
                 self.last = {"kind": kind, "practice": self.active_practice, "ended": time.time(),
-                             "words": out.get("words")}
+                             "words": out.get("words"), "refused": bool(out.get("refused"))}
                 end_now = True
         if end_now:
-            self.on_run_end()
+            self.on_run_end(refused=bool(out.get("refused")) or self.nothing_moved(out.get("folder")))
+        self.deferred_sleep_due()
+        ds = getattr(self, "deferred_sleep", None)
+        if ds and not running:
+            out["sleep_words"] = ("The robots were NOT put to sleep (nothing moved). They are put to sleep at %s if no "
+                                  "run starts before then." % time.strftime("%H:%M", time.localtime(ds["at"])))
+            out["words"] = "%s %s" % (out.get("words") or "", out["sleep_words"])
         return out
+
+    # (e11, Nick 9 Nov) a refused or failed start where nothing moved: no sleep at once (a sleeping robot needs a
+    # power-cycle); put to sleep after DEFERRED_SLEEP_MIN minutes idle with no new run
+    DEFERRED_SLEEP_MIN = 10.0      # Nick's number (9 Nov)
+
+    def start_failure_words(self, folder):
+        """The free-roam controller's own start failures, in plain words with what to fix (None: none found)."""
+        lines = self.mission_tail(folder, n=60)
+        txt = "\n".join(lines)
+        if "No robot answered" in txt:
+            return ("Not started, nothing moved: no robot answered the free-roam controller. Check the robot is "
+                    "switched on and on the WiFi (its name shows on the Start screen), then press the button again.")
+        if "No robot could join" in txt or "safety layers read back: nothing moved" in txt:
+            return ("Not started, nothing moved: no robot could join the free roam (%s). Its log is in the folder "
+                    "below." % next((x for x in reversed(lines) if "No robot" in x), "").strip())
+        return None
+
+    def nothing_moved(self, folder):
+        """True when the run's log shows it never reached the point where the robots start (mission_run says 'the robots
+        start now' just before it hands over)."""
+        if not folder:
+            return False
+        p = os.path.join(folder, "mission_stdout.txt")
+        try:
+            with open(p, errors="replace") as f:
+                return "the robots start now" not in f.read()
+        except OSError:
+            return False
+
+    def deferred_sleep_due(self, now=None):
+        ds = getattr(self, "deferred_sleep", None)
+        if not ds:
+            return False
+        now = time.time() if now is None else now
+        if self.busy():
+            self.deferred_sleep = None
+            return False
+        if now >= ds["at"]:
+            self.deferred_sleep = None
+            self.sleep_robots("%.0f minutes idle after a start that did not move the robots (%s)" % (
+                self.DEFERRED_SLEEP_MIN, ds["why"]))
+            return True
+        return False
 
     def refusal_words(self, folder):
         """(e07 rehearsal: a run refused at its start ended as just "ended", in command-line words) The reason a run
@@ -712,8 +884,15 @@ class Starter:
         return []
 
     # -- sleep (Nick 6 Nov: right away when a run ends; switch in Advanced; the 30-minute timer kept, off) ------------
-    def on_run_end(self):
+    def on_run_end(self, refused=False):
         if self.active_practice or not self.adv.get("sleep_when_done", True):
+            return False
+        if refused:
+            # (e11, Nick 9 Nov) nothing moved: the robots stay awake for the next try; asleep after 10 min idle
+            self.deferred_sleep = {"at": time.time() + self.DEFERRED_SLEEP_MIN * 60.0,
+                                   "why": "refused or failed start"}
+            print("The run did not start (nothing moved): the robots stay awake; put to sleep in %.0f min if no run "
+                  "starts." % self.DEFERRED_SLEEP_MIN, flush=True)
             return False
         self.sleep_robots("the run ended")
         return True

@@ -203,7 +203,9 @@ def test_planner_curves_round_corners_only_with_room():
     html = open(os.path.join(FLEET, "mission_control.html")).read()
     assert 'id="motion"' in html and "Curves at the corners" in html
     mr = open(os.path.join(FLEET, "mission_run.py")).read()
-    assert '"--motion", choices=("stopturn", "curves"), default="stopturn"' in mr
+    # (e11) --motion's default is resolved after parsing (free roam's own default is curves): the planner's stays stopturn
+    assert '"--motion", choices=("stopturn", "curves"), default=None' in mr and \
+        'args.motion = args.motion or "stopturn"' in mr
 
 
 def test_launcher_motion_words():

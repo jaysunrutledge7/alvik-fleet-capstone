@@ -680,6 +680,12 @@ class Session:
             if not self.tag:
                 raise ValueError("Visit points needs a site with roof tags on the robots")
             cmd += ["--robots", "auto", "--split", "auto", "--motion", "stopturn"]
+            if str(d.get("order") or "").strip():
+                # (e11, Nick 9 Nov) the points in the order Nick chose (typed, map or webcam clicks); unreadable points
+                # skipped unless he keeps them
+                cmd += ["--visit-order", str(d["order"]).strip()]
+                if d.get("keep_unreadable"):
+                    cmd += ["--visit-keep-unreadable"]
             if conn == "sim-cameras" and "--sim-robots" not in (d.get("extra") or []):
                 cmd += ["--sim-robots", str(int(d.get("sim_robots") or 2)), "--sim-bind"]
             cmd += list(d.get("extra") or [])
@@ -1308,6 +1314,13 @@ class Handler(BaseHTTPRequestHandler):
             if path == "/api/review":
                 with S.lock:
                     return self._send(200, S.review())
+            if path == "/api/visit/points":
+                # (e11, Nick 9 Nov) the order picker: stickers on the map and in the camera's picture
+                from urllib.parse import parse_qs
+                cam = (parse_qs(urlparse(self.path).query).get("cam") or ["overhead"])[0]
+                if not S.tag:
+                    return self._send(404, {"error": "Visit points in an order needs a site with roof tags"})
+                return self._send(200, clean(S.start.visit_points(cam)))
             if path == "/api/frame":
                 from urllib.parse import parse_qs
                 cam = (parse_qs(urlparse(self.path).query).get("cam") or ["overhead"])[0]
@@ -1364,7 +1377,11 @@ class Handler(BaseHTTPRequestHandler):
         try:
             with S.lock:
                 if path == "/api/start/run":
-                    return self._send(200, clean(S.start.start(d.get("kind"), attended=bool(d.get("attended")))))
+                    return self._send(200, clean(S.start.start(d.get("kind"), attended=bool(d.get("attended")),
+                                                               order=d.get("order") or "",
+                                                               keep_unreadable=bool(d.get("keep_unreadable")))))
+                if path == "/api/visit/preset":
+                    return self._send(200, clean({"presets": S.start.save_visit_preset(d.get("name"), d.get("order"))}))
                 if path == "/api/start/stop":
                     return self._send(200, clean(S.start.stop_all()))
                 if path == "/api/start/answer":

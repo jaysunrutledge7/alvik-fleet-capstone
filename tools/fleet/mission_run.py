@@ -192,6 +192,97 @@ ROAM_S_PER_POINT = 14.0   # ... and about this long a leg at production speed (c
                           # the e06 rehearsals' legs (8-20 s); the run's time limit ends it anyway
 
 
+def parse_visit_order(spec, robots):
+    """(e11, Nick 9 Nov) 'P01,P05,P11,P05' (every robot shares the list: one robot takes it all; more robots take it in
+    turn, in order, a run of points each) or 'Alpha:P01,P05;Bravo:P11' (each robot its own list). Labels are made
+    P01-style (p5 -> P05). Returns {robot: [labels]} or raises ValueError in plain words."""
+    def lab(t):
+        t = t.strip().upper()
+        if not t:
+            return None
+        if t[0] == "P" and t[1:].isdigit():
+            return "P%02d" % int(t[1:])
+        if t.isdigit():
+            return "P%02d" % int(t)
+        raise ValueError("%r is not a sticker name (P01 to P40)" % t)
+    spec = (spec or "").strip()
+    if not spec:
+        return {}
+    if ":" in spec:
+        out = {}
+        for part in spec.split(";"):
+            if not part.strip():
+                continue
+            n, _, lst = part.partition(":")
+            n = n.strip()
+            if n not in robots:
+                raise ValueError("no robot %s in this run (robots: %s)" % (n, ", ".join(robots)))
+            out[n] = [x for x in (lab(t) for t in lst.split(",")) if x]
+        return out
+    labs = [x for x in (lab(t) for t in spec.replace(" ", ",").split(",")) if x]
+    if len(robots) <= 1:
+        return {robots[0]: labs} if robots else {}
+    k = int(math.ceil(len(labs) / float(len(robots))))
+    return {n: labs[i * k:(i + 1) * k] for i, n in enumerate(robots) if labs[i * k:(i + 1) * k]}
+
+
+def visit_orders(args, robots, out):
+    """(e11, Nick 9 Nov) Visit points in the order Nick chose (typed, clicked on the map or in the webcam picture):
+    points the camera cannot read are flagged before the run and skipped (--visit-keep-unreadable keeps them); a point
+    straight after itself is visited once; repeats later in the list are kept. Writes visit_order.json."""
+    import sticker_points as SP
+    pts, _z, _w = SP.points_cm(args.site_)
+    lists = parse_visit_order(args.visit_order, robots)
+    unknown = sorted({l for v in lists.values() for l in v if l not in pts})
+    if unknown:
+        raise SystemExit("NOT STARTED: no such sticker on this site: %s. Nothing moved." % ", ".join(unknown))
+    rm = getattr(args, "readmap_", None) or run_readmap(args, None)
+    keep = bool(getattr(args, "visit_keep_unreadable", False))
+    flagged, final = {}, {}
+    for n, labs in lists.items():
+        seq = []
+        for l in labs:
+            ok = True
+            if rm is not None:
+                try:
+                    ok = bool(rm.readable(*pts[l][:2])[0])
+                except Exception:      # noqa: BLE001
+                    ok = True
+            if not ok:
+                flagged[l] = "the camera cannot read its roof tag there (the readable area, %s)" % (
+                    "kept as asked" if keep else "skipped")
+                if not keep:
+                    continue
+            if seq and seq[-1] == l:
+                continue
+            seq.append(l)
+        final[n] = seq
+    for l, why in sorted(flagged.items()):
+        say("VISIT ORDER: %s: %s%s" % (l, why, "" if keep else " (--visit-keep-unreadable, or the page's 'keep "
+                                                                "them', keeps it)"))
+    for n in robots:
+        if n in final:
+            say("VISIT ORDER %s: %s" % (n, " -> ".join(final[n]) or "(nothing left to visit)"))
+        else:
+            say("VISIT ORDER %s: no points (it stays at its home)" % n)
+    if out:
+        with open(os.path.join(out, "visit_order.json"), "w") as f:
+            json.dump({"asked": args.visit_order, "lists": lists, "orders": final, "flagged": flagged,
+                       "kept_unreadable": keep}, f, indent=1)
+    if not any(final.values()):
+        raise SystemExit("NOT STARTED: every point in the order is outside the area the camera reads (%s). Nothing "
+                         "moved. Keep them anyway with 'keep them' (--visit-keep-unreadable)." % ", ".join(sorted(flagged)))
+    return {n: v for n, v in final.items()}
+
+
+VISIT_DWELL_S = 8.0      # (e11, Jay-Sun 9 Nov, Experiment A tours) the stop at each point of a chosen order: his number
+
+
+def visit_dwell_of(args):
+    v = getattr(args, "visit_dwell_s", None)
+    return float(VISIT_DWELL_S if v is None else v)
+
+
 def roam_orders(orders, minutes, seed=1):
     """(e07, free roam at a tag site) Each robot wanders over its own share of the readable points: its points in a
     random order, again and again (never the same point twice in a row), enough for about `minutes`."""
@@ -235,13 +326,17 @@ def build(args, out):
         roam = float(getattr(args, "roam_min", 0) or 0)
         if roam > 0 and orders_:
             orders_ = roam_orders(orders_, roam, args.seed)
+        if getattr(args, "visit_order", ""):
+            orders_ = visit_orders(args, robots, out)       # (e11, Nick 9 Nov) the points in the order Nick chose
         m, _w, sprog, _o = PR.site_production(args.site_, robots, outline=(cal or {}).get("outline_used"),
                                               experiment=getattr(args, "experiment_", None) or None,
                                               swap=getattr(args, "swap_", False),
                                               wiggle=False if roam > 0 else
                                               {"on": True, "off": False}.get(getattr(args, "sync_wiggle", "auto")),
-                                              home_at=home_at, orders=orders_, keep_order=roam > 0,
-                                              dwell_s=ROAM_DWELL_S if roam > 0 else None)
+                                              home_at=home_at, orders=orders_,
+                                              keep_order=roam > 0 or bool(getattr(args, "visit_order", "")),
+                                              dwell_s=ROAM_DWELL_S if roam > 0 else (
+                                                  visit_dwell_of(args) if getattr(args, "visit_order", "") else None))
         args.site_program_ = sprog
         for w_ in _w:
             say(w_)
@@ -318,6 +413,8 @@ def build(args, out):
         # keep the plan's settings), recorded in the summary
         import experiments as EX
         sp = dict(((prog.get("production") or {}).get("experiment") or {}).get("speed") or EX.conf(args.site_)["speed"])
+        if getattr(args, "visit_order", "") and getattr(args, "visit_speed_cms", None):
+            sp["cruise_cms"] = float(args.visit_speed_cms)       # (e11, Jay-Sun's Experiment A tours: 10 cm/s)
         over.update(sp)
         args.speed_ = sp
         say("speeds pinned for this site: drive %.0f cm/s, turn %.0f deg/s, final approach %.0f cm/s" % (
@@ -880,6 +977,21 @@ def dry_bind(args, out):
     return 0
 
 
+PRACTICE_WIFI = ("AL-1DC0", "AL-2B7F", "AL-E7DC", "AL-EB54", "AL-3F2A", "AL-6C11")   # (e11) practice WiFi names
+
+
+def practice_aliases(slots):
+    """(e11) {WiFi name: slot} for the real path's practice: the first robot answers as AL-1DC0 (the school's)."""
+    return {PRACTICE_WIFI[k % len(PRACTICE_WIFI)] + ("" if k < len(PRACTICE_WIFI) else "-%d" % k): n
+            for k, n in enumerate(slots)}
+
+
+def roam_motion_of(args):
+    """(e11, 9 Nov school: the report said curves when straight lines were wanted) The free roam's driving: the motion
+    asked for (--motion, the page's Advanced > Free roam driving), else curves (free roam's default)."""
+    return getattr(args, "motion_given_", None) or "curves"
+
+
 def run_readmap(args, out):
     """(11-05h) Where the cameras read roof tags (observe.ReadMap): seeded from the run's camera models (the setup's
     tagcal on the robots; the simulator's cameras in a dry run), carried over from the site's readmap.json (earlier
@@ -899,6 +1011,12 @@ def run_readmap(args, out):
                                       seed=args.seed + 4, refs=uses_refs(args))
             for c in TCAM.cams_from_config(cfg):
                 if c.name == "side" and args.no_side:
+                    continue
+                if getattr(args, "practice_real", False):
+                    # (e11) the real path: the simulated camera as a real CameraModel (recognition/cameras.py, what
+                    # e02_camera.load_camera gives on the Pi), projected one point at a time as below
+                    m = c.true_model()
+                    cams.append((lambda P, m=m: [tuple(m.project(tuple(q))) for q in P], tuple(m.image_size)))
                     continue
                 cams.append((lambda P, c=c: c.project(P), (c.W, c.H)))
         else:
@@ -1042,10 +1160,18 @@ def run(args):
         rp += ["--send", c]          # (11-05h) run_plan reads each one back before anything moves
     for ip in args.robot:
         rp += ["--robot", ip]
+    if getattr(args, "practice_real", False) and not getattr(args, "aliases_", None):
+        # (e11, 9 Nov) the real path's practice: the simulated robots answer with WiFi names (AL-xxxx) and the run calls
+        # them by their slots through aliases, as at school (tags.rename_to_slot false)
+        args.aliases_ = practice_aliases([r_["name"] for r_ in FM.load(mp)["robots"]])
+        args.sim_arg = list(args.sim_arg) + ["--wifi-name=%s=%s" % (v_, k_) for k_, v_ in args.aliases_.items()]
+        say("PRACTICE ON THE REAL PATH: the simulated robots answer as %s" % ", ".join(
+            "%s (the run's %s)" % kv for kv in sorted(args.aliases_.items())))
     for k_, v_ in sorted((getattr(args, "aliases_", None) or {}).items()):
         rp += ["--alias", "%s=%s" % (k_, v_)]      # (5 Nov) names in the run only (tags.rename_to_slot false)
-    if float(getattr(args, "roam_min", 0) or 0) > 0:
-        rp += ["--dedupe-points", "off"]           # (e07) a free roam visits its points again and again
+    if float(getattr(args, "roam_min", 0) or 0) > 0 or getattr(args, "visit_order", ""):
+        rp += ["--dedupe-points", "off"]           # (e07) a free roam visits its points again and again (e11: and a
+        #                                            chosen order may repeat a point)
     roam_fr = float(getattr(args, "roam_min", 0) or 0) > 0 and args.tracking_ == "tags" and \
         roam_controller(args) == "freeroam"
     if roam_fr:
@@ -1054,12 +1180,19 @@ def run(args):
         # proof drive, the proven workspace), fed by this run's tag bridge (tags + lock-on). The planner's roam over the
         # points stays behind --roam-controller planner (the switch)
         fl = FM.load(mp)["floor"]
-        names_ = sorted((args.tags_ or {}).get("ids", {}).keys())
+        # (e11) the run's robots: the map's (the slots the wiggle bound), else the tag ids' names
+        names_ = [r_["name"] for r_ in FM.load(mp).get("robots") or []] or \
+            sorted((args.tags_ or {}).get("ids", {}).keys())
+        roam_motion = roam_motion_of(args)
         rp = [os.path.join(HERE, "freeroam.py"), "run", "--external-bridge", "--tracking", "tags",
               "--robots", ",".join(names_), "--board", "%g,%g,%g,%g" % (fl["x_min"], fl["y_min"], fl["x_max"],
                                                                          fl["y_max"]),
               "--hours", "%.3f" % (float(args.roam_min) / 60.0), "--site", (args.site_ or {}).get("name") or "school",
-              "--dir", sess, "--motion", args.motion if "--motion" in sys.argv else "curves"]   # (Nick 9 Nov) curves (default) or stopturn, from the Start screen's Advanced
+              "--dir", sess, "--motion", roam_motion]   # (Nick 9 Nov) curves (default) or stopturn, from the Start screen's Advanced
+        for k_, v_ in sorted((getattr(args, "aliases_", None) or {}).items()):
+            rp += ["--alias", "%s=%s" % (k_, v_)]      # (e11, 9 Nov school: "No robot answered") AL-1DC0 is Alpha
+        say("FREE ROAM DRIVING: %s" % ("straight lines (stopturn: stop and turn on the spot)" if roam_motion ==
+                                       "stopturn" else "curves"))
         for ip in args.robot:
             rp += ["--robot", ip]
         if os.environ.get("MIRLT_ATTENDED") == "1":
@@ -1068,7 +1201,10 @@ def run(args):
             # practice: the simulated robots run_plan would start (fleet_sim on 127.0.0.2..), started by freeroam.py;
             # their pictures come from the tag cameras' simulator as for the other runs
             mnames = [r_["name"] for r_ in FM.load(mp)["robots"]]
-            rp[rp.index("--robots") + 1] = ",".join(mnames)
+            if getattr(args, "practice_real", False):
+                rp += ["--practice-real"]             # (e11) not marked dry inside freeroam.py
+            else:
+                rp[rp.index("--robots") + 1] = ",".join(mnames)
             for k_ in range(len(mnames)):
                 rp += ["--robot", "127.0.0.%d" % (2 + k_)]
             # rp_shim's simulator (the school's conditions: drops, a robot restarting), as for the other dry runs
@@ -1621,7 +1757,7 @@ def main(argv=None):
                          "agree with the robot's own pose (run_plan --turn-pause)")
     g.add_argument("--below-net-doe", action="store_true",
                    help="simulator only: allow robot gaps under the 8 cm safety net (the safety-net DOE)")
-    ap.add_argument("--motion", choices=("stopturn", "curves"), default="stopturn",
+    ap.add_argument("--motion", choices=("stopturn", "curves"), default=None,
                     help="(5 Nov) how the robots turn: stop and turn on the spot at every point (default) or curves at "
                          "the corners where the map leaves room (both always available; Mission Control's choice)")
     ap.add_argument("--setting", action="append", default=[], metavar="NAME=VALUE",
@@ -1695,7 +1831,29 @@ def main(argv=None):
     ap.add_argument("--no-mirror", action="store_true",
                     help="Left and Right are not re-timed to mirror each other (before 2026-10-29 20:06); default: the "
                          "late one speeds up and the leader slows down (5-10 cm/s) or waits (run_plan's mirror sync)")
+    ap.add_argument("--visit-order", default="", metavar="P01,P05,...",
+                    help="(e11, Nick 9 Nov) Visit points in this order (repeats allowed): one list for the robots "
+                         "(one robot: all of it) or NAME:P01,P05;NAME2:P11 (each its own)")
+    ap.add_argument("--visit-speed-cms", type=float, default=None,
+                    help="(e11) with --visit-order: the driving speed, cm/s (default: the site's; school 10)")
+    ap.add_argument("--visit-dwell-s", type=float, default=None,
+                    help="(e11) with --visit-order: the stop at each point, s (default %g, Jay-Sun's tours)" % 8.0)
+    ap.add_argument("--visit-keep-unreadable", action="store_true",
+                    help="(e11) with --visit-order: keep points the camera cannot read (default: flagged and skipped)")
+    g.add_argument("--practice-real", action="store_true",
+                   help="(e11, 9 Nov) practice on the REAL path (implies --dry): simulated robots that answer with WiFi "
+                        "names (AL-xxxx) under aliases, the real launcher arguments, real CameraModel camera models")
     args = ap.parse_args(argv)
+    # (e11) --motion: the planner's default stays stopturn; free roam's default is curves (roam_motion_of); a motion
+    # given in any form (--motion X or --motion=X) is the one used
+    args.motion_given_ = args.motion
+    args.motion = args.motion or "stopturn"
+    if args.practice_real:
+        args.dry = True
+        if args.sim_bind:
+            say("PRACTICE ON THE REAL PATH: the simulated wiggle binding is left out (the robots keep their WiFi names; "
+                "the run gives them their slots)")
+            args.sim_bind = False
     return run(args)
 
 

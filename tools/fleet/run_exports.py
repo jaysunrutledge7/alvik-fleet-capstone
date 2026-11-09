@@ -34,7 +34,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 if HERE not in sys.path:
     sys.path.insert(0, HERE)
 
-VERSION = "2026-11-03a"
+VERSION = "2026-11-09e11"   # e11: run/stops.csv (Jay-Sun: each stop findable), visit_order.json in the bundle
 PAIR_S = 0.07          # as tag_bridge.PAIR_S: two cameras' reads this close in time are one moment
 
 CAM_COLS = ["t", "t_iso", "robot", "x_cm", "y_cm", "heading_deg", "sigma_cm", "sigma_deg", "pm95_cm", "cams", "n_reads",
@@ -263,7 +263,56 @@ def export_all(mission, say=print):
     res["odometry_raw"] = {"file": p2, "rows": c2, "anchors": w2}
     say("wheel+gyro odometry, no camera corrections: %s (%s)" % (p2 or "none: no RAW rows",
                                                                 ", ".join("%s %d" % kv for kv in sorted(c2.items()))))
+    p3, n3 = stops(mission)
+    res["stops"] = {"file": p3, "rows": n3}
+    if p3:
+        say("stops at points (arrival, dwell start / end, camera position during the dwell): %s (%d)" % (p3, n3))
     return res
+
+
+STOP_COLS = ["robot", "n", "point", "arrive_unix", "arrive_iso", "dwell_start_unix", "dwell_end_unix", "dwell_end_iso",
+             "dwell_s", "cam_x_cm", "cam_y_cm", "plus_minus_cm", "n_fixes", "source", "own_x_cm", "own_y_cm"]
+
+
+def stops(mission):
+    """(e11, Jay-Sun 9 Nov: "a stop has to be clearly findable in the logs") run/stops.csv: one row per stop at a point,
+    in the order driven: arrival (= the dwell's start: the wait step starts the moment the drive to the point ends),
+    dwell start and end on the Pi's clock (Unix seconds, NTP), and the camera's position during the dwell (the median
+    of the camera fixes in it, the same numbers as points.csv). From the event log's point_confidence records."""
+    run = os.path.join(os.path.abspath(mission), "run")
+    src = os.path.join(run, "coordinator.jsonl")
+    if not os.path.exists(src):
+        return None, 0
+    rows, k = [], {}
+    with open(src, errors="replace") as f:
+        for ln in f:
+            if '"point_confidence"' not in ln:
+                continue
+            try:
+                e = json.loads(ln)
+            except ValueError:
+                continue
+            t1 = e.get("t_abs")
+            if t1 is None:
+                continue
+            t0 = float(t1) - float(e.get("dwell_s") or 0.0)
+            r = str(e.get("robot") or "")
+            k[r] = k.get(r, 0) + 1
+            iso = lambda t: dt.datetime.fromtimestamp(t).astimezone().isoformat(timespec="milliseconds")  # noqa: E731
+            rows.append({"robot": r, "n": k[r], "point": str(e.get("point") or "").replace("point ", ""),
+                         "arrive_unix": "%.3f" % t0, "arrive_iso": iso(t0), "dwell_start_unix": "%.3f" % t0,
+                         "dwell_end_unix": "%.3f" % float(t1), "dwell_end_iso": iso(float(t1)),
+                         "dwell_s": e.get("dwell_s"), "cam_x_cm": e.get("x"), "cam_y_cm": e.get("y"),
+                         "plus_minus_cm": e.get("plus_minus_cm"), "n_fixes": e.get("n_fixes"),
+                         "source": e.get("source"), "own_x_cm": e.get("own_x"), "own_y_cm": e.get("own_y")})
+    if not rows:
+        return None, 0
+    out = os.path.join(run, "stops.csv")
+    with open(out, "w", newline="") as f:
+        w = csv.DictWriter(f, fieldnames=STOP_COLS)
+        w.writeheader()
+        w.writerows(rows)
+    return out, len(rows)
 
 
 # ---------------------------------------------------------------- the raw-files bundle for Jay-Sun
@@ -274,6 +323,10 @@ BUNDLE_FILES = [
     ("run/follow.csv", "the robots' own fused pose (wheels + gyro + camera fixes), FOLLOW records"),
     ("run/step.csv", "each step's queued / started / done with the robot's pose"),
     ("run/points.csv", "each production point: position, +- (95 %), source"),
+    ("run/stops.csv", "each stop at a point, in order: arrival, dwell start / end (Unix s, the Pi's NTP clock), camera "
+                      "position during the dwell (e11)"),
+    ("visit_order.json", "Visit points in an order: the order asked, the points flagged unreadable, the order driven "
+                         "(e11)"),
     ("run/clock_sync.csv", "robot clock (ms) against the Pi clock"),
     ("run/param.csv", "the robots' settings (wheel_scale, gyro_scale, ...)"),
     ("run/runinfo.csv", "firmware version, yaw_sign"),

@@ -48,7 +48,8 @@ for p in (HERE, TOOLS):
 import freeroam_core as FC   # noqa: E402
 
 PY = sys.executable
-VERSION = "freeroam-runner-2026-11-07d"   # 11-07d: a robot at an edge makes no proof drive (the run 2 incident d)
+VERSION = "freeroam-runner-2026-11-09e11"   # e11 (9 Nov school): --alias WIFI=SLOT (names in the run only), --practice-real
+VERSION_D = "freeroam-runner-2026-11-07d"   # 11-07d: a robot at an edge makes no proof drive (the run 2 incident d)
 VERSION_C = "freeroam-runner-2026-11-07c"   # 11-07c (e10 Phase C): the start's proof drive (start_discovery.py), the proven
                                           # workspace (proven_workspace.py, saved per site), --no-discovery,
                                           # --typed-board, --probe-ahead, --tracking tags (school free roam)
@@ -140,7 +141,13 @@ class Runner:
         self.params_read = {}
         self.boots = {}
         self.q = queue.Queue()
-        self.link = AC.Link(outdir, ips)
+        # (e11, 9 Nov school) names in the run only: a robot answering with its WiFi name (AL-1DC0) is the run's slot
+        # (Alpha) everywhere here (link, fixes, logs, status, the identity wiggle), as run_plan's --alias
+        self.aliases = dict(kv.split("=", 1) for kv in (getattr(a, "alias", None) or []) if "=" in kv)
+        if self.aliases:
+            say("Names in this run only (the robots keep their WiFi names): %s" % ", ".join(
+                "%s is %s" % kv for kv in sorted(self.aliases.items())))
+        self.link = AC.Link(outdir, ips, aliases=self.aliases)
         self.link.session.quiet = True
         self.link.session.listeners.append(lambda *v: self.q.put((AC.now(),) + v))
         self.source = UdpSource(fix_port)
@@ -854,7 +861,7 @@ def dry_board(a, outdir, names):
     cp = os.path.join(sd, "sim_config.json")
     json.dump(cfg, open(cp, "w"), indent=1)
     cmd = [PY, os.path.join(TOOLS, "sim", "fleet_sim.py"), "--map", mp, "--out", sd, "--seed", str(a.seed), "--quiet",
-           "--fixes-to", "127.0.0.1:%d" % a.fix_port, "--fix-hz", "12", "--fix-delay", "0.15", "--fix-sigma", "0.5",
+           "--fixes-to", "127.0.0.1:%d" % a.fix_port, "--fix-hz", "%g" % float(getattr(a, "sim_fix_hz", 12.0) or 12.0), "--fix-delay", "0.15", "--fix-sigma", "0.5",
            "--config", cp, "--max-s", str(int(a.hours * 3600 + 300))]
     gaps = []
     T = a.hours * 3600.0
@@ -1066,6 +1073,12 @@ def main(argv=None):
                     help="(e10, C3) robots (--robot IP, --robots names) and a camera bridge already set up by another "
                          "runner (mission_run at a roof-tag site): no ladder start, the bridge's fixes on --fix-port")
     ap.add_argument("--board", default="", help="(e10) x0,y0,x1,y1 cm: the board's outline (--external-bridge)")
+    ap.add_argument("--alias", action="append", default=[], metavar="ANSWERS_AS=RUN_NAME",
+                    help="(e11, 9 Nov) a robot that answers with its WiFi name (e.g. AL-1DC0) is called RUN_NAME (its "
+                         "slot, e.g. Alpha) in this run: the site keeps the robots' names (tags.rename_to_slot false)")
+    ap.add_argument("--practice-real", action="store_true",
+                    help="(e11) --sim-cmd: the simulated robots on the REAL path (not marked dry: the same code as at "
+                         "school; they still are simulated)")
     ap.add_argument("--sim-cmd", default="", help="(e10, practice) --external-bridge: start these simulated robots "
                     "(a JSON list: the fleet_sim command run_plan would use)")
     ap.add_argument("--conf-dir", default=os.path.expanduser("~/.config/mirlt"),
@@ -1091,6 +1104,8 @@ def main(argv=None):
     ap.add_argument("--sim-fw", action="append", default=[], metavar="NAME=VERSION")
     ap.add_argument("--sim-silent", action="append", default=[], metavar="NAME@T:DUR")
     ap.add_argument("--sim-wifi-drop", action="append", default=[], metavar="NAME@T:DUR")
+    ap.add_argument("--sim-fix-hz", type=float, default=12.0, metavar="HZ",
+                    help="(e11) the simulated camera's fixes a second per robot (the 9 Nov home Pi gave about 4-5)")
     ap.add_argument("--sim-cam-delay", type=float, default=0.0, metavar="S",
                     help="--dry: hold every camera fix back this many s more (the real Pi: ~0.45 s in all)")
     ap.add_argument("--sim-cam-clock", type=float, default=0.0, metavar="S",
@@ -1191,7 +1206,10 @@ def main(argv=None):
                 br = subprocess.Popen(json.loads(a.sim_cmd), cwd=REPO, stdout=open(os.path.join(outdir, "sim_stdout.txt"),
                                                                                   "w"), stderr=subprocess.STDOUT)
                 time.sleep(1.5)
-                a.dry = True
+                if getattr(a, "practice_real", False):
+                    run_info["practice_real"] = True      # (e11) the real path, simulated robots: not marked dry
+                else:
+                    a.dry = True
             rect = tuple(float(v) for v in a.board.split(",")) if a.board else HOME_BOARD
             pose_to = ("127.0.0.1", 5011)
         else:

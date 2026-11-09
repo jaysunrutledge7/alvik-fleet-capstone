@@ -144,7 +144,12 @@ class Radio:
         return cmd or None
 
     def transmit(self, rb, text):
-        payload = "%s|%d|%s" % (self.name, self.seq, text)
+        wire = getattr(self, "wire", None)
+        if wire:
+            # (e11, 9 Nov) --wifi-name: the robot answers with its WiFi name (AL-xxxx) as the real ones do when the
+            # site keeps their names (tags.rename_to_slot false); the simulator still knows it by its run name
+            text = text.replace(self.name, wire)
+        payload = "%s|%d|%s" % (wire or self.name, self.seq, text)
         self.seq += 1
         if self.sim.dropped(self.name, time.time()) or self._random_drop("out"):
             self.lost_out += 1
@@ -564,6 +569,10 @@ class FleetSim:
             if self.true_sides:
                 rb.hang_cm = 0.0                     # over an open part of the table's edge: it hangs there
             rb.radio = Radio(self, name, ip, args.laptop)
+            for wv in getattr(args, "wifi_name", None) or []:
+                n_, _, w_ = wv.partition("=")    # (e11) --wifi-name NAME=AL-xxxx: it answers on the WiFi as AL-xxxx
+                if n_ == name and w_:
+                    rb.radio.wire = w_
             for spec in getattr(args, "dark_lights", None) or []:
                 n_, _, k_ = spec.partition(":")
                 if n_ == name:
@@ -1212,6 +1221,9 @@ def main(argv=None):
     ap.add_argument("--old-led", action="store_true",
                     help="robots on firmware 2026-10-28a: `led ... L|R` lights both (the facing check's fallback)")
     ap.add_argument("--quiet", action="store_true")
+    ap.add_argument("--wifi-name", action="append", default=[], metavar="NAME=WIFI",
+                    help="(e11, 9 Nov) that robot answers on the WiFi with this name (e.g. AL-1DC0), as a real robot "
+                         "does when the site keeps its WiFi name and the run calls it by its slot (--alias)")
     args = ap.parse_args(argv)
     if args.persist:
         import signal

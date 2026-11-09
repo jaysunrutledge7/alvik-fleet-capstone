@@ -996,6 +996,8 @@ function wireSync() {
 let stPoll = null;
 const ADV_CHOICES = {
   roam_motion: [["curves", "Smooth curves, never stopping (default)"], ["stopturn", "Straight lines: stop and turn on the spot"]],
+  visit_order: [["on", "Shown on the Start screen (e11)"], ["off", "Hidden: Visit points shares the points out"]],
+  practice_path: [["real", "The school's own path, simulated robots (e11, default)"], ["dry", "The simulator's own path (before e11)"]],
   corner_clicks: [["auto", "Only when no corner tile is seen (automatic)"], ["on", "Always click the corners"], ["off", "Never"]],
   surface_marks: [["log", "Log them only (a line with no drop is not an edge)"], ["act", "e06 way: a mark switches that robot's line sensors off"], ["off", "Every line trip is an edge (before e06)"]],
   measure_trust: [["auto", "Cameras win when the corner tiles are seen (automatic)"], ["cameras", "Cameras always win"], ["typed", "Typed values win (the tape)"]],
@@ -1092,7 +1094,7 @@ function startScreen() {
     <p style="margin:6px 0;font-size:15px">${esc(st.words || "")}${st.points ? " Points done: " + esc(String(st.points)) + "." : ""}</p>
     ${(st.questions || []).map(q => `<div class="corners question" data-q="${esc(q.id)}"><b>A question from the run (${esc(q.robot)} is held until you answer)</b><p style="margin:6px 0 12px">${esc(q.text)}</p><div class="row">${(q.choices || []).map(c => `<button class="p" data-qid="${esc(q.id)}" data-choice="${esc(c)}">${esc(c)}</button>`).join(" ")}</div></div>`).join("")}
     ${(st.lines || []).length ? `<div class="log" style="max-height:180px">${esc(st.lines.join("\n"))}</div>` : ""}
-    ${going ? `<div class="row" style="margin-top:10px"><button class="stopall" id="stopbig">STOP every robot</button></div>` : `<p class="small muted" style="margin:8px 0 0">${T.advanced.sleep_when_done && !st.practice ? "The robots were sent to sleep (Advanced: sleep when a run ends)." : ""} Its folder: ${esc(st.folder || "")}</p>`}</div>` : "";
+    ${going ? `<div class="row" style="margin-top:10px"><button class="stopall" id="stopbig">STOP every robot</button></div>` : `<p class="small muted" style="margin:8px 0 0">${T.advanced.sleep_when_done && !st.practice && !st.refused && !st.sleep_words ? "The robots were sent to sleep (Advanced: sleep when a run ends)." : ""} Its folder: ${esc(st.folder || "")}</p>`}</div>` : "";
   const ty = T.typed || {};
   const adv = `<details class="adv card" id="advbox"><summary>Advanced (typed values and switches; nothing here is needed to run)</summary>
     <h3 style="margin-top:14px">Typed values (first guesses only: the cameras measure these, and win when they disagree; each disagreement is logged)</h3>
@@ -1114,6 +1116,8 @@ function startScreen() {
       <label>Stop lead in missions${advSel("stop_lead", a)}</label>
       <label>Experiment routes${advSel("experiment", a)}</label>
       <label>Free roam driving${advSel("roam_motion", a)}</label>
+      <label>Practice runs take${advSel("practice_path", a)}</label>
+      <label>Visit points in your order${advSel("visit_order", a)}</label>
       <label>Free roam minutes (school)<input data-advn="roam_min" value="${esc(a.roam_min)}"></label>
       ${advTick("allow_half_table", a, "Experiments may use the half the camera cannot read (Dr. Sodhi agreed)")}
       ${advTick("practice_breaks", a, "Practice runs break the guesses on purpose (turned tags, dark patch, clock off, a restart)")}
@@ -1122,9 +1126,68 @@ function startScreen() {
       ${advTick("show_all_screens", a, "Show all the older screens (Connect ... Production)")}
     </div></details>`;
   const P = T.prefs; const prefs = P ? (P.values.quiz_done ? prefsCard(P) : quizCard(P)) : "";
-  $("main").innerHTML = `<section class="left" style="flex-basis:100%;max-width:1100px">${mode}${seen}${corners}${P && !P.values.quiz_done ? prefs : ""}${stat}${bigs}<div class="err" id="err"></div>${P && P.values.quiz_done ? prefs : ""}${adv}</section>`;
+  $("main").innerHTML = `<section class="left" style="flex-basis:100%;max-width:1100px">${mode}${seen}${corners}${P && !P.values.quiz_done ? prefs : ""}${stat}${bigs}${visitPickCard()}<div class="err" id="err"></div>${P && P.values.quiz_done ? prefs : ""}${adv}</section>`;
   wireStart();
   if (P) wirePrefs();
+}
+// (e11, Nick 9 Nov) Visit points in an order Nick chooses: typed (P01,P05,P11,P05), clicked on the map, or clicked in the
+// overhead camera's picture (the nearest sticker, through the site's camera model). Repeats allowed; points the camera
+// cannot read are flagged and skipped unless "keep them" is ticked. Empty order: Visit points as before (shared out).
+let VP = null, vpOrder = [], vpKeep = false, vpLoading = false, vpPic = 0, vpStamp = Date.now();
+function vpParse(t) { return String(t || "").split(/[ ,;]+/).map(x => x.trim().toUpperCase()).filter(Boolean).map(x => { const m = x.match(/^P?(\d+)$/); return m ? "P" + String(+m[1]).padStart(2, "0") : x; }); }
+function visitPickCard() {
+  if (!isTags() || ((S.start || {}).advanced || {}).visit_order === "off") return "";
+  if (!VP) return `<div class="card" id="vpcard"><h2>Visit points in your order (optional)</h2><p class="small muted">Loading the stickers...</p></div>`;
+  const [L, W] = VP.table, nums = {};
+  vpOrder.forEach((l, i) => { (nums[l] = nums[l] || []).push(i + 1); });
+  const bad = vpOrder.filter((l, i) => VP.unreadable[l] && vpOrder.indexOf(l) === i);
+  const unknown = vpOrder.filter((l, i) => !VP.points[l] && vpOrder.indexOf(l) === i);
+  const P = VP.points, pad = 6;
+  const line = vpOrder.filter(l => P[l]).map(l => `${P[l][0]},${W - P[l][1]}`).join(" ");
+  const dots = Object.keys(P).sort().map(l => { const [x, y] = P[l], un = !!VP.unreadable[l], n = nums[l];
+    return `<g data-vpl="${l}" style="cursor:pointer"><circle cx="${x}" cy="${W - y}" r="6.5" fill="${n ? "#1F6FEB" : un ? "#F3D2CF" : "#E8E8E8"}" stroke="${un ? "#B42318" : "#777"}" stroke-width="${un ? 1.4 : 0.6}"/><text x="${x}" y="${W - y + 13.5}" font-size="6.5" text-anchor="middle" fill="${un ? "#B42318" : "#444"}">${l}</text>${n ? `<text x="${x}" y="${W - y + 2.4}" font-size="${n.length > 1 ? 4.6 : 7}" font-weight="700" text-anchor="middle" fill="#fff">${n.join(",")}</text>` : ""}</g>`; }).join("");
+  const sz = VP.size || [1280, 960];
+  const marks = Object.keys(VP.px || {}).sort().map(l => { const [u, v] = VP.px[l], n = nums[l], un = !!VP.unreadable[l];
+    return `<g><circle cx="${u}" cy="${v}" r="${n ? 15 : 7}" fill="${n ? "rgba(31,111,235,.85)" : "rgba(255,255,255,.55)"}" stroke="${un ? "#B42318" : "#1F6FEB"}" stroke-width="2.5"/>${n ? `<text x="${u}" y="${v + 6}" font-size="${n.length > 1 ? 13 : 18}" font-weight="700" text-anchor="middle" fill="#fff">${n.join(",")}</text>` : `<text x="${u}" y="${v - 11}" font-size="13" text-anchor="middle" fill="#fff" stroke="#000" stroke-width="0.6">${l}</text>`}</g>`; }).join("");
+  const src = vpPic === 0 ? `/api/frame?cam=${VP.cam}&t=${vpStamp}` : `/api/tags/picture?cam=${VP.cam}&t=${vpStamp}`;
+  return `<div class="card" id="vpcard"><h2>Visit points in your order (optional)</h2>
+    <p class="small" style="margin:0 0 8px">Type the stickers, or click them on the map or in the camera's picture, in the order the robot should visit them. Repeats are fine. Leave it empty for the usual Visit points (the points shared out). One robot takes the whole list; with more robots each takes the next run of points.</p>
+    <div class="row" style="align-items:center;gap:8px;flex-wrap:wrap"><input id="vptxt" style="flex:1 1 260px;font-size:15px" placeholder="e.g. P01,P05,P11,P05" value="${esc(vpOrder.join(","))}"><button id="vpundo" ${vpOrder.length ? "" : "disabled"}>Undo last</button><button id="vpclear" ${vpOrder.length ? "" : "disabled"}>Clear</button><label class="small"><input type="checkbox" id="vpkeep" ${vpKeep ? "checked" : ""}> try unreadable points anyway (this run)</label></div>
+    <div class="row" style="align-items:center;gap:6px;flex-wrap:wrap;margin-top:8px"><span class="small"><b>Presets:</b></span>${Object.keys(VP.presets || {}).map(k => `<button class="small" data-vpp="${esc(k)}">${esc(k)}</button>`).join("")}<button class="small" id="vpsave" ${vpOrder.length ? "" : "disabled"}>Save this order as...</button></div>
+    <div class="row" style="align-items:center;gap:14px;flex-wrap:wrap;margin-top:8px"><label class="small">Speed (cm/s) <input data-advn="visit_speed_cms" value="${esc(((S.start || {}).advanced || {}).visit_speed_cms ?? 10)}" style="width:60px"></label><label class="small">Stop at each point (s) <input data-advn="visit_dwell_s" value="${esc(((S.start || {}).advanced || {}).visit_dwell_s ?? 8)}" style="width:60px"></label><span class="small muted">(Jay-Sun's tours: 10 cm/s, 8 s.) Every stop is logged with its arrival, dwell start and end (Unix time) and the camera's position: run/stops.csv.</span></div>
+    ${vpOrder.length ? `<p class="small" style="margin:8px 0 0"><b>Order (${vpOrder.length}):</b> ${vpOrder.map((l, i) => `${i + 1}. ${esc(l)}${VP.unreadable[l] ? " (camera cannot read)" : ""}`).join(" &rarr; ")}. Straight lines, turns on the spot. Press <b>Visit points</b> above to run it.</p>` : ""}
+    ${bad.length ? `<div class="corners" style="margin:8px 0 0"><b>${vpKeep ? "Tried anyway this run" : "Will be SKIPPED"}: ${esc(bad.join(", "))}</b><p class="small" style="margin:4px 0 0">The camera cannot read a roof tag there (${esc(bad.map(l => l + ": " + (VP.unreadable[l] || "")).join("; "))}), so the robot cannot be tracked at that stop. ${vpKeep ? "Those stops are driven on the robot's own wheels and gyro; their camera position will be missing or poor." : "Tick 'try unreadable points anyway' to keep them for this run."}</p></div>` : ""}
+    ${unknown.length ? `<p class="small" style="margin:6px 0 0;color:#B42318"><b>${esc(unknown.join(", "))}:</b> no such sticker here (P01 to P40): the run would not start.</p>` : ""}
+    <div class="row" style="gap:14px;margin-top:10px;align-items:flex-start;flex-wrap:wrap">
+      <figure style="margin:0;flex:1 1 420px"><svg id="vpmap" viewBox="${-pad} ${-pad} ${L + 2 * pad} ${W + 2 * pad + 8}" style="width:100%;background:#FAFAF7;border:1px solid #ccc;border-radius:8px"><rect x="0" y="0" width="${L}" height="${W}" fill="#F1EEE6" stroke="#999"/>${line ? `<polyline points="${line}" fill="none" stroke="#1F6FEB" stroke-width="1.2" stroke-dasharray="3 2"/>` : ""}${dots}</svg>
+        <figcaption class="small muted">The table seen from above (${L.toFixed(0)} x ${W.toFixed(0)} cm, the site's sticker sheet): click a sticker to add it. Red rings: the camera cannot read a roof tag there.</figcaption></figure>
+      <figure style="margin:0;flex:1 1 420px"><div style="position:relative;line-height:0"><img id="vpimg" src="${src}" alt="The overhead camera's picture: click a sticker to add it" style="width:100%;border-radius:8px;cursor:crosshair;display:block" draggable="false"><svg viewBox="0 0 ${sz[0]} ${sz[1]}" preserveAspectRatio="none" style="position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none">${marks}</svg></div>
+        <figcaption class="small muted">${VP.cam === "overhead" ? "The overhead camera" : esc(VP.cam)}'s ${vpPic === 0 ? "live" : "last setup"} picture${VP.practice ? " (practice: the simulator's)" : ""}: click a sticker (the nearest one is taken, through the camera's model). ${Object.keys(VP.px || {}).length ? "" : esc((VP.words || []).join(" "))} <a href="#" id="vprefresh">New picture</a></figcaption></figure></div></div>`;
+}
+async function vpLoad() { if (vpLoading) return; vpLoading = true; try { VP = await api("/api/visit/points?cam=overhead"); } catch (e) { VP = null; } vpLoading = false; render(); }
+function vpAdd(l) { vpOrder.push(l); render(); }
+function wireVisitPick() {
+  if (!$("vpcard")) return;
+  if (!VP) { vpLoad(); return; }
+  if ($("vptxt")) $("vptxt").onchange = () => { vpOrder = vpParse($("vptxt").value); render(); };
+  if ($("vpundo")) $("vpundo").onclick = () => { vpOrder.pop(); render(); };
+  if ($("vpclear")) $("vpclear").onclick = () => { vpOrder = []; render(); };
+  if ($("vpkeep")) $("vpkeep").onchange = () => { vpKeep = $("vpkeep").checked; render(); };
+  document.querySelectorAll("[data-vpp]").forEach(b => b.onclick = () => { vpOrder = (VP.presets[b.dataset.vpp] || []).slice(); render(); });
+  if ($("vpsave")) $("vpsave").onclick = async () => { const n = prompt("A name for this order:"); if (!n) return; try { const r = await api("/api/visit/preset", {name: n, order: vpOrder.join(",")}); VP.presets = r.presets; flash("Saved: " + n); render(); } catch (e) { flash(e.message, true); } };
+  if ($("vprefresh")) $("vprefresh").onclick = (e) => { e.preventDefault(); vpPic = 0; vpStamp = Date.now(); VP = null; render(); };
+  document.querySelectorAll("[data-vpl]").forEach(g => g.onclick = () => vpAdd(g.dataset.vpl));
+  const img = $("vpimg");
+  if (img) {
+    img.onerror = () => { if (vpPic === 0) { vpPic = 1; img.src = `/api/tags/picture?cam=${VP.cam}&t=${vpStamp}`; } };
+    img.onclick = (e) => {
+      const sz = VP.size || [img.naturalWidth, img.naturalHeight], r = img.getBoundingClientRect();
+      const u = (e.clientX - r.left) / r.width * sz[0], v = (e.clientY - r.top) / r.height * sz[1];
+      let best = null, bd = 1e9;
+      for (const [l, p] of Object.entries(VP.px || {})) { const d = Math.hypot(p[0] - u, p[1] - v); if (d < bd) { bd = d; best = l; } }
+      if (best && bd <= Math.max(40, sz[0] / 18)) vpAdd(best); else flash("No sticker near that spot in the picture: click closer to one (or use the map)", true);
+    };
+  }
 }
 function placeName(w) { const k = (w || {}).kind; return k === "home" ? "Home: the 4 x 4 ft board" : k === "school" ? "School: the conference table" : k === "new" ? "A new area (" + (w.site || "") + ")" : ((S.site && S.site.title) || "Home"); }
 function wireStart() {
@@ -1136,8 +1199,11 @@ function wireStart() {
       else if (T.prefs && T.prefs.values.watching !== "ask") attended = T.prefs.values.watching === "yes";
       else attended = confirm("Will you stay with the robots? (OK: the run may ask you here about a robot it is not sure about near an edge, and holds that robot until you answer. Cancel: it decides alone and never moves a robot it is unsure about outward.)");
     }
-    try { await api("/api/start/run", {kind: k, attended}); flash(T.practice ? "Practice started (the simulator)" : "Started"); watchStart(); await load(); } catch (e) { flash(e.message, true); } });
+    const body = {kind: k, attended};
+    if (k === "visit" && vpOrder.length) { body.order = vpOrder.join(","); body.keep_unreadable = vpKeep; }   // (e11) Nick's order
+    try { await api("/api/start/run", body); flash(T.practice ? "Practice started (the simulator)" : "Started"); watchStart(); await load(); } catch (e) { flash(e.message, true); } });
   if ($("stopbig")) $("stopbig").onclick = stopAll;
+  wireVisitPick();
   document.querySelectorAll("[data-qid]").forEach(b => b.onclick = async () => { try { S.start = await api("/api/start/answer", {id: b.dataset.qid, choice: b.dataset.choice}); flash("Answer sent: " + b.dataset.choice); render(); } catch (e) { flash(e.message, true); } });
   if ($("gocorners")) $("gocorners").onclick = () => { screen = isTags() ? 7 : 1; render(); };
   const box = $("advbox"); if (box) { box.open = !!window._advOpen; box.ontoggle = () => { window._advOpen = box.open; }; }

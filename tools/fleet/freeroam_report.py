@@ -283,6 +283,14 @@ def make(folder):
           "from a menu of curvature x length x speed and never stop on purpose; robots on older firmware, or the "
           "stopturn choice, stop, turn on the spot and drive; the menu chart below counts the stop-turn moves only)."
           % run.get("motion", "stopturn (before 11-05d)"), ""]
+    # (e11, 9 Nov school) the driving each robot actually used (its firmware decides whether curves are possible)
+    used = {}
+    for e_ in ev:
+        if e_.get("kind") == "motion" and e_.get("robot"):
+            used[e_["robot"]] = e_.get("text") or ""
+    if used:
+        L += ["Motion actually used: %s (source events.csv)." % "; ".join("%s %s" % kv for kv in sorted(used.items())),
+              ""]
     L += ["## Data", ""]
     if ms:
         a, tr = ms["any"], ms["translating"]

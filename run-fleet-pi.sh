@@ -459,6 +459,20 @@ case "$WHAT" in
     python3 tools/fleet/run_exports.py "${1:-latest}" --bundle ;;
   camcheck)        # (2026-11-02) the camera check-out in the terminal (the recorder must be running: ./run-fleet-pi.sh rec)
     python3 tools/fleet/camera_checkout.py ;;
+  visit)           # (e11, Nick 9 Nov) Visit points in your order: ./run-fleet-pi.sh visit P01,P05,P11,P05 [keep] [dry]
+    #                 one robot takes the whole list; keep = also points the camera cannot read; dry = practice (simulator)
+    ORD="${1:-}"; [ -n "$ORD" ] || { echo "Which points? ./run-fleet-pi.sh visit P01,P05,P11   (add keep to visit points the camera cannot read; dry to practise)"; exit 1; }
+    shift; VX=""; VDRY=0
+    for x in "$@"; do case "$x" in keep) VX="$VX --visit-keep-unreadable" ;; dry) VDRY=1 ;; esac; done
+    if [ "$VDRY" = 1 ]; then
+      python3 tools/fleet/mission_run.py --tracking tags --robots auto --split auto --sim-robots 1 --motion stopturn --visit-order "$ORD" $VX --practice-real --feel-table skip
+    else
+      python3 tools/fleet/diskguard.py preflight || exit 1
+      start_recorder
+      tmux kill-session -t visit 2>/dev/null || true
+      tmux new-session -s visit "cd '$REPO' && MIRLT_ATTENDED=1 python3 tools/fleet/mission_run.py --tracking tags --robots auto --split auto --motion stopturn --visit-order '$ORD' $VX --feel-table skip; read -r -p 'Visit ended. Press Enter.'"
+      echo "If the window closed: tmux attach -t visit   (Ctrl+C in it stops every robot)"
+    fi ;;
   mc-stop)
     if tmux has-session -t mc 2>/dev/null; then tmux send-keys -t mc C-c; sleep 3; tmux send-keys -t mc Enter 2>/dev/null; echo "Mission Control is closing (a run of its own stops first)."
     else echo "Mission Control is not running in tmux session mc: if it runs in a terminal window, Ctrl+C there."; fi ;;
