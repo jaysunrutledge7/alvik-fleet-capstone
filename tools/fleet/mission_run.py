@@ -1291,7 +1291,9 @@ def run(args):
             i_ = rp.index("--sim-cmd") + 1
             rp[i_] = json.dumps(json.loads(rp[i_]) + sim_extra)
     try:
-        child = subprocess.Popen(launcher + (rp[1:] if args.dry else rp), cwd=REPO)
+        child = subprocess.Popen(launcher + (rp[1:] if (args.dry or roam_fr) else rp), cwd=REPO)   # (9 Nov, school)
+        # the free-roam launcher already holds freeroam.py (rp[0]); passing rp whole on a real run gave freeroam.py its own
+        # path as its first argument ("invalid choice"): the first real school free roam ended before anything moved
     except BaseException:
         if br is not None:
             br.send_signal(signal.SIGINT)    # never leave the bridge running on its own (2026-11-02: one did)
